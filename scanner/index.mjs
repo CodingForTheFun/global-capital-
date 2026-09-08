@@ -6,6 +6,6 @@ export async function runScan(options = {}) {
     options.onProgress?.({ stage: 'demo', message: 'Generating strict demo scan', reviewed: 0, total: 0 });
     return makeDemoScan();
   }
-  const { runLiveScan } = await import('./pickfinder.mjs');
+  const { runLiveScan } = await import('./masterpiece.mjs');
   return runLiveScan(options);
 }

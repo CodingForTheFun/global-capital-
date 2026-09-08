@@ -1,0 +1,19 @@
+{
+  "name": "autoprop-scout-pro",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "DEMO_MODE=true AUTO_SCAN_MINUTES=0 node --watch server.mjs",
+    "scan": "node scanner/cli.mjs",
+    "check": "node --check server.mjs && node --check public/app.js && node --check scanner/index.mjs && node --check scanner/criteria.mjs && node --check scanner/secure-store.mjs && node --check scanner/pickfinder.mjs && npm test",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "playwright": "1.63.0"
+  }
+}

@@ -69,14 +69,14 @@ async function main() {
 
   if (action === 'search') {
     await requireUnlocked();
-    const { searchLiveProps } = await import('./focused.mjs');
+    const { searchLiveProps } = await import('./focused-v4.mjs');
     emit('result', await searchLiveProps(String(payload.query || '')));
     return;
   }
 
   if (action === 'scan-prop') {
     await requireUnlocked();
-    const { scanLiveProp } = await import('./focused.mjs');
+    const { scanLiveProp } = await import('./focused-v4.mjs');
     if (!payload.selection) throw new Error('A verified prop selection is required.');
     emit('result', await scanLiveProp(payload.selection));
     return;

@@ -17,6 +17,18 @@ function keyFromEnvironment() {
   return crypto.createHash('sha256').update(raw, 'utf8').digest();
 }
 
+async function atomicWrite(file, data, mode = 0o600) {
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const temp = `${file}.${process.pid}.${crypto.randomBytes(5).toString('hex')}.tmp`;
+  try {
+    await fs.writeFile(temp, data, { mode });
+    await fs.rename(temp, file);
+    await fs.chmod(file, mode).catch(() => {});
+  } finally {
+    await fs.rm(temp, { force: true }).catch(() => {});
+  }
+}
+
 async function getMasterKey() {
   const envKey = keyFromEnvironment();
   if (envKey) return envKey;
@@ -28,8 +40,7 @@ async function getMasterKey() {
     return key;
   }
   const key = crypto.randomBytes(32);
-  await fs.writeFile(keyPath, key.toString('base64'), { mode: 0o600 });
-  await fs.chmod(keyPath, 0o600).catch(() => {});
+  await atomicWrite(keyPath, key.toString('base64'));
   return key;
 }
 
@@ -44,21 +55,31 @@ async function encryptJson(value) {
 }
 
 async function decryptJson(serialized) {
-  const payload = JSON.parse(serialized);
-  if (payload?.v !== 1 || payload?.alg !== 'A256GCM') throw new Error('Unsupported encrypted AutoProp data format.');
-  const key = await getMasterKey();
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(payload.iv, 'base64'));
-  decipher.setAuthTag(Buffer.from(payload.tag, 'base64'));
-  const plaintext = Buffer.concat([decipher.update(Buffer.from(payload.data, 'base64')), decipher.final()]);
-  return JSON.parse(plaintext.toString('utf8'));
+  let payload;
+  try { payload = JSON.parse(String(serialized || '').trim()); }
+  catch { throw Object.assign(new Error('Saved PickFinder connection data is unreadable. Please reconnect PickFinder.'), { code: 'PICKFINDER_STORE_UNREADABLE' }); }
+  if (payload?.v !== 1 || payload?.alg !== 'A256GCM' || !payload.iv || !payload.tag || !payload.data) {
+    throw Object.assign(new Error('Saved PickFinder connection data has an unsupported format. Please reconnect PickFinder.'), { code: 'PICKFINDER_STORE_UNREADABLE' });
+  }
+  try {
+    const key = await getMasterKey();
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(payload.iv, 'base64'));
+    decipher.setAuthTag(Buffer.from(payload.tag, 'base64'));
+    const plaintext = Buffer.concat([decipher.update(Buffer.from(payload.data, 'base64')), decipher.final()]);
+    return JSON.parse(plaintext.toString('utf8'));
+  } catch (error) {
+    if (error?.code === 'PICKFINDER_STORE_UNREADABLE') throw error;
+    throw Object.assign(new Error('Saved PickFinder connection could not be decrypted. Please reconnect PickFinder.'), { code: 'PICKFINDER_STORE_UNREADABLE' });
+  }
 }
 
 async function writeEncrypted(file, value) {
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, await encryptJson(value), { mode: 0o600 });
-  await fs.chmod(file, 0o600).catch(() => {});
+  await atomicWrite(file, await encryptJson(value));
 }
-async function readEncrypted(file) { if (!(await fileExists(file))) return null; return decryptJson(await fs.readFile(file, 'utf8')); }
+async function readEncrypted(file) {
+  if (!(await fileExists(file))) return null;
+  return decryptJson(await fs.readFile(file, 'utf8'));
+}
 
 export function maskEmail(email = '') {
   const [name = '', domain = ''] = String(email).split('@');
@@ -75,23 +96,50 @@ export async function savePickFinderCredentials({ email, password }) {
   await writeEncrypted(credentialsPath, { email: cleanEmail, password: cleanPassword, savedAt: new Date().toISOString() });
   return { maskedEmail: maskEmail(cleanEmail) };
 }
+
 export async function loadPickFinderCredentials() {
-  const stored = await readEncrypted(credentialsPath).catch(() => null);
+  let stored = null;
+  try { stored = await readEncrypted(credentialsPath); }
+  catch (error) { if (error?.code === 'PICKFINDER_STORE_UNREADABLE') throw error; }
   if (stored?.email && stored?.password) return stored;
   const email = process.env.PICKFINDER_EMAIL?.trim();
   const password = process.env.PICKFINDER_PASSWORD;
   return email && password ? { email, password, source: 'environment' } : null;
 }
+
 export async function savePickFinderSession(storageState) {
   if (!storageState || typeof storageState !== 'object') throw new Error('Cannot save an empty PickFinder session.');
   await writeEncrypted(sessionPath, { storageState, savedAt: new Date().toISOString() });
 }
-export async function loadPickFinderSession() { const stored = await readEncrypted(sessionPath).catch(() => null); return stored?.storageState || null; }
+
+export async function loadPickFinderSession() {
+  try {
+    const stored = await readEncrypted(sessionPath);
+    return stored?.storageState || null;
+  } catch (error) {
+    if (error?.code === 'PICKFINDER_STORE_UNREADABLE') {
+      await clearPickFinderSession().catch(() => {});
+      return null;
+    }
+    throw error;
+  }
+}
+
 export async function clearPickFinderSession() { await fs.rm(sessionPath, { force: true }); }
 export async function clearPickFinderCredentials() { await fs.rm(credentialsPath, { force: true }); }
 export async function clearPickFinderConnection() { await Promise.all([clearPickFinderSession(), clearPickFinderCredentials()]); }
+
 export async function getPickFinderConnectionState() {
-  const credentials = await loadPickFinderCredentials();
-  const session = await loadPickFinderSession();
-  return { configured: Boolean(credentials), sessionSaved: Boolean(session), maskedEmail: credentials?.email ? maskEmail(credentials.email) : null, credentialSource: credentials?.source === 'environment' ? 'environment' : credentials ? 'encrypted-store' : null };
+  let credentials = null;
+  let connectionError = null;
+  try { credentials = await loadPickFinderCredentials(); }
+  catch (error) { connectionError = error?.message || 'Saved connection is unreadable.'; }
+  const session = await loadPickFinderSession().catch(() => null);
+  return {
+    configured: Boolean(credentials),
+    sessionSaved: Boolean(session),
+    maskedEmail: credentials?.email ? maskEmail(credentials.email) : null,
+    credentialSource: credentials?.source === 'environment' ? 'environment' : credentials ? 'encrypted-store' : null,
+    connectionError,
+  };
 }

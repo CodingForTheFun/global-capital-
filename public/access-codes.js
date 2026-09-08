@@ -21,14 +21,35 @@ function setState(message, kind = '') {
   box.classList.toggle('hidden', !message);
 }
 
+function applyRole(auth) {
+  const owner = auth?.role === 'owner';
+  const member = auth?.role === 'member';
+  byId('ownerAccessCard')?.classList.toggle('hidden', !owner);
+
+  for (const id of ['connectBtn', 'manageConnectionBtn', 'ruleFiltersBtn', 'sideRuleFiltersBtn']) {
+    const node = byId(id);
+    if (!node) continue;
+    node.classList.toggle('hidden', member);
+  }
+
+  const badge = byId('connectionBadge');
+  if (badge && member) {
+    badge.disabled = true;
+    badge.title = 'PickFinder connection is managed by the owner';
+  } else if (badge) {
+    badge.disabled = false;
+    badge.removeAttribute('title');
+  }
+}
+
 async function refreshAccessRole() {
-  const card = byId('ownerAccessCard');
-  if (!card) return;
   try {
     const auth = await api('/api/auth/status');
-    card.classList.toggle('hidden', !auth.canGenerateAccessCodes);
+    applyRole(auth);
+    return auth;
   } catch {
-    card.classList.add('hidden');
+    byId('ownerAccessCard')?.classList.add('hidden');
+    return null;
   }
 }
 
@@ -69,5 +90,6 @@ async function copyCode() {
 
 byId('generateAccessCodeBtn')?.addEventListener('click', generateCode);
 byId('copyAccessCodeBtn')?.addEventListener('click', copyCode);
-window.addEventListener('autoprop-authenticated', refreshAccessRole);
+byId('authForm')?.addEventListener('submit', () => setTimeout(refreshAccessRole, 900));
+window.addEventListener('focus', refreshAccessRole);
 refreshAccessRole();

@@ -1,11 +1,6 @@
-import { makeDemoScan } from './demo.mjs';
+import { runLiveScan } from './pickfinder-v2.mjs';
 
+// Production scanner: authenticated live PickFinder only. No sample-data fallback.
 export async function runScan(options = {}) {
-  const demoMode = String(process.env.DEMO_MODE ?? 'true').toLowerCase() === 'true';
-  if (demoMode) {
-    options.onProgress?.({ stage: 'demo', message: 'Generating strict demo scan', reviewed: 0, total: 0 });
-    return makeDemoScan();
-  }
-  const { runLiveScan } = await import('./pickfinder-v2.mjs');
   return runLiveScan(options);
 }

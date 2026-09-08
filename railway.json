@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": { "builder": "DOCKERFILE" },
+  "deploy": {
+    "startCommand": "node server.mjs",
+    "healthcheckPath": "/api/auth/status",
+    "healthcheckTimeout": 120,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}

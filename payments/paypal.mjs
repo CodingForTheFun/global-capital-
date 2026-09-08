@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 const LIVE_API = 'https://api-m.paypal.com';
 const SANDBOX_API = 'https://api-m.sandbox.paypal.com';
 

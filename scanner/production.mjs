@@ -1,8 +1,8 @@
 import {
   runLiveScan as runMasterpieceScan,
-  verifyPickFinderConnection,
   disconnectPickFinder,
 } from './masterpiece.mjs';
+import { verifyPickFinderConnection } from './auth-v3.mjs';
 import { evaluatePick, buildDiversifiedCard } from './criteria.mjs';
 import { DEFAULT_RULES, normalizeRules, criteriaFromRules } from './rules.mjs';
 

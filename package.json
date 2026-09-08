@@ -1,13 +1,13 @@
 {
   "name": "autoprop-scout-pro",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.mjs",
-    "dev": "DEMO_MODE=true AUTO_SCAN_MINUTES=0 node --watch server.mjs",
+    "start": "node server-masterpiece.mjs",
+    "dev": "DEMO_MODE=false AUTO_SCAN_MINUTES=0 node --watch server-masterpiece.mjs",
     "scan": "node scanner/cli.mjs",
-    "check": "node --check server.mjs && node --check public/app.js && node --check scanner/index.mjs && node --check scanner/criteria.mjs && node --check scanner/secure-store.mjs && node --check scanner/pickfinder.mjs && npm test",
+    "check": "node --check server-masterpiece.mjs && node --check public/app.js && node --check public/masterpiece-ui.js && node --check public/checkout.js && node --check scanner/index.mjs && node --check scanner/criteria.mjs && node --check scanner/secure-store.mjs && node --check scanner/pickfinder.mjs && node --check scanner/masterpiece.mjs && node --check scanner/focused.mjs && node --check payments/paypal.mjs && npm test",
     "test": "node --test tests/*.test.mjs"
   },
   "engines": {

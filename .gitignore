@@ -1,0 +1,11 @@
+node_modules/
+.env
+.env.*
+!.env.example
+data/latest.json
+data/history.json
+data/*.enc
+data/.autoprop-master-key
+data/diagnostics/
+.pickfinder-session.json
+.DS_Store

@@ -25,7 +25,7 @@ async function text(page) {
 
 async function unlocked(page) {
   const body = await text(page);
-  if (/sign\s*in\s*to\s*unlock|log\s*in\s*to\s*unlock|sign\s*in\s*to\s*view/i.test(body)) return false;
+  if (/sign\s*in\s*to\s*unlock|log\s*in\s*to\s*unlock|sign\s*in\s*to\s*view|more props are locked/i.test(body)) return false;
   if (/\bL5\b|\bL10\b|\bL15\b|\bH2H\b|Avg L10|Hit Rate|Supporting Stats|Gamelog - Last 15/i.test(body)) return true;
   return false;
 }
@@ -79,6 +79,44 @@ async function submitButton(frame) {
   ], 700);
 }
 
+// PickFinder currently renders its sign-in UI inside a floating modal. On some
+// builds the modal backdrop briefly sits above the visible submit control and
+// intercepts Playwright pointer events. A normal click is preferred, then we
+// safely submit the control's own form (or dispatch its click handler) without
+// exposing Playwright's internal locator/call-log text to the dashboard.
+async function activateControl(control, { fallbackField = null, settleMs = 1200 } = {}) {
+  if (!control) return false;
+  try {
+    await control.scrollIntoViewIfNeeded().catch(() => {});
+    await control.click({ timeout: 2200 });
+    await wait(settleMs);
+    return true;
+  } catch {}
+
+  try {
+    await control.evaluate((node) => {
+      const form = node.closest?.('form');
+      if (form && typeof form.requestSubmit === 'function') {
+        const isSubmitButton = String(node.tagName || '').toUpperCase() === 'BUTTON' && String(node.type || '').toLowerCase() === 'submit';
+        form.requestSubmit(isSubmitButton ? node : undefined);
+      } else if (typeof node.click === 'function') {
+        node.click();
+      }
+    });
+    await wait(settleMs);
+    return true;
+  } catch {}
+
+  if (fallbackField) {
+    try {
+      await fallbackField.press('Enter');
+      await wait(settleMs);
+      return true;
+    } catch {}
+  }
+  return false;
+}
+
 async function clickSignInSurface(page) {
   for (const frame of frames(page)) {
     const control = await firstVisible([
@@ -87,11 +125,7 @@ async function clickSignInSurface(page) {
       frame.getByText(/sign\s*in\s*to\s*unlock/i, { exact: false }),
     ], 500);
     if (!control) continue;
-    try {
-      await control.click({ timeout: 3000 });
-      await wait(1300);
-      return true;
-    } catch {}
+    if (await activateControl(control, { settleMs: 1300 })) return true;
   }
   return false;
 }
@@ -157,7 +191,7 @@ async function exposeLoginForm(page) {
   }
 
   await authDiagnostic(page, 'login-surface-missing');
-  throw Object.assign(new Error('PickFinder sign-in UI changed and AutoProp could not find the login form. Reconnect after the authentication adapter updates.'), { code: 'PICKFINDER_AUTH_UI_CHANGED' });
+  throw Object.assign(new Error('PickFinder sign-in UI changed and AutoProp could not find the login form. Please reconnect after the authentication adapter updates.'), { code: 'PICKFINDER_AUTH_UI_CHANGED' });
 }
 
 async function loginWithCredentials(page, credentials) {
@@ -170,8 +204,11 @@ async function loginWithCredentials(page, credentials) {
   if (!surface.password) {
     const continueButton = await submitButton(surface.frame);
     if (continueButton) {
-      await continueButton.click({ timeout: 3500 }).catch(() => {});
-      await wait(1600);
+      const advanced = await activateControl(continueButton, { fallbackField: surface.email, settleMs: 1600 });
+      if (!advanced) {
+        await authDiagnostic(page, 'continue-action-blocked');
+        throw Object.assign(new Error('PickFinder sign-in could not continue to the password step. Please reconnect and try again.'), { code: 'PICKFINDER_AUTH_UI_CHANGED' });
+      }
       surface = { ...surface, ...(await fields(page)) };
     }
   }
@@ -180,18 +217,24 @@ async function loginWithCredentials(page, credentials) {
     const body = await text(page);
     await authDiagnostic(page, 'password-field-missing');
     if (/google|apple|magic\s*link|verification\s*code|one[- ]time/i.test(body)) {
-      throw Object.assign(new Error('PickFinder is currently showing a provider or verification-code login instead of password login. Use a direct email/password PickFinder login or complete the provider verification first.'), { code: 'PICKFINDER_INTERACTIVE_AUTH' });
+      throw Object.assign(new Error('PickFinder is showing a provider or verification-code login. Complete that verification on PickFinder, then reconnect AutoProp.'), { code: 'PICKFINDER_INTERACTIVE_AUTH' });
     }
-    throw Object.assign(new Error('PickFinder password field could not be found. The login flow needs recalibration.'), { code: 'PICKFINDER_AUTH_UI_CHANGED' });
+    throw Object.assign(new Error('PickFinder password step could not be verified. Please reconnect and try again.'), { code: 'PICKFINDER_AUTH_UI_CHANGED' });
   }
 
   await surface.password.fill(credentials.password);
   const submit = await submitButton(surface.frame);
   if (!submit) {
     await authDiagnostic(page, 'submit-button-missing');
-    throw Object.assign(new Error('PickFinder sign-in submit button could not be found.'), { code: 'PICKFINDER_AUTH_UI_CHANGED' });
+    throw Object.assign(new Error('PickFinder sign-in could not be submitted. Please reconnect and try again.'), { code: 'PICKFINDER_AUTH_UI_CHANGED' });
   }
-  await submit.click({ timeout: 3500 });
+
+  const submitted = await activateControl(submit, { fallbackField: surface.password, settleMs: 1200 });
+  if (!submitted) {
+    await authDiagnostic(page, 'submit-action-blocked');
+    throw Object.assign(new Error('PickFinder sign-in was blocked by its login window. Please reconnect and try again.'), { code: 'PICKFINDER_AUTH_UI_CHANGED' });
+  }
+
   await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   await wait(1200);
 
@@ -206,7 +249,7 @@ async function loginWithCredentials(page, credentials) {
   if (/captcha|two[- ]factor|2fa|verification\s*code|one[- ]time|verify your/i.test(body)) {
     throw Object.assign(new Error('PickFinder requires interactive verification. Complete that verification on PickFinder, then reconnect AutoProp.'), { code: 'PICKFINDER_INTERACTIVE_AUTH' });
   }
-  throw Object.assign(new Error('PickFinder login did not unlock the analytics. Reconnect the account and verify the credentials.'), { code: 'PICKFINDER_RECONNECT' });
+  throw Object.assign(new Error('PickFinder did not unlock the analytics. Verify the account/subscription and reconnect.'), { code: 'PICKFINDER_RECONNECT' });
 }
 
 async function launch(storageState = null) {
@@ -255,6 +298,9 @@ export async function ensurePickFinderSession({ onProgress } = {}) {
 }
 
 export async function verifyAndSavePickFinderConnection({ email, password } = {}) {
+  if (!email || !password) {
+    throw Object.assign(new Error('Enter your PickFinder email and password.'), { code: 'PICKFINDER_CREDENTIALS_REQUIRED' });
+  }
   await savePickFinderCredentials({ email, password });
   await clearPickFinderSession().catch(() => {});
   try {
@@ -262,6 +308,10 @@ export async function verifyAndSavePickFinderConnection({ email, password } = {}
     return { connected: true, sessionSaved: true, configured: true, reusedSession: result.reusedSession };
   } catch (error) {
     await clearPickFinderConnection().catch(() => {});
+    // Never allow raw Playwright locator/call-log internals to escape to the UI.
+    if (/locator\.|timeout\s*\d+ms|call log:|intercepts pointer events|getByRole\(|waiting for/i.test(String(error?.message || ''))) {
+      throw Object.assign(new Error('PickFinder sign-in could not be completed because its login window changed. Please reconnect and try again.'), { code: 'PICKFINDER_AUTH_UI_CHANGED' });
+    }
     throw error;
   }
 }

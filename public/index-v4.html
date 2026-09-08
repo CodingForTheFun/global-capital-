@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#06111d" />
+  <meta name="description" content="Private player-prop research with isolated PickFinder accounts, focused search, live scores and live player data." />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles-v3.css" />
+  <style>
+    .focused-research{margin-top:18px;padding:22px}.focused-bar{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:16px}.focused-bar input{width:100%;min-width:0;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);border-radius:14px;color:#fff;padding:14px 15px;font:inherit}.focused-results{display:grid;gap:9px;margin-top:14px}.focused-result{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 14px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035);border-radius:14px}.focused-result b,.focused-result span{display:block}.focused-result span{font-size:12px;color:var(--muted,#91a0b2);margin-top:4px}.focused-result button{white-space:nowrap}.line-badge{display:inline-flex!important;width:max-content;margin-left:6px;padding:2px 7px;border-radius:999px;font-size:9px!important;font-style:normal;font-weight:800;letter-spacing:.07em;border:1px solid rgba(255,255,255,.1)}.line-regular{background:rgba(83,219,164,.1);color:#7aefbf}.line-green{background:rgba(94,244,117,.12);color:#79f58b}.line-red{background:rgba(255,92,112,.12);color:#ff8998}.focused-state{margin-top:12px;color:var(--muted,#91a0b2);font-size:13px}.feed-caption{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px}.feed-caption span{font-size:10px;border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:4px 7px;color:var(--muted,#91a0b2)}@media(max-width:720px){.focused-bar{grid-template-columns:1fr}.focused-result{grid-template-columns:1fr}.focused-result button{width:100%}}
+  </style>
+  <title>AutoProp Scout Pro</title>
+</head>
+<body>
+  <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div><div class="noise"></div>
+
+  <section id="authView" class="auth-view">
+    <div class="auth-shell">
+      <div class="auth-copy">
+        <div class="brand"><span class="brand-glyph">A</span><span><b>AutoProp</b><em>Scout Pro</em></span></div>
+        <span class="eyebrow">PRIVATE SPORTS INTELLIGENCE</span>
+        <h1>Your picks. Your data. <span>Your PickFinder account.</span></h1>
+        <p>Every AutoProp user gets an isolated encrypted PickFinder session, private scan history and private rule profile. Your friends sign into their own workspace and connect their own PickFinder account.</p>
+        <div class="security-grid">
+          <div><i>01</i><b>Separate sessions</b><span>Per-user encrypted browser state</span></div>
+          <div><i>02</i><b>Live context</b><span>Scores and in-game player data</span></div>
+          <div><i>03</i><b>Verified research</b><span>Locked pages never become picks</span></div>
+        </div>
+      </div>
+      <div class="auth-card panel">
+        <div class="auth-tabs"><button id="loginTab" class="active" type="button">Sign in</button><button id="registerTab" type="button">Create account</button></div>
+        <div class="auth-head"><span class="eyebrow">AUTOPROP ACCOUNT</span><h2 id="authTitle">Welcome back.</h2><p id="authSubtitle">Sign in to your private research workspace.</p></div>
+        <form id="authForm" class="stack-form">
+          <label>Email<input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com" /></label>
+          <label>Password<input id="authPassword" type="password" autocomplete="current-password" required minlength="10" placeholder="••••••••••" /></label>
+          <button id="authSubmit" class="primary" type="submit">Sign in</button>
+        </form>
+        <p id="authError" class="form-error hidden"></p>
+        <p class="fine">Your AutoProp password is hashed. Your PickFinder password is stored separately and encrypted inside your own private worker directory.</p>
+      </div>
+    </div>
+  </section>
+
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <a class="brand" href="#top"><span class="brand-glyph">A</span><span><b>AutoProp</b><em>Scout Pro</em></span></a>
+      <div class="top-actions">
+        <button id="livePill" class="pill live-pill" type="button"><span></span> Live</button>
+        <button id="connectionPill" class="pill" type="button">PickFinder not connected</button>
+        <button id="userMenuBtn" class="avatar-btn" type="button">U</button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="eyebrow">TONIGHT • VERIFIED MULTI-BOOK • PRIVATE WORKER</span>
+          <h1>Research the prop. <span>Watch the game.</span> Know why it passed.</h1>
+          <p>Your private worker uses the latest PickFinder research stack, supports verified Regular / Green Goblin / Red Goblin line classes, records filter impact, and keeps live game context beside the research.</p>
+          <div class="hero-actions">
+            <button id="scanBtn" class="primary" type="button">Run tonight’s scan</button>
+            <button id="connectBtn" class="secondary" type="button">Connect PickFinder</button>
+            <button id="rulesBtn" class="secondary" type="button">Rule Filters</button>
+          </div>
+        </div>
+        <aside class="scan-status panel">
+          <div class="status-orbit"><span></span></div>
+          <div><small>Private scanner</small><b id="scannerState">Ready</b><span id="scanMeta">Waiting for your first scan</span></div>
+          <em id="workerMode">LIVE</em>
+        </aside>
+      </section>
+
+      <section id="progressPanel" class="progress panel hidden">
+        <div class="progress-top"><div><span class="eyebrow">PRIVATE LIVE SCAN</span><b id="progressMessage">Starting…</b></div><span id="progressCount">0 / 0</span></div>
+        <div class="track"><i id="progressBar"></i></div>
+        <div class="progress-foot"><span id="progressStage">STARTING</span><span id="progressQualified">0 qualified</span></div>
+      </section>
+
+      <section class="live-center panel">
+        <div class="section-head">
+          <div><span class="eyebrow">LIVE CENTER</span><h2>Games happening now</h2><p>Scores refresh independently from PickFinder scans.</p></div>
+          <div class="live-controls"><select id="liveSportFilter"><option value="ALL">All supported sports</option></select><button id="refreshLiveBtn" class="icon-btn" type="button" aria-label="Refresh live scores">↻</button></div>
+        </div>
+        <div id="liveGames" class="live-games"><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div></div>
+        <div id="liveProviderNote" class="provider-note">Live scoreboard loading…</div>
+      </section>
+
+      <section class="focused-research panel">
+        <div class="section-head">
+          <div><span class="eyebrow">FOCUSED RESEARCH</span><h2>Search a player or prop</h2><p>Searches your own authenticated PickFinder session across the available apps, then lets you research one prop immediately.</p></div>
+        </div>
+        <div class="focused-bar"><input id="focusedQuery" type="search" placeholder="Try a player name, team, or prop…" autocomplete="off" /><button id="focusedSearchBtn" class="primary" type="button">Search PickFinder</button></div>
+        <div id="focusedState" class="focused-state">Connect PickFinder first, then search at least 2 characters.</div>
+        <div id="focusedResults" class="focused-results"></div>
+      </section>
+
+      <section class="hard-locks panel">
+        <div><span>🔒</span><b>Verified sources</b><small>Unverified apps never qualify</small></div>
+        <div><span>◉</span><b>Line classes labeled</b><small>Regular / Green / Red kept distinct</small></div>
+        <div><span>🔒</span><b>Today only</b><small>Future games excluded from qualification</small></div>
+        <div><span>✓</span><b>Full detail required</b><small>Locked/public pages never count</small></div>
+      </section>
+
+      <section class="kpis">
+        <article class="kpi panel"><span>Reviewed</span><b id="reviewedCount">—</b><small>verified identities</small></article>
+        <article class="kpi panel"><span>Qualified</span><b id="qualifiedCount">—</b><small>passed active rules</small></article>
+        <article class="kpi panel"><span>Rejected</span><b id="rejectedCount">—</b><small>failed / unverified</small></article>
+        <article class="kpi panel"><span>Best confidence</span><b id="bestConfidence">—</b><small>qualified only</small></article>
+      </section>
+
+      <section class="dashboard-grid">
+        <section class="feed panel">
+          <div class="section-head feed-head">
+            <div><span class="eyebrow">OPPORTUNITY FEED</span><h2>Researched props</h2><div class="feed-caption"><span>Regular</span><span>Green Goblin</span><span>Red Goblin</span><span>Best Available</span></div></div>
+            <div class="segments"><button class="segment active" data-filter="qualified">Qualified</button><button class="segment" data-filter="all">All</button><button class="segment" data-filter="rejected">Rejected</button></div>
+          </div>
+          <div class="feed-tools"><label class="search"><span>⌕</span><input id="propSearch" type="search" placeholder="Filter loaded props…" /></label><select id="sportFilter"><option value="ALL">All sports</option></select></div>
+          <div id="warningBox" class="warning hidden"></div>
+          <div id="pickList" class="pick-list"><div class="empty"><span>◎</span><h3>No scan loaded</h3><p>Connect your PickFinder account and run tonight’s scan.</p></div></div>
+        </section>
+
+        <aside class="side">
+          <section class="side-card panel">
+            <div class="side-head"><div><span class="eyebrow">YOUR PICKFINDER</span><h3>Private connection</h3></div><i id="connectionDot" class="dot"></i></div>
+            <div id="connectionSummary" class="connection-summary"><b>Not connected</b><span>Only your AutoProp account can access this worker.</span></div>
+            <button id="manageConnectionBtn" class="secondary full" type="button">Connect your account</button>
+          </section>
+          <section class="side-card panel">
+            <div class="side-head"><div><span class="eyebrow">SMART CARD</span><h3>Independent qualified legs</h3></div></div>
+            <div id="cardList" class="card-list"><p class="muted">Qualified legs will appear here.</p></div>
+          </section>
+          <section class="side-card panel">
+            <div class="side-head"><div><span class="eyebrow">RULE PROFILE</span><h3 id="ruleProfileName">Strict</h3></div><button id="sideRulesBtn" class="mini-btn" type="button">Edit</button></div>
+            <div class="mini-thresholds"><div><span>L5</span><b id="miniL5">80%+</b></div><div><span>L10</span><b id="miniL10">75%+</b></div><div><span>L15</span><b id="miniL15">75%+</b></div><div><span>H2H</span><b id="miniH2H">75%+</b></div></div>
+          </section>
+          <section class="side-card panel">
+            <div class="side-head"><div><span class="eyebrow">SCAN HISTORY</span><h3>Recent runs</h3></div></div>
+            <div id="historyList" class="history-list"><p class="muted">No completed scans yet.</p></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="connectDialog" class="modal">
+    <button class="modal-x" data-close="connectDialog">×</button>
+    <div class="modal-body"><span class="eyebrow">YOUR PRIVATE PICKFINDER SESSION</span><h2>Connect your PickFinder account</h2><p>These credentials go only to your isolated server-side worker. Your friends must connect their own accounts; nobody can use yours.</p>
+      <form id="connectForm" class="stack-form"><label>PickFinder email<input id="pickfinderEmail" type="email" autocomplete="username" required /></label><label>PickFinder password<input id="pickfinderPassword" type="password" autocomplete="current-password" required /></label><div class="button-row"><button id="connectSubmit" class="primary" type="submit">Connect & verify analytics</button><button class="secondary" type="button" data-close="connectDialog">Cancel</button></div></form>
+      <div id="connectState" class="connect-state hidden"></div><p class="fine">AutoProp verifies that the saved session exposes unlocked analytics before allowing scans. Interactive CAPTCHA or 2FA is never bypassed.</p>
+    </div>
+  </dialog>
+
+  <dialog id="rulesDialog" class="modal wide-modal">
+    <button class="modal-x" data-close="rulesDialog">×</button>
+    <div class="modal-body"><span class="eyebrow">RULE FILTERS</span><h2>Control how strict qualification should be.</h2><p>Source verification, today-only qualification and line-type labeling remain enforced. These sliders control research thresholds and context requirements.</p>
+      <div class="preset-row"><button data-preset="strict" type="button">Strict</button><button data-preset="balanced" type="button">Balanced</button><button data-preset="flexible" type="button">Flexible</button></div>
+      <form id="rulesForm" class="rules-grid">
+        <label>L5 minimum <b id="minL5Value">80%</b><input id="minL5" type="range" min="40" max="100" step="5" /></label>
+        <label>L10 minimum <b id="minL10Value">75%</b><input id="minL10" type="range" min="40" max="100" step="5" /></label>
+        <label>L15 minimum <b id="minL15Value">75%</b><input id="minL15" type="range" min="40" max="100" step="5" /></label>
+        <label>H2H minimum <b id="minH2HValue">75%</b><input id="minH2H" type="range" min="0" max="100" step="5" /></label>
+        <label>Win/Loss minimum <b id="minExpectedOutcomeValue">75%</b><input id="minExpectedOutcome" type="range" min="0" max="100" step="5" /></label>
+        <label>Context floor <b id="minFilterHitRateValue">75%</b><input id="minFilterHitRate" type="range" min="0" max="100" step="5" /></label>
+        <div class="toggle-grid">
+          <label><input id="useH2H" type="checkbox" /> Require H2H when available</label><label><input id="requireWinLoss" type="checkbox" /> Require Win/Loss</label><label><input id="requireOpponent" type="checkbox" /> Require Opponent</label><label><input id="requireSeason" type="checkbox" /> Require Season</label><label><input id="requireHomeAway" type="checkbox" /> Require Home/Away</label><label><input id="requireTeam" type="checkbox" /> Require Team</label><label><input id="requireAdvancedAvailable" type="checkbox" /> Require applicable advanced filters</label><label><input id="bestAvailable" type="checkbox" /> Show Best Available fallback</label>
+        </div>
+        <div class="button-row full-row"><button class="primary" type="submit">Save rule profile</button><button class="secondary" type="button" data-close="rulesDialog">Cancel</button></div>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="detailsDialog" class="modal detail-modal"><button class="modal-x" data-close="detailsDialog">×</button><div id="detailsBody" class="modal-body"></div></dialog>
+
+  <dialog id="accountDialog" class="modal small-modal"><button class="modal-x" data-close="accountDialog">×</button><div class="modal-body"><span class="eyebrow">ACCOUNT</span><h2 id="accountEmail">Your AutoProp account</h2><p>Your PickFinder credentials, scan files, rules and history are isolated to this account.</p><a class="secondary full" href="/checkout.html" style="display:block;text-align:center;margin-bottom:10px">Access / checkout</a><button id="logoutBtn" class="danger full" type="button">Sign out</button></div></dialog>
+
+  <div id="toast" class="toast"></div>
+  <script type="module" src="/app-v4.js"></script>
+</body>
+</html>

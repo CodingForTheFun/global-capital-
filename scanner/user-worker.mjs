@@ -15,10 +15,22 @@ async function readInput() {
   return raw ? JSON.parse(raw) : {};
 }
 
+async function requireUnlocked() {
+  const { validateSavedPickFinderSession } = await import('./auth-v3.mjs');
+  const auth = await validateSavedPickFinderSession();
+  if (!auth?.connected || !auth?.unlocked) {
+    throw Object.assign(
+      new Error('PickFinder needs to be reconnected before using live research. Connect your own PickFinder account and verify it is unlocked.'),
+      { code: 'PICKFINDER_RECONNECT' },
+    );
+  }
+  return auth;
+}
+
 async function main() {
   const payload = await readInput();
   if (!process.env.DATA_DIR) throw new Error('User worker DATA_DIR is required.');
-  await fs.mkdir(path.resolve(process.env.DATA_DIR), { recursive: true });
+  await fs.mkdir(path.resolve(process.env.DATA_DIR), { recursive: true, mode: 0o700 });
 
   if (action === 'connection') {
     const { getPickFinderConnectionState } = await import('./secure-store.mjs');
@@ -26,27 +38,47 @@ async function main() {
     return;
   }
 
+  if (action === 'validate') {
+    const { validateSavedPickFinderSession } = await import('./auth-v3.mjs');
+    emit('result', await validateSavedPickFinderSession());
+    return;
+  }
+
   if (action === 'connect') {
-    const { connectPickFinderV3 } = await import('./pickfinder-auth-v3.mjs');
-    emit('result', await connectPickFinderV3(payload));
+    const { verifyPickFinderConnection } = await import('./auth-v3.mjs');
+    emit('result', await verifyPickFinderConnection({ email: payload.email, password: payload.password }));
     return;
   }
 
   if (action === 'disconnect') {
-    const { disconnectPickFinder } = await import('./pickfinder-v2.mjs');
+    const { disconnectPickFinder } = await import('./production.mjs');
     emit('result', await disconnectPickFinder());
     return;
   }
 
   if (action === 'scan') {
-    const { ensurePickFinderV3 } = await import('./pickfinder-auth-v3.mjs');
-    await ensurePickFinderV3({ onProgress: (data) => emit('progress', data) });
-    const { runLiveScan } = await import('./pickfinder-v2.mjs');
+    await requireUnlocked();
+    const { runLiveScan } = await import('./production.mjs');
     const result = await runLiveScan({
       rules: payload.rules,
       onProgress: (data) => emit('progress', data),
     });
     emit('result', result);
+    return;
+  }
+
+  if (action === 'search') {
+    await requireUnlocked();
+    const { searchLiveProps } = await import('./focused.mjs');
+    emit('result', await searchLiveProps(String(payload.query || '')));
+    return;
+  }
+
+  if (action === 'scan-prop') {
+    await requireUnlocked();
+    const { scanLiveProp } = await import('./focused.mjs');
+    if (!payload.selection) throw new Error('A verified prop selection is required.');
+    emit('result', await scanLiveProp(payload.selection));
     return;
   }
 

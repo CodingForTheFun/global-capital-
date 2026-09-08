@@ -4,4 +4,4 @@ Production PickFinder prop-research worker and mobile dashboard. The live servic
 
 Production scans are live-only; there is no sample-data fallback in the scanner entry point.
 
-Deployment marker: build from the corrected multi-source production head.
+Deployment marker: corrected multi-source production head, triggered after the stale deployment closed.

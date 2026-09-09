@@ -5,6 +5,7 @@ import { sportsDataIoPropBoard } from './lib/data-sources/sportsdataio/prop-boar
 const FRONT_PORT = Number(process.env.PORT || 3000);
 const SCOUT_PORT = 3002;
 const APEX_PORT = 3001;
+const APEX_NEXT_PORT = 3003;
 
 function child(file, port, label) {
   const proc = spawn(process.execPath, [file], {
@@ -20,9 +21,15 @@ function child(file, port, label) {
 
 const scout = child('server-scout.mjs', SCOUT_PORT, 'Scout Pro');
 const apex = child('apex-v2/server.mjs', APEX_PORT, 'Apex Market v2');
+const apexNext = child('apex-v3/server.mjs', APEX_NEXT_PORT, 'Apex Market Lab v3');
 
 function target(rawUrl = '/') {
   const url = new URL(rawUrl, 'http://localhost');
+  if (url.pathname === '/apex-next' || url.pathname.startsWith('/apex-next/')) {
+    return { port: APEX_NEXT_PORT, path: url.pathname + url.search };
+  }
+  if (url.pathname === '/api/apex-next/health') return { port: APEX_NEXT_PORT, path: '/api/health' + url.search };
+  if (url.pathname === '/api/apex-next/props') return { port: APEX_NEXT_PORT, path: '/api/props' + url.search };
   if (url.pathname === '/apex' || url.pathname.startsWith('/apex/')) {
     const suffix = url.pathname === '/apex' || url.pathname === '/apex/' ? '/apex-v2' : url.pathname.replace(/^\/apex/, '/apex-v2');
     return { port: APEX_PORT, path: suffix + url.search };
@@ -53,7 +60,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(FRONT_PORT, '0.0.0.0', () => {
-  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; Scout=${SCOUT_PORT}; ApexV2=${APEX_PORT}`);
+  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; Scout=${SCOUT_PORT}; ApexV2=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}`);
 });
 
 setTimeout(async () => {
@@ -66,17 +73,21 @@ setTimeout(async () => {
     const propsBody = await props.json();
     console.log(`[Apex v2 self-check] nflStatus=${props.status} props=${Number(propsBody?.props?.length || 0)} events=${Number(propsBody?.meta?.events || 0)} books=${Number(propsBody?.meta?.sportsbookCount || 0)} provider=${propsBody?.meta?.provider || 'none'} warning=${propsBody?.meta?.warning || 'none'}`);
 
+    const nextHealth = await fetch(`http://127.0.0.1:${APEX_NEXT_PORT}/api/health`);
+    console.log(`[Apex next self-check] health=${nextHealth.status}`);
+
     const mlb = await sportsDataIoPropBoard.fetchBoard({ sports: ['MLB'], force: true });
     const coverage = Array.isArray(mlb?.coverage) ? mlb.coverage[0] : null;
     console.log(`[Apex shape-check] MLB games=${Number(coverage?.gamesChecked || 0)} offers=${Number(coverage?.offerCount || 0)} status=${Number(coverage?.status || 0)} error=${coverage?.errorType || 'OK'} shape=${JSON.stringify(coverage?.shape || {})}`);
   } catch (error) {
-    console.error('[Apex v2 self-check] failed', error?.message || error);
+    console.error('[Apex self-check] failed', error?.message || error);
   }
 }, 1500).unref();
 
 function shutdown(signal) {
   scout.kill(signal);
   apex.kill(signal);
+  apexNext.kill(signal);
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 5000).unref();
 }

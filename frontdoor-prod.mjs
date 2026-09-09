@@ -50,6 +50,20 @@ server.listen(FRONT_PORT, '0.0.0.0', () => {
   console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; Scout=${SCOUT_PORT}; Apex=${APEX_PORT}`);
 });
 
+setTimeout(async () => {
+  try {
+    const health = await fetch(`http://127.0.0.1:${APEX_PORT}/api/apex/health`);
+    const healthBody = await health.json();
+    console.log(`[Apex self-check] health=${health.status} keyConfigured=${Boolean(healthBody?.keyConfigured)}`);
+
+    const props = await fetch(`http://127.0.0.1:${APEX_PORT}/api/apex/props?sport=NFL`);
+    const propsBody = await props.json();
+    console.log(`[Apex self-check] nflStatus=${props.status} props=${Number(propsBody?.props?.length || 0)} games=${Number(propsBody?.meta?.gamesScanned || 0)} providerStatus=${Number(propsBody?.meta?.status || 0)} warning=${propsBody?.meta?.warning || 'none'}`);
+  } catch (error) {
+    console.error('[Apex self-check] failed', error?.message || error);
+  }
+}, 1500).unref();
+
 function shutdown(signal) {
   scout.kill(signal);
   apex.kill(signal);

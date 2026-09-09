@@ -9,6 +9,7 @@ import { DEFAULT_RULES, RULE_PRESETS, normalizeRules } from './scanner/rules.mjs
 import { publicError, publicMessageFor, internalDetail, PUBLIC_MESSAGES, GENERIC_MESSAGE } from './lib/safe-error.mjs';
 import { handlePropRoutes } from './lib/props/routes.mjs';
 import { handleAccountRoutes, currentAccount } from './lib/auth/routes.mjs';
+import { handleAdminRoutes } from './lib/auth/admin-routes.mjs';
 import { createAccountSessions } from './lib/auth/session.mjs';
 import { bootstrapProviders } from './lib/data-sources/bootstrap.mjs';
 import { createRateLimiter, clientKey, permissionsFor, OWNER } from './lib/session.mjs';
@@ -182,6 +183,10 @@ async function handleRequest(req, res) {
   // Account auth (register / verify / sign in / password). Deliberately ahead
   // of the gate below: these must be reachable while signed out.
   if (await handleAccountRoutes(req, res, url, { sessions: accountSessions, json, secret: dashboardSessionSecret })) return;
+
+  // Owner-only administration: members, live presence, session revocation.
+  // Each handler enforces requireOwner() itself.
+  if (await handleAdminRoutes(req, res, url, { sessions: accountSessions, json, secret: dashboardSessionSecret })) return;
 
   // Either a legacy owner/member cookie OR a verified account session opens the
   // rest of the API.

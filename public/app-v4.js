@@ -48,6 +48,24 @@ function responseWithJson(original, data) {
   });
 }
 
+function patchRuleLabels() {
+  if (window.__autoPropRulesEnabled !== false) return;
+  document.querySelectorAll('.reject-tag').forEach((node) => {
+    node.textContent = 'UNFILTERED';
+    node.classList.remove('reject-tag');
+    node.classList.add('near-tag');
+  });
+  const warning = document.getElementById('warningBox');
+  if (warning && /malformed scraper records were hidden/i.test(warning.textContent || '')) {
+    warning.textContent = (warning.textContent || '').replace(/\s*•?\s*\d+ malformed scraper records were hidden\.?/gi, '').trim();
+  }
+  const details = document.getElementById('detailsBody');
+  if (details && /^REJECTED\b/i.test(details.textContent || '')) {
+    const eyebrow = details.querySelector('.eyebrow');
+    if (eyebrow) eyebrow.textContent = eyebrow.textContent.replace(/^REJECTED/i, 'UNFILTERED • RULES OFF');
+  }
+}
+
 function scheduleFullBoardUI() {
   setTimeout(() => {
     if (window.__autoPropRulesEnabled !== false) return;
@@ -84,94 +102,18 @@ window.fetch = async (input, init = {}) => {
           data.latest.qualifiedCount = 0;
           data.latest.rejectedCount = 0;
           data.latest.bestAvailable = [];
+          data.latest.diversifiedCard = [];
+          data.latest.warnings = [`Rules are OFF. Showing all ${board.length} props discovered from PickFinder.`];
         }
       }
       scheduleFullBoardUI();
-      setTimeout(updateRulesButton, 20);
       return responseWithJson(response, data);
     } catch {}
   }
   return response;
 };
 
-function quickToast(message) {
-  const node = document.getElementById('toast');
-  if (!node) return;
-  node.textContent = message;
-  node.classList.add('show');
-  clearTimeout(node.__quickTimer);
-  node.__quickTimer = setTimeout(() => node.classList.remove('show'), 3000);
-}
-
-function updateRulesButton() {
-  const button = document.getElementById('rulesBtn');
-  if (!button) return;
-  if (window.__autoPropRulesEnabled === null) {
-    button.textContent = 'Rules';
-    return;
-  }
-  button.textContent = `Rules: ${window.__autoPropRulesEnabled ? 'ON' : 'OFF'}`;
-  button.dataset.rulesQuickToggle = 'true';
-  button.setAttribute('aria-pressed', String(Boolean(window.__autoPropRulesEnabled)));
-}
-
-async function toggleRules() {
-  const button = document.getElementById('rulesBtn');
-  if (button) button.disabled = true;
-  try {
-    const currentResponse = await nativeFetch('/api/rules', { credentials:'same-origin', cache:'no-store' });
-    const current = await currentResponse.json();
-    if (!currentResponse.ok) throw new Error(current.message || 'Could not load rules.');
-    const nextEnabled = !Boolean(current.rules?.rulesEnabled);
-    const save = await nativeFetch('/api/rules', {
-      method:'PUT',
-      credentials:'same-origin',
-      cache:'no-store',
-      headers:{'content-type':'application/json'},
-      body:JSON.stringify({ rules:{ ...(current.rules || {}), rulesEnabled:nextEnabled } }),
-    });
-    const data = await save.json();
-    if (!save.ok) throw new Error(data.message || 'Could not change rules.');
-    window.__autoPropRulesEnabled = nextEnabled;
-    updateRulesButton();
-    quickToast(nextEnabled ? 'Rules ON — the full board will stay visible while research marks pass/fail.' : 'Rules OFF — next scan loads the entire PickFinder board with no qualification filter.');
-    if (!nextEnabled) scheduleFullBoardUI();
-  } catch (error) {
-    quickToast(error.message || 'Could not change rules.');
-  } finally {
-    if (button) button.disabled = false;
-  }
-}
-
-function patchRuleLabels() {
-  if (window.__autoPropRulesEnabled !== false) return;
-  document.querySelectorAll('.reject-tag').forEach((node) => {
-    node.textContent = 'UNFILTERED';
-    node.classList.remove('reject-tag');
-    node.classList.add('near-tag');
-  });
-  const warning = document.getElementById('warningBox');
-  if (warning && /malformed scraper records were hidden/i.test(warning.textContent || '')) {
-    warning.textContent = (warning.textContent || '').replace(/\s*•?\s*\d+ malformed scraper records were hidden\.?/gi, '').trim();
-  }
-  const details = document.getElementById('detailsBody');
-  if (details && /^REJECTED\b/i.test(details.textContent || '')) {
-    const eyebrow = details.querySelector('.eyebrow');
-    if (eyebrow) eyebrow.textContent = eyebrow.textContent.replace(/^REJECTED/i, 'UNFILTERED • RULES OFF');
-  }
-}
-
-document.addEventListener('click', (event) => {
-  const button = event.target.closest?.('#rulesBtn');
-  if (!button) return;
-  event.preventDefault();
-  event.stopPropagation();
-  event.stopImmediatePropagation();
-  toggleRules();
-}, true);
-
 const observer = new MutationObserver(() => {
-  updateRulesButton();
   patchRuleLabels();
 });
 observer.observe(document.documentElement, { childList:true, subtree:true });
@@ -181,4 +123,3 @@ ensureCheckoutHook();
 await import('./app-v4-core.js');
 ensureInviteField();
 ensureCheckoutHook();
-updateRulesButton();

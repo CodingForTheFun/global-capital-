@@ -33,8 +33,6 @@ function target(rawUrl = '/') {
   if (url.pathname === '/api/apex-next/health') return { port: APEX_NEXT_PORT, path: '/api/health' + url.search };
   if (url.pathname === '/api/apex-next/props') return { port: APEX_NEXT_PORT, path: '/api/props' + url.search };
 
-  // Every Apex page is a client-side route. The browser keeps /apex/live,
-  // /apex/watch, etc., while the upstream always serves the same application shell.
   if (url.pathname === '/apex' || url.pathname === '/apex/' || url.pathname.startsWith('/apex/')) {
     return { port: APEX_PORT, path: '/apex-v2' + url.search };
   }
@@ -74,6 +72,9 @@ const server = http.createServer((req, res) => {
     upstream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
     upstream.on('end', () => {
       let body = Buffer.concat(chunks).toString('utf8');
+      // NFL is in season right now; make the first production view useful instead
+      // of landing on an offseason NBA board with zero events.
+      body = body.replace("var state={sport:'NBA'", "var state={sport:'NFL'");
       const injection = `<script>${APEX_SHELL}</script>`;
       body = body.includes('</head>') ? body.replace('</head>', `${injection}</head>`) : `${injection}${body}`;
       res.writeHead(upstream.statusCode || 200, proxyHeaders(upstream.headers, true));

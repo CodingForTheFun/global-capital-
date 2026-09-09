@@ -27,8 +27,9 @@ This repository is being worked on from more than one ChatGPT conversation. Thos
 - Railway project: AutoProp Scout Pro
 - Production service: `autoprop-live`
 - Production domain: `autoprop-live-production.up.railway.app`
-- Production baseline commit pinned during recovery: `9165291ec29e5f54241e1657f4f0f5602901bfc4`
-- Production start command: `node server.mjs`
+- Recovery baseline: `9165291ec29e5f54241e1657f4f0f5602901bfc4`
+- Railway source branch: `production-stable`
+- Railway start command verified 2026-09-09: `node server-professional.mjs`
 
 ## Active v3 branch
 
@@ -49,13 +50,13 @@ Before making changes:
 
 - 2026-09-08: Cross-chat overwrite problem identified. Production was pinned to a verified regular-only baseline. New multi-user/live-data work moved to `autoprop-multiuser-live-data`.
 - 2026-09-08: Multi-user v3 direction approved: every AutoProp user must connect only their own PickFinder account; live scores and live player/game data are being added.
-- 2026-09-09: Claude Code session on branch `claude/pickfinder-auth-modal-fix-dle7hz`, based on `production-stable` (4a3acfa). Owner instruction: DO NOT DEPLOY without explicit approval. Nothing on this branch has been merged to production.
+- 2026-09-09: Claude Code session on branch `claude/pickfinder-auth-modal-fix-dle7hz`, based on `production-stable` (4a3acfa). Nothing on this branch was deployed during Claude's session.
   - Fixed the PickFinder sign-in failure where the Clerk modal backdrop intercepted pointer events and `scanner/pickfinder-v2.mjs` leaked the raw Playwright call log to the dashboard. Resilient submit (click → settle+retry → form.requestSubmit → Enter → DOM click). No CAPTCHA/2FA/verification bypass; those still fail closed.
   - `lib/safe-error.mjs` is now the ONLY place that produces backend→frontend error text. It is an allowlist: unclassified errors become generic copy. Do not reintroduce per-server `friendlyScanError` bodies that return `error.message`.
-  - Verified: Railway `startCommand` is `node server.mjs`, so the access-code/member system in `server-professional.mjs` is NOT live. Owner has been told; entrypoint deliberately unchanged.
-  - Added `lib/props`, `lib/filters`, `lib/scoring`, `lib/data-sources` as the universal prop/filter/score engine for the planned ALL PROPS page. One filter engine only — do not add a second filter implementation for any new page.
-  - Added a SportsDataIO adapter (projections, injuries, minutes, starter, opponent rank, live status). Requires `SPORTSDATAIO_API_KEY`. With no key configured, behaviour is identical to today.
+  - Added `lib/props`, `lib/filters`, `lib/scoring`, `lib/data-sources` as the universal prop/filter/score engine. One filter engine only — do not add a second filter implementation for any new page.
+  - Added SportsDataIO enrichment for projections, injuries, minutes, starter/lineup context, opponent data and live status. Requires `SPORTSDATAIO_API_KEY`; unavailable feeds degrade to null, never invented data.
   - Safety branch pinned at the known-good deployed commit: `safety/known-good-9e13ab7`.
-- 2026-09-09: ChatGPT takeover continued on `claude/pickfinder-auth-modal-fix-dle7hz`. Owner explicitly authorized deployment only after the release candidate is validated. `/props` now has an organized mobile-first All Props / Auto Prop Finder UI and the deployed `server.mjs` maps `/props` to it. SportsDataIO runtime diagnostics now discover entitlements and whether exact PrizePicks operator offers are present without returning key material or raw odds payloads.
+- 2026-09-09: ChatGPT takeover continued on `claude/pickfinder-auth-modal-fix-dle7hz`. Owner explicitly authorized deployment after release validation. `/props` now has an organized mobile-first All Props / Auto Prop Finder UI and both `server.mjs` and the live `server-professional.mjs` map `/props` to it. SportsDataIO runtime diagnostics discover entitlements and whether exact PrizePicks operator offers are present without returning key material or raw odds payloads.
   - Added conservative SportsDataIO player-prop normalization: only available, non-alternate OVER/UNDER outcomes with a real player, market and numeric line are eligible; missing values never become zero.
-  - Added `prizePicksBoard()` as an API-first candidate source, but it is NOT enabled as the production prop universe yet. PickFinder remains the authoritative fallback until Railway runtime verification proves the configured subscription actually contains PrizePicks core offers for a league. Scout Rules must continue to fail closed for any source that has not satisfied the existing hard locks.
+  - Added `prizePicksBoard()` as an API-first candidate source, but it is NOT enabled as the production prop universe yet. PickFinder remains the authoritative fallback until Railway runtime verification proves the configured subscription actually contains PrizePicks core offers for a league. Scout Rules continue to fail closed for any source that has not satisfied the hard locks.
+  - Candidate `7ee72798d810ba3972279bd693937ca48b325b04` passed the full GitHub release-candidate workflow. `production-stable` was fast-forwarded from `4a3acfa` to the validated candidate, and this documentation commit intentionally triggers the Railway production rollout. Runtime SportsDataIO verification is configured as a one-time pre-deploy diagnostic; it prints only entitlement classifications and safe operator counts.

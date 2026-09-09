@@ -1,16 +1,21 @@
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
-import { fetchTheOddsApiBoard, theOddsApiHealth } from './the-odds-api-v2.mjs';
+import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
+import { loadPersistedDiagnostics, snapshotDiagnostics } from '../lib/autoscout/runtime-store.mjs';
+
+await loadPersistedDiagnostics();
 
 const text = (value) => String(value ?? '').trim();
 const num = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 };
+const inflight = new Map();
 
 function normalizeSportsDataIo(board, league) {
   const props = (board?.offers || []).map((o, i) => ({
     id: [league, o.gameId, o.playerId, o.market, o.sportsbookKey, o.side, o.line, i].join('|'),
     source: o.consensus ? 'SportsDataIO Consensus' : 'SportsDataIO',
+    provider: 'sportsdataio',
     sport: text(o.sport || league).toUpperCase(),
     eventId: text(o.gameId),
     playerId: text(o.playerId),
@@ -28,6 +33,7 @@ function normalizeSportsDataIo(board, league) {
     sportsbookKey: text(o.sportsbookKey || (o.consensus ? 'consensus' : 'sportsdataio')).toLowerCase(),
     fairOdds: '',
     fairLine: null,
+    consensusLine: null,
     gameStartTime: o.gameStartTime || null,
     homeTeam: text(o.homeTeam),
     awayTeam: text(o.awayTeam),
@@ -36,25 +42,33 @@ function normalizeSportsDataIo(board, league) {
     live: false,
     started: false,
     completed: false,
+    isAlternate: false,
+    providerUpdatedAt: o.updatedAt || null,
+    ingestedAt: board?.fetchedAt || new Date().toISOString(),
     updatedAt: o.updatedAt || null,
     deeplink: '',
-  })).filter(p => p.playerName && p.line !== null && (p.side === 'OVER' || p.side === 'UNDER'));
+  })).filter((p) => p.playerName && p.line !== null && (p.side === 'OVER' || p.side === 'UNDER'));
 
   const coverage = board?.coverage || [];
-  const books = [...new Set(props.map(p => p.sportsbookKey).filter(Boolean))].sort();
+  const books = [...new Set(props.map((p) => p.sportsbookKey).filter(Boolean))].sort();
   return {
     props,
+    data: { events: [], players: [], props: [], lines: [] },
     meta: {
       provider: 'SportsDataIO fallback',
       fetchedAt: board?.fetchedAt || new Date().toISOString(),
+      ingestionTimestamp: board?.fetchedAt || new Date().toISOString(),
       latencyMs: board?.latencyMs ?? null,
       events: coverage.reduce((n, r) => n + Number(r?.gamesChecked || 0), 0),
       sportsbooks: books,
       sportsbookCount: books.length,
       propCount: props.length,
+      lineCount: props.length,
       liveEvents: 0,
       fullBookCoverage: false,
       regularLinesOnly: true,
+      includesAlternates: false,
+      warning: 'Legacy provider fallback. Normalized entity collections are unavailable for this fallback feed.',
     },
   };
 }
@@ -64,15 +78,26 @@ async function fetchSportsDataIo(league, { force = false } = {}) {
   return normalizeSportsDataIo(board, league);
 }
 
-export async function fetchUnifiedBoard(league, { signal, force = false } = {}) {
-  const selected = text(league || 'NBA').toUpperCase();
+async function fetchPrimaryCoalesced(provider, selected, options) {
+  const key = `${provider.id}|${selected}|${options.includeAlternates ? 'alternate' : 'main'}`;
+  if (!options.force && inflight.has(key)) return inflight.get(key);
+  const pending = provider.fetchBoard(selected, options);
+  if (!options.force) inflight.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (inflight.get(key) === pending) inflight.delete(key);
+  }
+}
+
+export async function fetchUnifiedBoard(league, { signal, force = false, includeAlternates = false } = {}) {
+  const selected = text(league || 'NFL').toUpperCase();
+  const oddsProvider = primaryOddsProvider();
   let oddsError = null;
 
-  if (text(process.env.THE_ODDS_API_KEY)) {
+  if (oddsProvider) {
     try {
-      // Ignore force refreshes for the paid provider. The server-side adapter
-      // decides when the quota-safe cache expires.
-      return await fetchTheOddsApiBoard(selected, { signal, force: false });
+      return await fetchPrimaryCoalesced(oddsProvider, selected, { signal, force, includeAlternates });
     } catch (error) {
       oddsError = error;
     }
@@ -85,10 +110,10 @@ export async function fetchUnifiedBoard(league, { signal, force = false } = {}) 
         ...fallback,
         meta: {
           ...(fallback.meta || {}),
-          preferredProvider: 'The Odds API',
+          preferredProvider: oddsProvider?.name || 'The Odds API',
           warning: oddsError
-            ? `The Odds API is connected but unavailable: ${String(oddsError?.message || oddsError)}`
-            : 'The Odds API key is not configured; using the legacy fallback.',
+            ? `Primary odds provider unavailable; serving legacy fallback: ${String(oddsError?.message || oddsError)}`
+            : 'No configured primary odds provider; using the legacy fallback.',
         },
       };
     } catch (fallbackError) {
@@ -98,18 +123,29 @@ export async function fetchUnifiedBoard(league, { signal, force = false } = {}) 
   }
 
   if (oddsError) throw oddsError;
-  throw Object.assign(new Error('No sports data provider is configured'), { code: 'NO_PROVIDER' });
+  throw Object.assign(new Error('No odds provider is configured.'), { code: 'NO_PROVIDER' });
+}
+
+export function providerDiagnostics() {
+  return {
+    checkedAt: new Date().toISOString(),
+    catalog: providerCatalog(),
+    runtime: snapshotDiagnostics(),
+    inflightRefreshes: [...inflight.keys()].map((key) => key.replace(/^[^|]+\|/, '')),
+  };
 }
 
 export function providerHealth() {
-  const odds = theOddsApiHealth();
+  const oddsProvider = primaryOddsProvider();
+  const oddsHealth = oddsProvider?.health?.() || null;
   return {
-    theOddsApiConfigured: odds.configured,
+    theOddsApiConfigured: oddsProvider?.id === 'the-odds-api' && oddsProvider.isConfigured(),
     sportsGameOddsConfigured: Boolean(text(process.env.SPORTSGAMEODDS_API_KEY)),
     sportsDataIoConfigured: Boolean(text(process.env.SPORTSDATAIO_API_KEY)),
-    preferredProvider: odds.configured ? 'The Odds API' : 'SportsDataIO fallback',
+    preferredProvider: oddsProvider?.name || 'SportsDataIO fallback',
     regularLinesOnly: true,
-    theOddsApi: odds,
+    provider: oddsHealth,
+    diagnostics: snapshotDiagnostics(),
     time: new Date().toISOString(),
   };
 }

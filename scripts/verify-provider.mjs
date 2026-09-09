@@ -1,89 +1,63 @@
 #!/usr/bin/env node
-// Verify a SportsDataIO subscription without exposing the key.
+// Runtime SportsDataIO verification for Scout Pro.
 //
-//   SPORTSDATAIO_API_KEY=... npm run verify:provider
+// Designed for Railway where SPORTSDATAIO_API_KEY actually exists. It prints
+// only feed classifications, row/operator counts and timestamps — never the key,
+// auth headers, endpoint URLs, response bodies or individual betting outcomes.
 //
-// Reports, per league, whether the projections feed answers and how many rows
-// it returned today. Prints no key material, and no response bodies.
-//
-// Run this locally or in a Railway shell. It makes read-only GET requests.
+// By default this is diagnostic/non-blocking so a missing optional feed cannot
+// prevent Scout Pro from deploying with its PickFinder fallback. Set
+// VERIFY_PROVIDER_STRICT=1 when you want a non-zero exit for a missing/rejected
+// provider configuration.
 
-import { createSportsDataIoAdapter, PROJECTION_LEAGUES, UNCOVERED_LEAGUES, formatDate } from '../lib/data-sources/sportsdataio/index.mjs';
-import { createClient, resolveKey } from '../lib/data-sources/sportsdataio/client.mjs';
-import { BASE, TIMEFRAME, leagueFor } from '../lib/data-sources/sportsdataio/endpoints.mjs';
+import { createSportsDataIoAdapter } from '../lib/data-sources/sportsdataio/index.mjs';
 
-function explain(status) {
-  if (status === 401) return 'key rejected — check the value';
-  if (status === 403) return 'key valid, but this feed is not in your plan';
-  if (status === 404) return 'endpoint not found for this date/season';
-  if (status === 429) return 'rate limited — try again shortly';
-  return `HTTP ${status}`;
-}
+const strict = String(process.env.VERIFY_PROVIDER_STRICT || '') === '1';
+const adapter = createSportsDataIoAdapter({ log: { log: () => {}, error: () => {} } });
 
-async function probe(url, apiKey) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
-  try {
-    const response = await fetch(url, {
-      headers: { 'Ocp-Apim-Subscription-Key': apiKey, accept: 'application/json' },
-      signal: controller.signal,
-    });
-    if (!response.ok) return { ok: false, detail: explain(response.status) };
-    const body = await response.json();
-    return { ok: true, rows: Array.isArray(body) ? body.length : 1 };
-  } catch (error) {
-    return { ok: false, detail: error?.name === 'AbortError' ? 'timed out' : 'network error' };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-const adapter = createSportsDataIoAdapter();
 if (!adapter.isConfigured()) {
-  console.error('No SportsDataIO key found.');
-  console.error('Set SPORTSDATAIO_API_KEY (or SPORTSDATAIO_KEY_NBA etc.) and run again.');
-  process.exit(2);
+  console.error('[provider-check] SportsDataIO: not configured');
+  process.exit(strict ? 2 : 0);
 }
 
-const date = formatDate(new Date());
-console.log(`SportsDataIO check — projections for ${date}\n`);
+console.log('[provider-check] SportsDataIO runtime verification starting');
 
-let anyOk = false;
-for (const sport of PROJECTION_LEAGUES) {
-  const apiKey = resolveKey(sport);
-  if (!apiKey) { console.log(`  ${sport.padEnd(5)} skipped — no key configured for this league`); continue; }
+const matrix = await adapter.entitlements({ force: true });
+const canonical = ['NBA', 'NFL', 'MLB', 'NHL', 'WNBA', 'NCAAB', 'NCAAF'];
+const feeds = [
+  'projections', 'injuries', 'games', 'playerGameStats',
+  'playerSeasonStats', 'teamSeasonStats', 'depthCharts', 'startingLineups',
+  'playerProps', 'gameOdds',
+];
 
-  let url;
-  if (sport === 'NFL') {
-    const league = leagueFor(sport);
-    const client = createClient();
-    const [season, week] = await Promise.all([
-      client.get(`${BASE}/${TIMEFRAME.currentSeason(league)}`, 'season', { sport }),
-      client.get(`${BASE}/${TIMEFRAME.currentWeek(league)}`, 'week', { sport }),
-    ]);
-    if (!season.ok || !week.ok) { console.log(`  ${sport.padEnd(5)} FAIL    could not read CurrentSeason/CurrentWeek (${season.reason || week.reason})`); continue; }
-    const timeframe = { season: season.data, week: week.data };
-    url = `${BASE}/${league.path}/projections/json/PlayerGameProjectionStatsByWeek/${timeframe.season}/${timeframe.week}`;
-    console.log(`  ${sport.padEnd(5)} season ${timeframe.season}, week ${timeframe.week}`);
-  } else {
-    url = `${BASE}/${leagueFor(sport).path}/projections/json/PlayerGameProjectionStatsByDate/${date}`;
+for (const sport of canonical) {
+  const row = matrix?.leagues?.[sport];
+  if (!row) {
+    console.log(`[provider-check] ${sport}: no entitlement row`);
+    continue;
   }
+  const parts = feeds.map((feed) => `${feed}=${row.feeds?.[feed] || 'unknown'}`);
+  console.log(`[provider-check] ${sport}: ${parts.join(' ')}`);
+}
 
-  const result = await probe(url, apiKey);
-  if (result.ok) {
-    anyOk = true;
-    const note = result.rows === 0 ? ' (no games scheduled today)' : '';
-    console.log(`  ${sport.padEnd(5)} OK      ${result.rows} projection rows${note}`);
-  } else {
-    console.log(`  ${sport.padEnd(5)} FAIL    ${result.detail}`);
+console.log(`[provider-check] configured=${Boolean(matrix?.configured)} keyRejected=${Boolean(matrix?.keyRejected)} discoveredAt=${matrix?.discoveredAt || 'unknown'}`);
+
+// The entitlement pass above caches successful playerProps payloads. This
+// operator check therefore normally adds no second provider request for a feed
+// that already succeeded.
+let coverage = null;
+try {
+  coverage = await adapter.operatorCoverage({ sportsbook: 'PrizePicks', sports: canonical });
+  for (const row of coverage.rows || []) {
+    console.log(`[provider-check] PrizePicks ${row.sport}: feedAvailable=${Boolean(row.feedAvailable)} targetSeen=${Boolean(row.targetSeen)} targetOffers=${Number(row.targetOffers || 0)} coreOffers=${Number(row.totalCoreOffers || 0)}`);
   }
+  console.log(`[provider-check] PrizePicks leagues=${(coverage.leaguesWithTarget || []).join(',') || 'none'}`);
+} catch {
+  console.log('[provider-check] PrizePicks operator coverage: unavailable');
 }
 
-console.log(`\n  No SportsDataIO feed at all: ${UNCOVERED_LEAGUES.join(', ')}`);
-console.log('  Props in those leagues will always show un-enriched.\n');
+const stats = adapter.stats?.() || {};
+console.log(`[provider-check] requests=${Number(stats.requests || 0)} cacheHits=${Number(stats.hits || 0)} errors=${Number(stats.errors || 0)} deniedFeeds=${Number(stats.deniedFeeds || 0)} rateLimited=${Boolean(stats.rateLimited)}`);
 
-if (!anyOk) {
-  console.error('No projections feed responded. Scout Pro will run un-enriched until this is resolved.');
-  process.exit(1);
-}
-console.log('At least one projections feed is live. Set the same key in Railway to enable enrichment.');
+if (strict && (matrix?.keyRejected || !matrix?.configured)) process.exit(1);
+console.log('[provider-check] complete');

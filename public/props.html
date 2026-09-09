@@ -4,33 +4,40 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#07111f" />
-  <meta name="description" content="AutoProp Scout Pro All Props and Auto Prop Finder." />
+  <meta name="description" content="Scout Pro precision sports-prop research and live player intelligence." />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/props.css" />
-  <title>All Props • AutoProp Scout Pro</title>
+  <link rel="stylesheet" href="/props-v2.css" />
+  <title>Props • Scout Pro</title>
 </head>
 <body>
-  <div class="page-glow glow-a"></div><div class="page-glow glow-b"></div>
   <header class="appbar">
-    <a class="brand" href="/"><span class="brand-mark">A</span><span><b>AutoProp</b><small>Scout Pro</small></span></a>
-    <nav class="desktop-nav" aria-label="Primary"><a href="/">Dashboard</a><a class="active" href="/props">Props</a></nav>
-    <div class="appbar-actions"><span id="providerPill" class="status-pill">Provider · checking</span><button id="refreshBtn" class="icon-button" type="button" aria-label="Refresh">↻</button></div>
+    <a class="brand" href="/"><span class="brand-mark">S</span><span><b>SCOUT PRO</b><small>Precision Sports Intelligence</small></span></a>
+    <nav class="desktop-nav" aria-label="Primary"><a href="/">Home</a><a class="active" href="/props">Props</a><a href="/live">Live</a></nav>
+    <div class="appbar-actions"><span id="providerPill" class="status-pill">Sports data · checking</span><button id="refreshBtn" class="icon-button" type="button" aria-label="Refresh data">↻</button></div>
   </header>
 
-  <main class="shell">
-    <section class="intro">
-      <div><span class="eyebrow">TODAY · REGULAR PRIZEPICKS LINES</span><h1>Find the best prop in seconds.</h1><p>Browse every verified line or let Auto Prop Finder rank the strongest matches using the same filters and Scout Score.</p></div>
-      <div class="summary-card"><span>Last scan</span><strong id="lastScan">—</strong><small id="dataSummary">Waiting for props</small></div>
+  <main class="shell props-shell">
+    <section class="intro compact-intro">
+      <div><span class="eyebrow">SCOUT PRO · PROP BOARD</span><h1>Props, organized.</h1><p>Real provider lines, live context, and explainable Scout research in one board.</p></div>
+      <div class="summary-card"><span>Freshness</span><strong id="lastScan">—</strong><small id="dataSummary">Loading board</small></div>
+    </section>
+
+    <section class="count-strip" aria-label="Prop counts">
+      <div><span>Available</span><strong id="availableCount">—</strong></div>
+      <div><span>Rule-qualified</span><strong id="qualifiedCount">—</strong></div>
+      <div><span>Showing</span><strong id="showingCount">—</strong></div>
+      <div class="source-summary"><span>Source</span><strong id="sourceStatus">Checking</strong></div>
     </section>
 
     <section class="modebar" aria-label="Prop views">
-      <button class="mode-tab active" data-mode="all" type="button"><span>All Props</span><small>Every matching line</small></button>
-      <button class="mode-tab" data-mode="best" type="button"><span>Auto Prop Finder</span><small>Strongest ranked first</small></button>
+      <button class="mode-tab active" data-mode="all" type="button"><span>All Props</span><small>All valid main lines</small></button>
+      <button class="mode-tab" data-mode="best" type="button"><span>Auto Prop Finder</span><small>Rank the strongest evidence</small></button>
     </section>
 
-    <section class="control-card">
+    <section class="control-card sticky-controls">
       <div class="search-row">
-        <label class="search-field"><span>⌕</span><input id="searchInput" type="search" placeholder="Search player, team, market…" autocomplete="off" /></label>
+        <label class="search-field"><span>⌕</span><input id="searchInput" type="search" placeholder="Search player, team, opponent, market…" autocomplete="off" /></label>
         <button id="openFiltersBtn" class="filter-button" type="button"><span>Filters</span><b id="filterCount">0</b></button>
       </div>
       <div class="quick-row">
@@ -42,12 +49,15 @@
 
     <section class="results-head">
       <div><span id="resultLabel">ALL PROPS</span><h2 id="resultCount">Loading…</h2></div>
-      <label class="sort-control">Sort<select id="sortSelect"><option value="score-desc">Scout Score</option><option value="hit-rate-desc">Best hit rate</option><option value="edge-desc">Best edge</option><option value="confidence-desc">Confidence</option><option value="player-asc">Player A–Z</option></select></label>
+      <div class="result-tools">
+        <label class="sort-control">Show<select id="resultLimit"><option value="100">100</option><option value="250">250</option><option value="500">MAX · 500</option></select></label>
+        <label class="sort-control">Sort<select id="sortSelect"><option value="score-desc">Scout Score</option><option value="hit-rate-desc">Best hit rate</option><option value="edge-desc">Best edge</option><option value="confidence-desc">Confidence</option><option value="player-asc">Player A–Z</option></select></label>
+      </div>
     </section>
 
     <div id="notice" class="notice" hidden></div>
     <section id="propGrid" class="prop-grid" aria-live="polite"><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div></section>
-    <button id="loadMoreBtn" class="load-more" type="button" hidden>Load more</button>
+    <button id="loadMoreBtn" class="load-more" type="button" hidden>Load more props</button>
   </main>
 
   <aside id="filterSheet" class="sheet" aria-hidden="true">
@@ -56,7 +66,7 @@
       <div class="sheet-head"><div><span class="eyebrow">UNIVERSAL FILTERS</span><h2>Refine props</h2></div><button class="sheet-close" data-close-sheet type="button">×</button></div>
       <div class="filter-sections">
         <section><h3>Market</h3><div class="field-grid"><label>Side<select id="sideFilter"><option value="ALL">Any side</option><option value="OVER">Over</option><option value="UNDER">Under</option></select></label><label>Minimum Scout Score<input id="minScoreFilter" type="number" min="0" max="100" inputmode="numeric" placeholder="Any" /></label><label>Minimum hit rate<input id="minHitRateFilter" type="number" min="0" max="100" inputmode="numeric" placeholder="Any" /></label><label>Hit-rate window<select id="hitWindowFilter"><option value="l10">L10</option><option value="l5">L5</option><option value="l15">L15</option><option value="l20">L20</option><option value="season">Season</option><option value="best">Best available</option></select></label><label>Minimum projection edge<input id="minProjectionEdgeFilter" type="number" step="0.1" inputmode="decimal" placeholder="Any" /></label><label>Minimum expected minutes<input id="minMinutesFilter" type="number" step="1" inputmode="numeric" placeholder="Any" /></label></div></section>
-        <section><h3>Availability & game</h3><div class="toggle-list"><label><input id="excludeInjuredFilter" type="checkbox" /><span><b>Exclude out / doubtful</b><small>Questionable players still show</small></span></label><label><input id="startersOnlyFilter" type="checkbox" /><span><b>Starters only</b><small>When starter data exists</small></span></label><label><input id="todayOnlyFilter" type="checkbox" checked /><span><b>Today only</b><small>Current production invariant</small></span></label></div></section>
+        <section><h3>Availability & game</h3><div class="toggle-list"><label><input id="excludeInjuredFilter" type="checkbox" /><span><b>Exclude out / doubtful</b><small>Questionable players still show</small></span></label><label><input id="startersOnlyFilter" type="checkbox" /><span><b>Starters only</b><small>Applied only where starter data exists</small></span></label><label><input id="todayOnlyFilter" type="checkbox" checked /><span><b>Today only</b><small>Uses the Scout slate timezone</small></span></label></div></section>
       </div>
       <div class="sheet-actions"><button id="resetFiltersBtn" class="secondary" type="button">Reset</button><button id="applyFiltersBtn" class="primary" type="button">Show props</button></div>
     </div>
@@ -64,7 +74,7 @@
 
   <dialog id="detailDialog" class="detail-dialog"><button id="detailClose" class="detail-close" type="button" aria-label="Close">×</button><div id="detailBody" class="detail-body"></div></dialog>
 
-  <nav class="mobile-nav" aria-label="Mobile navigation"><a href="/"><span>⌂</span><b>Dashboard</b></a><a class="active" href="/props"><span>◆</span><b>Props</b></a><button id="mobileFiltersBtn" type="button"><span>≡</span><b>Filters</b></button></nav>
-  <script type="module" src="/props.js"></script>
+  <nav class="mobile-nav" aria-label="Mobile navigation"><a href="/"><span>⌂</span><b>Home</b></a><a class="active" href="/props"><span>◆</span><b>Props</b></a><a href="/live"><span>●</span><b>Live</b></a><button id="mobileFiltersBtn" type="button"><span>≡</span><b>Filters</b></button></nav>
+  <script type="module" src="/props-v2.js"></script>
 </body>
 </html>

@@ -8,14 +8,9 @@
 //
 // Run this locally or in a Railway shell. It makes read-only GET requests.
 
-import { createSportsDataIoAdapter, SUPPORTED_LEAGUES, UNSUPPORTED_LEAGUES, formatDate, resolveNflTimeframe } from '../lib/data-sources/sportsdataio.mjs';
-
-const BASE = 'https://azure-api.sportsdata.io/v3';
-const PATHS = { NBA: 'nba', MLB: 'mlb', NHL: 'nhl', NFL: 'nfl' };
-
-function keyFor(sport) {
-  return process.env[`SPORTSDATAIO_KEY_${sport}`] || process.env.SPORTSDATAIO_API_KEY || '';
-}
+import { createSportsDataIoAdapter, PROJECTION_LEAGUES, UNCOVERED_LEAGUES, formatDate } from '../lib/data-sources/sportsdataio/index.mjs';
+import { createClient, resolveKey } from '../lib/data-sources/sportsdataio/client.mjs';
+import { BASE, TIMEFRAME, leagueFor } from '../lib/data-sources/sportsdataio/endpoints.mjs';
 
 function explain(status) {
   if (status === 401) return 'key rejected — check the value';
@@ -54,18 +49,24 @@ const date = formatDate(new Date());
 console.log(`SportsDataIO check — projections for ${date}\n`);
 
 let anyOk = false;
-for (const sport of SUPPORTED_LEAGUES) {
-  const apiKey = keyFor(sport);
+for (const sport of PROJECTION_LEAGUES) {
+  const apiKey = resolveKey(sport);
   if (!apiKey) { console.log(`  ${sport.padEnd(5)} skipped — no key configured for this league`); continue; }
 
   let url;
   if (sport === 'NFL') {
-    const timeframe = await resolveNflTimeframe(apiKey);
-    if (!timeframe) { console.log(`  ${sport.padEnd(5)} FAIL    could not read CurrentSeason/CurrentWeek (scores feed missing from plan?)`); continue; }
-    url = `${BASE}/${PATHS[sport]}/projections/json/PlayerGameProjectionStatsByWeek/${timeframe.season}/${timeframe.week}`;
+    const league = leagueFor(sport);
+    const client = createClient();
+    const [season, week] = await Promise.all([
+      client.get(`${BASE}/${TIMEFRAME.currentSeason(league)}`, 'season', { sport }),
+      client.get(`${BASE}/${TIMEFRAME.currentWeek(league)}`, 'week', { sport }),
+    ]);
+    if (!season.ok || !week.ok) { console.log(`  ${sport.padEnd(5)} FAIL    could not read CurrentSeason/CurrentWeek (${season.reason || week.reason})`); continue; }
+    const timeframe = { season: season.data, week: week.data };
+    url = `${BASE}/${league.path}/projections/json/PlayerGameProjectionStatsByWeek/${timeframe.season}/${timeframe.week}`;
     console.log(`  ${sport.padEnd(5)} season ${timeframe.season}, week ${timeframe.week}`);
   } else {
-    url = `${BASE}/${PATHS[sport]}/projections/json/PlayerGameProjectionStatsByDate/${date}`;
+    url = `${BASE}/${leagueFor(sport).path}/projections/json/PlayerGameProjectionStatsByDate/${date}`;
   }
 
   const result = await probe(url, apiKey);
@@ -78,7 +79,7 @@ for (const sport of SUPPORTED_LEAGUES) {
   }
 }
 
-console.log(`\n  Not covered by SportsDataIO at all: ${UNSUPPORTED_LEAGUES.join(', ')}`);
+console.log(`\n  No SportsDataIO feed at all: ${UNCOVERED_LEAGUES.join(', ')}`);
 console.log('  Props in those leagues will always show un-enriched.\n');
 
 if (!anyOk) {

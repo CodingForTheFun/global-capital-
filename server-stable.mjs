@@ -8,6 +8,8 @@ import { getPickFinderConnectionState } from './scanner/secure-store.mjs';
 import { verifyAndSavePickFinderConnection } from './scanner/auth-preflight.mjs';
 import { DEFAULT_RULES, RULE_PRESETS, normalizeRules } from './scanner/rules.mjs';
 import { safeError, publicError, publicMessageFor, internalDetail, publicErrorFromRecord, PUBLIC_MESSAGES, GENERIC_MESSAGE } from './lib/safe-error.mjs';
+import { handlePropRoutes } from './lib/props/routes.mjs';
+import { bootstrapProviders } from './lib/data-sources/bootstrap.mjs';
 import { createRateLimiter, clientKey, permissionsFor, OWNER } from './lib/session.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -25,6 +27,10 @@ const dashboardSessionSecret = process.env.DASHBOARD_SESSION_SECRET || crypto.cr
 const authRequired = Boolean(dashboardPassword);
 
 await fs.mkdir(dataDir, { recursive: true });
+
+// Register data providers once. Never throws; an unconfigured provider simply
+// reports as not connected and props run un-enriched.
+bootstrapProviders();
 
 let running = false;
 let lastError = null;
@@ -377,6 +383,10 @@ async function handleRequest(req, res) {
   if (url.pathname.startsWith('/api/') && !isAuthorized(req)) {
     return json(res, 401, { ok: false, message: 'Dashboard authentication required.', authRequired: true });
   }
+
+  // ALL PROPS / Auto Prop Finder / prop detail / provider status.
+  // Behind the auth gate above, so provider-backed data is never public.
+  if (await handlePropRoutes(req, res, url, { readLatest: () => readJson(latestPath, null), json })) return;
 
   if (url.pathname === '/api/status' && req.method === 'GET') return json(res, 200, await publicStatusPayload());
   if (url.pathname === '/api/history' && req.method === 'GET') return json(res, 200, await readJson(historyPath, []));

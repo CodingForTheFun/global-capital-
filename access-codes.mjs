@@ -6,6 +6,16 @@ const DATA = path.resolve(process.env.DATA_DIR || './data');
 const FILE = path.join(DATA, 'access-codes.json');
 const PEPPER = process.env.DASHBOARD_SESSION_SECRET || process.env.AUTOPROP_MASTER_KEY || process.env.DASHBOARD_PASSWORD || 'autoprop-local-only';
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const BOOTSTRAP = {
+  id: 'friend-20260908',
+  label: 'Friend access',
+  salt: 'c1583dc3abc8e0cad22d2dc7cd9ad3a7',
+  hash: 'ba8d3b3223afe0990867f6e496dedd707c645716e5028fcdf19379169be11b6a',
+  hint: '••••-K62U',
+  createdAt: '2026-09-08T23:38:59+00:00',
+  expiresAt: '2026-10-08T23:38:59+00:00',
+  maxUses: 5,
+};
 
 async function readRows() {
   try {
@@ -30,6 +40,15 @@ function normalize(code = '') {
 
 function digest(code) {
   return crypto.createHmac('sha256', PEPPER).update(normalize(code)).digest('hex');
+}
+
+function bootstrapDigest(code) {
+  return crypto.scryptSync(normalize(code), Buffer.from(BOOTSTRAP.salt, 'hex'), 32, {
+    N: 16384,
+    r: 8,
+    p: 1,
+    maxmem: 64 * 1024 * 1024,
+  }).toString('hex');
 }
 
 function safeHashEqual(a, b) {
@@ -87,7 +106,9 @@ export async function redeemAccessCode(code) {
   const target = digest(normalized);
   const rows = await readRows();
   const now = Date.now();
+
   for (const row of rows) {
+    if (row.bootstrap) continue;
     if (row.active === false) continue;
     if (Date.parse(row.expiresAt || '') <= now) continue;
     if (Number(row.uses || 0) >= Number(row.maxUses || 1)) continue;
@@ -97,6 +118,31 @@ export async function redeemAccessCode(code) {
     await writeRows(rows);
     return publicRow(row);
   }
+
+  if (Date.parse(BOOTSTRAP.expiresAt) > now && safeHashEqual(bootstrapDigest(normalized), BOOTSTRAP.hash)) {
+    let row = rows.find((item) => item.id === BOOTSTRAP.id);
+    if (!row) {
+      row = {
+        id: BOOTSTRAP.id,
+        label: BOOTSTRAP.label,
+        hint: BOOTSTRAP.hint,
+        createdAt: BOOTSTRAP.createdAt,
+        expiresAt: BOOTSTRAP.expiresAt,
+        maxUses: BOOTSTRAP.maxUses,
+        uses: 0,
+        active: true,
+        lastUsedAt: null,
+        bootstrap: true,
+      };
+      rows.unshift(row);
+    }
+    if (row.active === false || Number(row.uses || 0) >= Number(row.maxUses || BOOTSTRAP.maxUses)) return null;
+    row.uses = Number(row.uses || 0) + 1;
+    row.lastUsedAt = new Date(now).toISOString();
+    await writeRows(rows.slice(0, 250));
+    return publicRow(row);
+  }
+
   return null;
 }
 
@@ -106,9 +152,24 @@ export async function listAccessCodes() {
 
 export async function revokeAccessCode(id) {
   const rows = await readRows();
-  const row = rows.find((item) => item.id === id);
+  let row = rows.find((item) => item.id === id);
+  if (!row && id === BOOTSTRAP.id) {
+    row = {
+      id: BOOTSTRAP.id,
+      label: BOOTSTRAP.label,
+      hint: BOOTSTRAP.hint,
+      createdAt: BOOTSTRAP.createdAt,
+      expiresAt: BOOTSTRAP.expiresAt,
+      maxUses: BOOTSTRAP.maxUses,
+      uses: 0,
+      active: false,
+      lastUsedAt: null,
+      bootstrap: true,
+    };
+    rows.unshift(row);
+  }
   if (!row) return null;
   row.active = false;
-  await writeRows(rows);
+  await writeRows(rows.slice(0, 250));
   return publicRow(row);
 }

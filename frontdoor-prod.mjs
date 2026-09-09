@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { sportsDataIoPropBoard } from './lib/data-sources/sportsdataio/prop-board.mjs';
 
@@ -6,6 +7,7 @@ const FRONT_PORT = Number(process.env.PORT || 3000);
 const SCOUT_PORT = 3002;
 const APEX_PORT = 3001;
 const APEX_NEXT_PORT = 3003;
+const APEX_SHELL = readFileSync('./apex-v2/shell-upgrade.js', 'utf8').replace(/<\/script/gi, '<\\/script');
 
 function child(file, port, label) {
   const proc = spawn(process.execPath, [file], {
@@ -30,13 +32,25 @@ function target(rawUrl = '/') {
   }
   if (url.pathname === '/api/apex-next/health') return { port: APEX_NEXT_PORT, path: '/api/health' + url.search };
   if (url.pathname === '/api/apex-next/props') return { port: APEX_NEXT_PORT, path: '/api/props' + url.search };
-  if (url.pathname === '/apex' || url.pathname.startsWith('/apex/')) {
-    const suffix = url.pathname === '/apex' || url.pathname === '/apex/' ? '/apex-v2' : url.pathname.replace(/^\/apex/, '/apex-v2');
-    return { port: APEX_PORT, path: suffix + url.search };
+
+  // Every Apex page is a client-side route. The browser keeps /apex/live,
+  // /apex/watch, etc., while the upstream always serves the same application shell.
+  if (url.pathname === '/apex' || url.pathname === '/apex/' || url.pathname.startsWith('/apex/')) {
+    return { port: APEX_PORT, path: '/apex-v2' + url.search };
   }
   if (url.pathname === '/api/apex/health') return { port: APEX_PORT, path: '/api/health' + url.search };
   if (url.pathname === '/api/apex/props') return { port: APEX_PORT, path: '/api/props' + url.search };
   return { port: SCOUT_PORT, path: rawUrl };
+}
+
+function proxyHeaders(upstreamHeaders, transformed = false) {
+  const headers = { ...upstreamHeaders };
+  if (transformed) {
+    delete headers['content-length'];
+    delete headers['content-encoding'];
+    headers['cache-control'] = 'no-store';
+  }
+  return headers;
 }
 
 const server = http.createServer((req, res) => {
@@ -46,10 +60,30 @@ const server = http.createServer((req, res) => {
     port: dst.port,
     path: dst.path,
     method: req.method,
-    headers: { ...req.headers, host: req.headers.host || 'localhost' },
+    headers: { ...req.headers, host: req.headers.host || 'localhost', 'accept-encoding': 'identity' },
   }, (upstream) => {
-    res.writeHead(upstream.statusCode || 502, upstream.headers);
-    upstream.pipe(res);
+    const type = String(upstream.headers['content-type'] || '');
+    const injectApexShell = dst.port === APEX_PORT && type.includes('text/html');
+    if (!injectApexShell) {
+      res.writeHead(upstream.statusCode || 502, proxyHeaders(upstream.headers));
+      upstream.pipe(res);
+      return;
+    }
+
+    const chunks = [];
+    upstream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+    upstream.on('end', () => {
+      let body = Buffer.concat(chunks).toString('utf8');
+      const injection = `<script>${APEX_SHELL}</script>`;
+      body = body.includes('</head>') ? body.replace('</head>', `${injection}</head>`) : `${injection}${body}`;
+      res.writeHead(upstream.statusCode || 200, proxyHeaders(upstream.headers, true));
+      res.end(body);
+    });
+    upstream.on('error', (error) => {
+      console.error('[frontdoor] Apex HTML transform failed', error?.message || error);
+      if (!res.headersSent) res.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: false, error: 'Apex interface unavailable.' }));
+    });
   });
   proxy.on('error', (error) => {
     console.error('[frontdoor] proxy failure', error?.message || error);
@@ -60,14 +94,14 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(FRONT_PORT, '0.0.0.0', () => {
-  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; Scout=${SCOUT_PORT}; ApexV2=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}`);
+  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; Scout=${SCOUT_PORT}; ApexV2=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}; ApexShell=professional`);
 });
 
 setTimeout(async () => {
   try {
     const health = await fetch(`http://127.0.0.1:${APEX_PORT}/api/health`);
     const healthBody = await health.json();
-    console.log(`[Apex v2 self-check] health=${health.status} sportsGameOdds=${Boolean(healthBody?.sportsGameOddsConfigured)} sportsDataIo=${Boolean(healthBody?.sportsDataIoConfigured)}`);
+    console.log(`[Apex v2 self-check] health=${health.status} theOddsApi=${Boolean(healthBody?.theOddsApiConfigured)} sportsGameOdds=${Boolean(healthBody?.sportsGameOddsConfigured)} sportsDataIo=${Boolean(healthBody?.sportsDataIoConfigured)}`);
 
     const props = await fetch(`http://127.0.0.1:${APEX_PORT}/api/props?sport=NFL`);
     const propsBody = await props.json();

@@ -6,8 +6,8 @@ const DATA = path.resolve(process.env.DATA_DIR || './data');
 const FILE = path.join(DATA, 'access-codes-v4.json');
 const PEPPER = process.env.DASHBOARD_SESSION_SECRET || process.env.AUTOPROP_MASTER_KEY || 'autoprop-v4-local';
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const OWNER_BOOTSTRAP_HASH = '0de068881e1d3ecf0511c95318fd4ebe1e17dcbacc2a105cb8c6719854b2d09e';
-const OWNER_BOOTSTRAP_ID = 'owner-bootstrap-v1';
+const OWNER_BOOTSTRAP_HASH = 'f9e64a6f84b636053ff4650c2b6a66a61d01e21971f53bba63d78f3fff793993';
+const OWNER_BOOTSTRAP_ID = 'owner-bootstrap-v2';
 
 async function readRows() {
   try {
@@ -75,7 +75,7 @@ export async function redeemAccessCode(code) {
       row = {
         id: OWNER_BOOTSTRAP_ID,
         label: 'Owner bootstrap',
-        hint: '••••-PEVEL',
+        hint: '••••-JUFUH',
         createdAt: new Date(now).toISOString(),
         expiresAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
         maxUses: 1,

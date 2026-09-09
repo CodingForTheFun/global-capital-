@@ -56,6 +56,16 @@ async function main() {
     return;
   }
 
+  if (action === 'board') {
+    await requireUnlocked();
+    const { loadFullPickFinderBoard } = await import('./board-v6.mjs');
+    const result = await loadFullPickFinderBoard({
+      onProgress: (data) => emit('progress', data),
+    });
+    emit('result', result);
+    return;
+  }
+
   if (action === 'scan') {
     await requireUnlocked();
     const { runLiveScan } = await import('./production-board-v6.mjs');

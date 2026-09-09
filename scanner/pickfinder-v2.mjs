@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import { evaluatePick, buildDiversifiedCard, numberOrNull } from './criteria.mjs';
 import { criteriaFromRules, normalizeRules } from './rules.mjs';
 import { activateControl, waitForUnlock } from './interaction.mjs';
-import { safeError, internalDetail, PICKFINDER_SIGN_IN_FAILED } from '../lib/safe-error.mjs';
+import { safeError, internalDetail, publicMessageFor, PICKFINDER_SIGN_IN_FAILED } from '../lib/safe-error.mjs';
 import {
   clearPickFinderConnection,
   clearPickFinderSession,
@@ -601,8 +601,10 @@ async function analyze(context, candidate, rules, logs) {
       regularLine: false,
       prizePicksConfirmed: false,
       isToday: todayFromMatchId(candidate.matchId) === true,
-      filterAudit: [{ label: 'Full detail page', value: error.message, hitRate: null, required: true, enforceFloor: false, verified: false }],
-      scanError: error.message,
+      // `value` is rendered in the prop audit table and `scanError` ships inside
+      // latest.json, so neither may carry a raw Playwright/browser message.
+      filterAudit: [{ label: 'Full detail page', value: 'Could not be verified', hitRate: null, required: true, enforceFloor: false, verified: false }],
+      scanError: publicMessageFor(error, 'This prop could not be fully researched.'),
     }, criteria);
   } finally {
     await page.close().catch(() => {});

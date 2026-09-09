@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
+import { sportsDataIoPropBoard } from './lib/data-sources/sportsdataio/prop-board.mjs';
 
 const FRONT_PORT = Number(process.env.PORT || 3000);
 const SCOUT_PORT = 3002;
@@ -59,6 +60,10 @@ setTimeout(async () => {
     const props = await fetch(`http://127.0.0.1:${APEX_PORT}/api/apex/props?sport=NFL`);
     const propsBody = await props.json();
     console.log(`[Apex self-check] nflStatus=${props.status} props=${Number(propsBody?.props?.length || 0)} games=${Number(propsBody?.meta?.gamesScanned || 0)} providerStatus=${Number(propsBody?.meta?.status || 0)} warning=${propsBody?.meta?.warning || 'none'}`);
+
+    const mlb = await sportsDataIoPropBoard.fetchBoard({ sports: ['MLB'], force: true });
+    const coverage = Array.isArray(mlb?.coverage) ? mlb.coverage[0] : null;
+    console.log(`[Apex shape-check] MLB games=${Number(coverage?.gamesChecked || 0)} offers=${Number(coverage?.offerCount || 0)} status=${Number(coverage?.status || 0)} error=${coverage?.errorType || 'OK'} shape=${JSON.stringify(coverage?.shape || {})}`);
   } catch (error) {
     console.error('[Apex self-check] failed', error?.message || error);
   }

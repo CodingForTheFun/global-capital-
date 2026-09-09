@@ -141,3 +141,81 @@ test('Find Similar builds filters from the prop itself', () => {
   assert.deepEqual(similarFiltersFor(strong), { sports: ['NBA'], markets: ['Points'], side: 'OVER' });
   assert.deepEqual(similarFiltersFor(null), {});
 });
+
+// --- Scout Score v2 -------------------------------------------------------
+
+test('every available factor carries value, weight, contribution, explanation and source', () => {
+  const enriched = {
+    ...strong,
+    projection: 29.1, projectionSource: 'SportsDataIO', expectedMinutes: 34.2,
+    injuryStatus: 'ACTIVE', lineupStatus: 'CONFIRMED', opponentRank: 22, depthChartOrder: 1,
+    enrichedBy: { projection: 'sportsdataio', injuryStatus: 'sportsdataio', expectedMinutes: 'sportsdataio', lineupStatus: 'sportsdataio', opponentRank: 'sportsdataio' },
+    enrichment: { at: new Date().toISOString(), providers: {} },
+  };
+  const breakdown = scoreProp(enriched);
+
+  for (const factor of breakdown.factors.filter((f) => f.available)) {
+    assert.ok(typeof factor.weight === 'number', `${factor.id} weight`);
+    assert.ok(typeof factor.contribution === 'number', `${factor.id} contribution`);
+    assert.ok(factor.detail?.length, `${factor.id} explanation`);
+    assert.ok(factor.source, `${factor.id} must name its source`);
+  }
+  const projectionFactor = breakdown.factors.find((f) => f.id === 'projectionEdge');
+  assert.equal(projectionFactor.source, 'SportsDataIO');
+  assert.equal(projectionFactor.value, 29.1);
+  assert.ok(breakdown.sources.includes('SportsDataIO'));
+  assert.ok(breakdown.sources.includes('PickFinder'), 'both providers are credited');
+});
+
+test('provider factors are skipped entirely without provider data', () => {
+  const breakdown = scoreProp(strong);
+  for (const id of ['projectionEdge', 'availability', 'opportunity', 'lineupConfirmation', 'dataFreshness']) {
+    const factor = breakdown.factors.find((f) => f.id === id);
+    assert.equal(factor.available, false, `${id} must not apply without provider data`);
+    assert.equal(factor.points, 0);
+    assert.equal(factor.source, null);
+  }
+  assert.deepEqual(breakdown.sources, ['PickFinder']);
+});
+
+test('a missing factor is excluded from the denominator, never scored as zero', () => {
+  const withProjection = scoreProp({ ...strong, projection: 30, projectionSource: 'SportsDataIO' });
+  const withoutProjection = scoreProp(strong);
+  // Removing a factor must not drag the score toward zero; the remaining
+  // factors are simply re-weighted across the smaller denominator.
+  assert.ok(withoutProjection.score > 50, `score collapsed to ${withoutProjection.score} when a factor was absent`);
+  assert.ok(withProjection.dataCoverage > withoutProjection.dataCoverage, 'coverage reflects the extra factor');
+});
+
+test('an injury materially lowers the score through the availability factor', () => {
+  const base = { ...strong, expectedMinutes: 34, enrichedBy: { injuryStatus: 'sportsdataio' } };
+  const active = scoreProp({ ...base, injuryStatus: 'ACTIVE' }).score;
+  const questionable = scoreProp({ ...base, injuryStatus: 'QUESTIONABLE' }).score;
+  const out = scoreProp({ ...base, injuryStatus: 'OUT' }).score;
+  assert.ok(active > questionable, `${active} should beat ${questionable}`);
+  assert.ok(questionable > out, `${questionable} should beat ${out}`);
+});
+
+test('the score recalculates when its inputs change, and is never cached independently', () => {
+  const before = scoreProp({ ...strong, projection: 30, projectionSource: 'SportsDataIO' });
+  // A late scratch arrives.
+  const after = scoreProp({ ...strong, projection: 30, projectionSource: 'SportsDataIO', injuryStatus: 'OUT', enrichedBy: { injuryStatus: 'sportsdataio' } });
+  assert.notEqual(before.score, after.score, 'the score must move when the inputs move');
+  assert.ok(after.score < before.score);
+
+  // And a line move changes it too.
+  const lineMoved = scoreProp({ ...strong, line: 40, projection: 30, projectionSource: 'SportsDataIO' });
+  assert.notEqual(lineMoved.score, before.score);
+});
+
+test('freshness is reported and stale provider data is flagged', () => {
+  const fresh = scoreProp({ ...strong, enrichment: { at: new Date().toISOString(), providers: {} } });
+  assert.equal(fresh.freshness.stale, false);
+  assert.match(fresh.freshness.label, /just now|min ago/);
+
+  const old = scoreProp({ ...strong, enrichment: { at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(), providers: {} } });
+  assert.equal(old.freshness.stale, true, 'three-hour-old provider data is stale');
+  assert.match(old.freshness.label, /hour/);
+
+  assert.equal(scoreProp(strong).freshness, null, 'no provider data means no freshness claim');
+});

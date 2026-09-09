@@ -7,7 +7,7 @@ const FRONT_PORT = Number(process.env.PORT || 3000);
 const SCOUT_PORT = 3002;
 const APEX_PORT = 3001;
 const APEX_NEXT_PORT = 3003;
-const APEX_SHELL = readFileSync('./apex-v2/shell-upgrade.js', 'utf8').replace(/<\/script/gi, '<\\/script');
+const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v2.js', 'utf8').replace(/<\/script/gi, '<\\/script');
 
 function child(file, port, label) {
   const proc = spawn(process.execPath, [file], {
@@ -72,8 +72,6 @@ const server = http.createServer((req, res) => {
     upstream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
     upstream.on('end', () => {
       let body = Buffer.concat(chunks).toString('utf8');
-      // NFL is in season right now; make the first production view useful instead
-      // of landing on an offseason NBA board with zero events.
       body = body.replace("var state={sport:'NBA'", "var state={sport:'NFL'");
       const injection = `<script>${APEX_SHELL}</script>`;
       body = body.includes('</head>') ? body.replace('</head>', `${injection}</head>`) : `${injection}${body}`;
@@ -95,7 +93,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(FRONT_PORT, '0.0.0.0', () => {
-  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; Scout=${SCOUT_PORT}; ApexV2=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}; ApexShell=professional`);
+  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; Scout=${SCOUT_PORT}; ApexV2=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}; ApexShell=reference-card-v2`);
 });
 
 setTimeout(async () => {

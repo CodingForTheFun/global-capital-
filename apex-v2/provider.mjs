@@ -9,6 +9,7 @@ const num = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 };
+const inflight = new Map();
 
 function normalizeSportsDataIo(board, league) {
   const props = (board?.offers || []).map((o, i) => ({
@@ -77,6 +78,18 @@ async function fetchSportsDataIo(league, { force = false } = {}) {
   return normalizeSportsDataIo(board, league);
 }
 
+async function fetchPrimaryCoalesced(provider, selected, options) {
+  const key = `${provider.id}|${selected}|${options.includeAlternates ? 'alternate' : 'main'}`;
+  if (!options.force && inflight.has(key)) return inflight.get(key);
+  const pending = provider.fetchBoard(selected, options);
+  if (!options.force) inflight.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (inflight.get(key) === pending) inflight.delete(key);
+  }
+}
+
 export async function fetchUnifiedBoard(league, { signal, force = false, includeAlternates = false } = {}) {
   const selected = text(league || 'NFL').toUpperCase();
   const oddsProvider = primaryOddsProvider();
@@ -84,7 +97,7 @@ export async function fetchUnifiedBoard(league, { signal, force = false, include
 
   if (oddsProvider) {
     try {
-      return await oddsProvider.fetchBoard(selected, { signal, force, includeAlternates });
+      return await fetchPrimaryCoalesced(oddsProvider, selected, { signal, force, includeAlternates });
     } catch (error) {
       oddsError = error;
     }
@@ -118,6 +131,7 @@ export function providerDiagnostics() {
     checkedAt: new Date().toISOString(),
     catalog: providerCatalog(),
     runtime: snapshotDiagnostics(),
+    inflightRefreshes: [...inflight.keys()].map((key) => key.replace(/^[^|]+\|/, '')),
   };
 }
 

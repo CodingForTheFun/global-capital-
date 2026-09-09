@@ -2,7 +2,7 @@
 // Runtime SportsDataIO verification for Scout Pro.
 //
 // Designed for Railway where SPORTSDATAIO_API_KEY actually exists. It prints
-// only feed classifications, row/operator counts and timestamps — never the key,
+// only feed classifications, game/operator counts and timestamps — never the key,
 // auth headers, endpoint URLs, response bodies or individual betting outcomes.
 //
 // By default this is diagnostic/non-blocking so a missing optional feed cannot
@@ -42,14 +42,15 @@ for (const sport of canonical) {
 
 console.log(`[provider-check] configured=${Boolean(matrix?.configured)} keyRejected=${Boolean(matrix?.keyRejected)} discoveredAt=${matrix?.discoveredAt || 'unknown'}`);
 
-// The entitlement pass above caches successful playerProps payloads. This
-// operator check therefore normally adds no second provider request for a feed
-// that already succeeded.
+// Operator coverage uses each real GameID from the scores feed. Cached game and
+// first-game responses are reused automatically; remaining games are fetched
+// with a small concurrency cap. A league with zero games is reported honestly,
+// not treated as a missing subscription.
 let coverage = null;
 try {
   coverage = await adapter.operatorCoverage({ sportsbook: 'PrizePicks', sports: canonical });
   for (const row of coverage.rows || []) {
-    console.log(`[provider-check] PrizePicks ${row.sport}: feedAvailable=${Boolean(row.feedAvailable)} targetSeen=${Boolean(row.targetSeen)} targetOffers=${Number(row.targetOffers || 0)} coreOffers=${Number(row.totalCoreOffers || 0)}`);
+    console.log(`[provider-check] PrizePicks ${row.sport}: feedAvailable=${Boolean(row.feedAvailable)} gamesChecked=${Number(row.gamesChecked || 0)} targetSeen=${Boolean(row.targetSeen)} targetOffers=${Number(row.targetOffers || 0)} coreOffers=${Number(row.totalCoreOffers || 0)}`);
   }
   console.log(`[provider-check] PrizePicks leagues=${(coverage.leaguesWithTarget || []).join(',') || 'none'}`);
 } catch {

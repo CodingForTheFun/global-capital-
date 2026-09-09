@@ -6,7 +6,7 @@ const FRONT_PORT = Number(process.env.PORT || 3000);
 const SCOUT_PORT = 3002;
 const APEX_PORT = 3001;
 const APEX_NEXT_PORT = 3003;
-const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v2.js', 'utf8').replace(/<\/script/gi, '<\\/script');
+const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v3.js', 'utf8').replace(/<\/script/gi, '<\\/script');
 
 function child(file, port, label) {
   const proc = spawn(process.execPath, [file], {
@@ -37,6 +37,7 @@ function target(rawUrl = '/') {
   }
   if (url.pathname === '/api/apex/health') return { port: APEX_PORT, path: '/api/health' + url.search, injectShell: false };
   if (url.pathname === '/api/apex/props') return { port: APEX_PORT, path: '/api/props' + url.search, injectShell: false };
+  if (url.pathname === '/api/apex/line-history') return { port: APEX_PORT, path: '/api/line-history' + url.search, injectShell: false };
 
   if (url.pathname === '/apex/diagnostics' || url.pathname === '/apex/diagnostics/') {
     return { port: APEX_PORT, path: '/diagnostics' + url.search, injectShell: false };
@@ -105,18 +106,18 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(FRONT_PORT, '0.0.0.0', () => {
-  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; ScoutLegacy=${SCOUT_PORT}; AutoScoutCore=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}; AutoScoutShell=reference-card-v2`);
+  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; ScoutLegacy=${SCOUT_PORT}; AutoScoutCore=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}; AutoScoutShell=prop-explorer-v3`);
 });
 
 setTimeout(async () => {
   try {
     const health = await fetch(`http://127.0.0.1:${APEX_PORT}/api/health`);
     const healthBody = await health.json();
-    console.log(`[AutoScout self-check] health=${health.status} theOddsApi=${Boolean(healthBody?.theOddsApiConfigured)} provider=${healthBody?.preferredProvider || 'none'}`);
+    console.log(`[AutoScout self-check] health=${health.status} theOddsApi=${Boolean(healthBody?.theOddsApiConfigured)} provider=${healthBody?.preferredProvider || 'none'} database=${healthBody?.persistence?.configured ? 'connected' : 'not-connected'}`);
 
     const props = await fetch(`http://127.0.0.1:${APEX_PORT}/api/props?sport=NFL`);
     const propsBody = await props.json();
-    console.log(`[AutoScout self-check] nflStatus=${props.status} lines=${Number(propsBody?.meta?.lineCount ?? propsBody?.props?.length ?? 0)} events=${Number(propsBody?.meta?.events || 0)} books=${Number(propsBody?.meta?.sportsbookCount || 0)} provider=${propsBody?.meta?.provider || 'none'} cache=${propsBody?.meta?.cacheHit ? 'hit' : 'miss'}`);
+    console.log(`[AutoScout self-check] nflStatus=${props.status} lines=${Number(propsBody?.meta?.lineCount ?? propsBody?.props?.length ?? 0)} events=${Number(propsBody?.meta?.events || 0)} books=${Number(propsBody?.meta?.sportsbookCount || 0)} provider=${propsBody?.meta?.provider || 'none'} cache=${propsBody?.meta?.cacheHit ? 'hit' : 'miss'} ruleAudit=${propsBody?.props?.[0]?.autoScout?.checks?.length ? 'yes' : 'no'}`);
 
     const nextHealth = await fetch(`http://127.0.0.1:${APEX_NEXT_PORT}/api/health`);
     console.log(`[Apex next self-check] health=${nextHealth.status}`);

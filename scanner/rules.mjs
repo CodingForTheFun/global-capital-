@@ -1,4 +1,5 @@
 export const DEFAULT_RULES = Object.freeze({
+  rulesEnabled: false,
   preset: 'strict',
   minL5: 80,
   minL10: 75,
@@ -18,10 +19,11 @@ export const DEFAULT_RULES = Object.freeze({
 });
 
 export const RULE_PRESETS = Object.freeze({
-  strict: { ...DEFAULT_RULES, preset: 'strict' },
+  strict: { ...DEFAULT_RULES, preset: 'strict', rulesEnabled: true },
   balanced: {
     ...DEFAULT_RULES,
     preset: 'balanced',
+    rulesEnabled: true,
     minL5: 70,
     minL10: 70,
     minL15: 70,
@@ -33,6 +35,7 @@ export const RULE_PRESETS = Object.freeze({
   flexible: {
     ...DEFAULT_RULES,
     preset: 'flexible',
+    rulesEnabled: true,
     minL5: 60,
     minL10: 60,
     minL15: 60,
@@ -61,6 +64,7 @@ export function normalizeRules(input = {}) {
     : DEFAULT_RULES;
 
   return {
+    rulesEnabled: bool(input.rulesEnabled, base.rulesEnabled),
     preset: requestedPreset,
     minL5: clamp(input.minL5, base.minL5),
     minL10: clamp(input.minL10, base.minL10),
@@ -77,9 +81,7 @@ export function normalizeRules(input = {}) {
     requireAdvancedAvailable: bool(input.requireAdvancedAvailable, base.requireAdvancedAvailable),
     bestAvailable: bool(input.bestAvailable, base.bestAvailable),
     bestAvailableLimit: clamp(input.bestAvailableLimit, base.bestAvailableLimit, 1, 25),
-    // These three are intentionally locked because they are permanent product rules.
-    prizePicksOnly: true,
-    regularLinesOnly: true,
+    verifiedSourcesOnly: true,
     todayOnly: true,
   };
 }

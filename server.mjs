@@ -8,6 +8,8 @@ import { getPickFinderConnectionState } from './scanner/secure-store.mjs';
 import { DEFAULT_RULES, RULE_PRESETS, normalizeRules } from './scanner/rules.mjs';
 import { publicError, publicMessageFor, internalDetail, PUBLIC_MESSAGES, GENERIC_MESSAGE } from './lib/safe-error.mjs';
 import { handlePropRoutes } from './lib/props/routes.mjs';
+import { handleAccountRoutes, currentAccount } from './lib/auth/routes.mjs';
+import { createAccountSessions } from './lib/auth/session.mjs';
 import { bootstrapProviders } from './lib/data-sources/bootstrap.mjs';
 import { createRateLimiter, clientKey, permissionsFor, OWNER } from './lib/session.mjs';
 
@@ -23,6 +25,9 @@ const intervalMinutes = Math.max(0, Number(process.env.AUTO_SCAN_MINUTES || 30))
 const dashboardPassword = process.env.DASHBOARD_PASSWORD || '';
 const dashboardSessionSecret = process.env.DASHBOARD_SESSION_SECRET || crypto.createHash('sha256').update(`autoprop:${dashboardPassword || 'local-only'}`).digest('hex');
 const authRequired = Boolean(dashboardPassword);
+// Account sessions are signed with the same secret as the legacy owner cookie
+// but are a separate token format, so both can coexist during migration.
+const accountSessions = createAccountSessions({ secret: dashboardSessionSecret });
 
 await fs.mkdir(dataDir, { recursive: true });
 
@@ -126,6 +131,13 @@ function authTokenValid(token) {
   return safeEqual(parts[2], expected);
 }
 function isAuthorized(req) { if (!authRequired) return true; return authTokenValid(parseCookies(req).aps_session); }
+
+/** A legacy dashboard cookie or a verified account session both authorize. */
+async function isAuthorizedRequest(req) {
+  if (isAuthorized(req)) return true;
+  const { user } = await currentAccount(req, accountSessions);
+  return Boolean(user);
+}
 function sameOrigin(req) {
   const origin = req.headers.origin; if (!origin) return true;
   try { const parsed = new URL(origin); const host = String(req.headers['x-forwarded-host'] || req.headers.host || ''); return parsed.host === host; } catch { return false; }
@@ -167,7 +179,15 @@ async function handleRequest(req, res) {
     catch (error) { console.error('[AutoProp auth] unlock failed', JSON.stringify(internalDetail(error, { stage: 'login' }))); return json(res, 400, { ok: false, message: PUBLIC_MESSAGES.REQUEST_INVALID }); }
   }
   if (url.pathname === '/api/auth/logout' && req.method === 'POST') { if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' }); return json(res, 200, { ok: true }, { 'set-cookie': clearCookieHeader(req) }); }
-  if (url.pathname.startsWith('/api/') && !isAuthorized(req)) return json(res, 401, { ok: false, message: 'Dashboard authentication required.', authRequired: true });
+  // Account auth (register / verify / sign in / password). Deliberately ahead
+  // of the gate below: these must be reachable while signed out.
+  if (await handleAccountRoutes(req, res, url, { sessions: accountSessions, json, secret: dashboardSessionSecret })) return;
+
+  // Either a legacy owner/member cookie OR a verified account session opens the
+  // rest of the API.
+  if (url.pathname.startsWith('/api/') && !(await isAuthorizedRequest(req))) {
+    return json(res, 401, { ok: false, message: 'Dashboard authentication required.', authRequired: true });
+  }
 
   // ALL PROPS / Auto Prop Finder / prop detail / provider status.
   // Behind the auth gate above, so provider-backed data is never public.

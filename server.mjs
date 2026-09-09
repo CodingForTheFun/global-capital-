@@ -140,7 +140,9 @@ function cookieHeader(req, token) { const secure = String(req.headers['x-forward
 function clearCookieHeader(req) { const secure = String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https'; return `aps_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? '; Secure' : ''}`; }
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
 async function serveStatic(req, res) {
-  let pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname; if (pathname === '/') pathname = '/index.html';
+  let pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
+  if (pathname === '/') pathname = '/index.html';
+  if (pathname === '/props' || pathname === '/props/') pathname = '/props.html';
   const normalized = path.normalize(pathname).replace(/^([.][.][/\\])+/, ''); const file = path.join(publicDir, normalized); if (!file.startsWith(publicDir)) return false;
   try {
     const stat = await fs.stat(file); if (!stat.isFile()) return false; const body = await fs.readFile(file);

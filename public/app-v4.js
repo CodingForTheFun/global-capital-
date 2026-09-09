@@ -30,6 +30,13 @@ function ensureInviteField() {
   sync();
 }
 
+function ensureCheckoutHook() {
+  const link = document.querySelector('a[href="/checkout.html"]');
+  if (!link) return;
+  link.id = 'checkoutLink';
+  link.classList.add('hidden');
+}
+
 window.fetch = async (input, init = {}) => {
   const url = typeof input === 'string' ? input : input?.url || '';
   if (url.includes('/api/auth/register') && init?.body) {
@@ -43,5 +50,7 @@ window.fetch = async (input, init = {}) => {
 };
 
 ensureInviteField();
+ensureCheckoutHook();
 await import('./app-v4-core.js');
 ensureInviteField();
+ensureCheckoutHook();

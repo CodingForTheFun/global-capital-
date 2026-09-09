@@ -29,7 +29,7 @@ This repository is being worked on from more than one ChatGPT conversation. Thos
 - Production domain: `autoprop-live-production.up.railway.app`
 - Recovery baseline: `9165291ec29e5f54241e1657f4f0f5602901bfc4`
 - Railway source branch: `production-stable`
-- Railway start command verified 2026-09-09: `node server-professional.mjs`
+- Railway start command verified 2026-09-09: `node server-scout.mjs`
 
 ## Active v3 branch
 
@@ -61,3 +61,4 @@ Before making changes:
   - Added `prizePicksBoard()` as an API-first candidate source, but it is NOT enabled as the production prop universe yet. PickFinder remains the authoritative fallback until Railway runtime verification proves the configured subscription actually contains PrizePicks core offers for a league. Scout Rules continue to fail closed for any source that has not satisfied the hard locks.
   - Candidate `7ee72798d810ba3972279bd693937ca48b325b04` passed the full GitHub release-candidate workflow. `production-stable` was fast-forwarded from `4a3acfa` to the validated candidate, and this documentation commit intentionally triggers the Railway production rollout. Runtime SportsDataIO verification is configured as a one-time pre-deploy diagnostic; it prints only entitlement classifications and safe operator counts.
 - 2026-09-09: Product direction updated by owner: SCOUT PRO must become a provider-native sports research platform that remains useful without PickFinder. PickFinder may stay only as an optional per-user research source when it genuinely works. The production All Props universe is being moved toward real SportsDataIO player-prop feeds, with source labeling, no fabricated PrizePicks attribution, and the same hard promotional-line exclusions.
+- 2026-09-09: `chatgpt/api-first-props-fix` passed the release workflow at commit `1fc7b1a15081783e9bb8565e2344f00234e00f71`. Production was fast-forwarded to that build, the Railway start command was changed to `node server-scout.mjs`, healthcheck to `/api/health`, and this documentation commit exists to emit a normal GitHub push event so Railway refreshes the `production-stable` source snapshot.

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - claude/pickfinder-auth-modal-fix-dle7hz
+      - chatgpt/api-first-props-fix
   workflow_dispatch:
 
 permissions:

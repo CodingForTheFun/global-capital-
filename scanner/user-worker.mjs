@@ -51,14 +51,14 @@ async function main() {
   }
 
   if (action === 'disconnect') {
-    const { disconnectPickFinder } = await import('./production.mjs');
+    const { disconnectPickFinder } = await import('./production-board-v6.mjs');
     emit('result', await disconnectPickFinder());
     return;
   }
 
   if (action === 'scan') {
     await requireUnlocked();
-    const { runLiveScan } = await import('./production.mjs');
+    const { runLiveScan } = await import('./production-board-v6.mjs');
     const result = await runLiveScan({
       rules: payload.rules,
       onProgress: (data) => emit('progress', data),

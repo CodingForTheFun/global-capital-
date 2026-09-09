@@ -8,6 +8,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/props.css" />
   <link rel="stylesheet" href="/props-v2.css" />
+  <link rel="stylesheet" href="/props-mobile-fix.css" />
   <title>Props • Scout Pro</title>
 </head>
 <body>
@@ -19,7 +20,7 @@
 
   <main class="shell props-shell">
     <section class="intro compact-intro">
-      <div><span class="eyebrow">SCOUT PRO · PROP BOARD</span><h1>Props, organized.</h1><p>Real provider lines, live context, and explainable Scout research in one board.</p></div>
+      <div><span class="eyebrow">SCOUT PRO · PROP BOARD</span><h1>Props, organized.</h1><p>Real player lines, recent performance, and live context without the clutter.</p></div>
       <div class="summary-card"><span>Freshness</span><strong id="lastScan">—</strong><small id="dataSummary">Loading board</small></div>
     </section>
 
@@ -50,14 +51,18 @@
     <section class="results-head">
       <div><span id="resultLabel">ALL PROPS</span><h2 id="resultCount">Loading…</h2></div>
       <div class="result-tools">
-        <label class="sort-control">Show<select id="resultLimit"><option value="100">100</option><option value="250">250</option><option value="500">MAX · 500</option></select></label>
+        <label class="sort-control">Per page<select id="resultLimit"><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
         <label class="sort-control">Sort<select id="sortSelect"><option value="score-desc">Scout Score</option><option value="hit-rate-desc">Best hit rate</option><option value="edge-desc">Best edge</option><option value="confidence-desc">Confidence</option><option value="player-asc">Player A–Z</option></select></label>
       </div>
     </section>
 
     <div id="notice" class="notice" hidden></div>
     <section id="propGrid" class="prop-grid" aria-live="polite"><div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div></section>
-    <button id="loadMoreBtn" class="load-more" type="button" hidden>Load more props</button>
+    <nav id="pagination" class="pagination" aria-label="Prop pages" hidden>
+      <button id="prevPageBtn" type="button">‹ Prev</button>
+      <span id="pageLabel">Page 1 of 1</span>
+      <button id="nextPageBtn" type="button">Next ›</button>
+    </nav>
   </main>
 
   <aside id="filterSheet" class="sheet" aria-hidden="true">

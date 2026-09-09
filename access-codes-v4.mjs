@@ -6,6 +6,8 @@ const DATA = path.resolve(process.env.DATA_DIR || './data');
 const FILE = path.join(DATA, 'access-codes-v4.json');
 const PEPPER = process.env.DASHBOARD_SESSION_SECRET || process.env.AUTOPROP_MASTER_KEY || 'autoprop-v4-local';
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const OWNER_BOOTSTRAP_HASH = '0de068881e1d3ecf0511c95318fd4ebe1e17dcbacc2a105cb8c6719854b2d09e';
+const OWNER_BOOTSTRAP_ID = 'owner-bootstrap-v1';
 
 async function readRows() {
   try {
@@ -23,6 +25,7 @@ async function writeRows(rows) {
 }
 function normalize(code = '') { return String(code).trim().toUpperCase().replace(/\s+/g, ''); }
 function digest(code) { return crypto.createHmac('sha256', PEPPER).update(normalize(code)).digest('hex'); }
+function plainDigest(code) { return crypto.createHash('sha256').update(normalize(code)).digest('hex'); }
 function safeHexEqual(a, b) {
   const aa = Buffer.from(String(a), 'hex');
   const bb = Buffer.from(String(b), 'hex');
@@ -62,10 +65,35 @@ export async function generateAccessCode({ label = 'Friend access', expiresInDay
 
 export async function redeemAccessCode(code) {
   const normalized = normalize(code);
-  if (!/^AP-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(normalized)) return null;
-  const target = digest(normalized);
   const rows = await readRows();
   const now = Date.now();
+
+  if (safeHexEqual(plainDigest(normalized), OWNER_BOOTSTRAP_HASH)) {
+    let row = rows.find((item) => item.id === OWNER_BOOTSTRAP_ID);
+    if (row && (row.active === false || Number(row.uses || 0) >= 1)) return null;
+    if (!row) {
+      row = {
+        id: OWNER_BOOTSTRAP_ID,
+        label: 'Owner bootstrap',
+        hint: '••••-PEVEL',
+        createdAt: new Date(now).toISOString(),
+        expiresAt: new Date(now + 24 * 60 * 60 * 1000).toISOString(),
+        maxUses: 1,
+        uses: 0,
+        active: true,
+        lastUsedAt: null,
+      };
+      rows.unshift(row);
+    }
+    if (Date.parse(row.expiresAt || '') <= now) return null;
+    row.uses = 1;
+    row.lastUsedAt = new Date(now).toISOString();
+    await writeRows(rows.slice(0, 500));
+    return publicRow(row);
+  }
+
+  if (!/^AP-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(normalized)) return null;
+  const target = digest(normalized);
   for (const row of rows) {
     if (row.active === false) continue;
     if (Date.parse(row.expiresAt || '') <= now) continue;

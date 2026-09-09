@@ -16,6 +16,8 @@ export const DEFAULT_RULES = Object.freeze({
   requireAdvancedAvailable: true,
   bestAvailable: true,
   bestAvailableLimit: 12,
+  allProps: true,
+  dateScope: 'ALL',
 });
 
 export const RULE_PRESETS = Object.freeze({
@@ -64,7 +66,6 @@ export function normalizeRules(input = {}) {
     : DEFAULT_RULES;
 
   return {
-    // Existing saved profiles predate this switch. Missing value intentionally means OFF.
     rulesEnabled: bool(input.rulesEnabled, DEFAULT_RULES.rulesEnabled),
     preset: requestedPreset,
     minL5: clamp(input.minL5, base.minL5),
@@ -82,8 +83,8 @@ export function normalizeRules(input = {}) {
     requireAdvancedAvailable: bool(input.requireAdvancedAvailable, base.requireAdvancedAvailable),
     bestAvailable: bool(input.bestAvailable, base.bestAvailable),
     bestAvailableLimit: clamp(input.bestAvailableLimit, base.bestAvailableLimit, 1, 25),
-    verifiedSourcesOnly: true,
-    todayOnly: true,
+    allProps: true,
+    dateScope: 'ALL',
   };
 }
 

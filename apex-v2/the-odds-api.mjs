@@ -10,8 +10,9 @@ const SPORT_KEYS = Object.freeze({
   NHL: 'icehockey_nhl',
 });
 
-// Keep the default set at 10 or fewer bookmakers so The Odds API bills it as
-// one bookmaker-region equivalent. The user can override this with env vars.
+// Keep the default universe at 10 books. The Odds API bills each group of
+// up to 10 explicitly requested bookmakers as one region-equivalent.
+// This mixes DFS apps and sportsbooks without paying for multiple regions.
 const DEFAULT_BOOKMAKERS = Object.freeze([
   'prizepicks',
   'underdog',
@@ -27,7 +28,12 @@ const DEFAULT_BOOKMAKERS = Object.freeze([
 
 const boardCache = new Map();
 const marketCache = new Map();
-const quota = { used: null, remaining: null, lastCost: null, updatedAt: null };
+const quota = {
+  used: null,
+  remaining: null,
+  lastCost: null,
+  updatedAt: null,
+};
 
 const text = (value) => String(value ?? '').trim();
 const numberOrNull = (value) => {
@@ -39,27 +45,46 @@ const intEnv = (name, fallback, min, max) => {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
 };
 
+function monthlyCredits() {
+  return intEnv('THE_ODDS_API_MONTHLY_CREDITS', 20_000, 500, 100_000_000);
+}
+function quotaRatio() {
+  if (!Number.isFinite(quota.remaining)) return 1;
+  return Math.max(0, Math.min(1, quota.remaining / monthlyCredits()));
+}
 function cacheMs() {
-  // Conservative default for the $30 / 20K-credit plan. This can be reduced
-  // later when a higher quota is connected.
-  return intEnv('THE_ODDS_API_CACHE_SECONDS', 900, 60, 3600) * 1000;
+  const baseSeconds = intEnv('THE_ODDS_API_CACHE_SECONDS', 2700, 60, 21600);
+  const ratio = quotaRatio();
+  // Automatically stretch freshness before the paid monthly quota is burned.
+  const multiplier = ratio <= 0.10 ? 4 : ratio <= 0.25 ? 2 : ratio <= 0.50 ? 1.35 : 1;
+  return Math.round(baseSeconds * multiplier) * 1000;
 }
 function marketCacheMs() {
   return intEnv('THE_ODDS_API_MARKET_CACHE_SECONDS', 21600, 900, 86400) * 1000;
 }
 function maxEvents() {
-  return intEnv('THE_ODDS_API_MAX_EVENTS', 2, 1, 50);
+  const configured = intEnv('THE_ODDS_API_MAX_EVENTS', 2, 1, 50);
+  return quotaRatio() <= 0.10 ? 1 : configured;
 }
 function maxMarketsPerEvent() {
-  return intEnv('THE_ODDS_API_MAX_MARKETS_PER_EVENT', 6, 1, 50);
+  const configured = intEnv('THE_ODDS_API_MAX_MARKETS_PER_EVENT', 6, 1, 50);
+  if (quotaRatio() <= 0.10) return Math.min(3, configured);
+  if (quotaRatio() <= 0.25) return Math.min(4, configured);
+  return configured;
 }
 function configuredBookmakers() {
   const raw = text(process.env.THE_ODDS_API_BOOKMAKERS);
-  const values = (raw ? raw.split(',') : DEFAULT_BOOKMAKERS).map(v => text(v).toLowerCase()).filter(Boolean);
+  const values = (raw ? raw.split(',') : DEFAULT_BOOKMAKERS)
+    .map(v => text(v).toLowerCase())
+    .filter(Boolean);
+  // The default stays at ten for quota efficiency. A user can deliberately
+  // override this up to 20, but that doubles the region-equivalent cost.
   return [...new Set(values)].slice(0, 20);
 }
 function regularPlayerMarket(key) {
   const value = text(key).toLowerCase();
+  // PrizePicks goblins/demons and other milestone/alternate selections are
+  // exposed by The Odds API under *_alternate market keys. Never ingest them.
   return value.startsWith('player_') && !value.endsWith('_alternate') && !value.includes('_alternate_');
 }
 function marketLabel(key) {
@@ -71,6 +96,7 @@ function marketLabel(key) {
     .replace(/\basts\b/gi, 'Assists')
     .replace(/\btds\b/gi, 'TDs')
     .replace(/\byds\b/gi, 'Yards')
+    .replace(/\bfgs\b/gi, 'Field Goals')
     .replace(/\b\w/g, m => m.toUpperCase());
 }
 function sideOf(name) {
@@ -92,6 +118,17 @@ function scoreFor(row, team) {
   const score = (row?.scores || []).find(item => text(item?.name) === text(team));
   return numberOrNull(score?.score);
 }
+function median(values) {
+  const nums = values.filter(Number.isFinite).slice().sort((a, b) => a - b);
+  if (!nums.length) return null;
+  const mid = Math.floor(nums.length / 2);
+  return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+}
+function americanImplied(price) {
+  const p = numberOrNull(price);
+  if (p === null || p === 0) return null;
+  return p > 0 ? 100 / (p + 100) : (-p) / ((-p) + 100);
+}
 function updateQuota(headers) {
   if (!headers) return;
   const used = numberOrNull(headers.get('x-requests-used'));
@@ -101,6 +138,14 @@ function updateQuota(headers) {
   if (remaining !== null) quota.remaining = remaining;
   if (lastCost !== null) quota.lastCost = lastCost;
   quota.updatedAt = new Date().toISOString();
+}
+function quotaSnapshot() {
+  return {
+    ...quota,
+    monthlyCredits: monthlyCredits(),
+    remainingRatio: quotaRatio(),
+    conservationMode: quotaRatio() <= 0.25,
+  };
 }
 async function apiGet(path, params, signal) {
   const key = text(process.env.THE_ODDS_API_KEY);
@@ -141,10 +186,12 @@ async function discoverMarkets(sportKey, eventId, bookmakers, signal) {
   const cacheKey = `${sportKey}:${eventId}:${bookmakers.join(',')}`;
   const cached = marketCache.get(cacheKey);
   if (cached && Date.now() - cached.at < marketCacheMs()) return cached.markets;
+
   const body = await apiGet(`/sports/${sportKey}/events/${eventId}/markets`, {
     bookmakers: bookmakers.join(','),
     dateFormat: 'iso',
   }, signal);
+
   const counts = new Map();
   for (const book of body?.bookmakers || []) {
     for (const market of book?.markets || []) {
@@ -153,10 +200,14 @@ async function discoverMarkets(sportKey, eventId, bookmakers, signal) {
       counts.set(key, (counts.get(key) || 0) + 1);
     }
   }
+
+  // Prefer prop markets present at the most books. That creates a denser
+  // comparison board while keeping the $30 plan's credit burn under control.
   const markets = [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([key]) => key)
     .slice(0, maxMarketsPerEvent());
+
   marketCache.set(cacheKey, { at: Date.now(), markets });
   return markets;
 }
@@ -166,6 +217,7 @@ function normalizeEventOdds(event, league, scoreRow) {
   const status = eventStatus(event, scoreRow);
   const homeScore = scoreFor(scoreRow, event?.home_team);
   const awayScore = scoreFor(scoreRow, event?.away_team);
+
   for (const bookmaker of event?.bookmakers || []) {
     for (const market of bookmaker?.markets || []) {
       const marketKey = text(market?.key).toLowerCase();
@@ -176,6 +228,7 @@ function normalizeEventOdds(event, league, scoreRow) {
         const playerName = text(outcome?.description);
         if (!side || line === null || !playerName) continue;
         const sportsbookKey = text(bookmaker?.key).toLowerCase();
+        const price = numberOrNull(outcome?.price);
         rows.push({
           id: [event?.id, marketKey, playerName, side, line, sportsbookKey].join('|'),
           source: 'The Odds API',
@@ -190,7 +243,8 @@ function normalizeEventOdds(event, league, scoreRow) {
           period: 'game',
           side,
           line,
-          price: outcome?.price ?? '',
+          price: price ?? '',
+          impliedProbability: americanImplied(price),
           sportsbook: text(bookmaker?.title || bookmaker?.key),
           sportsbookKey,
           fairOdds: '',
@@ -207,6 +261,19 @@ function normalizeEventOdds(event, league, scoreRow) {
       }
     }
   }
+
+  // Add a median cross-book line to each row without spending another credit.
+  const groups = new Map();
+  for (const row of rows) {
+    const key = [row.eventId, row.marketId, row.playerName.toLowerCase(), row.side].join('|');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row.line);
+  }
+  for (const row of rows) {
+    const key = [row.eventId, row.marketId, row.playerName.toLowerCase(), row.side].join('|');
+    row.fairLine = median(groups.get(key) || []);
+  }
+
   return rows;
 }
 
@@ -230,14 +297,17 @@ export async function fetchTheOddsApiBoard(league, { signal, force = false } = {
   const bookmakers = configuredBookmakers();
   const key = `theodds:${selected}:${bookmakers.join(',')}`;
   const cached = boardCache.get(key);
-  if (!force && cached && Date.now() - cached.at < cacheMs()) return cached.value;
+  // Browser refresh must never bypass this cache on a quota-metered plan.
+  if (cached && Date.now() - cached.at < cacheMs()) return cached.value;
 
   const startedAt = Date.now();
-  // Events are free from quota. Scores cost one credit and give us live score state.
   const [eventRows, scores] = await Promise.all([
+    // Event discovery is free from quota.
     apiGet(`/sports/${sportKey}/events`, {}, signal),
+    // Scores cost one credit and also give us live/completed state.
     apiGet(`/sports/${sportKey}/scores`, { dateFormat: 'iso' }, signal).catch(() => []),
   ]);
+
   const events = upcomingFirst(Array.isArray(eventRows) ? eventRows : []).slice(0, maxEvents());
   const scoresById = scoreMap(scores);
 
@@ -246,13 +316,19 @@ export async function fetchTheOddsApiBoard(league, { signal, force = false } = {
     if (!eventId) return { rows: [], markets: [] };
     const markets = await discoverMarkets(sportKey, eventId, bookmakers, signal);
     if (!markets.length) return { rows: [], markets: [] };
+
     const odds = await apiGet(`/sports/${sportKey}/events/${eventId}/odds`, {
       bookmakers: bookmakers.join(','),
       markets: markets.join(','),
       oddsFormat: 'american',
       dateFormat: 'iso',
+      includeMultipliers: 'true',
     }, signal);
-    return { rows: normalizeEventOdds(odds, selected, scoresById.get(eventId)), markets };
+
+    return {
+      rows: normalizeEventOdds(odds, selected, scoresById.get(eventId)),
+      markets,
+    };
   });
 
   const rows = eventResults.flatMap(r => r.rows || []);
@@ -275,9 +351,12 @@ export async function fetchTheOddsApiBoard(league, { signal, force = false } = {
       cacheSeconds: Math.round(cacheMs() / 1000),
       maxEvents: maxEvents(),
       maxMarketsPerEvent: maxMarketsPerEvent(),
-      quota: { ...quota },
+      requestedBookmakers: bookmakers,
+      quota: quotaSnapshot(),
+      conservationMode: quotaRatio() <= 0.25,
     },
   };
+
   boardCache.set(key, { at: Date.now(), value });
   return value;
 }
@@ -287,10 +366,11 @@ export function theOddsApiHealth() {
     configured: Boolean(text(process.env.THE_ODDS_API_KEY)),
     sportKeys: { ...SPORT_KEYS },
     bookmakers: configuredBookmakers(),
+    regularLinesOnly: true,
     cacheSeconds: Math.round(cacheMs() / 1000),
     maxEvents: maxEvents(),
     maxMarketsPerEvent: maxMarketsPerEvent(),
-    quota: { ...quota },
+    quota: quotaSnapshot(),
   };
 }
 

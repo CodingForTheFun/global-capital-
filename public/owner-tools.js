@@ -194,12 +194,13 @@
     const qualifiedCount = document.getElementById('qualifiedCount');
     const rejectedCount = document.getElementById('rejectedCount');
     const bestConfidence = document.getElementById('bestConfidence');
-    if (qualifiedCount) qualifiedCount.textContent = '—';
-    if (rejectedCount) rejectedCount.textContent = '—';
-    if (bestConfidence) bestConfidence.textContent = '—';
+    if (qualifiedCount && qualifiedCount.textContent !== '—') qualifiedCount.textContent = '—';
+    if (rejectedCount && rejectedCount.textContent !== '—') rejectedCount.textContent = '—';
+    if (bestConfidence && bestConfidence.textContent !== '—') bestConfidence.textContent = '—';
     const warning = document.getElementById('warningBox');
-    if (warning && !warning.classList.contains('hidden') && /no props passed|malformed scraper records|rules are off/i.test(warning.textContent || '')) {
-      warning.textContent = `Rules OFF • Showing all ${boardCount || 'discovered'} PickFinder props. Turn Rules ON to apply qualification filters.`;
+    const desired = `Rules OFF • Showing all ${boardCount || 'discovered'} PickFinder props. Turn Rules ON to apply qualification filters.`;
+    if (warning && !warning.classList.contains('hidden') && /no props passed|malformed scraper records|rules are off/i.test(warning.textContent || '') && warning.textContent !== desired) {
+      warning.textContent = desired;
     }
   }
 

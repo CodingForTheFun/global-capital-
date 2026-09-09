@@ -59,13 +59,19 @@ function validDate(value) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function realNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 function scanOutputIssues(result) {
   const issues = [];
   if (!result || typeof result !== 'object') return ['Scanner returned no result object'];
   if (result.mode !== 'live') issues.push('Result mode is not live');
   if (!/full-detail browser scan v2/i.test(String(result.source || ''))) issues.push('Result is not from the calibrated v2 full-detail scanner');
   if (!Array.isArray(result.picks)) issues.push('Result picks are missing');
-  if (!Number.isFinite(Number(result.totalReviewed))) issues.push('Reviewed count is invalid');
+  if (realNumber(result.totalReviewed) === null) issues.push('Reviewed count is invalid');
 
   for (const pick of Array.isArray(result.picks) ? result.picks : []) {
     const player = String(pick?.player || '').trim();
@@ -79,7 +85,7 @@ function scanOutputIssues(result) {
       if (pick.regularLine !== true) issues.push(`Qualified non-regular line: ${player}`);
       if (pick.isToday !== true) issues.push(`Qualified pick outside today: ${player}`);
       if (!['OVER', 'UNDER'].includes(String(pick.pick || '').toUpperCase())) issues.push(`Qualified pick without direction: ${player}`);
-      if (!Number.isFinite(Number(pick.line))) issues.push(`Qualified pick without numeric line: ${player}`);
+      if (realNumber(pick.line) === null) issues.push(`Qualified pick without numeric line: ${player}`);
     }
   }
   return [...new Set(issues)].slice(0, 30);
@@ -174,8 +180,6 @@ async function scanNow() {
   } catch (error) {
     const surfaced = publicError(error, GENERIC_MESSAGE);
     lastError = surfaced.message;
-    // `publicMessage` is what the dashboard may read back; rawMessage/stack are
-    // written to the Railway volume for diagnostics and never served.
     const diagnostic = { ...internalDetail(error, { stage: 'scan' }), publicMessage: surfaced.message };
     console.error('[AutoProp scan error]', diagnostic.stack || diagnostic.rawMessage);
     await atomicJson(lastErrorPath, diagnostic).catch(() => {});
@@ -204,8 +208,6 @@ function safeFailureLatest(errorInfo) {
   };
 }
 
-// The stored scan result keeps scanner logs for diagnostics; those name
-// selectors and page state, so they are dropped at the API boundary.
 function publicScanResult(result) {
   if (!result || typeof result !== 'object') return result;
   const { logs, ...rest } = result;
@@ -233,7 +235,7 @@ async function publicStatusPayload() {
     dataQuality: {
       ok: !suppress && Boolean(storedLatest),
       staleSuppressed: suppress,
-      reason: suppress ? (publicError || 'Stored scan failed validation') : null,
+      reason: suppress ? (surfaced || 'Stored scan failed validation') : null,
     },
     demoMode: false,
     autoScanMinutes: intervalMinutes,
@@ -259,8 +261,6 @@ async function authSession(req) {
   if (!authRequired) return { authenticated: true, role: OWNER, subject: OWNER };
   const session = sessions.readToken(parseCookies(req)[SESSION_COOKIE]);
   if (!session.authenticated) return session;
-  // A member's session is only as valid as the code that issued it: revoking or
-  // expiring a code ends the session immediately instead of at cookie expiry.
   if (session.role === MEMBER && !(await isAccessCodeActive(session.subject))) {
     return { authenticated: false, role: null, subject: null, reason: 'code-revoked' };
   }
@@ -313,6 +313,7 @@ const mime = {
 async function serveStatic(req, res) {
   let pathname = new URL(req.url, `http://${req.headers.host || 'localhost'}`).pathname;
   if (pathname === '/') pathname = '/index.html';
+  if (pathname === '/props' || pathname === '/props/') pathname = '/props.html';
   const normalized = path.normalize(pathname).replace(/^([.][.][/\\])+/, '');
   const file = path.join(publicDir, normalized);
   if (!file.startsWith(publicDir)) return false;
@@ -346,8 +347,6 @@ async function handleRequest(req, res) {
 
   if (url.pathname === '/api/auth/login' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
-    // Two windows: a burst allowance and a slower sustained cap, so an attacker
-    // cannot grind either the owner password or the access-code space.
     if (!allowRate(req, 'unlock-burst', 8, 60 * 1000) || !allowRate(req, 'unlock-sustained', 30, 60 * 60 * 1000)) {
       return json(res, 429, { ok: false, message: PUBLIC_MESSAGES.RATE_LIMITED });
     }
@@ -359,7 +358,6 @@ async function handleRequest(req, res) {
         return json(res, 200, { ok: true, authenticated: true, ...permissionsFor(OWNER) }, { 'set-cookie': cookieHeader(req, sessions.makeToken(OWNER, OWNER)) });
       }
       const invite = await redeemAccessCode(credential);
-      // Identical copy either way: never reveal which credential form was tried.
       if (!invite) return json(res, 401, { ok: false, message: 'Incorrect dashboard password or access code.' });
       return json(res, 200, { ok: true, authenticated: true, ...permissionsFor(MEMBER) }, { 'set-cookie': cookieHeader(req, sessions.makeToken(MEMBER, invite.id)) });
     } catch (error) {
@@ -377,8 +375,6 @@ async function handleRequest(req, res) {
     return json(res, 401, { ok: false, message: 'Dashboard authentication required.', authRequired: true });
   }
 
-  // ALL PROPS / Auto Prop Finder / prop detail / provider status.
-  // Behind the auth gate above, so provider-backed data is never public.
   if (await handlePropRoutes(req, res, url, { readLatest: () => readJson(latestPath, null), json })) return;
 
   if (url.pathname === '/api/access-codes/generate' && req.method === 'POST') {
@@ -388,7 +384,7 @@ async function handleRequest(req, res) {
     try {
       const body = await readJsonBody(req, 8_000);
       const created = await generateAccessCode({ label: body.label, expiresInDays: body.expiresInDays, maxUses: body.maxUses });
-      console.log(`[AutoProp access] owner generated code ${created.id} (${created.hint})`); // hint only, never the code
+      console.log(`[AutoProp access] owner generated code ${created.id} (${created.hint})`);
       return json(res, 200, { ok: true, ...created });
     } catch (error) {
       console.error('[AutoProp access] generate failed', JSON.stringify(internalDetail(error, { stage: 'generate-code' })));
@@ -476,8 +472,6 @@ async function handleRequest(req, res) {
   res.end('Not found');
 }
 
-// Last line of defence: an unhandled throw anywhere in a route returns generic
-// copy. The detail goes to the server log, never to the browser.
 const server = http.createServer((req, res) => {
   handleRequest(req, res).catch((error) => {
     console.error('[AutoProp request] unhandled failure', JSON.stringify(internalDetail(error, { stage: 'request', path: req.url })));

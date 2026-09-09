@@ -11,6 +11,17 @@ let history = [];
 const fmt = (v, suffix = '') => v === null || v === undefined || Number.isNaN(Number(v)) ? '—' : `${v}${suffix}`;
 const escapeHtml = (s = '') => String(s).replace(/[&<>'"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c]));
 
+// Defence in depth. The server already guarantees only AutoProp-authored copy
+// crosses the API boundary; this also catches browser-side failures (network
+// drops, parse errors) whose native messages are not product copy.
+const INTERNAL_HINT = /locator[.(]|call log:|intercepts pointer events|timeout\s*\d+\s*ms|getBy(Role|Text|Label)\(|playwright|chromium|node_modules|\.mjs:\d|\bat\s+\w+\s*\(|<[a-z]+[^>]*class=/i;
+function friendlyMessage(value, fallback = 'Something went wrong. Please try again.') {
+  const text = String(value ?? '').trim();
+  if (!text || text.length > 240 || text.includes('\n') || INTERNAL_HINT.test(text)) return fallback;
+  if (/^(failed to fetch|load failed|networkerror.*)$/i.test(text)) return 'Could not reach the scanner server. Check your connection and try again.';
+  return text;
+}
+
 function toast(message) {
   const t = $('toast');
   t.textContent = message;
@@ -121,10 +132,10 @@ async function getStatus({ quiet = true } = {}) {
       if (changed && !data.running && latest.mode === 'live') toast(`Scan complete: ${latest.qualifiedCount} qualified`);
     }
     if (!data.running || !history.length) request('/api/history').then((rows) => { history = Array.isArray(rows) ? rows : []; renderHistory(); }).catch(() => {});
-    if (data.lastError && !quiet) toast(data.lastError);
+    if (data.lastError && !quiet) toast(friendlyMessage(data.lastError, 'The scanner needs attention. Open Manage PickFinder.'));
     schedulePoll(data.running ? 1800 : 9000);
   } catch (error) {
-    if (!quiet) toast(error.message || 'Could not reach scanner server');
+    if (!quiet) toast(friendlyMessage(error?.message, 'Could not reach the scanner server.'));
     schedulePoll(10000);
   }
 }
@@ -151,7 +162,7 @@ function renderAll() {
 function renderWarnings() {
   const box = $('warningBox');
   const items = [...(latest?.warnings || [])];
-  if (status?.lastError) items.unshift(status.lastError);
+  if (status?.lastError) items.unshift(friendlyMessage(status.lastError, 'The scanner needs attention. Open Manage PickFinder.'));
   if (!items.length) { box.classList.add('hidden'); return; }
   box.textContent = items.join(' • ');
   box.classList.remove('hidden');
@@ -295,7 +306,7 @@ async function startScan() {
     toast('Live scan started');
     await getStatus({ quiet: false });
   } catch (error) {
-    toast(error.message || 'Scan failed to start');
+    toast(friendlyMessage(error?.message, 'Scan failed to start.'));
     await getStatus();
   }
 }
@@ -311,7 +322,7 @@ $('authForm').addEventListener('submit', async (event) => {
     $('app').classList.remove('hidden');
     await getStatus({ quiet: false });
   } catch (e) {
-    error.textContent = e.message || 'Could not unlock dashboard.';
+    error.textContent = friendlyMessage(e?.message, 'Could not unlock the dashboard.');
     error.classList.remove('hidden');
   }
 });
@@ -334,7 +345,7 @@ $('connectForm').addEventListener('submit', async (event) => {
     setTimeout(() => $('connectDialog').close(), 900);
   } catch (e) {
     state.className = 'connect-state error';
-    state.textContent = e.message || 'Could not connect PickFinder.';
+    state.textContent = friendlyMessage(e?.message, "PickFinder sign-in couldn't be completed. Please reconnect your account and try again.");
   } finally {
     button.disabled = false;
     button.textContent = 'Connect & verify';
@@ -350,7 +361,7 @@ $('disconnectBtn').addEventListener('click', async () => {
     toast('PickFinder disconnected and saved session erased');
     await getStatus();
   } catch (e) {
-    toast(e.message || 'Disconnect failed');
+    toast(friendlyMessage(e?.message, 'Disconnect failed.'));
   } finally { button.disabled = false; }
 });
 

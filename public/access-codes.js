@@ -13,6 +13,12 @@ async function api(url, options = {}) {
   return data;
 }
 
+function friendlyMessage(value, fallback = 'Something went wrong. Please try again.') {
+  const text = String(value ?? '').trim();
+  if (!text || text.length > 240 || text.includes('\n')) return fallback;
+  return text;
+}
+
 function setState(message, kind = '') {
   const box = byId('accessCodeState');
   if (!box) return;
@@ -21,15 +27,23 @@ function setState(message, kind = '') {
   box.classList.toggle('hidden', !message);
 }
 
+// The server enforces these permissions; hiding the controls only keeps the UI
+// honest for members. Prefer the explicit capability flags over the role string.
 function applyRole(auth) {
-  const owner = auth?.role === 'owner';
-  const member = auth?.role === 'member';
+  const reportsCapabilities = auth && ('role' in auth || 'canManageConnection' in auth);
+  const owner = reportsCapabilities
+    ? (auth.canGenerateAccessCodes ?? auth.role === 'owner')
+    : Boolean(auth?.authenticated);
+  const member = Boolean(auth?.authenticated) && !owner;
   byId('ownerAccessCard')?.classList.toggle('hidden', !owner);
 
-  for (const id of ['connectBtn', 'manageConnectionBtn', 'ruleFiltersBtn', 'sideRuleFiltersBtn']) {
-    const node = byId(id);
-    if (!node) continue;
-    node.classList.toggle('hidden', member);
+  const canManage = auth?.canManageConnection ?? owner;
+  const canChangeRules = auth?.canChangeRules ?? owner;
+  for (const id of ['connectBtn', 'manageConnectionBtn']) {
+    byId(id)?.classList.toggle('hidden', !canManage);
+  }
+  for (const id of ['ruleFiltersBtn', 'sideRuleFiltersBtn']) {
+    byId(id)?.classList.toggle('hidden', !canChangeRules);
   }
 
   const badge = byId('connectionBadge');
@@ -70,7 +84,7 @@ async function generateCode() {
     panel.classList.remove('hidden');
     setState('Code created. It is shown only here; send it privately.', 'success');
   } catch (error) {
-    setState(error.message || 'Could not generate an access code.', 'error');
+    setState(friendlyMessage(error?.message, 'Could not generate an access code.'), 'error');
   } finally {
     button.disabled = false;
     button.textContent = 'Generate access code';

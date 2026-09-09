@@ -4,6 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runScan } from './scanner/index.mjs';
+import { publicError, internalDetail, GENERIC_MESSAGE } from './lib/safe-error.mjs';
+import { permissionsFor, OWNER } from './lib/session.mjs';
 import { getPickFinderConnectionState } from './scanner/secure-store.mjs';
 import { paypalConfig, createPayPalOrder, capturePayPalOrder } from './payments/paypal.mjs';
 import { searchLiveProps, scanLiveProp } from './scanner/focused.mjs';
@@ -24,6 +26,13 @@ await fs.mkdir(dataDir, { recursive: true });
 
 let running = false;
 let lastError = null;
+
+// Scanner logs name selectors and page state; drop them at the API boundary.
+function publicScanResult(result) {
+  if (!result || typeof result !== 'object') return result;
+  const { logs, ...rest } = result;
+  return rest;
+}
 let scanProgress = { stage: 'idle', message: 'Ready', reviewed: 0, total: 0, currentPlayer: null, qualifiedSoFar: 0, startedAt: null, updatedAt: new Date().toISOString() };
 const focusedSearchCache = new Map();
 const rateBuckets = new Map();
@@ -51,9 +60,12 @@ async function scanNow() {
     updateProgress({ stage: 'complete', message: `Scan complete — ${result.qualifiedCount} qualified`, reviewed: result.totalReviewed, total: result.totalReviewed, currentPlayer: null, qualifiedSoFar: result.qualifiedCount });
     return { ok: true, result };
   } catch (error) {
-    lastError = error?.message || String(error);
+    // Never surface a raw scanner/Playwright message to the dashboard.
+    console.error('[AutoProp scan error]', JSON.stringify(internalDetail(error, { stage: 'scan' })));
+    const surfaced = publicError(error, GENERIC_MESSAGE);
+    lastError = surfaced.message;
     updateProgress({ stage: 'error', message: lastError, currentPlayer: null });
-    return { ok: false, message: lastError, code: error?.code || null };
+    return { ok: false, message: lastError, code: surfaced.code };
   } finally { running = false; }
 }
 
@@ -125,10 +137,15 @@ async function serveStatic(req, res) {
   } catch { return false; }
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
-  if (url.pathname === '/api/auth/status' && req.method === 'GET') return json(res, 200, { required: authRequired, authenticated: isAuthorized(req) });
+  if (url.pathname === '/api/auth/status' && req.method === 'GET') {
+    const authenticated = isAuthorized(req);
+    // This server models a single owner identity; say so explicitly so the
+    // dashboard renders owner controls instead of guessing from a bare flag.
+    return json(res, 200, { required: authRequired, authenticated, ...permissionsFor(authenticated ? OWNER : null) });
+  }
   if (url.pathname === '/api/payments/config' && req.method === 'GET') {
     const config = paypalConfig();
     return json(res, 200, { enabled: config.enabled, clientId: config.clientId, price: config.price, currency: config.currency, productName: config.productName, environment: config.environment, cardFieldsRequested: config.cardFieldsRequested });
@@ -137,13 +154,13 @@ const server = http.createServer(async (req, res) => {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
     if (!allowRate(req, 'paypal-create', 20, 10 * 60 * 1000)) return json(res, 429, { ok: false, message: 'Too many checkout attempts. Try again later.' });
     try { const order = await createPayPalOrder(); return json(res, 200, { id: order.id, status: order.status }); }
-    catch (error) { return json(res, 400, { ok: false, message: error?.message || String(error) }); }
+    catch (error) { console.error('[AutoProp pay] create-order failed', JSON.stringify(internalDetail(error, { stage: 'paypal-create' }))); return json(res, 400, { ok: false, message: 'Could not start that checkout. Please try again.' }); }
   }
   if (url.pathname === '/api/payments/capture-order' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
     if (!allowRate(req, 'paypal-capture', 30, 10 * 60 * 1000)) return json(res, 429, { ok: false, message: 'Too many payment attempts. Try again later.' });
     try { const body = await readJsonBody(req, 8_000); const capture = await capturePayPalOrder(body.orderId); if (capture?.status === 'COMPLETED') await recordPayment(capture); return json(res, 200, { ok: capture?.status === 'COMPLETED', order: capture }); }
-    catch (error) { return json(res, 400, { ok: false, message: error?.message || String(error) }); }
+    catch (error) { console.error('[AutoProp pay] capture-order failed', JSON.stringify(internalDetail(error, { stage: 'paypal-capture' }))); return json(res, 400, { ok: false, message: 'Could not complete that payment. Please try again.' }); }
   }
 
   if (url.pathname === '/api/auth/login' && req.method === 'POST') {
@@ -151,27 +168,27 @@ const server = http.createServer(async (req, res) => {
     if (!allowRate(req, 'dashboard-login', 12, 15 * 60 * 1000)) return json(res, 429, { ok: false, message: 'Too many login attempts. Try again later.' });
     if (!authRequired) return json(res, 200, { ok: true, authenticated: true });
     try { const body = await readJsonBody(req, 8_000); if (!safeEqual(body.password || '', dashboardPassword)) return json(res, 401, { ok: false, message: 'Incorrect dashboard password.' }); return json(res, 200, { ok: true, authenticated: true }, { 'set-cookie': cookieHeader(req, makeAuthToken()) }); }
-    catch (error) { return json(res, 400, { ok: false, message: error.message }); }
+    catch (error) { console.error('[AutoProp auth] unlock failed', JSON.stringify(internalDetail(error, { stage: 'login' }))); return json(res, 400, { ok: false, message: 'That request could not be processed.' }); }
   }
   if (url.pathname === '/api/auth/logout' && req.method === 'POST') { if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' }); return json(res, 200, { ok: true }, { 'set-cookie': clearCookieHeader(req) }); }
   if (url.pathname.startsWith('/api/') && !isAuthorized(req)) return json(res, 401, { ok: false, message: 'Dashboard authentication required.', authRequired: true });
 
   if (url.pathname === '/api/status' && req.method === 'GET') {
     const latest = await readJson(latestPath, null); const connection = await getPickFinderConnectionState(); const payment = paypalConfig();
-    return json(res, 200, { running, lastError, connection, demoMode: String(process.env.DEMO_MODE ?? 'true').toLowerCase() === 'true', autoScanMinutes: intervalMinutes, payoutMultiplier: process.env.PAYOUT_MULTIPLIER || null, paymentConfigured: payment.enabled, scannerVersion: 'masterpiece-1', progress: scanProgress, latest });
+    return json(res, 200, { running, lastError, connection, demoMode: String(process.env.DEMO_MODE ?? 'true').toLowerCase() === 'true', autoScanMinutes: intervalMinutes, payoutMultiplier: process.env.PAYOUT_MULTIPLIER || null, paymentConfigured: payment.enabled, scannerVersion: 'masterpiece-1', progress: scanProgress, latest: publicScanResult(latest) });
   }
   if (url.pathname === '/api/history' && req.method === 'GET') return json(res, 200, await readJson(historyPath, []));
   if (url.pathname === '/api/connect' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
     if (running) return json(res, 409, { ok: false, message: 'Wait for the current scan to finish before changing the PickFinder connection.' });
     try { const body = await readJsonBody(req, 16_000); const { verifyPickFinderConnection } = await import('./scanner/masterpiece.mjs'); const result = await verifyPickFinderConnection({ email: body.email, password: body.password }); return json(res, 200, { ok: true, connection: result }); }
-    catch (error) { return json(res, 400, { ok: false, message: error?.message || String(error) }); }
+    catch (error) { const surfaced = publicError(error, GENERIC_MESSAGE); console.error('[AutoProp connect] failed', JSON.stringify(internalDetail(error, { stage: 'connect' }))); return json(res, 400, { ok: false, message: surfaced.message, code: surfaced.code }); }
   }
   if (url.pathname === '/api/disconnect' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
     if (running) return json(res, 409, { ok: false, message: 'Wait for the current scan to finish before disconnecting.' });
     try { const { disconnectPickFinder } = await import('./scanner/masterpiece.mjs'); return json(res, 200, { ok: true, connection: await disconnectPickFinder() }); }
-    catch (error) { return json(res, 500, { ok: false, message: error?.message || String(error) }); }
+    catch (error) { console.error('[AutoProp disconnect] failed', JSON.stringify(internalDetail(error, { stage: 'disconnect' }))); return json(res, 500, { ok: false, message: GENERIC_MESSAGE }); }
   }
   if (url.pathname === '/api/scan' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
@@ -185,7 +202,7 @@ const server = http.createServer(async (req, res) => {
       const result = await searchLiveProps(url.searchParams.get('q') || '');
       cacheSearchResults(result.results || []);
       return json(res, 200, result);
-    } catch (error) { return json(res, 400, { ok: false, message: error?.message || String(error) }); }
+    } catch (error) { const surfaced = publicError(error, 'Prop search could not be completed. Please try again.'); console.error('[AutoProp search] failed', JSON.stringify(internalDetail(error, { stage: 'prop-search' }))); return json(res, 400, { ok: false, message: surfaced.message, code: surfaced.code }); }
   }
   if (url.pathname === '/api/scan-prop' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
@@ -196,12 +213,22 @@ const server = http.createServer(async (req, res) => {
       if (!cached || Date.now() - cached.at > 20 * 60 * 1000) return json(res, 400, { ok: false, message: 'Search for this prop again before scanning it.' });
       const result = await scanLiveProp(cached.selection);
       return json(res, 200, { ok: true, ...result });
-    } catch (error) { return json(res, 400, { ok: false, message: error?.message || String(error) }); }
+    } catch (error) { const surfaced = publicError(error, 'That prop could not be scanned. Please try again.'); console.error('[AutoProp focused] failed', JSON.stringify(internalDetail(error, { stage: 'scan-prop' }))); return json(res, 400, { ok: false, message: surfaced.message, code: surfaced.code }); }
   }
 
   if (await serveStatic(req, res)) return;
   res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }); res.end('Not found');
+}
+
+// Any unhandled throw returns generic copy; the detail stays in the server log.
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch((error) => {
+    console.error('[AutoProp request] unhandled failure', JSON.stringify(internalDetail(error, { stage: 'request', path: req.url })));
+    if (res.headersSent) return res.destroy();
+    json(res, 500, { ok: false, message: GENERIC_MESSAGE });
+  });
 });
+server.on('clientError', (error, socket) => { if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n'); });
 
 server.listen(port, () => {
   console.log(`AutoProp Scout Pro Masterpiece running on http://localhost:${port}`);

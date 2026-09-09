@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { runScan } from './scanner/index.mjs';
 import { getPickFinderConnectionState } from './scanner/secure-store.mjs';
 import { DEFAULT_RULES, RULE_PRESETS, normalizeRules } from './scanner/rules.mjs';
+import { publicError, publicMessageFor, internalDetail, PUBLIC_MESSAGES, GENERIC_MESSAGE } from './lib/safe-error.mjs';
+import { createRateLimiter, clientKey, permissionsFor, OWNER } from './lib/session.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, 'public');
@@ -24,6 +26,8 @@ await fs.mkdir(dataDir, { recursive: true });
 
 let running = false;
 let lastError = null;
+const rateLimiter = createRateLimiter();
+const allowRate = (req, bucket, max, windowMs) => rateLimiter.allow(clientKey(req, bucket), max, windowMs);
 let scanProgress = { stage: 'idle', message: 'Ready', reviewed: 0, total: 0, currentPlayer: null, qualifiedSoFar: 0, startedAt: null, updatedAt: new Date().toISOString() };
 
 async function readJson(file, fallback) { try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch { return fallback; } }
@@ -59,11 +63,17 @@ async function saveResult(result) {
   await atomicJson(historyPath, history.slice(0, 100));
 }
 function updateProgress(next) { scanProgress = { ...scanProgress, ...next, updatedAt: new Date().toISOString() }; }
+// Allowlist gate: only AutoProp-authored copy reaches the dashboard. Playwright
+// call logs, selectors, class names and stack traces stay in the server log.
 function friendlyScanError(error) {
-  const message = error?.message || String(error);
-  if (/invalid or unexpected token|unexpected token/i.test(message)) return 'Saved PickFinder connection data could not be read. Reconnect PickFinder and run the scan again.';
-  if (/sign in to unlock|locked/i.test(message)) return 'PickFinder is not fully unlocked. Open Manage PickFinder and reconnect the account.';
-  return message;
+  return publicMessageFor(error, GENERIC_MESSAGE);
+}
+
+// Scanner logs name selectors and page state; drop them at the API boundary.
+function publicScanResult(result) {
+  if (!result || typeof result !== 'object') return result;
+  const { logs, ...rest } = result;
+  return rest;
 }
 async function scanNow() {
   if (running) return { ok: false, message: 'A scan is already running.' };
@@ -78,18 +88,13 @@ async function scanNow() {
     await fs.rm(lastErrorPath, { force: true }).catch(() => {});
     return { ok: true, result };
   } catch (error) {
-    lastError = friendlyScanError(error);
-    const diagnostic = {
-      at: new Date().toISOString(),
-      message: lastError,
-      rawMessage: error?.message || String(error),
-      code: error?.code || null,
-      stack: error?.stack || null,
-    };
+    const surfaced = publicError(error, GENERIC_MESSAGE);
+    lastError = surfaced.message;
+    const diagnostic = { ...internalDetail(error, { stage: 'scan' }), publicMessage: surfaced.message };
     console.error('[AutoProp scan error]', diagnostic.stack || diagnostic.rawMessage);
     await atomicJson(lastErrorPath, diagnostic).catch(() => {});
     updateProgress({ stage: 'error', message: lastError, currentPlayer: null });
-    return { ok: false, message: lastError, code: error?.code || null };
+    return { ok: false, message: lastError, code: surfaced.code };
   } finally { running = false; }
 }
 
@@ -138,14 +143,20 @@ async function serveStatic(req, res) {
   } catch { return false; }
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  if (url.pathname === '/api/auth/status' && req.method === 'GET') return json(res, 200, { required: authRequired, authenticated: isAuthorized(req) });
+  if (url.pathname === '/api/auth/status' && req.method === 'GET') {
+    const authenticated = isAuthorized(req);
+    // This server models a single owner identity; say so explicitly so the
+    // dashboard renders owner controls instead of guessing from a bare flag.
+    return json(res, 200, { required: authRequired, authenticated, ...permissionsFor(authenticated ? OWNER : null) });
+  }
   if (url.pathname === '/api/auth/login' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
+    if (!allowRate(req, 'unlock-burst', 8, 60 * 1000) || !allowRate(req, 'unlock-sustained', 30, 60 * 60 * 1000)) return json(res, 429, { ok: false, message: PUBLIC_MESSAGES.RATE_LIMITED });
     if (!authRequired) return json(res, 200, { ok: true, authenticated: true });
     try { const body = await readJsonBody(req, 8_000); if (!safeEqual(body.password || '', dashboardPassword)) return json(res, 401, { ok: false, message: 'Incorrect dashboard password.' }); return json(res, 200, { ok: true, authenticated: true }, { 'set-cookie': cookieHeader(req, makeAuthToken()) }); }
-    catch (error) { return json(res, 400, { ok: false, message: error.message }); }
+    catch (error) { console.error('[AutoProp auth] unlock failed', JSON.stringify(internalDetail(error, { stage: 'login' }))); return json(res, 400, { ok: false, message: PUBLIC_MESSAGES.REQUEST_INVALID }); }
   }
   if (url.pathname === '/api/auth/logout' && req.method === 'POST') { if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' }); return json(res, 200, { ok: true }, { 'set-cookie': clearCookieHeader(req) }); }
   if (url.pathname.startsWith('/api/') && !isAuthorized(req)) return json(res, 401, { ok: false, message: 'Dashboard authentication required.', authRequired: true });
@@ -154,7 +165,7 @@ const server = http.createServer(async (req, res) => {
     const latest = await readJson(latestPath, null);
     const connection = await getPickFinderConnectionState();
     const rules = await loadRules();
-    return json(res, 200, { running, lastError, connection, rules, demoMode: String(process.env.DEMO_MODE ?? 'true').toLowerCase() === 'true', autoScanMinutes: intervalMinutes, payoutMultiplier: process.env.PAYOUT_MULTIPLIER || null, progress: scanProgress, latest });
+    return json(res, 200, { running, lastError, connection, rules, demoMode: String(process.env.DEMO_MODE ?? 'true').toLowerCase() === 'true', autoScanMinutes: intervalMinutes, payoutMultiplier: process.env.PAYOUT_MULTIPLIER || null, progress: scanProgress, latest: publicScanResult(latest) });
   }
   if (url.pathname === '/api/history' && req.method === 'GET') return json(res, 200, await readJson(historyPath, []));
   if (url.pathname === '/api/rules' && req.method === 'GET') return json(res, 200, { rules: await loadRules(), presets: RULE_PRESETS, locked: { prizePicksOnly: true, regularLinesOnly: true, todayOnly: true } });
@@ -165,17 +176,22 @@ const server = http.createServer(async (req, res) => {
       const body = await readJsonBody(req, 16_000);
       const rules = await saveRules(body.rules || body);
       return json(res, 200, { ok: true, rules, locked: { prizePicksOnly: true, regularLinesOnly: true, todayOnly: true } });
-    } catch (error) { return json(res, 400, { ok: false, message: error?.message || String(error) }); }
+    } catch (error) { console.error('[AutoProp rules] save failed', JSON.stringify(internalDetail(error, { stage: 'save-rules' }))); return json(res, 400, { ok: false, message: PUBLIC_MESSAGES.REQUEST_INVALID }); }
   }
   if (url.pathname === '/api/connect' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
     if (running) return json(res, 409, { ok: false, message: 'Wait for the current scan to finish before changing the PickFinder connection.' });
+    if (!allowRate(req, 'pickfinder-connect', 6, 10 * 60 * 1000)) return json(res, 429, { ok: false, message: PUBLIC_MESSAGES.RATE_LIMITED });
     try {
       const body = await readJsonBody(req, 16_000);
-      const { verifyPickFinderConnection } = await import('./scanner/pickfinder-v2.mjs');
-      const result = await verifyPickFinderConnection({ email: body.email, password: body.password });
+      const { verifyAndSavePickFinderConnection } = await import('./scanner/auth-preflight.mjs');
+      const result = await verifyAndSavePickFinderConnection({ email: body.email, password: body.password });
       return json(res, 200, { ok: true, connection: result });
-    } catch (error) { return json(res, 400, { ok: false, message: friendlyScanError(error), code: error?.code || null }); }
+    } catch (error) {
+      const surfaced = publicError(error, GENERIC_MESSAGE);
+      console.error('[AutoProp connect] failed', JSON.stringify(internalDetail(error, { stage: 'connect' })));
+      return json(res, 400, { ok: false, message: surfaced.message, code: surfaced.code });
+    }
   }
   if (url.pathname === '/api/disconnect' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
@@ -185,14 +201,25 @@ const server = http.createServer(async (req, res) => {
   }
   if (url.pathname === '/api/scan' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
-    if (running) return json(res, 409, { ok: false, message: 'A scan is already running.' });
-    scanNow().catch((error) => console.error('[scanNow uncaught]', error));
+    if (running) return json(res, 409, { ok: false, message: PUBLIC_MESSAGES.SCAN_ALREADY_RUNNING });
+    if (!allowRate(req, 'scan', 12, 10 * 60 * 1000)) return json(res, 429, { ok: false, message: PUBLIC_MESSAGES.RATE_LIMITED });
+    scanNow().catch((error) => console.error('[scanNow uncaught]', JSON.stringify(internalDetail(error, { stage: 'scanNow' }))));
     return json(res, 202, { ok: true, message: 'Scan started.' });
   }
 
   if (await serveStatic(req, res)) return;
   res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }); res.end('Not found');
+}
+
+// Any unhandled throw returns generic copy; the detail stays in the server log.
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch((error) => {
+    console.error('[AutoProp request] unhandled failure', JSON.stringify(internalDetail(error, { stage: 'request', path: req.url })));
+    if (res.headersSent) return res.destroy();
+    json(res, 500, { ok: false, message: GENERIC_MESSAGE });
+  });
 });
+server.on('clientError', (error, socket) => { if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n'); });
 
 server.listen(port, () => {
   console.log(`AutoProp Scout Pro running on http://localhost:${port}`);

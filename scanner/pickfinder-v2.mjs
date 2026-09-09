@@ -3,6 +3,8 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 import { evaluatePick, buildDiversifiedCard, numberOrNull } from './criteria.mjs';
 import { criteriaFromRules, normalizeRules } from './rules.mjs';
+import { activateControl, waitForUnlock } from './interaction.mjs';
+import { safeError, internalDetail, PICKFINDER_SIGN_IN_FAILED } from '../lib/safe-error.mjs';
 import {
   clearPickFinderConnection,
   clearPickFinderSession,
@@ -286,7 +288,7 @@ async function performLogin(page, context, logs, onProgress) {
 
   const credentials = await loadPickFinderCredentials();
   if (!credentials) {
-    throw Object.assign(new Error('PickFinder is locked. Reconnect your PickFinder account from Manage PickFinder.'), { code: 'PICKFINDER_RECONNECT' });
+    throw safeError('PICKFINDER_RECONNECT');
   }
 
   progress(onProgress, { stage: 'auth', message: 'Signing in to PickFinder' });
@@ -306,7 +308,7 @@ async function performLogin(page, context, logs, onProgress) {
   ], 1300);
   if (!email || !password) {
     await diagnostic(page, 'signin-form-missing');
-    throw new Error('PickFinder sign-in form changed. Use Manage PickFinder to reconnect after the scanner update.');
+    throw safeError('PICKFINDER_AUTH_UI_CHANGED', PICKFINDER_SIGN_IN_FAILED);
   }
 
   await email.fill(credentials.email);
@@ -315,20 +317,34 @@ async function performLogin(page, context, logs, onProgress) {
     page.locator('button[type="submit"]'),
     page.getByRole('button', { name: /sign in|log in|continue/i }),
   ], 1100);
-  if (!submit) throw new Error('PickFinder sign-in button could not be found.');
-  await submit.click({ timeout: 3500 });
+  if (!submit) {
+    await diagnostic(page, 'signin-submit-missing');
+    throw safeError('PICKFINDER_AUTH_UI_CHANGED', PICKFINDER_SIGN_IN_FAILED);
+  }
+
+  // The sign-in modal's backdrop can sit above the submit button and swallow
+  // pointer events. Prefer a real click, then fall back to the form's own
+  // submit handler / Enter, and never let Playwright's call log reach the UI.
+  const activation = await activateControl(submit, { fallbackField: password, clickTimeout: 3500 });
+  logs.push(`Sign-in submitted via ${activation.strategy || 'no available strategy'}`);
+  if (!activation.ok) {
+    console.error('[AutoProp auth] sign-in submit blocked', JSON.stringify(activation.trace));
+    await diagnostic(page, 'signin-submit-blocked', { activationTrace: activation.trace });
+    throw safeError('PICKFINDER_AUTH_BLOCKED', PICKFINDER_SIGN_IN_FAILED);
+  }
+
   await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
   await wait(1000);
   await page.goto(PROPS, { waitUntil: 'domcontentloaded', timeout: 45000 });
-  await wait(900);
 
-  if (!await pageUnlocked(page)) {
+  if (!await waitForUnlock(() => pageUnlocked(page), { attempts: 8, firstDelayMs: 900, delayMs: 700 })) {
     const text = await bodyText(page);
     await diagnostic(page, 'signin-still-locked');
     if (/captcha|verification|verify|two.factor|2fa|one.time/i.test(text)) {
-      throw new Error('PickFinder requires interactive verification. Complete that on PickFinder, then reconnect AutoProp.');
+      // Fail closed: AutoProp does not attempt to solve or bypass these.
+      throw safeError('PICKFINDER_INTERACTIVE_AUTH');
     }
-    throw new Error('PickFinder login did not unlock the analytics. Reconnect the account and verify the credentials.');
+    throw safeError('PICKFINDER_LOCKED', 'PickFinder did not unlock the analytics. Check the account subscription, then reconnect.');
   }
 
   await savePickFinderSession(await context.storageState());
@@ -366,7 +382,7 @@ async function discoverCandidates(page, logs, onProgress) {
   progress(onProgress, { stage: 'discover', message: 'Loading regular PrizePicks props for today', reviewed: 0, total: 0 });
   await page.goto(PROPS, { waitUntil: 'domcontentloaded', timeout: 45000 });
   await wait(700);
-  if (!await pageUnlocked(page)) throw new Error('PickFinder became locked before discovery. Reconnect the account.');
+  if (!await pageUnlocked(page)) throw safeError('PICKFINDER_LOCKED');
   const top = await applyTopFilters(page, logs);
   await wait(500);
   await diagnostic(page, 'props-board', { top });
@@ -640,15 +656,18 @@ export async function verifyPickFinderConnection({ email, password } = {}) {
   try {
     const { browser, context, page } = await contextWithLogin(logs);
     try {
-      if (!await pageUnlocked(page)) throw new Error('PickFinder account is still locked after login.');
+      if (!await pageUnlocked(page)) throw safeError('PICKFINDER_LOCKED');
       await savePickFinderSession(await context.storageState());
-      return { connected: true, ...await getPickFinderConnectionState(), logs };
+      // `logs` stays server-side: it names selectors, strategies and page state.
+      console.log('[AutoProp auth] connection verified', JSON.stringify(logs));
+      return { connected: true, ...await getPickFinderConnectionState() };
     } finally {
       await context.close().catch(() => {});
       await browser.close().catch(() => {});
     }
   } catch (error) {
     await clearPickFinderSession().catch(() => {});
+    console.error('[AutoProp auth] connection verification failed', JSON.stringify(internalDetail(error, { logs })));
     throw error;
   }
 }

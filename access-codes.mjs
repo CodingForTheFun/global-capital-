@@ -41,13 +41,17 @@ function digest(code) {
   return crypto.createHmac('sha256', PEPPER).update(normalize(code)).digest('hex');
 }
 
+// scryptSync blocks the event loop for ~100ms per call, which would stall every
+// other dashboard request during a redemption attempt. Use the async form.
 function bootstrapDigest(code) {
-  return crypto.scryptSync(normalize(code), Buffer.from(BOOTSTRAP.salt, 'hex'), 32, {
-    N: 16384,
-    r: 8,
-    p: 1,
-    maxmem: 64 * 1024 * 1024,
-  }).toString('hex');
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(normalize(code), Buffer.from(BOOTSTRAP.salt, 'hex'), 32, {
+      N: 16384,
+      r: 8,
+      p: 1,
+      maxmem: 64 * 1024 * 1024,
+    }, (error, derived) => (error ? reject(error) : resolve(derived.toString('hex'))));
+  });
 }
 
 function safeHashEqual(a, b) {
@@ -62,18 +66,32 @@ function randomChunk(length = 4) {
   return out;
 }
 
+// Explicit allowlist. `codeHash` and `salt` must never cross this boundary, so
+// the shape is built field by field rather than by spreading the stored row.
 function publicRow(row) {
+  const maxUses = Number(row.maxUses || 1);
+  const uses = Number(row.uses || 0);
   return {
     id: row.id,
     label: row.label,
     hint: row.hint,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
-    maxUses: row.maxUses,
-    uses: row.uses,
+    maxUses,
+    uses,
+    usesRemaining: Math.max(0, maxUses - uses),
     active: row.active !== false,
     lastUsedAt: row.lastUsedAt || null,
+    role: 'member',
   };
+}
+
+/** True while the code behind a member session is still usable. */
+function rowUsable(row, now = Date.now()) {
+  if (!row) return false;
+  if (row.active === false) return false;
+  if (Date.parse(row.expiresAt || '') <= now) return false;
+  return true;
 }
 
 export async function generateAccessCode({ label = 'Friend access', expiresInDays = 30, maxUses = 5 } = {}) {
@@ -118,7 +136,7 @@ export async function redeemAccessCode(code) {
     return publicRow(row);
   }
 
-  if (Date.parse(BOOTSTRAP.expiresAt) > now && safeHashEqual(bootstrapDigest(normalized), BOOTSTRAP.hash)) {
+  if (Date.parse(BOOTSTRAP.expiresAt) > now && safeHashEqual(await bootstrapDigest(normalized), BOOTSTRAP.hash)) {
     let row = rows.find((item) => item.id === BOOTSTRAP.id);
     if (!row) {
       row = {
@@ -170,5 +188,39 @@ export async function revokeAccessCode(id) {
   if (!row) return null;
   row.active = false;
   await writeRows(rows.slice(0, 250));
+  invalidateAccessCodeCache(row.id);
   return publicRow(row);
+}
+
+/**
+ * Re-validate a member session against the code that issued it.
+ *
+ * Session cookies live for 30 days, so without this a revoked or expired code
+ * would keep working until the cookie lapsed. Called on every authenticated
+ * request, so results are briefly memoised to avoid re-reading the volume
+ * during dashboard polling.
+ */
+const activeCache = new Map();
+const ACTIVE_CACHE_MS = 5000;
+
+export async function isAccessCodeActive(id, { now = Date.now() } = {}) {
+  const key = String(id || '');
+  if (!key) return false;
+  const cached = activeCache.get(key);
+  if (cached && now - cached.at < ACTIVE_CACHE_MS) return cached.value;
+
+  const rows = await readRows();
+  const row = rows.find((item) => item.id === key)
+    || (key === BOOTSTRAP.id ? { ...BOOTSTRAP, uses: 0, active: true } : null);
+  // A member session outlives its use count (uses are consumed at redemption),
+  // so only revocation and expiry end it.
+  const value = rowUsable(row, now);
+  activeCache.set(key, { value, at: now });
+  return value;
+}
+
+/** Drop memoised state so a revoke takes effect immediately. */
+export function invalidateAccessCodeCache(id) {
+  if (id) activeCache.delete(String(id));
+  else activeCache.clear();
 }

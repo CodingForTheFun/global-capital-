@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { internalDetail, PUBLIC_MESSAGES } from '../lib/safe-error.mjs';
 
 const dataDir = path.resolve(process.env.DATA_DIR || './data');
 const keyPath = path.join(dataDir, '.autoprop-master-key');
@@ -133,7 +134,12 @@ export async function getPickFinderConnectionState() {
   let credentials = null;
   let connectionError = null;
   try { credentials = await loadPickFinderCredentials(); }
-  catch (error) { connectionError = error?.message || 'Saved connection is unreadable.'; }
+  catch (error) {
+    // Decrypt/parse failures can carry file paths and Node error codes. Log the
+    // detail server-side and hand the dashboard fixed, actionable copy only.
+    console.error('[AutoProp store] credential read failed', JSON.stringify(internalDetail(error, { stage: 'getPickFinderConnectionState' })));
+    connectionError = PUBLIC_MESSAGES.PICKFINDER_SESSION_UNREADABLE;
+  }
   const session = await loadPickFinderSession().catch(() => null);
   return {
     configured: Boolean(credentials),

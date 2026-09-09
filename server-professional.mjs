@@ -7,7 +7,9 @@ import { runScan } from './scanner/index.mjs';
 import { getPickFinderConnectionState } from './scanner/secure-store.mjs';
 import { verifyAndSavePickFinderConnection } from './scanner/auth-preflight.mjs';
 import { DEFAULT_RULES, RULE_PRESETS, normalizeRules } from './scanner/rules.mjs';
-import { generateAccessCode, redeemAccessCode, listAccessCodes, revokeAccessCode } from './access-codes.mjs';
+import { generateAccessCode, redeemAccessCode, listAccessCodes, revokeAccessCode, isAccessCodeActive } from './access-codes.mjs';
+import { safeError, publicError, publicMessageFor, internalDetail, publicErrorFromRecord, PUBLIC_MESSAGES, GENERIC_MESSAGE } from './lib/safe-error.mjs';
+import { createSessionCodec, createRateLimiter, permissionsFor, parseCookies, cookieHeader, clearCookieHeader, clientKey, safeEqual, SESSION_COOKIE, OWNER, MEMBER } from './lib/session.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, 'public');
@@ -28,7 +30,8 @@ await fs.mkdir(dataDir, { recursive: true });
 let running = false;
 let lastError = null;
 let scanProgress = { stage: 'idle', message: 'Ready', reviewed: 0, total: 0, currentPlayer: null, qualifiedSoFar: 0, startedAt: null, updatedAt: new Date().toISOString() };
-const rateBuckets = new Map();
+const sessions = createSessionCodec({ secret: dashboardSessionSecret });
+const rateLimiter = createRateLimiter();
 
 async function readJson(file, fallback = null) {
   try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch { return fallback; }
@@ -113,9 +116,8 @@ async function saveRules(value) {
 async function saveResult(result) {
   const issues = scanOutputIssues(result);
   if (issues.length) {
-    const error = new Error(`Scanner output failed data-quality validation: ${issues.slice(0, 5).join(' • ')}`);
-    error.code = 'SCAN_OUTPUT_INVALID';
-    throw error;
+    console.error('[AutoProp] scan output rejected by quality gate', JSON.stringify(issues.slice(0, 30)));
+    throw safeError('SCAN_OUTPUT_INVALID', PUBLIC_MESSAGES.SCAN_OUTPUT_INVALID, { issues });
   }
   await atomicJson(latestPath, result);
   const history = await readJson(historyPath, []);
@@ -137,20 +139,11 @@ function updateProgress(next) {
   scanProgress = { ...scanProgress, ...next, updatedAt: new Date().toISOString() };
 }
 
+// Every backend -> frontend string passes through here. `publicMessageFor`
+// only emits AutoProp-authored copy, so browser-automation call logs, selectors,
+// stack traces and third-party class names can never reach the dashboard.
 function friendlyScanError(error) {
-  const message = error?.message || String(error);
-  const code = error?.code || '';
-  if (/locator\.|timeout\s*\d+ms|call log:|intercepts pointer events|getByRole\(|waiting for/i.test(message)) {
-    return 'PickFinder’s sign-in window changed and could not be completed automatically. Reopen Manage PickFinder and try again.';
-  }
-  if (code === 'PICKFINDER_AUTH_UI_CHANGED') return message;
-  if (code === 'PICKFINDER_INTERACTIVE_AUTH') return message;
-  if (code === 'PICKFINDER_RECONNECT') return message;
-  if (code === 'PICKFINDER_CREDENTIALS_REQUIRED') return message;
-  if (code === 'SCAN_OUTPUT_INVALID') return 'The scan was blocked by AutoProp data-quality protection. No unverified cards were published.';
-  if (/invalid or unexpected token|unexpected token/i.test(message)) return 'Saved PickFinder connection data could not be read. Reconnect PickFinder and run the scan again.';
-  if (/sign in to unlock|locked/i.test(message)) return 'PickFinder is not fully unlocked. Open Manage PickFinder and reconnect the account.';
-  return message.length > 240 ? 'AutoProp could not complete that request. Please retry from the dashboard.' : message;
+  return publicMessageFor(error, GENERIC_MESSAGE);
 }
 
 async function scanNow() {
@@ -173,18 +166,15 @@ async function scanNow() {
     });
     return { ok: true, result };
   } catch (error) {
-    lastError = friendlyScanError(error);
-    const diagnostic = {
-      at: new Date().toISOString(),
-      message: lastError,
-      rawMessage: error?.message || String(error),
-      code: error?.code || null,
-      stack: error?.stack || null,
-    };
+    const surfaced = publicError(error, GENERIC_MESSAGE);
+    lastError = surfaced.message;
+    // `publicMessage` is what the dashboard may read back; rawMessage/stack are
+    // written to the Railway volume for diagnostics and never served.
+    const diagnostic = { ...internalDetail(error, { stage: 'scan' }), publicMessage: surfaced.message };
     console.error('[AutoProp scan error]', diagnostic.stack || diagnostic.rawMessage);
     await atomicJson(lastErrorPath, diagnostic).catch(() => {});
     updateProgress({ stage: 'error', message: lastError, reviewed: 0, total: 0, currentPlayer: null, qualifiedSoFar: 0 });
-    return { ok: false, message: lastError, code: diagnostic.code };
+    return { ok: false, message: lastError, code: surfaced.code };
   } finally {
     running = false;
   }
@@ -192,7 +182,7 @@ async function scanNow() {
 
 function safeFailureLatest(errorInfo) {
   if (!errorInfo) return null;
-  const message = friendlyScanError({ message: errorInfo.message || errorInfo.rawMessage || 'PickFinder connection needs attention.', code: errorInfo.code });
+  const message = publicErrorFromRecord(errorInfo, GENERIC_MESSAGE).message || GENERIC_MESSAGE;
   return {
     mode: 'live',
     scannedAt: errorInfo.at || new Date().toISOString(),
@@ -208,6 +198,14 @@ function safeFailureLatest(errorInfo) {
   };
 }
 
+// The stored scan result keeps scanner logs for diagnostics; those name
+// selectors and page state, so they are dropped at the API boundary.
+function publicScanResult(result) {
+  if (!result || typeof result !== 'object') return result;
+  const { logs, ...rest } = result;
+  return rest;
+}
+
 async function publicStatusPayload() {
   const storedLatest = await readJson(latestPath, null);
   const errorInfo = await readJson(lastErrorPath, null);
@@ -216,13 +214,13 @@ async function publicStatusPayload() {
   const errorIsNewer = Boolean(errorInfo && validDate(errorInfo.at) >= validDate(storedLatest?.scannedAt));
   const latestIsValid = storedLatest ? scanOutputValid(storedLatest) : false;
   const suppress = errorIsNewer || (storedLatest && !latestIsValid);
-  const publicError = errorInfo ? friendlyScanError({ message: errorInfo.message || errorInfo.rawMessage, code: errorInfo.code }) : lastError;
-  const authFailure = Boolean(errorInfo && /PICKFINDER_|unlock|login|sign-in|sign in|reconnect/i.test(`${errorInfo.code || ''} ${publicError || ''}`));
-  const publicConnection = authFailure ? { ...connection, sessionSaved: false, connectionError: publicError } : connection;
+  const surfaced = errorInfo ? publicErrorFromRecord(errorInfo, GENERIC_MESSAGE).message : lastError;
+  const authFailure = Boolean(errorInfo && /^PICKFINDER_/.test(String(errorInfo.code || '')));
+  const publicConnection = authFailure ? { ...connection, sessionSaved: false, connectionError: surfaced } : connection;
 
   return {
     running,
-    lastError: publicError,
+    lastError: surfaced,
     lastErrorCode: errorInfo?.code || null,
     connection: publicConnection,
     rules,
@@ -235,7 +233,7 @@ async function publicStatusPayload() {
     autoScanMinutes: intervalMinutes,
     payoutMultiplier: process.env.PAYOUT_MULTIPLIER || null,
     progress: scanProgress,
-    latest: suppress ? safeFailureLatest(errorInfo || { message: 'Stored scan failed validation', at: new Date().toISOString() }) : storedLatest,
+    latest: suppress ? safeFailureLatest(errorInfo || { code: 'SCAN_OUTPUT_INVALID', at: new Date().toISOString() }) : publicScanResult(storedLatest),
   };
 }
 
@@ -251,54 +249,24 @@ function json(res, status, payload, extraHeaders = {}) {
   res.end(body);
 }
 
-function parseCookies(req) {
-  const pairs = String(req.headers.cookie || '').split(';');
-  const cookies = {};
-  for (const pair of pairs) {
-    const index = pair.indexOf('=');
-    if (index < 0) continue;
-    cookies[pair.slice(0, index).trim()] = decodeURIComponent(pair.slice(index + 1).trim());
+async function authSession(req) {
+  if (!authRequired) return { authenticated: true, role: OWNER, subject: OWNER };
+  const session = sessions.readToken(parseCookies(req)[SESSION_COOKIE]);
+  if (!session.authenticated) return session;
+  // A member's session is only as valid as the code that issued it: revoking or
+  // expiring a code ends the session immediately instead of at cookie expiry.
+  if (session.role === MEMBER && !(await isAccessCodeActive(session.subject))) {
+    return { authenticated: false, role: null, subject: null, reason: 'code-revoked' };
   }
-  return cookies;
+  return session;
 }
 
-function safeEqual(a, b) {
-  const aa = Buffer.from(String(a));
-  const bb = Buffer.from(String(b));
-  return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
+async function isAuthorized(req) {
+  return (await authSession(req)).authenticated;
 }
 
-function makeAuthToken(role = 'owner', subject = 'owner') {
-  const expires = Date.now() + 30 * 24 * 60 * 60 * 1000;
-  const identity = role === 'owner' ? 'owner' : `member_${String(subject).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64) || 'invite'}`;
-  const payload = `${identity}.${expires}`;
-  const signature = crypto.createHmac('sha256', dashboardSessionSecret).update(payload).digest('base64url');
-  return `${payload}.${signature}`;
-}
-
-function authSession(req) {
-  if (!authRequired) return { authenticated: true, role: 'owner', subject: 'owner' };
-  const token = parseCookies(req).aps_session;
-  if (!token) return { authenticated: false, role: null, subject: null };
-  const parts = String(token).split('.');
-  if (parts.length !== 3) return { authenticated: false, role: null, subject: null };
-  const identity = parts[0];
-  const expires = Number(parts[1]);
-  if (!Number.isFinite(expires) || expires < Date.now()) return { authenticated: false, role: null, subject: null };
-  const payload = `${identity}.${parts[1]}`;
-  const expected = crypto.createHmac('sha256', dashboardSessionSecret).update(payload).digest('base64url');
-  if (!safeEqual(parts[2], expected)) return { authenticated: false, role: null, subject: null };
-  if (identity === 'owner') return { authenticated: true, role: 'owner', subject: 'owner' };
-  if (identity.startsWith('member_')) return { authenticated: true, role: 'member', subject: identity.slice(7) || 'invite' };
-  return { authenticated: false, role: null, subject: null };
-}
-
-function isAuthorized(req) {
-  return authSession(req).authenticated;
-}
-
-function isOwner(req) {
-  return authSession(req).role === 'owner';
+async function isOwner(req) {
+  return (await authSession(req)).role === OWNER;
 }
 
 function sameOrigin(req) {
@@ -324,31 +292,8 @@ async function readJsonBody(req, limit = 32_000) {
   catch { throw new Error('Invalid JSON request.'); }
 }
 
-function cookieHeader(req, token) {
-  const secure = String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https';
-  return `aps_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000${secure ? '; Secure' : ''}`;
-}
-
-function clearCookieHeader(req) {
-  const secure = String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https';
-  return `aps_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? '; Secure' : ''}`;
-}
-
-function clientKey(req, bucket) {
-  return `${bucket}:${String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim()}`;
-}
-
 function allowRate(req, bucket, max, windowMs) {
-  const key = clientKey(req, bucket);
-  const now = Date.now();
-  const rows = (rateBuckets.get(key) || []).filter((time) => now - time < windowMs);
-  if (rows.length >= max) {
-    rateBuckets.set(key, rows);
-    return false;
-  }
-  rows.push(now);
-  rateBuckets.set(key, rows);
-  return true;
+  return rateLimiter.allow(clientKey(req, bucket), max, windowMs);
 }
 
 const mime = {
@@ -381,35 +326,38 @@ async function serveStatic(req, res) {
   } catch { return false; }
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
   if (url.pathname === '/api/auth/status' && req.method === 'GET') {
-    const session = authSession(req);
+    const session = await authSession(req);
     return json(res, 200, {
       required: authRequired,
       authenticated: session.authenticated,
-      role: session.role,
-      canGenerateAccessCodes: session.role === 'owner',
-      canManageConnection: session.role === 'owner',
-      canChangeRules: session.role === 'owner',
+      ...permissionsFor(session.role),
     });
   }
 
   if (url.pathname === '/api/auth/login' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
-    if (!allowRate(req, 'dashboard-login', 15, 15 * 60 * 1000)) return json(res, 429, { ok: false, message: 'Too many unlock attempts. Try again later.' });
-    if (!authRequired) return json(res, 200, { ok: true, authenticated: true, role: 'owner' });
+    // Two windows: a burst allowance and a slower sustained cap, so an attacker
+    // cannot grind either the owner password or the access-code space.
+    if (!allowRate(req, 'unlock-burst', 8, 60 * 1000) || !allowRate(req, 'unlock-sustained', 30, 60 * 60 * 1000)) {
+      return json(res, 429, { ok: false, message: PUBLIC_MESSAGES.RATE_LIMITED });
+    }
+    if (!authRequired) return json(res, 200, { ok: true, authenticated: true, ...permissionsFor(OWNER) });
     try {
       const body = await readJsonBody(req, 8_000);
       const credential = String(body.password || body.accessCode || '').trim();
-      if (safeEqual(credential, dashboardPassword)) {
-        return json(res, 200, { ok: true, authenticated: true, role: 'owner' }, { 'set-cookie': cookieHeader(req, makeAuthToken('owner', 'owner')) });
+      if (dashboardPassword && safeEqual(credential, dashboardPassword)) {
+        return json(res, 200, { ok: true, authenticated: true, ...permissionsFor(OWNER) }, { 'set-cookie': cookieHeader(req, sessions.makeToken(OWNER, OWNER)) });
       }
       const invite = await redeemAccessCode(credential);
+      // Identical copy either way: never reveal which credential form was tried.
       if (!invite) return json(res, 401, { ok: false, message: 'Incorrect dashboard password or access code.' });
-      return json(res, 200, { ok: true, authenticated: true, role: 'member' }, { 'set-cookie': cookieHeader(req, makeAuthToken('member', invite.id)) });
+      return json(res, 200, { ok: true, authenticated: true, ...permissionsFor(MEMBER) }, { 'set-cookie': cookieHeader(req, sessions.makeToken(MEMBER, invite.id)) });
     } catch (error) {
+      console.error('[AutoProp auth] unlock failed', JSON.stringify(internalDetail(error, { stage: 'login' })));
       return json(res, 400, { ok: false, message: 'Could not unlock the dashboard.' });
     }
   }
@@ -419,31 +367,33 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true }, { 'set-cookie': clearCookieHeader(req) });
   }
 
-  if (url.pathname.startsWith('/api/') && !isAuthorized(req)) {
+  if (url.pathname.startsWith('/api/') && !(await isAuthorized(req))) {
     return json(res, 401, { ok: false, message: 'Dashboard authentication required.', authRequired: true });
   }
 
   if (url.pathname === '/api/access-codes/generate' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
-    if (!isOwner(req)) return json(res, 403, { ok: false, message: 'Owner access is required to generate invite codes.' });
+    if (!(await isOwner(req))) return json(res, 403, { ok: false, message: 'Owner access is required to generate invite codes.' });
     if (!allowRate(req, 'generate-code', 20, 60 * 60 * 1000)) return json(res, 429, { ok: false, message: 'Too many codes generated recently.' });
     try {
       const body = await readJsonBody(req, 8_000);
       const created = await generateAccessCode({ label: body.label, expiresInDays: body.expiresInDays, maxUses: body.maxUses });
+      console.log(`[AutoProp access] owner generated code ${created.id} (${created.hint})`); // hint only, never the code
       return json(res, 200, { ok: true, ...created });
-    } catch {
+    } catch (error) {
+      console.error('[AutoProp access] generate failed', JSON.stringify(internalDetail(error, { stage: 'generate-code' })));
       return json(res, 500, { ok: false, message: 'Could not generate an access code.' });
     }
   }
 
   if (url.pathname === '/api/access-codes' && req.method === 'GET') {
-    if (!isOwner(req)) return json(res, 403, { ok: false, message: 'Owner access is required.' });
+    if (!(await isOwner(req))) return json(res, 403, { ok: false, message: 'Owner access is required.' });
     return json(res, 200, { codes: await listAccessCodes() });
   }
 
   if (url.pathname === '/api/access-codes/revoke' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
-    if (!isOwner(req)) return json(res, 403, { ok: false, message: 'Owner access is required.' });
+    if (!(await isOwner(req))) return json(res, 403, { ok: false, message: 'Owner access is required.' });
     try {
       const body = await readJsonBody(req, 8_000);
       const revoked = await revokeAccessCode(String(body.id || ''));
@@ -463,20 +413,22 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/rules' && req.method === 'PUT') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
-    if (!isOwner(req)) return json(res, 403, { ok: false, message: 'Owner access is required to change scanner rules.' });
+    if (!(await isOwner(req))) return json(res, 403, { ok: false, message: 'Owner access is required to change scanner rules.' });
     if (running) return json(res, 409, { ok: false, message: 'Wait for the current scan to finish before changing rules.' });
     try {
       const body = await readJsonBody(req, 16_000);
       return json(res, 200, { ok: true, rules: await saveRules(body.rules || body), locked: { prizePicksOnly: true, regularLinesOnly: true, todayOnly: true } });
     } catch (error) {
-      return json(res, 400, { ok: false, message: error?.message || String(error) });
+      console.error('[AutoProp rules] save failed', JSON.stringify(internalDetail(error, { stage: 'save-rules' })));
+      return json(res, 400, { ok: false, message: PUBLIC_MESSAGES.REQUEST_INVALID });
     }
   }
 
   if (url.pathname === '/api/connect' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
-    if (!isOwner(req)) return json(res, 403, { ok: false, message: 'Owner access is required to manage the PickFinder connection.' });
+    if (!(await isOwner(req))) return json(res, 403, { ok: false, message: 'Owner access is required to manage the PickFinder connection.' });
     if (running) return json(res, 409, { ok: false, message: 'Wait for the current scan to finish before changing the PickFinder connection.' });
+    if (!allowRate(req, 'pickfinder-connect', 6, 10 * 60 * 1000)) return json(res, 429, { ok: false, message: PUBLIC_MESSAGES.RATE_LIMITED });
     try {
       const body = await readJsonBody(req, 16_000);
       const result = await verifyAndSavePickFinderConnection({ email: body.email, password: body.password });
@@ -490,7 +442,7 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/disconnect' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
-    if (!isOwner(req)) return json(res, 403, { ok: false, message: 'Owner access is required to manage the PickFinder connection.' });
+    if (!(await isOwner(req))) return json(res, 403, { ok: false, message: 'Owner access is required to manage the PickFinder connection.' });
     if (running) return json(res, 409, { ok: false, message: 'Wait for the current scan to finish before disconnecting.' });
     try {
       const { disconnectPickFinder } = await import('./scanner/pickfinder-v2.mjs');
@@ -503,14 +455,29 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/api/scan' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
-    if (running) return json(res, 409, { ok: false, message: 'A scan is already running.' });
-    scanNow().catch((error) => console.error('[scanNow uncaught]', error));
+    if (running) return json(res, 409, { ok: false, message: PUBLIC_MESSAGES.SCAN_ALREADY_RUNNING });
+    if (!allowRate(req, 'scan', 12, 10 * 60 * 1000)) return json(res, 429, { ok: false, message: PUBLIC_MESSAGES.RATE_LIMITED });
+    scanNow().catch((error) => console.error('[scanNow uncaught]', JSON.stringify(internalDetail(error, { stage: 'scanNow' }))));
     return json(res, 202, { ok: true, message: 'Scan started.' });
   }
 
   if (await serveStatic(req, res)) return;
   res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
   res.end('Not found');
+}
+
+// Last line of defence: an unhandled throw anywhere in a route returns generic
+// copy. The detail goes to the server log, never to the browser.
+const server = http.createServer((req, res) => {
+  handleRequest(req, res).catch((error) => {
+    console.error('[AutoProp request] unhandled failure', JSON.stringify(internalDetail(error, { stage: 'request', path: req.url })));
+    if (res.headersSent) return res.destroy();
+    json(res, 500, { ok: false, message: GENERIC_MESSAGE });
+  });
+});
+
+server.on('clientError', (error, socket) => {
+  if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
 });
 
 server.listen(port, () => {

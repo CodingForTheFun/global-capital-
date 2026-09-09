@@ -118,10 +118,6 @@ setTimeout(async () => {
     const propsBody = await props.json();
     console.log(`[AutoScout self-check] nflStatus=${props.status} lines=${Number(propsBody?.meta?.lineCount ?? propsBody?.props?.length ?? 0)} events=${Number(propsBody?.meta?.events || 0)} books=${Number(propsBody?.meta?.sportsbookCount || 0)} provider=${propsBody?.meta?.provider || 'none'} cache=${propsBody?.meta?.cacheHit ? 'hit' : 'miss'}`);
 
-    const e2e = await fetch(`http://127.0.0.1:${APEX_PORT}/api/diagnostics/e2e`);
-    const e2eBody = await e2e.json();
-    console.log(`[AutoScout self-check] phase1-e2e=${e2eBody?.ok ? 'PASS' : 'FAIL'} sport=${e2eBody?.sport || 'none'} book=${e2eBody?.sample?.sportsbook || 'none'} market=${e2eBody?.sample?.market || 'none'}`);
-
     const nextHealth = await fetch(`http://127.0.0.1:${APEX_NEXT_PORT}/api/health`);
     console.log(`[Apex next self-check] health=${nextHealth.status}`);
   } catch (error) {

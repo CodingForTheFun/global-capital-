@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import { normalizePlayerPropOffers } from '../lib/data-sources/sportsdataio/odds.mjs';
+import { normalizePlayerPropOffers, prizePicksOffers, summarizePlayerPropShape } from '../lib/data-sources/sportsdataio/odds.mjs';
 import { indexPlayerDirectory, resolveOfferPlayers } from '../lib/data-sources/sportsdataio/player-directory.mjs';
 import { renderPropCardsMarkup } from '../public/props-presenter.mjs';
 
@@ -24,6 +24,28 @@ test('sportsbook Participant free-text is never exposed as a player name', () =>
   assert.equal(offers.length, 1);
   assert.equal(offers[0].playerName, null);
   assert.notEqual(offers[0].playerName, opaque);
+});
+
+test('SportsDataIO consensus outcomes become clearly labelled provider lines only when no sportsbook rows are usable', () => {
+  const payload = [{
+    BettingMarketID: 90,
+    BettingBetType: 'Player Hits',
+    PlayerID: 99,
+    PlayerName: 'Example Hitter',
+    BettingOutcomes: [],
+    ConsensusOutcomes: [
+      { BettingOutcomeType: 'Over', Value: 1.5, PlayerID: 99, IsAvailable: true, IsAlternate: false },
+      { BettingOutcomeType: 'Under', Value: 1.5, PlayerID: 99, IsAvailable: true, IsAlternate: false },
+    ],
+  }];
+  const offers = normalizePlayerPropOffers(payload, { sport: 'MLB' });
+  assert.equal(offers.length, 2);
+  assert.equal(offers[0].sportsbook, 'Consensus');
+  assert.equal(offers[0].consensus, true);
+  assert.equal(prizePicksOffers(payload, { sport: 'MLB' }).length, 0);
+  const shape = summarizePlayerPropShape(payload);
+  assert.equal(shape.consensusOutcomes, 2);
+  assert.equal(shape.playerMarkets, 1);
 });
 
 test('missing betting player names resolve by exact SportsDataIO PlayerID', () => {

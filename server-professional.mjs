@@ -375,7 +375,9 @@ async function handleRequest(req, res) {
     return json(res, 401, { ok: false, message: 'Dashboard authentication required.', authRequired: true });
   }
 
-  if (await handlePropRoutes(req, res, url, { readLatest: () => readJson(latestPath, null), json })) return;
+  // ALL PROPS / Auto Prop Finder / prop detail / provider status.
+  // Behind the auth gate above, so provider-backed data is never public.
+  if (await handlePropRoutes(req, res, url, { readLatest: () => readJson(latestPath, null), readLastError: () => readJson(lastErrorPath, null), json })) return;
 
   if (url.pathname === '/api/access-codes/generate' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });

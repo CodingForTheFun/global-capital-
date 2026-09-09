@@ -186,3 +186,23 @@ test('a malformed filter query is handled rather than erroring', async () => {
     assert.equal(status, 200, `${query} should degrade gracefully`);
   }
 });
+
+test('an empty board explains WHY, so it never just sits on Loading', async () => {
+  // The live symptom: /api/props returns 200 with zero props and the UI has
+  // nothing to display. scanState is what tells the user what to do.
+  const filtered = await api('/api/props?minHitRate=99&hitRateWindow=l10');
+  assert.equal(filtered.body.props.length, 0);
+  assert.equal(filtered.body.scanState.status, 'filtered-out');
+  assert.match(filtered.body.scanState.message, /excluded by the current filters/);
+  assert.equal(filtered.body.scanState.pickCount, 3, 'it reports how many props the scan actually found');
+
+  // A healthy board reports ok and when it was scanned.
+  const ok = await api('/api/props');
+  assert.equal(ok.body.scanState.status, 'ok');
+  assert.equal(ok.body.scanState.pickCount, 3);
+  assert.ok(ok.body.scanState.scannedAt);
+
+  // Auto Prop Finder carries the same signal.
+  const best = await api('/api/props/best');
+  assert.equal(best.body.scanState.status, 'ok');
+});

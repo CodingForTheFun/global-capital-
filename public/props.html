@@ -20,7 +20,7 @@
 
   <main class="shell props-shell">
     <section class="intro compact-intro">
-      <div><span class="eyebrow">SCOUT PRO · PROP BOARD</span><h1>Props, organized.</h1><p>Real player lines, recent performance, and live context without the clutter.</p></div>
+      <div><span class="eyebrow">SCOUT PRO · PROP BOARD</span><h1>Props, organized.</h1><p>Current and upcoming real player lines, recent performance, and live context without the clutter.</p></div>
       <div class="summary-card"><span>Freshness</span><strong id="lastScan">—</strong><small id="dataSummary">Loading board</small></div>
     </section>
 
@@ -32,7 +32,7 @@
     </section>
 
     <section class="modebar" aria-label="Prop views">
-      <button class="mode-tab active" data-mode="all" type="button"><span>All Props</span><small>All valid main lines</small></button>
+      <button class="mode-tab active" data-mode="all" type="button"><span>All Props</span><small>Current + upcoming main lines</small></button>
       <button class="mode-tab" data-mode="best" type="button"><span>Auto Prop Finder</span><small>Rank the strongest evidence</small></button>
     </section>
 
@@ -71,7 +71,7 @@
       <div class="sheet-head"><div><span class="eyebrow">UNIVERSAL FILTERS</span><h2>Refine props</h2></div><button class="sheet-close" data-close-sheet type="button">×</button></div>
       <div class="filter-sections">
         <section><h3>Market</h3><div class="field-grid"><label>Side<select id="sideFilter"><option value="ALL">Any side</option><option value="OVER">Over</option><option value="UNDER">Under</option></select></label><label>Minimum Scout Score<input id="minScoreFilter" type="number" min="0" max="100" inputmode="numeric" placeholder="Any" /></label><label>Minimum hit rate<input id="minHitRateFilter" type="number" min="0" max="100" inputmode="numeric" placeholder="Any" /></label><label>Hit-rate window<select id="hitWindowFilter"><option value="l10">L10</option><option value="l5">L5</option><option value="l15">L15</option><option value="l20">L20</option><option value="season">Season</option><option value="best">Best available</option></select></label><label>Minimum projection edge<input id="minProjectionEdgeFilter" type="number" step="0.1" inputmode="decimal" placeholder="Any" /></label><label>Minimum expected minutes<input id="minMinutesFilter" type="number" step="1" inputmode="numeric" placeholder="Any" /></label></div></section>
-        <section><h3>Availability & game</h3><div class="toggle-list"><label><input id="excludeInjuredFilter" type="checkbox" /><span><b>Exclude out / doubtful</b><small>Questionable players still show</small></span></label><label><input id="startersOnlyFilter" type="checkbox" /><span><b>Starters only</b><small>Applied only where starter data exists</small></span></label><label><input id="todayOnlyFilter" type="checkbox" checked /><span><b>Today only</b><small>Uses the Scout slate timezone</small></span></label></div></section>
+        <section><h3>Availability & game</h3><div class="toggle-list"><label><input id="excludeInjuredFilter" type="checkbox" /><span><b>Exclude out / doubtful</b><small>Questionable players still show</small></span></label><label><input id="startersOnlyFilter" type="checkbox" /><span><b>Starters only</b><small>Applied only where starter data exists</small></span></label><label><input id="todayOnlyFilter" type="checkbox" /><span><b>Today only</b><small>Off by default so upcoming props stay visible</small></span></label></div></section>
       </div>
       <div class="sheet-actions"><button id="resetFiltersBtn" class="secondary" type="button">Reset</button><button id="applyFiltersBtn" class="primary" type="button">Show props</button></div>
     </div>

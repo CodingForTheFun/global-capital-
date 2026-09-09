@@ -14,14 +14,21 @@ function spawnChild(file, port, name) {
 const worker = spawnChild('server-v6.mjs', WORKER_PORT, 'Scout worker');
 const apex = spawnChild('apex-live/server.mjs', APEX_PORT, 'Apex Props');
 
-function targetFor(url) {
+function fromApex(req) {
+  const ref = String(req.headers.referer || '');
+  return ref.includes('/apex') || String(req.headers['x-apex-client'] || '') === '1';
+}
+
+function targetFor(req) {
+  const url = req.url || '/';
   if (url === '/apex' || url.startsWith('/apex/')) return { port: APEX_PORT, path: url === '/apex' ? '/' : url.slice('/apex'.length) || '/' };
   if (url === '/api/apex' || url.startsWith('/api/apex/')) return { port: APEX_PORT, path: '/api' + (url.slice('/api/apex'.length) || '/') };
+  if (fromApex(req) && (url.startsWith('/api/props') || url.startsWith('/manifest.webmanifest'))) return { port: APEX_PORT, path: url };
   return { port: WORKER_PORT, path: url };
 }
 
 const server = http.createServer((req, res) => {
-  const target = targetFor(req.url || '/');
+  const target = targetFor(req);
   const proxy = http.request({ hostname: '127.0.0.1', port: target.port, method: req.method, path: target.path, headers: { ...req.headers, host: req.headers.host || 'localhost' } }, upstream => {
     res.writeHead(upstream.statusCode || 502, upstream.headers);
     upstream.pipe(res);

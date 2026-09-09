@@ -12,7 +12,7 @@ function ensureInviteField() {
   const label = document.createElement('label');
   label.id = 'friendInviteLabel';
   label.className = 'hidden';
-  label.innerHTML = 'Friend access code <span style="opacity:.65;font-size:.82em">(not needed for the first owner account)</span><input id="friendAccessCode" type="text" inputmode="text" autocomplete="off" placeholder="AP-XXXX-XXXX-XXXX" maxlength="19" />';
+  label.innerHTML = 'Access code <span style="opacity:.65;font-size:.82em">(owner setup code for the first account; friend invite code after that)</span><input id="friendAccessCode" type="text" inputmode="text" autocomplete="off" placeholder="Enter your AutoProp access code" maxlength="80" />';
   form.insertBefore(label, submit);
 
   const sync = () => {

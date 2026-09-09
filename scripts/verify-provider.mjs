@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Production-safe SportsDataIO verification.
-// Prints only feed classifications/counts/latency and aggregate operator counts.
-// It never prints credentials, request headers, endpoint URLs or raw payloads.
+// Prints only feed classifications/counts/latency and aggregate schema/operator
+// counts. It never prints credentials, request headers, endpoint URLs, player
+// values, betting odds or raw provider payloads.
 
 import { createSportsDataIoAdapter } from '../lib/data-sources/sportsdataio/index.mjs';
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
@@ -32,7 +33,8 @@ try {
   const board = await sportsDataIoPropBoard.fetchBoard({ force: true });
   console.log(`[provider-check] player-prop board totalOffers=${Number(board.offers?.length || 0)} latency=${Number(board.latencyMs || 0)}ms`);
   for (const row of board.coverage || []) {
-    console.log(`[provider-check] prop-board ${row.sport}: status=${row.status || 0} games=${row.gamesChecked || 0} offers=${row.offerCount || 0} error=${row.errorType || 'OK'}`);
+    const shape = row.shape || {};
+    console.log(`[provider-check] prop-board ${row.sport}: status=${row.status || 0} games=${row.gamesChecked || 0} offers=${row.offerCount || 0} unresolved=${row.unresolvedPlayers || 0} markets=${shape.marketNodes || 0} bookOutcomes=${shape.bettingOutcomes || 0} consensus=${shape.consensusOutcomes || 0} overUnder=${shape.overUnderOutcomes || 0} lines=${shape.numericLineOutcomes || 0} core=${shape.availableCoreOutcomes || 0} namedBook=${shape.namedBookOutcomes || 0} error=${row.errorType || 'OK'}`);
   }
 } catch {
   console.log('[provider-check] player-prop board unavailable');

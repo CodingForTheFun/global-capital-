@@ -72,6 +72,57 @@ function reevaluate(pick, rules) {
   return next;
 }
 
+function titleCaseSlug(value = '') {
+  return decodeURIComponent(String(value || ''))
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+}
+
+function identityFromUrl(sourceUrl = '') {
+  try {
+    const url = new URL(sourceUrl);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const playersIndex = parts.findIndex((part) => part.toLowerCase() === 'players');
+    const sport = playersIndex >= 0 ? String(parts[playersIndex + 1] || '').toUpperCase() : '';
+    const player = playersIndex >= 0 ? titleCaseSlug(parts[playersIndex + 2] || '') : '';
+    return { sport, player };
+  } catch {
+    return { sport: '', player: '' };
+  }
+}
+
+function boardProp(pick = {}) {
+  const derived = identityFromUrl(pick.sourceUrl);
+  const rawPlayer = String(pick.player || '').trim();
+  const rawSport = String(pick.sport || '').trim().toUpperCase();
+  const player = (!rawPlayer || /^(pickfinder|unknown|unknown player|unresolved)$/i.test(rawPlayer))
+    ? (derived.player || rawPlayer || 'Player')
+    : rawPlayer;
+  const sport = (!rawSport || rawSport === 'UNKNOWN') ? (derived.sport || rawSport || 'OTHER') : rawSport;
+  return {
+    ...pick,
+    id: pick.id || `${pick.sourceApp || 'PickFinder'}:${pick.lineType || 'REGULAR'}:${pick.sourceUrl || player}:${pick.prop || 'prop'}:${pick.line ?? ''}`,
+    player,
+    sport,
+    boardVisible: true,
+    researchComplete: pick.detailPageVerified === true,
+    ruleEvaluationAvailable: pick.detailPageVerified === true,
+    boardStatus: pick.detailPageVerified === true ? 'RESEARCHED' : 'DISCOVERED',
+  };
+}
+
+function dedupeBoard(picks = []) {
+  const seen = new Map();
+  for (const raw of picks) {
+    const pick = boardProp(raw);
+    const key = String(pick.id || [pick.sourceApp, pick.player, pick.prop, pick.line, pick.pick, pick.lineType].join('|')).toLowerCase();
+    const existing = seen.get(key);
+    if (!existing || (pick.detailPageVerified && !existing.detailPageVerified)) seen.set(key, pick);
+  }
+  return [...seen.values()];
+}
+
 function rankType(picks, lineType, limit = 20) {
   return picks
     .filter((pick) => pick.lineType === lineType)
@@ -81,7 +132,7 @@ function rankType(picks, lineType, limit = 20) {
 }
 
 function buildBestAvailable(picks, rules) {
-  if (!rules.bestAvailable) return [];
+  if (!rules.bestAvailable || !rules.rulesEnabled) return [];
   return picks
     .filter((pick) => !pick.qualified)
     .filter((pick) => pick.detailPageVerified === true && pick.sourceAppConfirmed === true && pick.isToday === true)
@@ -99,21 +150,38 @@ function buildBestAvailable(picks, rules) {
 export async function runLiveScan(options = {}) {
   const rules = normalizeRules(options.rules || DEFAULT_RULES);
   const raw = await runMasterpieceScan({ ...options, rules });
-  const picks = (raw.picks || []).map((pick) => reevaluate(pick, rules));
-  const qualified = picks.filter((pick) => pick.qualified).sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0));
+  const boardProps = dedupeBoard(raw.picks || []);
+  const evaluated = boardProps.map((pick) => reevaluate(pick, rules));
+  const picks = rules.rulesEnabled
+    ? evaluated.map((pick) => ({ ...pick, rulesApplied: true }))
+    : evaluated.map((pick) => ({
+        ...pick,
+        ruleQualified: pick.qualified,
+        qualified: false,
+        failures: [],
+        warnings: [],
+        rulesApplied: false,
+      }));
+  const qualified = rules.rulesEnabled
+    ? picks.filter((pick) => pick.qualified).sort((a, b) => Number(b.confidence || 0) - Number(a.confidence || 0))
+    : [];
   const warnings = [...new Set(raw.warnings || [])];
-  if (!qualified.length) warnings.push('No props passed every active verification rule; Best Available contains researched near-misses only.');
+  if (rules.rulesEnabled && !qualified.length) warnings.push('No props passed every active verification rule; Best Available contains researched near-misses only.');
+  if (!rules.rulesEnabled) warnings.push(`Rules are OFF. Showing all ${boardProps.length} props discovered from PickFinder regardless of qualification.`);
 
   return {
     ...raw,
     mode: 'live',
-    scannerVersion: 'masterpiece-2',
+    scannerVersion: 'masterpiece-board-first-3',
     rulesApplied: rules,
-    totalReviewed: picks.length,
+    rulesEnabled: rules.rulesEnabled,
+    boardProps,
+    boardPropCount: boardProps.length,
+    totalReviewed: boardProps.length,
     qualifiedCount: qualified.length,
-    rejectedCount: picks.length - qualified.length,
+    rejectedCount: rules.rulesEnabled ? picks.length - qualified.length : 0,
     picks,
-    diversifiedCard: buildDiversifiedCard(picks, 4),
+    diversifiedCard: rules.rulesEnabled ? buildDiversifiedCard(picks, 4) : [],
     greenGoblins: rankType(picks, 'GREEN_GOBLIN'),
     redGoblins: rankType(picks, 'RED_GOBLIN'),
     bestAvailable: buildBestAvailable(picks, rules),

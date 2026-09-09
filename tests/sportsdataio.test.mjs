@@ -127,13 +127,39 @@ test('NFL is addressed by season and week, not by date', async () => {
   assert.equal(result.get(enrichmentKey({ sport: 'NFL', playerName: 'Quarter Back' })).projection, 271.5);
 });
 
-test('NFL is skipped rather than mis-called when season/week are unknown', async () => {
+test('NFL resolves its season and week from the scores feed automatically', async () => {
   process.env.SPORTSDATAIO_API_KEY = KEY;
-  const fetchImpl = fakeFetch([]);
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (url.endsWith('/CurrentSeason')) return { ok: true, status: 200, json: async () => 2026 };
+    if (url.endsWith('/CurrentWeek')) return { ok: true, status: 200, json: async () => 3 };
+    return { ok: true, status: 200, json: async () => [{ Name: 'Quarter Back', Team: 'KC', Opponent: 'BUF', PassingYards: 271.5 }] };
+  };
+  const adapter = createSportsDataIoAdapter({ fetchImpl });
+  const result = await adapter.fetchEnrichment({
+    props: [prop({ player: 'Quarter Back', sport: 'NFL', prop: 'Passing Yards', opponent: 'BUF' })],
+  });
+
+  assert.ok(calls.some((url) => url.endsWith('/nfl/scores/json/CurrentSeason')));
+  assert.ok(calls.some((url) => url.endsWith('/nfl/scores/json/CurrentWeek')));
+  assert.ok(calls.some((url) => url.endsWith('/PlayerGameProjectionStatsByWeek/2026/3')), 'the resolved values address the projections feed');
+  assert.equal(result.get(enrichmentKey({ sport: 'NFL', playerName: 'Quarter Back' })).projection, 271.5);
+});
+
+test('NFL is skipped, never called with a guessed week, when resolution fails', async () => {
+  process.env.SPORTSDATAIO_API_KEY = KEY;
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    // The scores scope is not in this subscription.
+    return { ok: false, status: 403, json: async () => ({}) };
+  };
   const adapter = createSportsDataIoAdapter({ fetchImpl });
   const result = await adapter.fetchEnrichment({ props: [prop({ sport: 'NFL', prop: 'Passing Yards' })] });
-  assert.equal(fetchImpl.calls.length, 0, 'no request is made without a season and week');
+
   assert.equal(result.size, 0);
+  assert.ok(!calls.some((url) => url.includes('PlayerGameProjectionStatsByWeek')), 'no projections call with a guessed week');
 });
 
 test('leagues SportsDataIO cannot project are reported, not faked', async () => {

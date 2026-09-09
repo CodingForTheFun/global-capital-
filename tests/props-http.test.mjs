@@ -186,3 +186,18 @@ test('a malformed filter query is handled rather than erroring', async () => {
     assert.equal(status, 200, `${query} should degrade gracefully`);
   }
 });
+
+test('an empty board explains WHY, so it never just sits on Loading', async () => {
+  const filtered = await api('/api/props?minHitRate=99&hitRateWindow=l10');
+  assert.equal(filtered.body.props.length, 0);
+  assert.equal(filtered.body.boardState.status, 'filtered-out');
+  assert.match(filtered.body.boardState.message, /excluded by the current filters/);
+
+  const ok = await api('/api/props');
+  assert.equal(ok.body.boardState.status, 'ok');
+  assert.equal(ok.body.boardState.scanPicks, 3, 'it reports what each source contributed');
+  assert.ok(ok.body.boardState.scannedAt);
+
+  const best = await api('/api/props/best');
+  assert.ok(best.body.boardState, 'Auto Prop Finder carries the same signal');
+});

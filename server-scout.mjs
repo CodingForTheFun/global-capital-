@@ -7,6 +7,7 @@ import { handlePropRoutes } from './lib/props/routes.mjs';
 import { handleLiveRoutes } from './lib/live/routes.mjs';
 import { bootstrapProviders } from './lib/data-sources/bootstrap.mjs';
 import { providerStatus, getProvider } from './lib/data-sources/registry.mjs';
+import { sportsDataIoPropBoard } from './lib/data-sources/sportsdataio/prop-board.mjs';
 import { createSessionCodec, createRateLimiter, permissionsFor, parseCookies, cookieHeader, clearCookieHeader, clientKey, safeEqual, SESSION_COOKIE, OWNER, MEMBER } from './lib/session.mjs';
 import { generateAccessCode, redeemAccessCode, listAccessCodes, revokeAccessCode, isAccessCodeActive } from './access-codes.mjs';
 import { getPickFinderConnectionState } from './scanner/secure-store.mjs';
@@ -21,6 +22,7 @@ const port = Number(process.env.PORT || 3000);
 const dashboardPassword = process.env.DASHBOARD_PASSWORD || '';
 const dashboardSessionSecret = process.env.DASHBOARD_SESSION_SECRET || crypto.createHash('sha256').update(`scout-pro:${dashboardPassword || 'local-only'}`).digest('hex');
 const authRequired = Boolean(dashboardPassword);
+const verifyProviderOnBoot = ['1', 'true', 'yes'].includes(String(process.env.VERIFY_PROVIDER_ON_BOOT || '').toLowerCase());
 
 await fs.mkdir(dataDir, { recursive: true });
 bootstrapProviders();
@@ -98,6 +100,35 @@ function basicHealth() {
     worker: { status: 'provider-native' },
     provider: sports ? { id: sports.id, status: sports.status, lastOkAt: sports.lastOkAt } : { id: 'sportsdataio', status: 'unavailable' },
   };
+}
+
+async function runtimeProviderVerification() {
+  const adapter = getProvider('sportsdataio');
+  if (!adapter || !adapter.isConfigured?.()) {
+    console.log('[Scout Pro provider-check] SportsDataIO NOT_CONFIGURED');
+    return;
+  }
+  console.log('[Scout Pro provider-check] SPORT | FEED | STATUS | RECORDS | LATENCY | ERROR');
+  try {
+    const matrix = await adapter.entitlements({ force: true });
+    const rows = Array.isArray(matrix?.capabilities) ? matrix.capabilities : [];
+    for (const row of rows) {
+      console.log(`[Scout Pro provider-check] ${row.sport} | ${row.feed} | ${row.status ?? 0} | ${row.recordCount ?? 0} | ${row.latencyMs ?? 0}ms | ${row.errorType || row.grant || 'UNKNOWN'}`);
+    }
+    console.log(`[Scout Pro provider-check] configured=${Boolean(matrix?.configured)} keyRejected=${Boolean(matrix?.keyRejected)} discoveredAt=${matrix?.discoveredAt || 'unknown'}`);
+  } catch (error) {
+    console.log(`[Scout Pro provider-check] entitlement verification failed code=${String(error?.code || 'VERIFY_FAILED')}`);
+  }
+
+  try {
+    const board = await sportsDataIoPropBoard.fetchBoard({ force: true });
+    console.log(`[Scout Pro provider-check] prop-board totalOffers=${Number(board?.offers?.length || 0)} latency=${Number(board?.latencyMs || 0)}ms`);
+    for (const row of board?.coverage || []) {
+      console.log(`[Scout Pro provider-check] prop-board ${row.sport} | status=${row.status ?? 0} | games=${row.gamesChecked ?? 0} | offers=${row.offerCount ?? 0} | error=${row.errorType || 'OK'}`);
+    }
+  } catch (error) {
+    console.log(`[Scout Pro provider-check] prop-board verification failed code=${String(error?.code || 'VERIFY_FAILED')}`);
+  }
 }
 
 const mime = {
@@ -256,4 +287,5 @@ server.listen(port, () => {
   console.log(`SCOUT PRO production server listening on :${port}`);
   console.log('Primary data path: SportsDataIO provider-native prop board');
   console.log('Legacy PickFinder workflow: optional and not used for member prop access');
+  if (verifyProviderOnBoot) setTimeout(() => runtimeProviderVerification().catch(() => {}), 750).unref();
 });

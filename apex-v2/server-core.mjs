@@ -1,9 +1,15 @@
+import crypto from 'node:crypto';
 import http from 'node:http';
 import { fetchUnifiedBoard, providerHealth, providerDiagnostics } from './provider.mjs';
 import { SUPPORTED_SPORTS } from '../lib/autoscout/models.mjs';
+import { createSessionCodec, createRateLimiter, parseCookies, clientKey, SESSION_COOKIE, OWNER } from '../lib/session.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const startedAt = new Date().toISOString();
+const dashboardPassword = process.env.DASHBOARD_PASSWORD || '';
+const dashboardSessionSecret = process.env.DASHBOARD_SESSION_SECRET || crypto.createHash('sha256').update(`scout-pro:${dashboardPassword || 'local-only'}`).digest('hex');
+const sessions = createSessionCodec({ secret: dashboardSessionSecret });
+const limiter = createRateLimiter();
 
 function json(res, status, body, extra = {}) {
   const payload = JSON.stringify(body);
@@ -31,20 +37,34 @@ function html(res, body) {
   res.end(body);
 }
 
+function ownerAuthorized(req) {
+  if (!dashboardPassword) return true;
+  const token = parseCookies(req)[SESSION_COOKIE];
+  const session = sessions.readToken(token);
+  return session.authenticated === true && session.role === OWNER;
+}
+
+function rateAllowed(req, bucket, max, windowMs) {
+  return limiter.allow(clientKey(req, bucket), max, windowMs);
+}
+
 function mainPage() {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#070b19"><title>AutoProp Scout</title></head><body><div class="app"><main class="shell"><p>Loading AutoProp Scout…</p></main></div></body></html>`;
 }
 
 function diagnosticsPage() {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08101d"><title>Auto Scout Provider Diagnostics</title><style>
-  :root{color-scheme:dark;--bg:#07101c;--panel:#0d1828;--panel2:#111f32;--line:#253652;--text:#f6f8fc;--muted:#91a0b7;--good:#38df9f;--bad:#ff6b7b;--warn:#f0c35a}*{box-sizing:border-box}body{margin:0;background:#07101c;color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.wrap{max-width:1180px;margin:auto;padding:24px 16px 60px}header{display:flex;gap:12px;align-items:center;margin-bottom:18px}.brand{font-weight:950;font-size:22px;letter-spacing:-.04em}.brand span{color:var(--good)}.pill{font-size:11px;color:#a9f3d2;border:1px solid #285647;background:#0d2a22;border-radius:999px;padding:6px 9px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.card{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:13px}.card small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em}.card strong{display:block;font-size:20px;margin-top:4px}.table{border:1px solid var(--line);border-radius:14px;overflow:auto;background:var(--panel)}table{border-collapse:collapse;width:100%;min-width:780px}th,td{text-align:left;padding:11px 12px;border-bottom:1px solid rgba(37,54,82,.8);font-size:12px}th{background:var(--panel2);color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.ok{color:var(--good)}.err{color:var(--bad)}.wait{color:var(--warn)}h2{font-size:15px;margin:20px 0 9px}.error{border:1px solid #50303a;background:#21131a;border-radius:10px;padding:10px 12px;margin-bottom:7px;font-size:11px;line-height:1.5}.muted{color:var(--muted)}a{color:#8ab7ff}.top{margin-left:auto;display:flex;gap:8px}.btn{border:1px solid var(--line);background:#111f32;color:#fff;border-radius:10px;padding:9px 11px;text-decoration:none;font-size:12px;font-weight:800}@media(max-width:760px){.grid{grid-template-columns:1fr 1fr}.wrap{padding-top:16px}.brand{font-size:19px}.pill{display:none}}</style></head><body><div class="wrap"><header><div class="brand">AUTO<span>SCOUT</span> DATA</div><div class="pill">Provider diagnostics</div><div class="top"><a class="btn" href="/apex">Prop Board</a><button class="btn" id="refresh">Refresh status</button></div></header><div id="summary" class="grid"></div><h2>SPORT → EVENTS → PROP MARKETS → BOOKMAKERS → LINES</h2><div class="table"><table><thead><tr><th>Sport</th><th>Status</th><th>Events</th><th>Prop markets</th><th>Books</th><th>Lines</th><th>Provider</th><th>Last ingestion</th></tr></thead><tbody id="sports"></tbody></table></div><h2>Provider errors</h2><div id="errors" class="muted">No errors recorded.</div></div><script>
+  :root{color-scheme:dark;--bg:#07101c;--panel:#0d1828;--panel2:#111f32;--line:#253652;--text:#f6f8fc;--muted:#91a0b7;--good:#38df9f;--bad:#ff6b7b;--warn:#f0c35a}*{box-sizing:border-box}body{margin:0;background:#07101c;color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.wrap{max-width:1180px;margin:auto;padding:24px 16px 60px}header{display:flex;gap:12px;align-items:center;margin-bottom:18px}.brand{font-weight:950;font-size:22px;letter-spacing:-.04em}.brand span{color:var(--good)}.pill{font-size:11px;color:#a9f3d2;border:1px solid #285647;background:#0d2a22;border-radius:999px;padding:6px 9px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.card{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:13px}.card small{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em}.card strong{display:block;font-size:20px;margin-top:4px}.table{border:1px solid var(--line);border-radius:14px;overflow:auto;background:var(--panel)}table{border-collapse:collapse;width:100%;min-width:780px}th,td{text-align:left;padding:11px 12px;border-bottom:1px solid rgba(37,54,82,.8);font-size:12px}th{background:var(--panel2);color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}.ok{color:var(--good)}.err{color:var(--bad)}.wait{color:var(--warn)}h2{font-size:15px;margin:20px 0 9px}.error{border:1px solid #50303a;background:#21131a;border-radius:10px;padding:10px 12px;margin-bottom:7px;font-size:11px;line-height:1.5}.muted{color:var(--muted)}a{color:#8ab7ff}.top{margin-left:auto;display:flex;gap:8px}.btn{border:1px solid var(--line);background:#111f32;color:#fff;border-radius:10px;padding:9px 11px;text-decoration:none;font-size:12px;font-weight:800}@media(max-width:760px){.grid{grid-template-columns:1fr 1fr}.wrap{padding-top:16px}.brand{font-size:19px}.pill{display:none}}</style></head><body><div class="wrap"><header><div class="brand">AUTO<span>SCOUT</span> DATA</div><div class="pill">Owner diagnostics</div><div class="top"><a class="btn" href="/apex">Prop Board</a><button class="btn" id="refresh">Refresh status</button></div></header><div id="summary" class="grid"></div><h2>SPORT → EVENTS → PROP MARKETS → BOOKMAKERS → LINES</h2><div class="table"><table><thead><tr><th>Sport</th><th>Status</th><th>Events</th><th>Prop markets</th><th>Books</th><th>Lines</th><th>Provider</th><th>Last ingestion</th></tr></thead><tbody id="sports"></tbody></table></div><h2>Provider errors</h2><div id="errors" class="muted">No errors recorded.</div></div><script>
   const esc=v=>String(v??'').replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
-  async function load(){try{const r=await fetch('/api/apex/diagnostics',{cache:'no-store'});const d=await r.json();const x=d.runtime||{};const q=x.quota||{};const c=x.cache||{};document.getElementById('summary').innerHTML=[['Requests today',x.requestsToday??0],['Observed credits today',x.estimatedCreditsUsedToday??0],['Remaining credits',q.remaining??'—'],['Cache hit rate',c.hitPercentage==null?'—':c.hitPercentage+'%']].map(v=>'<div class="card"><small>'+esc(v[0])+'</small><strong>'+esc(v[1])+'</strong></div>').join('');document.getElementById('sports').innerHTML=Object.values(x.sports||{}).map(s=>'<tr><td><b>'+esc(s.sport)+'</b></td><td class="'+(s.status==='ok'?'ok':s.status==='error'?'err':'wait')+'">'+esc(s.status)+'</td><td>'+esc(s.events||0)+'</td><td>'+esc(s.propMarkets||0)+'</td><td>'+esc(s.bookmakers||0)+'</td><td><b>'+esc(s.lines||0)+'</b></td><td>'+esc(s.provider||'—')+'</td><td>'+esc(s.fetchedAt||s.failedAt||'—')+'</td></tr>').join('');const errors=x.errors||[];document.getElementById('errors').innerHTML=errors.length?errors.map(e=>'<div class="error"><b>'+esc(e.provider)+' · '+esc(e.sport||'unknown sport')+'</b><br>'+esc(e.endpoint||'endpoint unavailable')+' · HTTP '+esc(e.status||'—')+' · '+esc(e.code||'')+'<br>'+esc(e.reason)+'<br><span class="muted">'+esc(e.timestamp)+'</span></div>').join(''):'No errors recorded.';}catch(e){document.getElementById('errors').textContent='Diagnostics request failed: '+e.message;}}
+  async function load(){try{const r=await fetch('/api/apex/diagnostics',{cache:'no-store'});if(!r.ok){document.getElementById('errors').textContent=r.status===403?'Owner session required. Sign in to Auto Scout as owner, then reopen diagnostics.':'Diagnostics request failed.';return;}const d=await r.json();const x=d.runtime||{};const q=x.quota||{};const c=x.cache||{};document.getElementById('summary').innerHTML=[['Requests today',x.requestsToday??0],['Observed credits today',x.estimatedCreditsUsedToday??0],['Remaining credits',q.remaining??'—'],['Cache hit rate',c.hitPercentage==null?'—':c.hitPercentage+'%']].map(v=>'<div class="card"><small>'+esc(v[0])+'</small><strong>'+esc(v[1])+'</strong></div>').join('');document.getElementById('sports').innerHTML=Object.values(x.sports||{}).map(s=>'<tr><td><b>'+esc(s.sport)+'</b></td><td class="'+(s.status==='ok'?'ok':s.status==='error'?'err':'wait')+'">'+esc(s.status)+'</td><td>'+esc(s.events||0)+'</td><td>'+esc(s.propMarkets||0)+'</td><td>'+esc(s.bookmakers||0)+'</td><td><b>'+esc(s.lines||0)+'</b></td><td>'+esc(s.provider||'—')+'</td><td>'+esc(s.fetchedAt||s.failedAt||'—')+'</td></tr>').join('');const errors=x.errors||[];document.getElementById('errors').innerHTML=errors.length?errors.map(e=>'<div class="error"><b>'+esc(e.provider)+' · '+esc(e.sport||'unknown sport')+'</b><br>'+esc(e.endpoint||'endpoint unavailable')+' · HTTP '+esc(e.status||'—')+' · '+esc(e.code||'')+'<br>'+esc(e.reason)+'<br><span class="muted">'+esc(e.timestamp)+'</span></div>').join(''):'No errors recorded.';}catch(e){document.getElementById('errors').textContent='Diagnostics request failed.';}}
   document.getElementById('refresh').onclick=load;load();setInterval(load,15000);
 </script></body></html>`;
 }
 
-async function propsResponse(url, res) {
+async function propsResponse(req, url, res) {
+  if (!rateAllowed(req, 'autoscout-props-minute', 180, 60_000) || !rateAllowed(req, 'autoscout-props-5m', 600, 300_000)) {
+    return json(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many prop requests. Try again shortly.' }, { 'retry-after': '60' });
+  }
   const sport = String(url.searchParams.get('sport') || 'NFL').toUpperCase();
   if (!SUPPORTED_SPORTS.includes(sport)) return json(res, 400, { ok: false, code: 'UNSUPPORTED_SPORT', supportedSports: SUPPORTED_SPORTS });
   const includeAlternates = ['1','true','yes'].includes(String(url.searchParams.get('alternates') || '').toLowerCase());
@@ -54,7 +74,7 @@ async function propsResponse(url, res) {
     const board = await fetchUnifiedBoard(sport, { signal: controller.signal, includeAlternates });
     return json(res, 200, { ...board, supportedSports: SUPPORTED_SPORTS });
   } catch (error) {
-    return json(res, 502, { ok: false, code: String(error?.code || 'PROVIDER_ERROR'), message: String(error?.message || 'Provider request failed.'), sport });
+    return json(res, 502, { ok: false, code: String(error?.code || 'PROVIDER_ERROR'), message: 'Live prop data is temporarily unavailable for this sport.', sport });
   } finally {
     clearTimeout(timer);
   }
@@ -90,10 +110,16 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/api/health') {
     return json(res, 200, { ok: true, service: 'autoscout-apex', startedAt, supportedSports: SUPPORTED_SPORTS, ...providerHealth() });
   }
-  if (req.method === 'GET' && url.pathname === '/api/props') return propsResponse(url, res);
-  if (req.method === 'GET' && url.pathname === '/api/diagnostics') return json(res, 200, providerDiagnostics());
-  if (req.method === 'GET' && url.pathname === '/api/diagnostics/e2e') return json(res, 200, await e2eStatus());
-  if (req.method === 'GET' && (url.pathname === '/diagnostics' || url.pathname === '/apex-v2/diagnostics')) return html(res, diagnosticsPage());
+  if (req.method === 'GET' && url.pathname === '/api/props') return propsResponse(req, url, res);
+
+  if (req.method === 'GET' && (url.pathname === '/api/diagnostics' || url.pathname === '/api/diagnostics/e2e' || url.pathname === '/diagnostics' || url.pathname === '/apex-v2/diagnostics')) {
+    if (!ownerAuthorized(req)) return json(res, 403, { ok: false, code: 'OWNER_REQUIRED', message: 'Owner access is required.' });
+    if (!rateAllowed(req, 'autoscout-diagnostics', 60, 60_000)) return json(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many diagnostics requests.' });
+    if (url.pathname === '/api/diagnostics') return json(res, 200, providerDiagnostics());
+    if (url.pathname === '/api/diagnostics/e2e') return json(res, 200, await e2eStatus());
+    return html(res, diagnosticsPage());
+  }
+
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/apex-v2' || url.pathname.startsWith('/apex-v2/'))) return html(res, mainPage());
   return json(res, 404, { ok: false, message: 'Not found.' });
 });

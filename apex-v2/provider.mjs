@@ -1,5 +1,5 @@
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
-import { fetchTheOddsApiBoard, theOddsApiHealth } from './the-odds-api.mjs';
+import { fetchTheOddsApiBoard, theOddsApiHealth } from './the-odds-api-v2.mjs';
 
 const text = (value) => String(value ?? '').trim();
 const num = (value) => {

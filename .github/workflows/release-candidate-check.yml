@@ -6,6 +6,7 @@ on:
       - claude/pickfinder-auth-modal-fix-dle7hz
       - chatgpt/api-first-props-fix
       - chatgpt/mobile-props-fix
+      - chatgpt/default-unfiltered-upcoming
   workflow_dispatch:
 
 permissions:

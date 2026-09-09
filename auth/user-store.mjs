@@ -38,23 +38,18 @@ async function readUsers() {
   }
 }
 
-function normalizeEmail(email = '') {
-  return String(email).trim().toLowerCase();
-}
-
+function normalizeEmail(email = '') { return String(email).trim().toLowerCase(); }
 function publicUser(user) {
   if (!user) return null;
   return {
     id: user.id,
     email: user.email,
+    role: user.role === 'owner' ? 'owner' : 'member',
     createdAt: user.createdAt,
     lastSeenAt: user.lastSeenAt || null,
   };
 }
-
-async function derive(password, salt) {
-  return Buffer.from(await scrypt(String(password), salt, 64));
-}
+async function derive(password, salt) { return Buffer.from(await scrypt(String(password), salt, 64)); }
 
 export function userDataDir(userId) {
   const id = String(userId || '');
@@ -62,19 +57,22 @@ export function userDataDir(userId) {
   return path.join(userRoot, id);
 }
 
-export async function registerUser({ email, password }) {
+export async function registerUser({ email, password, role = 'member' }) {
   const cleanEmail = normalizeEmail(email);
   const cleanPassword = String(password || '');
+  const cleanRole = role === 'owner' ? 'owner' : 'member';
   if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) throw new Error('Enter a valid email address.');
   if (cleanPassword.length < 10) throw new Error('Use at least 10 characters for your AutoProp password.');
   const users = await readUsers();
   if (users.some((user) => user.email === cleanEmail)) throw new Error('An AutoProp account already exists for that email.');
+  if (cleanRole === 'owner' && users.some((user) => user.role === 'owner')) throw new Error('The Owner account already exists. Sign in instead.');
   const salt = crypto.randomBytes(16).toString('base64url');
   const hash = (await derive(cleanPassword, salt)).toString('base64url');
   const now = new Date().toISOString();
   const user = {
     id: crypto.randomBytes(16).toString('hex'),
     email: cleanEmail,
+    role: cleanRole,
     salt,
     passwordHash: hash,
     sessionVersion: 1,
@@ -96,6 +94,7 @@ export async function authenticateUser({ email, password }) {
   const expected = Buffer.from(user.passwordHash, 'base64url');
   if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return null;
   user.lastSeenAt = new Date().toISOString();
+  if (!user.role) user.role = 'member';
   await atomicJson(usersPath, users);
   return publicUser(user);
 }
@@ -110,9 +109,7 @@ export async function getUserSessionVersion(userId) {
   return Number(users.find((entry) => entry.id === String(userId))?.sessionVersion || 0);
 }
 
-export async function listUsers() {
-  return (await readUsers()).map(publicUser);
-}
+export async function listUsers() { return (await readUsers()).map(publicUser); }
 
 export async function revokeUserSessions(userId) {
   const users = await readUsers();

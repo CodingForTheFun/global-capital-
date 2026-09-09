@@ -87,7 +87,9 @@ const server = http.createServer((req, res) => {
     upstream.on('end', () => {
       let body = Buffer.concat(chunks).toString('utf8');
       const injection = `<script>${APEX_SHELL}</script>`;
-      body = body.includes('</head>') ? body.replace('</head>', `${injection}</head>`) : `${injection}${body}`;
+      // The explorer touches document.body immediately. Inject it at the end of
+      // the body so the DOM exists before the script executes in a real browser.
+      body = body.includes('</body>') ? body.replace('</body>', `${injection}</body>`) : `${body}${injection}`;
       res.writeHead(upstream.statusCode || 200, proxyHeaders(upstream.headers, true));
       res.end(body);
     });

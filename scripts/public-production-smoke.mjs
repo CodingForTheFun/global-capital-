@@ -31,6 +31,15 @@ function assertRealProp(row) {
   if (!Number.isFinite(Number(row.price))) throw new Error('Real prop is missing sportsbook pricing');
   if (!row.providerUpdatedAt && !row.updatedAt) throw new Error('Real prop is missing provider timestamp');
   if (!row.ingestedAt) throw new Error('Real prop is missing Auto Scout ingestion timestamp');
+  if (!row.autoScout || !Array.isArray(row.autoScout.checks) || row.autoScout.checks.length < 1) {
+    throw new Error('Real prop is missing the auditable Auto Scout rule result');
+  }
+  if (!['QUALIFIED', 'REJECTED', 'UNAVAILABLE'].includes(row.autoScout.classification)) {
+    throw new Error(`Invalid Auto Scout classification: ${row.autoScout.classification}`);
+  }
+  for (const check of row.autoScout.checks) {
+    if (!['PASS', 'FAIL', 'UNAVAILABLE'].includes(check.status)) throw new Error(`Invalid rule status: ${check.status}`);
+  }
 }
 
 async function verifyApi() {
@@ -49,6 +58,8 @@ async function verifyApi() {
       lines: Number(body?.meta?.lineCount ?? body?.props?.length ?? 0),
       provider: body?.meta?.provider || null,
       cacheHit: body?.meta?.cacheHit === true,
+      ruleAudit: Boolean(body?.props?.[0]?.autoScout?.checks?.length),
+      databaseConfigured: body?.persistence?.configured === true,
     });
     if (!sample) sample = (body?.props || []).find((row) => row?.playerName && row?.sportsbook && Number.isFinite(Number(row?.line)) && Number.isFinite(Number(row?.price)) && ['OVER', 'UNDER'].includes(row?.side));
   }
@@ -65,13 +76,30 @@ async function verifyBrowser() {
     page.on('request', (request) => networkUrls.push(request.url()));
     const response = await page.goto(`${BASE}/apex`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     if (!response?.ok()) throw new Error(`Public /apex returned HTTP ${response?.status() || 'unknown'}`);
-    await page.waitForSelector('.apx2Card', { timeout: 60_000 });
-    const cardCount = await page.locator('.apx2Card').count();
-    if (cardCount < 1) throw new Error('No visible prop card rendered in the production browser');
-    const firstCard = (await page.locator('.apx2Card').first().innerText()).trim();
-    if (!firstCard) throw new Error('First production prop card rendered with no content');
+
+    await page.waitForSelector('#as3', { timeout: 60_000 });
+    await page.waitForSelector('.apx2Card.asRow', { timeout: 60_000 });
+    const cardCount = await page.locator('.apx2Card.asRow').count();
+    if (cardCount < 1) throw new Error('No visible Phase 2 prop row rendered in the production browser');
+
+    for (const selector of ['#asRules', '#asAlts', '#asMainOnly', '#asSearch', '#asEvent', '#asMarket', '#asBook', '#asSide', '#asOdds', '#asSort']) {
+      if (await page.locator(selector).count() !== 1) throw new Error(`Phase 2 control missing in production: ${selector}`);
+    }
+
+    const firstCard = (await page.locator('.apx2Card.asRow').first().innerText()).trim();
+    if (!firstCard) throw new Error('First production prop row rendered with no content');
+    if (!/OVER/i.test(firstCard) || !/UNDER/i.test(firstCard)) throw new Error('Production prop row is missing Over/Under comparison');
+
+    const rules = page.locator('#asRules');
+    await rules.click();
+    await page.waitForTimeout(100);
+    const ruleText = (await page.locator('#asRuleBar').innerText()).trim();
+    if (!/RULES ON/i.test(ruleText) || !/QUALIFIED/i.test(ruleText) || !/REJECTED/i.test(ruleText)) {
+      throw new Error('Auto Scout Rules toggle did not expose auditable result buckets');
+    }
+
     if (networkUrls.some((url) => /apiKey=|THE_ODDS_API_KEY/i.test(url))) throw new Error('Provider credential appeared in browser network URLs');
-    return { cardCount, firstCardPreview: firstCard.split('\n').slice(0, 6).join(' | ') };
+    return { cardCount, firstCardPreview: firstCard.split('\n').slice(0, 8).join(' | '), ruleToggleVerified: true };
   } finally {
     await browser.close();
   }
@@ -83,7 +111,13 @@ const browser = await verifyBrowser();
 
 console.log(JSON.stringify({
   ok: true,
-  health: { service: health.service, provider: health.preferredProvider, supportedSports: health.supportedSports },
+  phase: 'Phase 2 production explorer',
+  health: {
+    service: health.service,
+    provider: health.preferredProvider,
+    supportedSports: health.supportedSports,
+    databaseConfigured: health?.persistence?.configured === true,
+  },
   sports: api.results,
   sample: {
     player: api.sample.playerName,
@@ -94,6 +128,7 @@ console.log(JSON.stringify({
     price: api.sample.price,
     providerUpdatedAt: api.sample.providerUpdatedAt || api.sample.updatedAt,
     ingestedAt: api.sample.ingestedAt,
+    autoScoutClassification: api.sample.autoScout?.classification || null,
   },
   browser,
 }, null, 2));

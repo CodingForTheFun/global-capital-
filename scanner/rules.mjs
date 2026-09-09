@@ -64,7 +64,8 @@ export function normalizeRules(input = {}) {
     : DEFAULT_RULES;
 
   return {
-    rulesEnabled: bool(input.rulesEnabled, base.rulesEnabled),
+    // Existing saved profiles predate this switch. Missing value intentionally means OFF.
+    rulesEnabled: bool(input.rulesEnabled, DEFAULT_RULES.rulesEnabled),
     preset: requestedPreset,
     minL5: clamp(input.minL5, base.minL5),
     minL10: clamp(input.minL10, base.minL10),

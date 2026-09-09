@@ -386,7 +386,7 @@ async function handleRequest(req, res) {
 
   // ALL PROPS / Auto Prop Finder / prop detail / provider status.
   // Behind the auth gate above, so provider-backed data is never public.
-  if (await handlePropRoutes(req, res, url, { readLatest: () => readJson(latestPath, null), json })) return;
+  if (await handlePropRoutes(req, res, url, { readLatest: () => readJson(latestPath, null), readLastError: () => readJson(lastErrorPath, null), json })) return;
 
   if (url.pathname === '/api/status' && req.method === 'GET') return json(res, 200, await publicStatusPayload());
   if (url.pathname === '/api/history' && req.method === 'GET') return json(res, 200, await readJson(historyPath, []));

@@ -1,11 +1,12 @@
-name: Scout Pro release candidate checks
+name: Auto Scout release checks
 
 on:
+  pull_request:
+    branches:
+      - production-stable
   push:
     branches:
-      - claude/pickfinder-auth-modal-fix-dle7hz
-      - chatgpt/api-first-props-fix
-      - chatgpt/mobile-props-fix
+      - production-stable
   workflow_dispatch:
 
 permissions:

@@ -35,7 +35,9 @@ function readFiltersFromUrl() {
 }
 
 function finiteOrNull(value) {
-  return Number.isFinite(value) ? value : null;
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
 }
 
 function esc(value) {
@@ -59,14 +61,14 @@ function fmtDateTime(value) {
 }
 
 function bestHitRate(prop) {
-  const values = Object.values(prop?.hitRates || {}).filter((v) => Number.isFinite(Number(v))).map(Number);
+  const values = Object.values(prop?.hitRates || {}).map(finiteOrNull).filter((value) => value !== null);
   return values.length ? Math.max(...values) : null;
 }
 
 function projectionEdge(prop) {
-  if (!Number.isFinite(Number(prop?.projection)) || !Number.isFinite(Number(prop?.line))) return null;
-  const projection = Number(prop.projection);
-  const line = Number(prop.line);
+  const projection = finiteOrNull(prop?.projection);
+  const line = finiteOrNull(prop?.line);
+  if (projection === null || line === null) return null;
   return String(prop.side).toUpperCase() === 'UNDER' ? line - projection : projection - line;
 }
 
@@ -167,7 +169,7 @@ async function loadProps({ reset = false, append = false } = {}) {
     renderProps(rows, { append });
     renderFilterChips();
     syncUrl();
-    const totalFiltered = Number(data?.counts?.filtered ?? rows.length);
+    const totalFiltered = finiteOrNull(data?.counts?.filtered) ?? rows.length;
     const shown = state.offset + rows.length;
     $('loadMoreBtn').hidden = state.mode === 'best' || shown >= totalFiltered || rows.length === 0;
   } catch (error) {
@@ -187,10 +189,10 @@ function renderLoading() {
 
 function renderSummary(data) {
   const counts = data?.counts || {};
-  const count = Number(counts.filtered ?? counts.matching ?? 0);
+  const count = finiteOrNull(counts.filtered ?? counts.matching) ?? 0;
   $('resultCount').textContent = `${count.toLocaleString()} ${count === 1 ? 'prop' : 'props'}`;
   $('lastScan').textContent = data?.scannedAt ? fmtTime(data.scannedAt) : '—';
-  const qualifiers = Number(counts.qualifiers ?? 0);
+  const qualifiers = finiteOrNull(counts.qualifiers) ?? 0;
   $('dataSummary').textContent = state.filters.applyScoutRules ? `${qualifiers.toLocaleString()} Scout qualifiers` : `${qualifiers.toLocaleString()} pass Scout Rules`;
 
   if (data?.emptyReason && count === 0) {
@@ -222,7 +224,7 @@ function renderProps(rows, { append = false } = {}) {
 function propCard(prop, rank) {
   const hit = bestHitRate(prop);
   const projEdge = projectionEdge(prop);
-  const score = Number.isFinite(Number(prop.score)) ? Number(prop.score) : null;
+  const score = finiteOrNull(prop.score);
   const tier = String(prop.qualityTier || '').toLowerCase();
   const badges = [];
   if (prop.injuryStatus) badges.push(`<span class="context-badge ${String(prop.injuryStatus).toUpperCase() === 'ACTIVE' ? 'good' : ''}">${esc(prop.injuryStatus)}</span>`);
@@ -313,7 +315,7 @@ function syncControlsFromState() {
 }
 
 function readSheetIntoState() {
-  const n = (id) => { const value = $(id).value.trim(); return value === '' ? null : finiteOrNull(Number(value)); };
+  const n = (id) => finiteOrNull($(id).value.trim());
   state.filters.side = $('sideFilter').value;
   state.filters.minScore = n('minScoreFilter');
   state.filters.minHitRate = n('minHitRateFilter');

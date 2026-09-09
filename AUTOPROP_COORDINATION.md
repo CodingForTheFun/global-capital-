@@ -14,13 +14,13 @@ This repository is being worked on from more than one ChatGPT conversation. Thos
 
 ## Permanent product invariants
 
-- PrizePicks only for qualified prop results.
 - Regular/main lines only; no Green Goblin, Demon, boosted, discounted, or alternate lines.
-- Today/tonight only.
-- Full PickFinder player detail page required before judgment.
+- Today/tonight only where a slate is date-scoped.
 - Missing required data fails closed.
 - Adjustable research thresholds are allowed, but the hard locks above are not adjustable.
 - If nothing qualifies, show clearly labeled Best Available near-misses rather than pretending they qualified.
+- Provider-native player props may be used as the All Props universe when they are real, current, non-promotional outcomes. They must be labeled by source and may never be represented as PrizePicks unless the provider explicitly identifies PrizePicks.
+- PickFinder is an optional authenticated research/verification source, not a requirement for the All Props board. If it cannot provide a reliable session or board, the product must remain usable from provider-native data.
 
 ## Current production
 
@@ -60,3 +60,4 @@ Before making changes:
   - Added conservative SportsDataIO player-prop normalization: only available, non-alternate OVER/UNDER outcomes with a real player, market and numeric line are eligible; missing values never become zero.
   - Added `prizePicksBoard()` as an API-first candidate source, but it is NOT enabled as the production prop universe yet. PickFinder remains the authoritative fallback until Railway runtime verification proves the configured subscription actually contains PrizePicks core offers for a league. Scout Rules continue to fail closed for any source that has not satisfied the hard locks.
   - Candidate `7ee72798d810ba3972279bd693937ca48b325b04` passed the full GitHub release-candidate workflow. `production-stable` was fast-forwarded from `4a3acfa` to the validated candidate, and this documentation commit intentionally triggers the Railway production rollout. Runtime SportsDataIO verification is configured as a one-time pre-deploy diagnostic; it prints only entitlement classifications and safe operator counts.
+- 2026-09-09: Product direction updated by owner: SCOUT PRO must become a provider-native sports research platform that remains useful without PickFinder. PickFinder may stay only as an optional per-user research source when it genuinely works. The production All Props universe is being moved toward real SportsDataIO player-prop feeds, with source labeling, no fabricated PrizePicks attribution, and the same hard promotional-line exclusions.

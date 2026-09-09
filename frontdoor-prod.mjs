@@ -19,12 +19,17 @@ function child(file, port, label) {
 }
 
 const scout = child('server-scout.mjs', SCOUT_PORT, 'Scout Pro');
-const apex = child('apex-live/server-prod.mjs', APEX_PORT, 'Apex Props');
+const apex = child('apex-v2/server.mjs', APEX_PORT, 'Apex Market v2');
 
-function target(url = '/') {
-  if (url === '/apex' || url.startsWith('/apex/')) return { port: APEX_PORT, path: url };
-  if (url === '/api/apex' || url.startsWith('/api/apex/')) return { port: APEX_PORT, path: url };
-  return { port: SCOUT_PORT, path: url };
+function target(rawUrl = '/') {
+  const url = new URL(rawUrl, 'http://localhost');
+  if (url.pathname === '/apex' || url.pathname.startsWith('/apex/')) {
+    const suffix = url.pathname === '/apex' || url.pathname === '/apex/' ? '/apex-v2' : url.pathname.replace(/^\/apex/, '/apex-v2');
+    return { port: APEX_PORT, path: suffix + url.search };
+  }
+  if (url.pathname === '/api/apex/health') return { port: APEX_PORT, path: '/api/health' + url.search };
+  if (url.pathname === '/api/apex/props') return { port: APEX_PORT, path: '/api/props' + url.search };
+  return { port: SCOUT_PORT, path: rawUrl };
 }
 
 const server = http.createServer((req, res) => {
@@ -48,24 +53,24 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(FRONT_PORT, '0.0.0.0', () => {
-  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; Scout=${SCOUT_PORT}; Apex=${APEX_PORT}`);
+  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; Scout=${SCOUT_PORT}; ApexV2=${APEX_PORT}`);
 });
 
 setTimeout(async () => {
   try {
-    const health = await fetch(`http://127.0.0.1:${APEX_PORT}/api/apex/health`);
+    const health = await fetch(`http://127.0.0.1:${APEX_PORT}/api/health`);
     const healthBody = await health.json();
-    console.log(`[Apex self-check] health=${health.status} keyConfigured=${Boolean(healthBody?.keyConfigured)}`);
+    console.log(`[Apex v2 self-check] health=${health.status} sportsGameOdds=${Boolean(healthBody?.sportsGameOddsConfigured)} sportsDataIo=${Boolean(healthBody?.sportsDataIoConfigured)}`);
 
-    const props = await fetch(`http://127.0.0.1:${APEX_PORT}/api/apex/props?sport=NFL`);
+    const props = await fetch(`http://127.0.0.1:${APEX_PORT}/api/props?sport=NFL`);
     const propsBody = await props.json();
-    console.log(`[Apex self-check] nflStatus=${props.status} props=${Number(propsBody?.props?.length || 0)} games=${Number(propsBody?.meta?.gamesScanned || 0)} providerStatus=${Number(propsBody?.meta?.status || 0)} warning=${propsBody?.meta?.warning || 'none'}`);
+    console.log(`[Apex v2 self-check] nflStatus=${props.status} props=${Number(propsBody?.props?.length || 0)} events=${Number(propsBody?.meta?.events || 0)} books=${Number(propsBody?.meta?.sportsbookCount || 0)} provider=${propsBody?.meta?.provider || 'none'} warning=${propsBody?.meta?.warning || 'none'}`);
 
     const mlb = await sportsDataIoPropBoard.fetchBoard({ sports: ['MLB'], force: true });
     const coverage = Array.isArray(mlb?.coverage) ? mlb.coverage[0] : null;
     console.log(`[Apex shape-check] MLB games=${Number(coverage?.gamesChecked || 0)} offers=${Number(coverage?.offerCount || 0)} status=${Number(coverage?.status || 0)} error=${coverage?.errorType || 'OK'} shape=${JSON.stringify(coverage?.shape || {})}`);
   } catch (error) {
-    console.error('[Apex self-check] failed', error?.message || error);
+    console.error('[Apex v2 self-check] failed', error?.message || error);
   }
 }, 1500).unref();
 

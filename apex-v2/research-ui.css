@@ -92,3 +92,12 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
  .asWindows{grid-template-columns:repeat(3,minmax(0,1fr))}.asWindow small,.asWindow em,.asWindow span{font-size:.75rem}
  .asAvailability,.asNotice,.asCoverageNote{font-size:.875rem}.asUtility{padding:18px}
 }
+.asHeaderRow,.asRowMain{grid-template-columns:var(--as-columns);min-width:var(--as-table-min)}
+.asColumnSort{border:0;background:transparent;color:inherit;text-align:left;font:inherit;min-height:30px;padding:0;cursor:pointer}.asColumnSort[aria-pressed=true]{color:#9dc6ff}
+.asFilterSheet{width:min(760px,calc(100% - 24px));max-height:85dvh;padding:0;color:#eff5ff;background:#122239;border:1px solid #456285;border-radius:14px}
+.asFilterSheet::backdrop{background:#030a16b8}.asSheetHead{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #304963;position:sticky;top:0;background:#122239;z-index:2}.asSheetHead h2{margin:0;font-size:1.25rem}
+.asFilterSheet .asAdvanced{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:0;border:0;border-radius:0;background:none;padding:20px;gap:16px}.asAdvanced .asNotice{grid-column:1/-1}
+#asRules[aria-checked=true]{border-color:#6c9edd;background:#244b7b}#asRules[aria-checked=false]{color:#a5b7cb}
+.asHide-projection [data-column=projection],.asHide-l5 [data-column=l5],.asHide-l10 [data-column=l10],.asHide-l15 [data-column=l15],.asHide-season [data-column=season],.asHide-h2h [data-column=h2h],.asHide-average [data-column=average],.asHide-books [data-column=books]{display:none!important}
+@media(max-width:1100px){.asRowMain{min-width:0}.asHeaderRow{display:none}}
+@media(max-width:700px){.asFilterSheet{position:fixed;inset:auto 0 0;margin:0;width:100%;max-width:none;max-height:90dvh;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom)}.asFilterSheet .asAdvanced{grid-template-columns:repeat(2,minmax(0,1fr));padding:16px}.asSheetHead{padding:14px 16px}.asToolbar{justify-content:flex-start}.asToolbar #asResultCount{width:100%}.asToolbar label{margin-left:auto}.asToolbar select{width:150px}.asToolbar .asBtn{font-size:.8125rem;padding:0 10px}}

@@ -121,9 +121,6 @@ async function verifyBrowser() {
     await page.locator('.asRow').first().click();
     await page.waitForSelector('#asDrawerBg.on', { timeout: 10_000 });
     await page.waitForSelector('#asDrawerBody', { timeout: 10_000 });
-    for (const side of ['OVER', 'UNDER']) {
-      await page.getByRole('button', { name: side, exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
-    }
     await page.waitForFunction(() => {
       const body = document.querySelector('#asDrawerBody');
       if (!body) return false;
@@ -134,6 +131,11 @@ async function verifyBrowser() {
     if (!drawerText) throw new Error('Research drawer rendered with no content');
     const hasResearchControls = await page.locator('#asMarketSwitch, #asLineMinus, #asLinePlus').count() >= 1;
     const hasAvailabilityMessage = /research availability|historical research|game logs/i.test(drawerText);
+    if (hasResearchControls) {
+      for (const side of ['OVER', 'UNDER']) {
+        if (await page.getByRole('button', { name: side, exact: true }).count() < 1) throw new Error('Research controls are missing side: ' + side);
+      }
+    }
     if (!hasResearchControls && !hasAvailabilityMessage) throw new Error('Research drawer exposes neither research controls nor an honest availability state');
 
     if (networkUrls.some((url) => /apiKey=|THE_ODDS_API_KEY|CLEARSPORTS_API_KEY|SPORTSDATAIO_API_KEY/i.test(url))) {

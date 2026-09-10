@@ -1,4 +1,5 @@
 import { from, supabaseConfig, SupabaseError } from './supabase.mjs';
+import { ingestBoard, ingestConfig } from './ingest.mjs';
 
 // Every repository is fail-closed: with no Supabase configured, or no rows
 // ingested yet, callers get an explicit "unavailable" answer rather than an
@@ -40,8 +41,17 @@ export const lineHistory = {
       .filter((row) => Number.isFinite(row.line));
 
     if (!rows.length) return { written: 0, skipped: true, reason: 'No valid snapshots supplied.' };
+
+    // Prefer the existing token-gated ingest function; fall back to a direct
+    // service-role insert only where no backend token is configured.
+    if (ingestConfig().configured) {
+      const result = await ingestBoard({ snapshots: rows });
+      if (result.skipped) return { written: 0, skipped: true, reason: result.reason };
+      return { written: Number(result.snapshots ?? rows.length), skipped: false, via: 'autoscout_ingest_board' };
+    }
+
     await from('line_snapshots', { serviceRole }).insert(rows, { returning: 'minimal' });
-    return { written: rows.length, skipped: false };
+    return { written: rows.length, skipped: false, via: 'postgrest' };
   },
 
   // Ordered movement for one prop/book/side.

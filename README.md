@@ -63,6 +63,17 @@ or fabricates a statistic.
 Headshots are only ever served from a licensed URL a provider wrote. Images are
 never scraped, hot-linked or substituted with look-alikes.
 
+### Writes go through the existing ingest function
+
+The database already exposes a token-gated backend path,
+`public.autoscout_ingest_board(p_token, p_payload)`, which upserts bookmakers,
+markets, events, players, props, lines and snapshots in one transaction and
+returns per-section counts. `db/ingest.mjs` speaks that contract, so writes use
+it rather than opening a second write path. Set `AUTOSCOUT_BACKEND_TOKEN` to a
+value whose SHA-256 hash is enabled in `private.autoscout_backend_tokens`.
+Without it, line-history writes fall back to a direct service-role insert, and
+without Supabase they report `skipped` rather than silently succeeding.
+
 `providers/catalog.mjs` reports which data sources have credentials present.
 A source without its environment keys reports `missing-credentials` — it is
 never described as connected.

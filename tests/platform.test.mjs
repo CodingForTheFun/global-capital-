@@ -125,3 +125,25 @@ test('every declared provider names the tables it fills', () => {
 test.after(async () => {
   await fs.rm(process.env.DATA_DIR, { recursive: true, force: true });
 });
+
+const { ingestConfig, emptyBoard, ingestBoard, readLineHistory } = await import('../db/ingest.mjs');
+
+test('ingest reports unconfigured instead of silently dropping writes', async () => {
+  assert.equal(ingestConfig().configured, false);
+  const result = await ingestBoard({ snapshots: [{ prop_id: 'p1', bookmaker_key: 'pp', side: 'OVER', line: 24.5 }] });
+  assert.equal(result.ok, false);
+  assert.equal(result.skipped, true);
+  assert.ok(result.reason);
+});
+
+test('an empty board is a no-op, not an error', async () => {
+  const board = emptyBoard();
+  assert.deepEqual(Object.keys(board).sort(), ['bookmakers', 'events', 'lines', 'markets', 'players', 'props', 'snapshots']);
+  for (const rows of Object.values(board)) assert.deepEqual(rows, []);
+});
+
+test('backend line-history read fails closed without a token', async () => {
+  const result = await readLineHistory({ propId: 'p1' });
+  assert.equal(result.available, false);
+  assert.deepEqual(result.rows, []);
+});

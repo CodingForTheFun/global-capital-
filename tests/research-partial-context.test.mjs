@@ -6,9 +6,10 @@ test('injury context survives missing game history through the complete fallback
   const oldFetch = globalThis.fetch;
   const keys = Object.fromEntries(['CLEARSPORTS_API_KEY','SPORTSDATAIO_API_KEY'].map(k=>[k,process.env[k]]));
   process.env.CLEARSPORTS_API_KEY = 'test-only';
-  delete process.env.SPORTSDATAIO_API_KEY;
+  process.env.SPORTSDATAIO_API_KEY = 'unit-test-only';
   let calls = 0;
   globalThis.fetch = async url => {
+    assert.ok(String(url).startsWith('https://api.clearsportsapi.com/'), 'research must never call the retired provider');
     calls++;
     const data = String(url).endsWith('/player-stats')
       ? [{player_id:'partial-1',full_name:'Partial Player',team_id:'nfl_lar',passing_yards_yds:0}]

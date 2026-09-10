@@ -1,6 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
+// The owner disabled this legacy provider. Inherited by all child services.
+process.env.AUTOSCOUT_DISABLE_SPORTSDATAIO = 'true';
+
 const sourcePath = './frontdoor-prod.mjs';
 const runtimePath = './.frontdoor-clearsports-runtime.mjs';
 const oldImport = "./lib/autoscout/research-service.mjs";

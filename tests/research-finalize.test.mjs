@@ -4,7 +4,7 @@ import { finalizeResearch } from '../lib/autoscout/research-service.mjs';
 
 const log = (values, opponents = []) => values.map((value, i) => ({
   value,
-  date: `2026-0${(i % 9) + 1}-1${i % 9}T00:00:00Z`,
+  date: new Date(Date.UTC(2026, 8, 1 - i)).toISOString(),
   opponent: opponents[i] ?? 'XXX',
   isHome: i % 2 === 0,
 }));
@@ -30,8 +30,8 @@ test('every game carries a hit/push verdict, which is what colours the chart bar
 test('the side flips the verdicts', () => {
   const over = finalizeResearch({ gameLog: log([30, 20]), line: 25, side: 'OVER', market: 'points' });
   const under = finalizeResearch({ gameLog: log([30, 20]), line: 25, side: 'UNDER', market: 'points' });
-  assert.equal(over.windows.season.hitRate, 50);
-  assert.equal(under.windows.season.hitRate, 50);
+  assert.equal(over.windows.l5.hitRate, 50);
+  assert.equal(under.windows.l5.hitRate, 50);
   assert.deepEqual(over.gameLog.map((g) => g.hit), [true, false]);
   assert.deepEqual(under.gameLog.map((g) => g.hit), [false, true]);
 });
@@ -42,6 +42,20 @@ test('an empty or unusable log reports no data instead of an empty chart', () =>
     assert.equal(r.available, false);
     assert.equal(r.code, 'NO_GAME_LOG_DATA');
   }
+});
+
+test('real context survives an unavailable game log without creating statistics', () => {
+  const r = finalizeResearch({ gameLog: [], line: 20, market: 'points',
+    context: { projection: 0, injuryStatus: 'OUT', isStarter: false },
+    player: { playerName: 'Fixture player', team: 'BOS' }, homeTeam: 'BOS', awayTeam: 'NYK' });
+  assert.equal(r.available, false);
+  assert.equal(r.context.projection, 0);
+  assert.equal(r.context.isStarter, false);
+  assert.equal(r.sections.projection, true);
+  assert.equal(r.sections.gameLog, false);
+  assert.equal(r.matchup.opponent, 'NYK');
+  assert.equal(r.windows.l5.hitRate, null);
+  assert.equal(r.windows.season.average, null);
 });
 
 test('h2h is computed from the opponent implied by the matchup', () => {

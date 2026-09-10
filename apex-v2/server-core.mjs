@@ -1,3 +1,4 @@
+import { startFrugalPersistence } from '../lib/autoscout/persistence-scheduler.mjs';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { fetchUnifiedBoard, providerHealth, providerDiagnostics } from './provider.mjs';
@@ -178,3 +179,5 @@ startIngestWorker({
 function shutdown() { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 5000).unref(); }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+
+startFrugalPersistence();

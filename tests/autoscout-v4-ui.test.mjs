@@ -20,7 +20,7 @@ test('Auto Scout v4 exposes dense prop comparison UI and player artwork', () => 
     'ALT LINES',
     'MAIN ONLY',
     'LINE SHOP',
-    'FAVORITES',
+    'Saved',
     'Research Card',
   ]) {
     assert.ok(source.includes(needle), `missing v4 UI capability: ${needle}`);

@@ -5,6 +5,7 @@ import { SUPPORTED_SPORTS } from '../lib/autoscout/models.mjs';
 import { decorateBoardWithScoutAudit } from '../lib/autoscout/scout-rules.mjs';
 import { persistNormalizedBoard, getLineHistory, persistenceHealth } from '../lib/autoscout/supabase-persistence.mjs';
 import { createSessionCodec, createRateLimiter, parseCookies, clientKey, SESSION_COOKIE, OWNER } from '../lib/session.mjs';
+import { researchProp } from '../lib/research/service.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const startedAt = new Date().toISOString();
@@ -123,6 +124,48 @@ async function e2eStatus() {
   return { ok: false, stages: { provider: 'FAIL' }, message: 'No supported sport currently produced a complete player-prop selection.' };
 }
 
+/**
+ * Player prop research: how this player actually performed against this line.
+ *
+ * Returns the whole game log alongside the computed windows, so the client can
+ * restate hit rates for any line the user steps to without another request.
+ */
+async function researchResponse(req, url, res) {
+  if (!rateAllowed(req, 'autoscout-research', 120, 60_000)) {
+    return json(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many research requests.' });
+  }
+  const q = (name) => url.searchParams.get(name) || '';
+  const playerName = q('player').trim();
+  const sport = q('sport').trim().toUpperCase();
+  if (!playerName || !sport) {
+    return json(res, 400, { ok: false, code: 'BAD_REQUEST', message: 'player and sport are required.' });
+  }
+  const lineRaw = q('line');
+  try {
+    const result = await researchProp({
+      sport,
+      playerName,
+      team: q('team') || null,
+      opponent: q('opponent') || null,
+      market: q('market') || null,
+      marketId: q('marketId') || null,
+      statId: q('statId') || null,
+      line: lineRaw === '' ? null : Number(lineRaw),
+      side: q('side') || 'OVER',
+      games: Math.min(Math.max(Number(q('games')) || 20, 5), 40),
+    });
+    // An unavailable answer is a 200 with a stated reason, not an error: the
+    // UI must render the explanation rather than an empty panel.
+    return json(res, 200, { ok: true, ...result });
+  } catch (error) {
+    return json(res, 200, {
+      ok: true, available: false, code: 'PROVIDER_ERROR',
+      reason: 'The statistics provider did not respond. Try again shortly.',
+      windows: {}, gameLog: [],
+    });
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   if (req.method === 'GET' && url.pathname === '/api/health') {
@@ -130,6 +173,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === 'GET' && url.pathname === '/api/props') return propsResponse(req, url, res);
   if (req.method === 'GET' && url.pathname === '/api/line-history') return lineHistoryResponse(req, url, res);
+  if (req.method === 'GET' && url.pathname === '/api/research') return researchResponse(req, url, res);
 
   if (req.method === 'GET' && (url.pathname === '/api/diagnostics' || url.pathname === '/api/diagnostics/e2e' || url.pathname === '/diagnostics' || url.pathname === '/apex-v2/diagnostics')) {
     if (!ownerAuthorized(req)) return json(res, 403, { ok: false, code: 'OWNER_REQUIRED', message: 'Owner access is required.' });

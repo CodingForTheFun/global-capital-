@@ -40,6 +40,7 @@ function target(rawUrl = '/') {
   if (url.pathname === '/api/apex/health') return { port: APEX_PORT, path: '/api/health' + url.search, injectShell: false };
   if (url.pathname === '/api/apex/props') return { port: APEX_PORT, path: '/api/props' + url.search, injectShell: false };
   if (url.pathname === '/api/apex/line-history') return { port: APEX_PORT, path: '/api/line-history' + url.search, injectShell: false };
+  if (url.pathname === '/api/apex/research') return { port: APEX_PORT, path: '/api/research' + url.search, injectShell: false };
 
   if (url.pathname === '/apex/diagnostics' || url.pathname === '/apex/diagnostics/') {
     return { port: APEX_PORT, path: '/diagnostics' + url.search, injectShell: false };

@@ -9,9 +9,7 @@ async function waitForHealth() {
     try {
       const response = await fetch(`${BASE}/api/health`, { cache: 'no-store' });
       const body = await response.json();
-      if (response.ok && body?.ok === true && body?.service === 'autoscout-apex' && body?.theOddsApiConfigured === true) {
-        return body;
-      }
+      if (response.ok && body?.ok === true && body?.service === 'autoscout-apex' && body?.theOddsApiConfigured === true) return body;
       last = `HTTP ${response.status} service=${body?.service || 'unknown'}`;
     } catch (error) {
       last = error?.message || String(error);
@@ -22,8 +20,7 @@ async function waitForHealth() {
 }
 
 function assertRealProp(row) {
-  const requiredText = ['playerName', 'market', 'sportsbook', 'side'];
-  for (const key of requiredText) {
+  for (const key of ['playerName', 'market', 'sportsbook', 'side']) {
     if (!String(row?.[key] || '').trim()) throw new Error(`Real prop missing ${key}`);
   }
   if (!['OVER', 'UNDER'].includes(row.side)) throw new Error(`Invalid prop side: ${row.side}`);
@@ -31,12 +28,8 @@ function assertRealProp(row) {
   if (!Number.isFinite(Number(row.price))) throw new Error('Real prop is missing sportsbook pricing');
   if (!row.providerUpdatedAt && !row.updatedAt) throw new Error('Real prop is missing provider timestamp');
   if (!row.ingestedAt) throw new Error('Real prop is missing Auto Scout ingestion timestamp');
-  if (!row.autoScout || !Array.isArray(row.autoScout.checks) || row.autoScout.checks.length < 1) {
-    throw new Error('Real prop is missing the auditable Auto Scout rule result');
-  }
-  if (!['QUALIFIED', 'REJECTED', 'UNAVAILABLE'].includes(row.autoScout.classification)) {
-    throw new Error(`Invalid Auto Scout classification: ${row.autoScout.classification}`);
-  }
+  if (!row.autoScout || !Array.isArray(row.autoScout.checks) || row.autoScout.checks.length < 1) throw new Error('Real prop is missing the auditable Auto Scout rule result');
+  if (!['QUALIFIED', 'REJECTED', 'UNAVAILABLE'].includes(row.autoScout.classification)) throw new Error(`Invalid Auto Scout classification: ${row.autoScout.classification}`);
   for (const check of row.autoScout.checks) {
     if (!['PASS', 'FAIL', 'UNAVAILABLE'].includes(check.status)) throw new Error(`Invalid rule status: ${check.status}`);
   }
@@ -80,26 +73,43 @@ async function verifyBrowser() {
     await page.waitForSelector('#as3', { timeout: 60_000 });
     await page.waitForSelector('.apx2Card.asRow', { timeout: 60_000 });
     const cardCount = await page.locator('.apx2Card.asRow').count();
-    if (cardCount < 1) throw new Error('No visible Phase 2 prop row rendered in the production browser');
+    if (cardCount < 1) throw new Error('No visible v4 prop card rendered in the production browser');
 
-    for (const selector of ['#asRules', '#asAlts', '#asMainOnly', '#asSearch', '#asEvent', '#asMarket', '#asBook', '#asSide', '#asOdds', '#asSort']) {
-      if (await page.locator(selector).count() !== 1) throw new Error(`Phase 2 control missing in production: ${selector}`);
+    for (const selector of ['#asRules', '#asAlts', '#asMainOnly', '#asSearch', '#asEvent', '#asMarket', '#asBook', '#asSide', '#asOdds', '#asSort', '.asQuotes', '.asMetrics', '.asBookRail', '.asAvatar img']) {
+      if (await page.locator(selector).count() < 1) throw new Error(`Auto Scout v4 control or data surface missing in production: ${selector}`);
     }
 
     const firstCard = (await page.locator('.apx2Card.asRow').first().innerText()).trim();
-    if (!firstCard) throw new Error('First production prop row rendered with no content');
-    if (!/OVER/i.test(firstCard) || !/UNDER/i.test(firstCard)) throw new Error('Production prop row is missing Over/Under comparison');
+    if (!firstCard) throw new Error('First production prop card rendered with no content');
+    if (!/OVER/i.test(firstCard) || !/UNDER/i.test(firstCard)) throw new Error('Production prop card is missing Over/Under comparison');
+    if (!/books/i.test(firstCard) || !/consensus/i.test(firstCard)) throw new Error('Production prop card is missing dense market metrics');
+
+    const avatarSources = await page.locator('.asAvatar img').evaluateAll((nodes) => nodes.slice(0, 10).map((node) => node.getAttribute('src')).filter(Boolean));
+    let artworkResponses = 0;
+    let realArtworkCount = 0;
+    for (const src of avatarSources) {
+      const artwork = await fetch(new URL(src, BASE), { cache: 'no-store' });
+      if (!artwork.ok) continue;
+      artworkResponses += 1;
+      const type = String(artwork.headers.get('content-type') || '').toLowerCase();
+      if (type.startsWith('image/') && !type.includes('svg')) realArtworkCount += 1;
+    }
+    if (artworkResponses < 1) throw new Error('Player artwork endpoint did not return a usable image response');
 
     const rules = page.locator('#asRules');
     await rules.click();
     await page.waitForTimeout(100);
     const ruleText = (await page.locator('#asRuleBar').innerText()).trim();
-    if (!/RULES ON/i.test(ruleText) || !/QUALIFIED/i.test(ruleText) || !/REJECTED/i.test(ruleText)) {
-      throw new Error('Auto Scout Rules toggle did not expose auditable result buckets');
-    }
+    if (!/RULES ON/i.test(ruleText) || !/QUALIFIED/i.test(ruleText) || !/REJECTED/i.test(ruleText)) throw new Error('Auto Scout Rules toggle did not expose auditable result buckets');
 
     if (networkUrls.some((url) => /apiKey=|THE_ODDS_API_KEY/i.test(url))) throw new Error('Provider credential appeared in browser network URLs');
-    return { cardCount, firstCardPreview: firstCard.split('\n').slice(0, 8).join(' | '), ruleToggleVerified: true };
+    return {
+      cardCount,
+      firstCardPreview: firstCard.split('\n').slice(0, 14).join(' | '),
+      ruleToggleVerified: true,
+      avatarResponsesVerified: artworkResponses,
+      realArtworkResponses: realArtworkCount,
+    };
   } finally {
     await browser.close();
   }
@@ -111,7 +121,7 @@ const browser = await verifyBrowser();
 
 console.log(JSON.stringify({
   ok: true,
-  phase: 'Phase 2 production explorer',
+  phase: 'Auto Scout v4 production explorer',
   health: {
     service: health.service,
     provider: health.preferredProvider,

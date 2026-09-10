@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { playerArtworkResponse } from './lib/autoscout/providers/thesportsdb-artwork.mjs';
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
+import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
 
 const FRONT_PORT = Number(process.env.PORT || 3000);
 const SCOUT_PORT = 3002;
@@ -31,7 +32,7 @@ const apexNext = child('apex-v3/server.mjs', APEX_NEXT_PORT, 'Apex Market Lab v3
 function target(rawUrl = '/') {
   const url = new URL(rawUrl, 'http://localhost');
 
-  if (url.pathname === '/api/health') return { port: APEX_PORT, path: '/api/health' + url.search, injectShell: false };
+  if (url.pathname === '/api/health') return { port: APEX_PORT, path: '/api/health' + url.search, injectShell: false, sanitizeJson: true };
 
   if (url.pathname === '/api/apex/diagnostics/e2e') {
     return { port: APEX_PORT, path: '/api/diagnostics/e2e' + url.search, injectShell: false };
@@ -39,8 +40,8 @@ function target(rawUrl = '/') {
   if (url.pathname === '/api/apex/diagnostics') {
     return { port: APEX_PORT, path: '/api/diagnostics' + url.search, injectShell: false };
   }
-  if (url.pathname === '/api/apex/health') return { port: APEX_PORT, path: '/api/health' + url.search, injectShell: false };
-  if (url.pathname === '/api/apex/props') return { port: APEX_PORT, path: '/api/props' + url.search, injectShell: false };
+  if (url.pathname === '/api/apex/health') return { port: APEX_PORT, path: '/api/health' + url.search, injectShell: false, sanitizeJson: true };
+  if (url.pathname === '/api/apex/props') return { port: APEX_PORT, path: '/api/props' + url.search, injectShell: false, sanitizeJson: true };
   if (url.pathname === '/api/apex/line-history') return { port: APEX_PORT, path: '/api/line-history' + url.search, injectShell: false };
 
   if (url.pathname === '/apex/diagnostics' || url.pathname === '/apex/diagnostics/') {
@@ -112,7 +113,12 @@ async function maybeServeResearch(req, res) {
     return true;
   }
   if (url.pathname === '/api/apex/research-health') {
-    directJson(res, 200, { ok: true, research: researchHealth() });
+    const health = researchHealth() || {};
+    // Readiness only. Which provider serves it, and what it costs, is owner detail.
+    directJson(res, 200, {
+      ok: true,
+      research: { available: Boolean(health.configured ?? health.available ?? health.ok) },
+    });
     return true;
   }
   if (!researchRateAllowed(req)) {
@@ -143,7 +149,7 @@ async function maybeServeResearch(req, res) {
       side,
       games: Math.min(40, Math.max(5, Number(url.searchParams.get('games')) || 20)),
     });
-    directJson(res, result?.ok === false ? 400 : 200, result || { ok: true, available: false, message: 'Historical research is unavailable.' });
+    directJson(res, result?.ok === false ? 400 : 200, sanitizePublicPayload(result || { ok: true, available: false, message: 'Historical research is unavailable.' }, { statsContext: true }));
   } catch (error) {
     console.error('[frontdoor] research request failed', String(error?.code || error?.message || 'RESEARCH_ERROR').slice(0, 120));
     directJson(res, 502, { ok: false, available: false, code: 'RESEARCH_PROVIDER_ERROR', message: 'Historical player research is temporarily unavailable.' });
@@ -197,6 +203,28 @@ const server = http.createServer(async (req, res) => {
   }, (upstream) => {
     const type = String(upstream.headers['content-type'] || '');
     const injectApexShell = dst.injectShell === true && dst.port === APEX_PORT && type.includes('text/html');
+    const scrubJson = dst.sanitizeJson === true && type.includes('application/json');
+
+    if (scrubJson) {
+      // Buffer so vendor names, plan limits and credit balances can be removed
+      // before anything customer-facing leaves the frontdoor.
+      const jsonChunks = [];
+      upstream.on('data', (chunk) => jsonChunks.push(Buffer.from(chunk)));
+      upstream.on('end', () => {
+        const raw = Buffer.concat(jsonChunks).toString('utf8');
+        let body = raw;
+        try { body = JSON.stringify(sanitizePublicPayload(JSON.parse(raw))); }
+        catch { /* not parseable: pass the original through untouched */ }
+        res.writeHead(upstream.statusCode || 200, proxyHeaders(upstream.headers, true));
+        res.end(body);
+      });
+      upstream.on('error', () => {
+        if (!res.headersSent) res.writeHead(502, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, error: 'Application upstream unavailable.' }));
+      });
+      return;
+    }
+
     if (!injectApexShell) {
       res.writeHead(upstream.statusCode || 502, proxyHeaders(upstream.headers));
       upstream.pipe(res);

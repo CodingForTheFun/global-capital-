@@ -2,13 +2,15 @@ import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { playerArtworkResponse } from './lib/autoscout/providers/thesportsdb-artwork.mjs';
+import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
 
 const FRONT_PORT = Number(process.env.PORT || 3000);
 const SCOUT_PORT = 3002;
 const APEX_PORT = 3001;
 const APEX_NEXT_PORT = 3003;
-const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v4.js', 'utf8').replace(/<\/script/gi, '<\\/script');
+const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v5.js', 'utf8').replace(/<\/script/gi, '<\\/script');
 const ARTWORK_SPORTS = new Set(['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB']);
+const researchLimits = new Map();
 
 function child(file, port, label) {
   const proc = spawn(process.execPath, [file], {
@@ -67,6 +69,88 @@ function proxyHeaders(upstreamHeaders, transformed = false) {
   return headers;
 }
 
+function directJson(res, status, body, extra = {}) {
+  const payload = JSON.stringify(body);
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(payload),
+    'cache-control': 'no-store, max-age=0',
+    'x-content-type-options': 'nosniff',
+    ...extra,
+  });
+  res.end(payload);
+}
+
+function requestIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim().slice(0, 80);
+}
+
+function researchRateAllowed(req) {
+  const now = Date.now();
+  const key = requestIp(req);
+  const current = researchLimits.get(key);
+  if (!current || now - current.startedAt >= 60_000) {
+    researchLimits.set(key, { startedAt: now, count: 1 });
+    return true;
+  }
+  current.count += 1;
+  if (researchLimits.size > 2000) {
+    for (const [ip, row] of researchLimits) if (now - row.startedAt > 120_000) researchLimits.delete(ip);
+  }
+  return current.count <= 180;
+}
+
+function safeParam(url, name, max = 100) {
+  return String(url.searchParams.get(name) || '').trim().slice(0, max);
+}
+
+async function maybeServeResearch(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health') return false;
+  if (req.method !== 'GET') {
+    directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
+    return true;
+  }
+  if (url.pathname === '/api/apex/research-health') {
+    directJson(res, 200, { ok: true, research: researchHealth() });
+    return true;
+  }
+  if (!researchRateAllowed(req)) {
+    directJson(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many research requests. Try again shortly.' }, { 'retry-after': '60' });
+    return true;
+  }
+  const sport = safeParam(url, 'sport', 12).toUpperCase();
+  const playerName = safeParam(url, 'playerName', 90);
+  const market = safeParam(url, 'market', 100);
+  const lineRaw = safeParam(url, 'line', 24);
+  const line = lineRaw === '' ? null : Number(lineRaw);
+  const side = safeParam(url, 'side', 10).toUpperCase() || 'OVER';
+  if (!ARTWORK_SPORTS.has(sport) || !playerName || !market || (line !== null && !Number.isFinite(line)) || !['OVER','UNDER'].includes(side)) {
+    directJson(res, 400, { ok: false, code: 'INVALID_RESEARCH_REQUEST', message: 'Valid sport, player, market, line and side are required.' });
+    return true;
+  }
+  try {
+    const result = await researchPlayerProp({
+      sport,
+      playerName,
+      providerPlayerId: safeParam(url, 'providerPlayerId', 48) || null,
+      team: safeParam(url, 'team', 40) || null,
+      homeTeam: safeParam(url, 'homeTeam', 60) || null,
+      awayTeam: safeParam(url, 'awayTeam', 60) || null,
+      opponent: safeParam(url, 'opponent', 60) || null,
+      market,
+      line,
+      side,
+      games: Math.min(40, Math.max(5, Number(url.searchParams.get('games')) || 20)),
+    });
+    directJson(res, result?.ok === false ? 400 : 200, result || { ok: true, available: false, message: 'Historical research is unavailable.' });
+  } catch (error) {
+    console.error('[frontdoor] research request failed', String(error?.code || error?.message || 'RESEARCH_ERROR').slice(0, 120));
+    directJson(res, 502, { ok: false, available: false, code: 'RESEARCH_PROVIDER_ERROR', message: 'Historical player research is temporarily unavailable.' });
+  }
+  return true;
+}
+
 async function maybeServeArtwork(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   if (url.pathname !== '/api/apex/player-artwork') return false;
@@ -100,6 +184,7 @@ async function maybeServeArtwork(req, res) {
 }
 
 const server = http.createServer(async (req, res) => {
+  if (await maybeServeResearch(req, res)) return;
   if (await maybeServeArtwork(req, res)) return;
 
   const dst = target(req.url || '/');
@@ -142,14 +227,14 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(FRONT_PORT, '0.0.0.0', () => {
-  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; ScoutLegacy=${SCOUT_PORT}; AutoScoutCore=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}; AutoScoutShell=prop-explorer-v4`);
+  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; ScoutLegacy=${SCOUT_PORT}; AutoScoutCore=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}; AutoScoutShell=prop-research-v5`);
 });
 
 setTimeout(async () => {
   try {
     const health = await fetch(`http://127.0.0.1:${APEX_PORT}/api/health`);
     const healthBody = await health.json();
-    console.log(`[AutoScout self-check] health=${health.status} theOddsApi=${Boolean(healthBody?.theOddsApiConfigured)} provider=${healthBody?.preferredProvider || 'none'} database=${healthBody?.persistence?.configured ? 'connected' : 'not-connected'}`);
+    console.log(`[AutoScout self-check] health=${health.status} theOddsApi=${Boolean(healthBody?.theOddsApiConfigured)} provider=${healthBody?.preferredProvider || 'none'} database=${healthBody?.persistence?.configured ? 'connected' : 'not-connected'} research=${researchHealth().configured ? 'configured' : 'not-configured'}`);
 
     const props = await fetch(`http://127.0.0.1:${APEX_PORT}/api/props?sport=NFL`);
     const propsBody = await props.json();

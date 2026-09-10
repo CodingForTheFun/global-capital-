@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <meta name="robots" content="noindex" />
+  <meta name="description" content="Sign in to AutoProp Scout Pro." />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/auth.css" />
+  <title>Sign in · AutoProp Scout Pro</title>
+</head>
+<body>
+  <div class="aurora aurora-a"></div><div class="aurora aurora-b"></div><div class="grid-glow"></div>
+
+  <main class="auth-shell">
+    <div class="auth-card">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">A</span>
+        <span><b>AutoProp</b> <em>Scout Pro</em></span>
+      </div>
+
+      <div id="alert" class="alert hidden" role="status" aria-live="polite"></div>
+
+      <!-- Sign in -->
+      <section id="view-signin" data-view>
+        <span class="eyebrow">WELCOME BACK</span>
+        <h1>Sign in to your scanner.</h1>
+        <p class="lede">Your PickFinder connection, scan history and researched props stay tied to your account.</p>
+        <form id="form-signin" novalidate>
+          <label class="field">
+            <span>Email</span>
+            <input id="signin-email" type="email" autocomplete="username" inputmode="email" required placeholder="you@example.com" />
+            <span class="field-error hidden" data-error-for="signin-email"></span>
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <span class="password-wrap">
+              <input id="signin-password" type="password" autocomplete="current-password" required placeholder="Your password" />
+              <button type="button" class="reveal" data-reveal="signin-password">Show</button>
+            </span>
+            <span class="field-error hidden" data-error-for="signin-password"></span>
+          </label>
+          <div class="row-between">
+            <label class="checkbox"><input id="signin-remember" type="checkbox" checked /> Keep me signed in</label>
+            <button type="button" class="link-button" data-go="forgot">Forgot password?</button>
+          </div>
+          <button class="primary-button" type="submit" id="signin-submit">Sign in</button>
+        </form>
+        <p class="footnote">New here? <button type="button" class="link-button" data-go="signup">Create an account</button></p>
+      </section>
+
+      <!-- Create account -->
+      <section id="view-signup" data-view hidden>
+        <div class="steps"><i class="done"></i><i></i></div>
+        <span class="eyebrow">STEP 1 OF 2</span>
+        <h1>Create your account.</h1>
+        <p class="lede">We'll email you a 6-digit code to confirm your address.</p>
+        <form id="form-signup" novalidate>
+          <label class="field">
+            <span>Name <span style="font-weight:600;opacity:.7">(optional)</span></span>
+            <input id="signup-name" type="text" autocomplete="name" maxlength="80" placeholder="How should we greet you?" />
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input id="signup-email" type="email" autocomplete="username" inputmode="email" required placeholder="you@example.com" />
+            <span class="field-error hidden" data-error-for="signup-email"></span>
+          </label>
+          <label class="field">
+            <span>Password</span>
+            <span class="password-wrap">
+              <input id="signup-password" type="password" autocomplete="new-password" required placeholder="At least 10 characters" />
+              <button type="button" class="reveal" data-reveal="signup-password">Show</button>
+            </span>
+            <span class="field-error hidden" data-error-for="signup-password"></span>
+          </label>
+          <div class="meter" id="meter" data-score="0">
+            <div class="meter-track" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <span class="meter-label" id="meter-label">Use 10+ characters with a mix of cases, numbers or symbols.</span>
+          </div>
+          <label class="field">
+            <span>Confirm password</span>
+            <input id="signup-confirm" type="password" autocomplete="new-password" required placeholder="Type it once more" />
+            <span class="field-error hidden" data-error-for="signup-confirm"></span>
+          </label>
+          <button class="primary-button" type="submit" id="signup-submit">Create account</button>
+        </form>
+        <p class="footnote">Already have one? <button type="button" class="link-button" data-go="signin">Sign in</button></p>
+      </section>
+
+      <!-- Verify email -->
+      <section id="view-verify" data-view hidden>
+        <div class="steps"><i class="done"></i><i class="done"></i></div>
+        <span class="eyebrow">STEP 2 OF 2</span>
+        <h1>Check your email.</h1>
+        <p class="lede">We sent a 6-digit code to <b id="verify-target">your inbox</b>. It expires shortly.</p>
+        <form id="form-verify" novalidate>
+          <div class="code-row" id="verify-code" role="group" aria-label="6-digit verification code">
+            <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Digit 1" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 2" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 3" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 4" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 5" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 6" />
+          </div>
+          <button class="primary-button" type="submit" id="verify-submit">Confirm email</button>
+        </form>
+        <p class="footnote">
+          <button type="button" class="link-button" id="verify-resend">Resend code</button>
+          <span style="opacity:.4"> · </span>
+          <button type="button" class="link-button muted" data-go="signup">Use a different email</button>
+        </p>
+      </section>
+
+      <!-- Forgot password -->
+      <section id="view-forgot" data-view hidden>
+        <span class="eyebrow">ACCOUNT RECOVERY</span>
+        <h1>Reset your password.</h1>
+        <p class="lede">Enter your email and we'll send a 6-digit reset code.</p>
+        <form id="form-forgot" novalidate>
+          <label class="field">
+            <span>Email</span>
+            <input id="forgot-email" type="email" autocomplete="username" inputmode="email" required placeholder="you@example.com" />
+            <span class="field-error hidden" data-error-for="forgot-email"></span>
+          </label>
+          <button class="primary-button" type="submit" id="forgot-submit">Send reset code</button>
+        </form>
+        <p class="footnote"><button type="button" class="link-button" data-go="signin">Back to sign in</button></p>
+      </section>
+
+      <!-- Reset password -->
+      <section id="view-reset" data-view hidden>
+        <span class="eyebrow">ACCOUNT RECOVERY</span>
+        <h1>Choose a new password.</h1>
+        <p class="lede">Enter the code sent to <b id="reset-target">your inbox</b>, then pick a new password.</p>
+        <form id="form-reset" novalidate>
+          <div class="code-row" id="reset-code" role="group" aria-label="6-digit reset code">
+            <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Digit 1" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 2" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 3" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 4" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 5" />
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 6" />
+          </div>
+          <label class="field">
+            <span>New password</span>
+            <span class="password-wrap">
+              <input id="reset-password" type="password" autocomplete="new-password" required placeholder="At least 10 characters" />
+              <button type="button" class="reveal" data-reveal="reset-password">Show</button>
+            </span>
+            <span class="field-error hidden" data-error-for="reset-password"></span>
+          </label>
+          <div class="meter" id="reset-meter" data-score="0">
+            <div class="meter-track" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <span class="meter-label" id="reset-meter-label">Use 10+ characters with a mix of cases, numbers or symbols.</span>
+          </div>
+          <button class="primary-button" type="submit" id="reset-submit">Set new password</button>
+        </form>
+        <p class="footnote">
+          <button type="button" class="link-button" id="reset-resend">Resend code</button>
+          <span style="opacity:.4"> · </span>
+          <button type="button" class="link-button muted" data-go="signin">Back to sign in</button>
+        </p>
+      </section>
+
+      <p class="fineprint">Protected by rate limiting and email verification. Sessions are stored in an encrypted, HTTP-only cookie — never in browser storage.</p>
+    </div>
+  </main>
+
+  <script type="module" src="/auth.js"></script>
+</body>
+</html>

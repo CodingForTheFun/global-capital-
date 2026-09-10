@@ -29,30 +29,49 @@ async function request(url, options = {}) {
   let data = {};
   try { data = await response.json(); } catch {}
   if (response.status === 401) {
-    await bootAuth();
-    throw new Error(data.message || 'Dashboard authentication required.');
+    toSignIn();
+    throw new Error(data.message || 'Sign in to continue.');
   }
   if (!response.ok) throw new Error(data.message || `Request failed (${response.status})`);
   return data;
 }
 
+let currentUser = null;
+
+function toSignIn() {
+  const next = encodeURIComponent(location.pathname + location.search);
+  location.replace(`/auth.html?next=${next}`);
+}
+
 async function bootAuth() {
   try {
-    const response = await fetch('/api/auth/status', { cache: 'no-store', credentials: 'same-origin' });
+    const response = await fetch('/api/auth/session', { cache: 'no-store', credentials: 'same-origin' });
     const auth = await response.json();
-    if (auth.required && !auth.authenticated) {
-      $('authGate').classList.remove('hidden');
-      $('app').classList.add('hidden');
-      $('dashboardPassword').focus();
-      return false;
-    }
-    $('authGate').classList.add('hidden');
+    if (!auth.authenticated) { toSignIn(); return false; }
+    currentUser = auth.user;
+    renderAccount(auth.user);
     $('app').classList.remove('hidden');
     return true;
   } catch {
-    $('authGate').classList.add('hidden');
-    $('app').classList.remove('hidden');
-    return true;
+    toSignIn();
+    return false;
+  }
+}
+
+function renderAccount(user) {
+  if (!user) return;
+  const label = user.displayName || user.email || 'Account';
+  const button = $('accountBtn');
+  if (button) {
+    button.textContent = label.length > 22 ? `${label.slice(0, 21)}…` : label;
+    button.title = `${user.email} · ${user.role}`;
+  }
+  // Connection and rule changes are admin-only server-side; hide them otherwise.
+  if (!user.isAdmin) {
+    for (const id of ['connectBtn', 'manageConnectionBtn', 'ruleFiltersBtn', 'sideRuleFiltersBtn']) {
+      const element = $(id);
+      if (element) element.classList.add('hidden');
+    }
   }
 }
 
@@ -300,21 +319,13 @@ async function startScan() {
   }
 }
 
-$('authForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const error = $('authError');
-  error.classList.add('hidden');
-  try {
-    await request('/api/auth/login', { method: 'POST', body: JSON.stringify({ password: $('dashboardPassword').value }) });
-    $('dashboardPassword').value = '';
-    $('authGate').classList.add('hidden');
-    $('app').classList.remove('hidden');
-    await getStatus({ quiet: false });
-  } catch (e) {
-    error.textContent = e.message || 'Could not unlock dashboard.';
-    error.classList.remove('hidden');
-  }
-});
+const signOutBtn = $('signOutBtn');
+if (signOutBtn) {
+  signOutBtn.addEventListener('click', async () => {
+    try { await request('/api/auth/logout', { method: 'POST' }); } catch { /* clear anyway */ }
+    location.replace('/auth.html');
+  });
+}
 
 $('connectForm').addEventListener('submit', async (event) => {
   event.preventDefault();

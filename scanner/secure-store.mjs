@@ -143,3 +143,33 @@ export async function getPickFinderConnectionState() {
     connectionError,
   };
 }
+
+// --- Generic encrypted-at-rest JSON storage -------------------------------
+// Reuses the AutoProp master key so account data, sessions and one-time codes
+// are protected with the same AES-256-GCM envelope as PickFinder credentials.
+
+export async function writeSecureJson(file, value) {
+  await atomicWrite(file, await encryptJson(value));
+}
+
+export async function readSecureJson(file, fallback = null) {
+  if (!(await fileExists(file))) return fallback;
+  try {
+    return await decryptJson(await fs.readFile(file, 'utf8'));
+  } catch (error) {
+    throw Object.assign(
+      new Error(`Encrypted store "${path.basename(file)}" could not be decrypted. The master key changed or the file is corrupt.`),
+      { code: 'SECURE_STORE_UNREADABLE', cause: error },
+    );
+  }
+}
+
+export async function secureKeyFingerprint() {
+  const key = await getMasterKey();
+  return crypto.createHash('sha256').update(key).digest('hex').slice(0, 16);
+}
+
+export async function deriveSecret(label) {
+  const key = await getMasterKey();
+  return crypto.createHmac('sha256', key).update(`autoprop:${label}`).digest();
+}

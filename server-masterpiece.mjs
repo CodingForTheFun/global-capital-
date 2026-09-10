@@ -7,6 +7,8 @@ import { runScan } from './scanner/index.mjs';
 import { getPickFinderConnectionState } from './scanner/secure-store.mjs';
 import { paypalConfig, createPayPalOrder, capturePayPalOrder } from './payments/paypal.mjs';
 import { searchLiveProps, scanLiveProp } from './scanner/focused.mjs';
+import { handleAuthRequest, requireUser } from './auth/routes.mjs';
+import { supabaseConfig } from './db/supabase.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, 'public');
@@ -16,9 +18,6 @@ const historyPath = path.join(dataDir, 'history.json');
 const paymentsPath = path.join(dataDir, 'payments.json');
 const port = Number(process.env.PORT || 3000);
 const intervalMinutes = Math.max(0, Number(process.env.AUTO_SCAN_MINUTES || 30));
-const dashboardPassword = process.env.DASHBOARD_PASSWORD || '';
-const dashboardSessionSecret = process.env.DASHBOARD_SESSION_SECRET || crypto.createHash('sha256').update(`autoprop:${dashboardPassword || 'local-only'}`).digest('hex');
-const authRequired = Boolean(dashboardPassword);
 
 await fs.mkdir(dataDir, { recursive: true });
 
@@ -62,23 +61,6 @@ function json(res, status, payload, extraHeaders = {}) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store, max-age=0', 'content-length': Buffer.byteLength(body), 'x-content-type-options': 'nosniff', ...extraHeaders });
   res.end(body);
 }
-function parseCookies(req) {
-  const pairs = String(req.headers.cookie || '').split(';'); const cookies = {};
-  for (const pair of pairs) { const index = pair.indexOf('='); if (index < 0) continue; cookies[pair.slice(0, index).trim()] = decodeURIComponent(pair.slice(index + 1).trim()); }
-  return cookies;
-}
-function safeEqual(a, b) { const aa = Buffer.from(String(a)); const bb = Buffer.from(String(b)); return aa.length === bb.length && crypto.timingSafeEqual(aa, bb); }
-function makeAuthToken() {
-  const expires = Date.now() + 30 * 24 * 60 * 60 * 1000; const payload = `owner.${expires}`;
-  const signature = crypto.createHmac('sha256', dashboardSessionSecret).update(payload).digest('base64url'); return `${payload}.${signature}`;
-}
-function authTokenValid(token) {
-  if (!token) return false; const parts = String(token).split('.'); if (parts.length !== 3 || parts[0] !== 'owner') return false;
-  const expires = Number(parts[1]); if (!Number.isFinite(expires) || expires < Date.now()) return false;
-  const payload = `${parts[0]}.${parts[1]}`; const expected = crypto.createHmac('sha256', dashboardSessionSecret).update(payload).digest('base64url');
-  return safeEqual(parts[2], expected);
-}
-function isAuthorized(req) { if (!authRequired) return true; return authTokenValid(parseCookies(req).aps_session); }
 function sameOrigin(req) {
   const origin = req.headers.origin; if (!origin) return true;
   try { const parsed = new URL(origin); const host = String(req.headers['x-forwarded-host'] || req.headers.host || ''); return parsed.host === host; } catch { return false; }
@@ -89,8 +71,6 @@ async function readJsonBody(req, limit = 32_000) {
   if (!chunks.length) return {};
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Error('Invalid JSON request.'); }
 }
-function cookieHeader(req, token) { const secure = String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https'; return `aps_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000${secure ? '; Secure' : ''}`; }
-function clearCookieHeader(req) { const secure = String(req.headers['x-forwarded-proto'] || '').toLowerCase() === 'https'; return `aps_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure ? '; Secure' : ''}`; }
 function clientKey(req, bucket) { return `${bucket}:${String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim()}`; }
 function allowRate(req, bucket, max, windowMs) {
   const key = clientKey(req, bucket); const now = Date.now(); const rows = (rateBuckets.get(key) || []).filter((time) => now - time < windowMs);
@@ -128,7 +108,7 @@ async function serveStatic(req, res) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
 
-  if (url.pathname === '/api/auth/status' && req.method === 'GET') return json(res, 200, { required: authRequired, authenticated: isAuthorized(req) });
+  if (await handleAuthRequest(req, res, url)) return;
   if (url.pathname === '/api/payments/config' && req.method === 'GET') {
     const config = paypalConfig();
     return json(res, 200, { enabled: config.enabled, clientId: config.clientId, price: config.price, currency: config.currency, productName: config.productName, environment: config.environment, cardFieldsRequested: config.cardFieldsRequested });
@@ -146,15 +126,7 @@ const server = http.createServer(async (req, res) => {
     catch (error) { return json(res, 400, { ok: false, message: error?.message || String(error) }); }
   }
 
-  if (url.pathname === '/api/auth/login' && req.method === 'POST') {
-    if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
-    if (!allowRate(req, 'dashboard-login', 12, 15 * 60 * 1000)) return json(res, 429, { ok: false, message: 'Too many login attempts. Try again later.' });
-    if (!authRequired) return json(res, 200, { ok: true, authenticated: true });
-    try { const body = await readJsonBody(req, 8_000); if (!safeEqual(body.password || '', dashboardPassword)) return json(res, 401, { ok: false, message: 'Incorrect dashboard password.' }); return json(res, 200, { ok: true, authenticated: true }, { 'set-cookie': cookieHeader(req, makeAuthToken()) }); }
-    catch (error) { return json(res, 400, { ok: false, message: error.message }); }
-  }
-  if (url.pathname === '/api/auth/logout' && req.method === 'POST') { if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' }); return json(res, 200, { ok: true }, { 'set-cookie': clearCookieHeader(req) }); }
-  if (url.pathname.startsWith('/api/') && !isAuthorized(req)) return json(res, 401, { ok: false, message: 'Dashboard authentication required.', authRequired: true });
+  if (url.pathname.startsWith('/api/') && !(await requireUser(req, res))) return;
 
   if (url.pathname === '/api/status' && req.method === 'GET') {
     const latest = await readJson(latestPath, null); const connection = await getPickFinderConnectionState(); const payment = paypalConfig();
@@ -206,7 +178,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, () => {
   console.log(`AutoProp Scout Pro Masterpiece running on http://localhost:${port}`);
   console.log(`Mode: ${String(process.env.DEMO_MODE ?? 'true').toLowerCase() === 'true' ? 'demo' : 'live'}`);
-  console.log(`Dashboard gate: ${authRequired ? 'enabled' : 'disabled'}`);
+  console.log(`Dashboard gate: Supabase accounts (${supabaseConfig().configured ? 'configured' : 'MISSING SUPABASE_URL / SUPABASE_ANON_KEY'})`);
   console.log(`PayPal checkout: ${paypalConfig().enabled ? 'configured' : 'waiting for merchant credentials/price'}`);
 });
 if (intervalMinutes > 0) setInterval(() => { if (!running) scanNow().catch(() => {}); }, intervalMinutes * 60 * 1000).unref();

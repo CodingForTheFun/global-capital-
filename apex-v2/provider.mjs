@@ -1,3 +1,4 @@
+import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
 import { loadPersistedDiagnostics, snapshotDiagnostics } from '../lib/autoscout/runtime-store.mjs';
@@ -103,7 +104,7 @@ export async function fetchUnifiedBoard(league, { signal, force = false, include
     }
   }
 
-  if (text(process.env.SPORTSDATAIO_API_KEY)) {
+  if (sportsDataIoConfigured()) {
     try {
       const fallback = await fetchSportsDataIo(selected, { force });
       return {
@@ -141,7 +142,7 @@ export function providerHealth() {
   return {
     theOddsApiConfigured: oddsProvider?.id === 'the-odds-api' && oddsProvider.isConfigured(),
     sportsGameOddsConfigured: Boolean(text(process.env.SPORTSGAMEODDS_API_KEY)),
-    sportsDataIoConfigured: Boolean(text(process.env.SPORTSDATAIO_API_KEY)),
+    sportsDataIoConfigured: sportsDataIoConfigured(),
     preferredProvider: oddsProvider?.name || 'SportsDataIO fallback',
     regularLinesOnly: true,
     provider: oddsHealth,

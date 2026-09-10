@@ -77,3 +77,23 @@ test('an unknown sport or market yields null, not a guess', () => {
   assert.equal(fieldsFor('NFL', 'Completely Invented Market'), null);
   assert.equal(fieldsFor('NFL', ''), null);
 });
+
+// The ClearSports adapter keeps its own field table. It had the identical
+// defect, so the same market has to resolve in both or research still refuses.
+const { fieldsForClearSports } = await import('../lib/data-sources/clearsports/season-research.mjs');
+
+test('ClearSports resolves the same markets as the primary table', () => {
+  assert.deepEqual(fieldsForClearSports('NFL', 'Reception Yards'), ['ReceivingYards']);
+  assert.deepEqual(fieldsForClearSports('NFL', 'Pass TDs'), ['PassingTouchdowns']);
+  assert.deepEqual(fieldsForClearSports('NBA', 'Points Rebounds Assists'), ['Points', 'Rebounds', 'Assists']);
+});
+
+test('ClearSports also prefers the stable provider key over the label', () => {
+  assert.deepEqual(fieldsForClearSports('NFL', 'Renamed Tomorrow', 'player_reception_yds'), ['ReceivingYards']);
+  assert.deepEqual(fieldsForClearSports('NBA', 'Whatever', 'player_points_rebounds_assists'), ['Points', 'Rebounds', 'Assists']);
+});
+
+test('ClearSports still refuses markets with no honest equivalent', () => {
+  assert.equal(fieldsForClearSports('NBA', 'Points Q1', 'player_points_q1'), null);
+  assert.equal(fieldsForClearSports('NFL', 'Kicking Points', 'player_kicking_points'), null);
+});

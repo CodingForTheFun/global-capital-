@@ -163,9 +163,10 @@ async function warmSports() {
 }
 setTimeout(() => void warmSports(), 1800).unref();
 
-// Keep taking snapshots on a schedule. Without this, line_snapshots only ever
-// received the single burst a visitor's cache miss produced, so no prop had a
-// history to draw movement from.
+// Optional high-resolution snapshot worker, OFF unless AUTOSCOUT_INGEST_ENABLED
+// is set. frontdoor-clearsports.mjs already runs a 6-hourly persistence pass;
+// this one forces a fresh fetch so line movement actually accumulates, at a
+// higher provider cost. Run one or the other, never both.
 startIngestWorker({
   sports: SUPPORTED_SPORTS,
   fetchBoard: (sport, options) => fetchUnifiedBoard(sport, options),

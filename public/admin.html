@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <meta name="robots" content="noindex" />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/admin.css" />
+  <title>Admin · AutoProp Scout Pro</title>
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">A</span><span><b>AutoProp</b> <em>Admin</em></span></a>
+      <div class="top-actions">
+        <span id="whoami" class="pill mute">Loading…</span>
+        <button id="refreshBtn" class="btn" type="button">Refresh</button>
+        <a class="btn" href="/">Dashboard</a>
+      </div>
+    </header>
+
+    <h1>System console</h1>
+    <p class="lede">Live status of the database, data providers, accounts and billing. Nothing here is simulated — a provider without credentials reports as missing.</p>
+
+    <div id="alert" class="alert hidden" role="status" aria-live="polite"></div>
+
+    <section class="grid cols-4">
+      <article class="card stat"><small>Database</small><strong id="statDb">—</strong><span id="statDbNote">Checking…</span></article>
+      <article class="card stat"><small>Providers connected</small><strong id="statProviders">—</strong><span id="statProvidersNote">of configured sources</span></article>
+      <article class="card stat"><small>Accounts</small><strong id="statUsers">—</strong><span id="statUsersNote">registered</span></article>
+      <article class="card stat"><small>Provider errors</small><strong id="statErrors">—</strong><span>most recent window</span></article>
+    </section>
+
+    <section class="section grid cols-2">
+      <article class="card">
+        <span class="eyebrow">DATA SOURCES</span>
+        <h2>Provider status</h2>
+        <div id="providerList"><p class="muted">Loading…</p></div>
+      </article>
+      <article class="card">
+        <span class="eyebrow">PLATFORM</span>
+        <h2>Services</h2>
+        <div id="serviceList"><p class="muted">Loading…</p></div>
+      </article>
+    </section>
+
+    <section class="section card">
+      <span class="eyebrow">ACCOUNTS</span>
+      <h2>Users &amp; roles</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Plan</th><th>Joined</th><th></th></tr></thead>
+          <tbody id="userRows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <p class="muted" style="margin-top:12px">Only the owner can grant admin access. You cannot change your own role.</p>
+    </section>
+
+    <section class="section grid cols-2">
+      <article class="card">
+        <span class="eyebrow">INGEST</span>
+        <h2>Recent sync runs</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Provider</th><th>Status</th><th>Events</th><th>Lines</th><th>Started</th></tr></thead>
+            <tbody id="runRows"><tr><td colspan="5" class="muted">No sync runs recorded.</td></tr></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="card">
+        <span class="eyebrow">FAILURES</span>
+        <h2>Recent provider errors</h2>
+        <div class="scroll">
+          <table>
+            <thead><tr><th>Provider</th><th>Status</th><th>Reason</th><th>When</th></tr></thead>
+            <tbody id="errorRows"><tr><td colspan="4" class="muted">No provider errors recorded.</td></tr></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </div>
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>

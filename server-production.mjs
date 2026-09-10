@@ -11,6 +11,8 @@ import { searchLiveProps, scanLiveProp } from './scanner/focused.mjs';
 import {
   handleAuthRequest, requireUser, requireAdmin, refreshHeaders,
 } from './auth/routes.mjs';
+import { handleApiRequest } from './api/routes.mjs';
+import { consumeScan } from './billing/entitlements.mjs';
 import { supabaseConfig } from './db/supabase.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -178,6 +180,9 @@ const server = http.createServer(async (req, res) => {
   }
   const authHeaders = refreshHeaders(req, session);
 
+  // Account, data, billing and admin endpoints.
+  if (await handleApiRequest(req, res, url, session)) return;
+
   if (url.pathname === '/api/status' && req.method === 'GET') {
     const latest = await readJson(latestPath, null);
     const connection = await getPickFinderConnectionState();
@@ -212,6 +217,14 @@ const server = http.createServer(async (req, res) => {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
     if (!allowRate(req, 'full-scan', 6, 15 * 60 * 1000)) return json(res, 429, { ok: false, message: 'Full scan rate limit reached. Try again shortly.' });
     if (running) return json(res, 409, { ok: false, message: 'A scan is already running.' });
+    const budget = consumeScan(session.user);
+    if (!budget.allowed) {
+      return json(res, 402, {
+        ok: false, code: 'SCAN_LIMIT',
+        message: `Your ${budget.tier} plan allows ${budget.limit} scans per day. Upgrade for more.`,
+        used: budget.used, limit: budget.limit,
+      }, authHeaders);
+    }
     scanNow().catch((error) => console.error('[scanNow uncaught]', error));
     return json(res, 202, { ok: true, message: 'Masterpiece scan started.' });
   }

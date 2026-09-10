@@ -66,6 +66,9 @@ function renderAccount(user) {
     button.textContent = label.length > 22 ? `${label.slice(0, 21)}…` : label;
     button.title = `${user.email} · ${user.role}`;
   }
+  const adminLink = $('adminLink');
+  if (adminLink && user.isAdmin) adminLink.classList.remove('hidden');
+
   // Connection and rule changes are admin-only server-side; hide them otherwise.
   if (!user.isAdmin) {
     for (const id of ['connectBtn', 'manageConnectionBtn', 'ruleFiltersBtn', 'sideRuleFiltersBtn']) {

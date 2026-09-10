@@ -22,7 +22,7 @@ test('game adapter rejects aggregates and active games; season adapter rejects i
     return new Response(JSON.stringify(data), { status: 200 });
   };
   try {
-    const game = await fetchClearSportsResearch({ sport: 'NFL', playerName: 'Game Player', market: 'Pass Yards' });
+    const game = await fetchClearSportsResearch({ sport: 'NFL', playerName: 'Game Player', team: 'LAR', market: 'Pass Yards' });
     assert.equal(game.available, true);
     assert.equal(game.gameLog.length, 1);
     assert.equal(game.gameLog[0].value, 0);

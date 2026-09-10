@@ -11,3 +11,95 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asHistoryChart svg{display:block;width:100%;min-width:360px;height:auto}.asHistoryChart{overflow-x:auto}.asHistoryChart text{fill:#9fb6d1;font:11px system-ui}.asHistoryChart circle:hover{fill:#a7ccff;r:6px}
 
 .asInjuryBadge{display:inline-block;margin-top:7px;padding:3px 7px;border-radius:5px;font-size:10px;font-weight:650;background:#2e291e;color:#ebcf94;border:1px solid #645338}.asInjuryBadge[hidden]{display:none}
+
+/* Research workspace: restrained surfaces, readable data, stable responsive layout. */
+:root{--bg:#091321;--panel:#111e30;--panel2:#17273d;--line:#2b3e56;--muted:#a3b4c9;--blue:#679fff}
+.as5{background:var(--bg);font-size:1rem;padding:0 0 100px}
+.asTop{box-shadow:none;background:#0c1828f5}
+.asTop .asBar{height:72px;max-width:1560px}
+.asDesktopLabel{font-size:.75rem;letter-spacing:.12em}
+.asMain{max-width:1560px;padding:24px}
+.asHero{margin-bottom:20px}.asHero h1{font-size:1.75rem;letter-spacing:-.03em}
+.asHero p{font-size:.875rem;line-height:1.5;margin-top:6px}
+.asHeroBadge{background:#12253d;color:#a9c9f4;border-color:#304969;font-size:.75rem;letter-spacing:.05em}
+.asBtn,.asSport,.asControl{font-size:.875rem;min-height:44px;border-radius:8px}
+.asStatus{font-size:.875rem}.asSports{padding-bottom:12px}
+.asSport.on{background:#203c62;border-color:#5886bf;color:#fff}
+.asFilters{grid-template-columns:minmax(240px,1.7fr) repeat(3,minmax(135px,1fr)) auto}
+.asFilterTrigger{background:#234a7d;border-color:#497dbd}
+.asToolbar{font-size:.875rem;gap:12px;margin:14px 0}.asToolbar label{display:flex;align-items:center;gap:10px}
+.asToolbar select{width:190px}
+.asSummary{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;gap:0;margin-bottom:22px;background:var(--panel)}
+.asSummaryItem{flex:1;border:0;border-right:1px solid var(--line);border-radius:0;background:none;padding:14px 18px}
+.asSummaryItem:last-child{border:0}.asSummaryItem small{font-size:.75rem;letter-spacing:.04em;color:var(--muted)}
+.asSummaryItem b{font-size:1.375rem;font-weight:650;font-variant-numeric:tabular-nums}
+.asTableViewport{overflow:auto;max-height:calc(100vh - 375px);min-height:200px;border:1px solid var(--line);border-radius:10px;background:var(--panel);scrollbar-color:#445e7e #111e30}
+.asHeaderRow,.asRowMain{grid-template-columns:minmax(250px,2.5fr) 132px 104px repeat(5,78px) 96px 70px;min-width:1090px}
+.asHeaderRow{position:sticky;top:0;z-index:4;background:#1a2b42;padding:14px 12px;font-size:.75rem;letter-spacing:.035em;color:#bbcee5;align-items:center}
+.asList{gap:0}.asRow{border:0;border-bottom:1px solid var(--line);border-radius:0;background:none;box-shadow:none}
+.asRow:last-child{border-bottom:0}.asRow:hover{background:#172a42;transform:none;box-shadow:none}
+.asRow:focus-visible{outline-offset:-3px}.asRowMain{min-height:92px}
+.asPlayerCell{min-width:0;padding:16px 12px;grid-template-columns:44px minmax(0,1fr);gap:12px}
+.asAvatar{width:42px;height:42px;border-color:#405873}.asPlayer{font-size:1rem;font-weight:650;line-height:1.4}
+.asGame{font-size:.75rem;line-height:1.6;color:#a7b9d0;overflow-wrap:anywhere}
+.asMarket{font-size:.875rem;margin-top:4px;color:#dce8f8}
+.asCell{padding:10px 6px;min-width:0;font-variant-numeric:tabular-nums}
+.asCell b{font-size:.9375rem;font-weight:650}.asCell small,.asCell em,.asCell span,.asCell .asQuote{font-size:.75rem;line-height:1.5}
+.asCell b.asUnavailable{font-size:.75rem;font-weight:400;color:#99abc2}
+.asRowActions{padding:8px 12px 12px;gap:12px;border:0}.asResearchState,.asRowUpdated{font-size:.75rem;line-height:1.5}
+.asSave{min-height:40px;font-size:.875rem;border-radius:7px}.asBookRail{font-size:.75rem}
+.asNav{border-radius:12px;background:#112039f5;padding:6px;box-shadow:0 8px 25px #0004}
+.asNav button,.asNav a{font-size:.875rem;min-width:95px;min-height:44px}
+.asNav .on{background:#2b5992}.asCoverageNote{font-size:.8125rem;color:var(--muted);line-height:1.6}
+.asDrawer{width:min(900px,100%);background:#0c1829}.asDrawerHead{background:#122137;padding:20px}
+.asDrawerHead h2{font-size:1.5rem}.asDrawerHead p{font-size:.8125rem}.asDrawerBody{padding:20px}
+.asBackText{display:none}.asClose{min-height:44px;min-width:44px}
+.asSection{background:#13233a;box-shadow:none}.asSectionTitle h3{font-size:.875rem;letter-spacing:.02em;text-transform:none}.asSectionTitle span{font-size:.75rem}
+.asSectionBody label,.asResearchTop label,.asNotice{font-size:.875rem;line-height:1.6}
+.asCtx small,.asWindow small,.asWindow em,.asWindow span,.asTable th{font-size:.75rem}
+.asCtx b,.asTable td{font-size:.875rem}.asWindow b{font-size:1rem}.asInjuryBadge{font-size:.75rem}
+.asFilterBtn,.asSideBtn{font-size:.875rem;min-height:44px}.asChartLegend{font-size:.8125rem}
+.asBarVal,.asBarLabel{font-size:.75rem}.asAdvanced label{font-size:.875rem}
+.asCompact .asRowMain{min-height:74px}.asCompact .asPlayerCell{padding-top:8px;padding-bottom:8px}
+@media(max-width:1100px){
+ .asHeaderRow{display:none}.asTableViewport{max-height:none;overflow:visible;border:0;background:none;min-height:0}
+ .asRowMain{min-width:0;display:block}.asRowMain>.asCell{display:none!important}
+ .asList{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.asRow{border:1px solid var(--line)!important;border-radius:10px;background:var(--panel)}
+ .asMobileMetrics{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));padding:0 8px 10px}
+ .asMobileMetrics .asCell{display:block!important;border:0}.asMobileMetrics .asCell b{font-size:.9375rem}.asMobileMetrics .asCell small{font-size:.75rem}
+ .asMobileMetrics .asCell b.asUnavailable{font-size:.75rem}.asMobileMetrics .asCell .asQuote{display:block}
+ .asFilters{grid-template-columns:minmax(180px,1.5fr) repeat(3,minmax(100px,1fr)) auto}
+}
+@media(max-width:700px){
+ .as5{padding-bottom:calc(92px + env(safe-area-inset-bottom))}.asTop .asBar{height:64px;padding:0 12px}
+ .asTop .asBtn{min-height:44px;font-size:.8125rem}.asBrand{font-size:1.125rem}.asLogo{width:28px;height:28px}
+ .asMain{padding:20px 12px}.asHero h1{font-size:1.5rem}.asHero p{font-size:.8125rem}.asHeroBadge{display:none}
+ .asSports{padding:0 8px 8px}.asSport{font-size:.875rem;min-height:44px;padding:0 14px}
+ .asFilters{grid-template-columns:1fr 1fr}.asSearchLabel{grid-column:1/-1}.asControl{font-size:1rem}
+ .asToolbar{font-size:.8125rem;flex-wrap:wrap}.asToolbar select{font-size:.875rem;width:180px}
+ .asSummary{margin-bottom:16px}.asSummaryItem{padding:12px 10px}.asSummaryItem:nth-child(n+4){display:none}
+ .asSummaryItem small{font-size:.75rem;letter-spacing:0}.asSummaryItem b{font-size:1.25rem}
+ .asList{grid-template-columns:minmax(0,1fr);gap:12px}.asPlayerCell{padding:14px 12px 8px}
+ .asGame{font-size:.75rem}.asMobileMetrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .asResearchState{font-size:.75rem;max-width:68%;overflow-wrap:anywhere}.asRowUpdated{display:none}
+ .asNav{left:0;right:0;bottom:0;transform:none;border-radius:0;border-width:1px 0 0;justify-content:space-around;padding:8px 4px calc(8px + env(safe-area-inset-bottom))}
+ .asNav button,.asNav a{font-size:.8125rem;min-width:0;padding:0 5px;flex:1}
+ .asDrawer{width:100%;height:100dvh}.asDrawerHead{padding:12px;grid-template-columns:40px minmax(0,1fr) auto;gap:10px}
+ .asDrawerHead h2{font-size:1.25rem}.asDrawerHead p{font-size:.75rem}.asDrawerBody{padding:12px}
+ .asBackText{display:inline;font-size:.875rem}.asBackText+span{display:none}.asClose{width:auto;padding:0 12px}
+ .asResearchTop{grid-template-columns:1fr}.asLineCtl{grid-template-columns:44px minmax(60px,1fr) 44px}
+ .asMarketSelect{font-size:1rem}.asSectionBody{padding:12px}.asContext{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .asWindows{grid-template-columns:repeat(3,minmax(0,1fr))}.asWindow small,.asWindow em,.asWindow span{font-size:.75rem}
+ .asAvailability,.asNotice,.asCoverageNote{font-size:.875rem}.asUtility{padding:18px}
+}
+.asHeaderRow,.asRowMain{grid-template-columns:var(--as-columns);min-width:var(--as-table-min)}
+.asColumnSort{border:0;background:transparent;color:inherit;text-align:left;font:inherit;min-height:30px;padding:0;cursor:pointer}.asColumnSort[aria-pressed=true]{color:#9dc6ff}
+.asFilterSheet{width:min(760px,calc(100% - 24px));max-height:85dvh;padding:0;color:#eff5ff;background:#122239;border:1px solid #456285;border-radius:14px}
+.asFilterSheet::backdrop{background:#030a16b8}.asSheetHead{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #304963;position:sticky;top:0;background:#122239;z-index:2}.asSheetHead h2{margin:0;font-size:1.25rem}
+.asFilterSheet .asAdvanced{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:0;border:0;border-radius:0;background:none;padding:20px;gap:16px}.asAdvanced .asNotice{grid-column:1/-1}
+#asRules[aria-checked=true]{border-color:#6c9edd;background:#244b7b}#asRules[aria-checked=false]{color:#a5b7cb}
+.asHide-projection [data-column=projection],.asHide-l5 [data-column=l5],.asHide-l10 [data-column=l10],.asHide-l15 [data-column=l15],.asHide-season [data-column=season],.asHide-h2h [data-column=h2h],.asHide-average [data-column=average],.asHide-books [data-column=books]{display:none!important}
+@media(max-width:1100px){.asRowMain{min-width:0}.asHeaderRow{display:none}}
+@media(max-width:700px){.asFilterSheet{position:fixed;inset:auto 0 0;margin:0;width:100%;max-width:none;max-height:90dvh;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom)}.asFilterSheet .asAdvanced{grid-template-columns:repeat(2,minmax(0,1fr));padding:16px}.asSheetHead{padding:14px 16px}.asToolbar{justify-content:flex-start}.asToolbar #asResultCount{width:100%}.asToolbar label{margin-left:auto}.asToolbar select{width:150px}.asToolbar .asBtn{font-size:.8125rem;padding:0 10px}}
+.asResearchTabs{display:flex;gap:6px;margin:18px 0;border-bottom:1px solid #35516e;padding-bottom:8px}.asResearchTab{min-height:44px;border:1px solid transparent;border-radius:8px;background:transparent;color:#abc0db;font-size:.875rem;font-weight:600;padding:0 16px}.asResearchTab[aria-selected=true]{background:#224871;border-color:#517dab;color:#fff}.asResearchTab:hover{background:#1a3655}.asContext .asCtx{min-width:0}.asChartWrap,.asTableWrap{max-width:100%;overflow:auto}.asCtx b{line-height:1.5}
+@media(max-width:700px){.asResearchTabs{gap:4px;position:sticky;top:0;z-index:2;background:#0c1829;padding:8px 0}.asResearchTab{flex:1;padding:0 9px;font-size:.8125rem}.asChartLegend{flex-wrap:wrap}.asSectionTitle{gap:8px}}

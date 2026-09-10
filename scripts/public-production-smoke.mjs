@@ -58,57 +58,91 @@ async function verifyApi() {
   }
   if (!sample) throw new Error('No supported sport exposed a complete real player prop through the public Auto Scout API');
   assertRealProp(sample);
-  return { results, sample };
+
+  const researchUrl = new URL(`${BASE}/api/apex/research`);
+  researchUrl.searchParams.set('sport', sample.sport || 'NFL');
+  researchUrl.searchParams.set('playerName', sample.playerName);
+  researchUrl.searchParams.set('market', sample.market);
+  researchUrl.searchParams.set('line', String(sample.line));
+  researchUrl.searchParams.set('side', sample.side);
+  researchUrl.searchParams.set('team', sample.team || '');
+  researchUrl.searchParams.set('homeTeam', sample.homeTeam || '');
+  researchUrl.searchParams.set('awayTeam', sample.awayTeam || '');
+  researchUrl.searchParams.set('games', '20');
+  const researchResponse = await fetch(researchUrl, { cache: 'no-store' });
+  if (!researchResponse.ok) throw new Error(`Research API returned HTTP ${researchResponse.status}`);
+  const research = await researchResponse.json();
+  if (research?.ok !== true) throw new Error(`Research API returned an unsafe failure shape: ${research?.code || 'unknown'}`);
+  if (research.available === true) {
+    if (!Array.isArray(research.gameLog) || !research.gameLog.length) throw new Error('Available research response is missing game-log rows');
+    if (!research.windows || typeof research.windows !== 'object') throw new Error('Available research response is missing rolling windows');
+  } else if (!String(research?.code || research?.message || '').trim()) {
+    throw new Error('Unavailable research response did not explain why data is unavailable');
+  }
+
+  return { results, sample, research };
 }
 
 async function verifyBrowser() {
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     const networkUrls = [];
     page.on('request', (request) => networkUrls.push(request.url()));
     const response = await page.goto(`${BASE}/apex`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     if (!response?.ok()) throw new Error(`Public /apex returned HTTP ${response?.status() || 'unknown'}`);
 
-    await page.waitForSelector('#as3', { timeout: 60_000 });
-    await page.waitForSelector('.apx2Card.asRow', { timeout: 60_000 });
-    const cardCount = await page.locator('.apx2Card.asRow').count();
-    if (cardCount < 1) throw new Error('No visible v4 prop card rendered in the production browser');
+    await page.waitForSelector('#as5', { timeout: 60_000 });
+    await page.waitForSelector('.asRow', { timeout: 60_000 });
+    const cardCount = await page.locator('.asRow').count();
+    if (cardCount < 1) throw new Error('No visible v5 research prop row rendered in production');
 
-    for (const selector of ['#asRules', '#asAlts', '#asMainOnly', '#asSearch', '#asEvent', '#asMarket', '#asBook', '#asSide', '#asOdds', '#asSort', '.asQuotes', '.asMetrics', '.asBookRail', '.asAvatar img']) {
-      if (await page.locator(selector).count() < 1) throw new Error(`Auto Scout v4 control or data surface missing in production: ${selector}`);
+    for (const selector of ['#asSports', '#asSearch', '#asMarket', '#asBook', '#asSide', '#asSort', '#asSummary', '#asList', '.asHeaderRow', '.asBookRail', '.asAvatar img', '.asResearchState']) {
+      if (await page.locator(selector).count() < 1) throw new Error(`Auto Scout v5 control or data surface missing in production: ${selector}`);
     }
 
-    const firstCard = (await page.locator('.apx2Card.asRow').first().innerText()).trim();
-    if (!firstCard) throw new Error('First production prop card rendered with no content');
-    if (!/OVER/i.test(firstCard) || !/UNDER/i.test(firstCard)) throw new Error('Production prop card is missing Over/Under comparison');
-    if (!/books/i.test(firstCard) || !/consensus/i.test(firstCard)) throw new Error('Production prop card is missing dense market metrics');
+    const headerText = (await page.locator('.asHeaderRow').innerText()).trim();
+    for (const label of ['Projection', 'L5', 'L10', 'L15', 'Season', 'H2H', 'Average', 'Books']) {
+      if (!headerText.toLowerCase().includes(label.toLowerCase())) throw new Error(`Research column missing from v5 desktop table: ${label}`);
+    }
+
+    const firstCard = (await page.locator('.asRow').first().innerText()).trim();
+    if (!firstCard) throw new Error('First production research row rendered with no content');
+    if (!/OVER/i.test(firstCard) || !/UNDER/i.test(firstCard)) throw new Error('Production research row is missing Over/Under comparison');
 
     const avatarSources = await page.locator('.asAvatar img').evaluateAll((nodes) => nodes.slice(0, 10).map((node) => node.getAttribute('src')).filter(Boolean));
     let artworkResponses = 0;
-    let realArtworkCount = 0;
     for (const src of avatarSources) {
       const artwork = await fetch(new URL(src, BASE), { cache: 'no-store' });
-      if (!artwork.ok) continue;
-      artworkResponses += 1;
-      const type = String(artwork.headers.get('content-type') || '').toLowerCase();
-      if (type.startsWith('image/') && !type.includes('svg')) realArtworkCount += 1;
+      if (artwork.ok && String(artwork.headers.get('content-type') || '').toLowerCase().startsWith('image/')) artworkResponses += 1;
     }
     if (artworkResponses < 1) throw new Error('Player artwork endpoint did not return a usable image response');
 
-    const rules = page.locator('#asRules');
-    await rules.click();
-    await page.waitForTimeout(100);
-    const ruleText = (await page.locator('#asRuleBar').innerText()).trim();
-    if (!/RULES ON/i.test(ruleText) || !/QUALIFIED/i.test(ruleText) || !/REJECTED/i.test(ruleText)) throw new Error('Auto Scout Rules toggle did not expose auditable result buckets');
+    await page.locator('.asRow').first().click();
+    await page.waitForSelector('#asDrawerBg.on', { timeout: 10_000 });
+    await page.waitForSelector('#asDrawerBody', { timeout: 10_000 });
+    await page.waitForFunction(() => {
+      const body = document.querySelector('#asDrawerBody');
+      if (!body) return false;
+      return Boolean(body.querySelector('.asSection') || body.querySelector('.asError'));
+    }, null, { timeout: 30_000 });
 
-    if (networkUrls.some((url) => /apiKey=|THE_ODDS_API_KEY/i.test(url))) throw new Error('Provider credential appeared in browser network URLs');
+    const drawerText = (await page.locator('#asDrawerBody').innerText()).trim();
+    if (!drawerText) throw new Error('Research drawer rendered with no content');
+    const hasResearchControls = await page.locator('#asMarketSwitch, #asLineMinus, #asLinePlus').count() >= 1;
+    const hasAvailabilityMessage = /research availability|historical research|game logs/i.test(drawerText);
+    if (!hasResearchControls && !hasAvailabilityMessage) throw new Error('Research drawer exposes neither research controls nor an honest availability state');
+
+    if (networkUrls.some((url) => /apiKey=|THE_ODDS_API_KEY|CLEARSPORTS_API_KEY|SPORTSDATAIO_API_KEY/i.test(url))) {
+      throw new Error('Provider credential appeared in browser network URLs');
+    }
+
     return {
       cardCount,
       firstCardPreview: firstCard.split('\n').slice(0, 14).join(' | '),
-      ruleToggleVerified: true,
+      researchDrawerVerified: true,
+      researchControlsAvailable: hasResearchControls,
       avatarResponsesVerified: artworkResponses,
-      realArtworkResponses: realArtworkCount,
     };
   } finally {
     await browser.close();
@@ -121,7 +155,7 @@ const browser = await verifyBrowser();
 
 console.log(JSON.stringify({
   ok: true,
-  phase: 'Auto Scout v4 production explorer',
+  phase: 'Auto Scout v5 prop research',
   health: {
     service: health.service,
     provider: health.preferredProvider,
@@ -139,6 +173,12 @@ console.log(JSON.stringify({
     providerUpdatedAt: api.sample.providerUpdatedAt || api.sample.updatedAt,
     ingestedAt: api.sample.ingestedAt,
     autoScoutClassification: api.sample.autoScout?.classification || null,
+  },
+  research: {
+    available: api.research.available === true,
+    source: api.research.source || null,
+    code: api.research.code || null,
+    gamesReturned: Number(api.research?.coverage?.gamesReturned || api.research?.gameLog?.length || 0),
   },
   browser,
 }, null, 2));

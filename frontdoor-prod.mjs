@@ -12,6 +12,11 @@ const APEX_NEXT_PORT = 3003;
 const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v5.js', 'utf8').replace(/<\/script/gi, '<\\/script');
 const ARTWORK_SPORTS = new Set(['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB']);
 const researchLimits = new Map();
+const CLIENT_MODULES = new Map([
+  'lib/analytics/research.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
+  'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
+].map(file => ['/assets/' + file, file]));
+CLIENT_MODULES.set('/assets/autoscout-research.css', 'apex-v2/research-ui.css');
 
 function child(file, port, label) {
   const proc = spawn(process.execPath, [file], {
@@ -54,8 +59,8 @@ function target(rawUrl = '/') {
   if (url.pathname === '/apex-next' || url.pathname.startsWith('/apex-next/')) {
     return { port: APEX_NEXT_PORT, path: url.pathname + url.search, injectShell: false };
   }
-  if (url.pathname === '/api/apex-next/health') return { port: APEX_NEXT_PORT, path: '/api/health' + url.search, injectShell: false };
-  if (url.pathname === '/api/apex-next/props') return { port: APEX_NEXT_PORT, path: '/api/props' + url.search, injectShell: false };
+  if (url.pathname === '/api/apex-next/health') return { port: APEX_NEXT_PORT, path: '/api/health' + url.search, injectShell: false, sanitizeJson: true };
+  if (url.pathname === '/api/apex-next/props') return { port: APEX_NEXT_PORT, path: '/api/props' + url.search, injectShell: false, sanitizeJson: true };
 
   return { port: SCOUT_PORT, path: rawUrl, injectShell: false };
 }
@@ -191,6 +196,12 @@ async function maybeServeArtwork(req, res) {
 }
 
 const server = http.createServer(async (req, res) => {
+  const asset = CLIENT_MODULES.get(new URL(req.url || '/', 'http://localhost').pathname);
+  if (asset && req.method === 'GET') {
+    res.writeHead(200, { 'content-type': asset.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' });
+    res.end(readFileSync(asset, 'utf8'));
+    return;
+  }
   if (await maybeServeResearch(req, res)) return;
   if (await maybeServeArtwork(req, res)) return;
 

@@ -12,6 +12,7 @@ import { createSessionCodec, createRateLimiter, permissionsFor, parseCookies, co
 import { generateAccessCode, redeemAccessCode, listAccessCodes, revokeAccessCode, isAccessCodeActive } from './access-codes.mjs';
 import { getPickFinderConnectionState } from './scanner/secure-store.mjs';
 import { internalDetail } from './lib/safe-error.mjs';
+import { readSavedProps, updateSavedProps } from './lib/autoscout/saved-props.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, 'public');
@@ -196,6 +197,19 @@ async function handleRequest(req, res) {
   if (url.pathname === '/api/auth/logout' && req.method === 'POST') {
     if (!sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
     return json(res, 200, { ok: true }, { 'set-cookie': clearCookieHeader(req) });
+  }
+
+  if (url.pathname === '/api/saved-props') {
+    const session = await authSession(req);
+    if (!session.authenticated) return json(res, 401, { ok: false, message: 'Sign in to save props to your access profile.' });
+    if (!['GET','POST','DELETE'].includes(req.method)) return json(res, 405, { ok: false, message: 'Method not allowed.' });
+    if (req.method !== 'GET' && !sameOrigin(req)) return json(res, 403, { ok: false, message: 'Cross-origin request rejected.' });
+    if (!allowRate(req, 'saved-props', 90, 60_000)) return json(res, 429, { ok: false, message: 'Try again shortly.' });
+    try {
+      const saved = req.method === 'GET' ? await readSavedProps(session)
+        : await updateSavedProps(session, await readJsonBody(req, 50_000), req.method === 'DELETE');
+      return json(res, 200, { ok: true, saved, profile: { role: session.role }, persistence: 'access-profile' });
+    } catch { return json(res, 400, { ok: false, message: 'Saved props could not be updated. Try again.' }); }
   }
 
   if (url.pathname.startsWith('/api/') && !(await isAuthorized(req))) {

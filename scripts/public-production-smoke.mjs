@@ -9,7 +9,7 @@ async function waitForHealth() {
     try {
       const response = await fetch(`${BASE}/api/health`, { cache: 'no-store' });
       const body = await response.json();
-      if (response.ok && body?.ok === true && body?.service === 'autoscout-apex' && body?.theOddsApiConfigured === true) return body;
+      if (response.ok && body?.ok === true && body?.service === 'autoscout-apex' && body?.provider?.configured === true) return body;
       last = `HTTP ${response.status} service=${body?.service || 'unknown'}`;
     } catch (error) {
       last = error?.message || String(error);
@@ -108,7 +108,7 @@ async function verifyBrowser() {
 
     const firstCard = (await page.locator('.asRow').first().innerText()).trim();
     if (!firstCard) throw new Error('First production research row rendered with no content');
-    if (!/OVER/i.test(firstCard) || !/UNDER/i.test(firstCard)) throw new Error('Production research row is missing Over/Under comparison');
+    if (!/OVER|UNDER/i.test(firstCard)) throw new Error('Production research row is missing its selected side');
 
     const avatarSources = await page.locator('.asAvatar img').evaluateAll((nodes) => nodes.slice(0, 10).map((node) => node.getAttribute('src')).filter(Boolean));
     let artworkResponses = 0;
@@ -131,6 +131,11 @@ async function verifyBrowser() {
     if (!drawerText) throw new Error('Research drawer rendered with no content');
     const hasResearchControls = await page.locator('#asMarketSwitch, #asLineMinus, #asLinePlus').count() >= 1;
     const hasAvailabilityMessage = /research availability|historical research|game logs/i.test(drawerText);
+    if (hasResearchControls) {
+      for (const side of ['OVER', 'UNDER']) {
+        if (await page.getByRole('button', { name: side, exact: true }).count() < 1) throw new Error('Research controls are missing side: ' + side);
+      }
+    }
     if (!hasResearchControls && !hasAvailabilityMessage) throw new Error('Research drawer exposes neither research controls nor an honest availability state');
 
     if (networkUrls.some((url) => /apiKey=|THE_ODDS_API_KEY|CLEARSPORTS_API_KEY|SPORTSDATAIO_API_KEY/i.test(url))) {
@@ -158,7 +163,7 @@ console.log(JSON.stringify({
   phase: 'Auto Scout v5 prop research',
   health: {
     service: health.service,
-    provider: health.preferredProvider,
+    provider: health.provider?.id,
     supportedSports: health.supportedSports,
     databaseConfigured: health?.persistence?.configured === true,
   },

@@ -145,6 +145,7 @@ async function maybeServeResearch(req, res) {
       awayTeam: safeParam(url, 'awayTeam', 60) || null,
       opponent: safeParam(url, 'opponent', 60) || null,
       market,
+      providerMarketKey: safeParam(url, 'marketId', 64) || null,
       line,
       side,
       games: Math.min(40, Math.max(5, Number(url.searchParams.get('games')) || 20)),

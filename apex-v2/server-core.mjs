@@ -3,7 +3,8 @@ import http from 'node:http';
 import { fetchUnifiedBoard, providerHealth, providerDiagnostics } from './provider.mjs';
 import { SUPPORTED_SPORTS } from '../lib/autoscout/models.mjs';
 import { decorateBoardWithScoutAudit } from '../lib/autoscout/scout-rules.mjs';
-import { persistNormalizedBoard, getLineHistory, persistenceHealth } from '../lib/autoscout/supabase-persistence.mjs';
+import { persistNormalizedBoard, getLineHistory, persistenceHealth, persistenceConfigured } from '../lib/autoscout/supabase-persistence.mjs';
+import { startIngestWorker, ingestHealth } from '../lib/autoscout/ingest-worker.mjs';
 import { createSessionCodec, createRateLimiter, parseCookies, clientKey, SESSION_COOKIE, OWNER } from '../lib/session.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -134,7 +135,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && (url.pathname === '/api/diagnostics' || url.pathname === '/api/diagnostics/e2e' || url.pathname === '/diagnostics' || url.pathname === '/apex-v2/diagnostics')) {
     if (!ownerAuthorized(req)) return json(res, 403, { ok: false, code: 'OWNER_REQUIRED', message: 'Owner access is required.' });
     if (!rateAllowed(req, 'autoscout-diagnostics', 60, 60_000)) return json(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many diagnostics requests.' });
-    if (url.pathname === '/api/diagnostics') return json(res, 200, { ...providerDiagnostics(), persistence: persistenceHealth() });
+    if (url.pathname === '/api/diagnostics') return json(res, 200, { ...providerDiagnostics(), persistence: persistenceHealth(), ingest: ingestHealth() });
     if (url.pathname === '/api/diagnostics/e2e') return json(res, 200, await e2eStatus());
     return html(res, diagnosticsPage());
   }
@@ -161,6 +162,17 @@ async function warmSports() {
   console.log(`[AutoScout Phase2] end-to-end=${e2e.ok ? 'PASS' : 'FAIL'} sport=${e2e.sport || 'none'} book=${e2e.sample?.sportsbook || 'none'} market=${e2e.sample?.market || 'none'} db=${persistenceHealth().configured ? 'configured' : 'not-configured'}`);
 }
 setTimeout(() => void warmSports(), 1800).unref();
+
+// Keep taking snapshots on a schedule. Without this, line_snapshots only ever
+// received the single burst a visitor's cache miss produced, so no prop had a
+// history to draw movement from.
+startIngestWorker({
+  sports: SUPPORTED_SPORTS,
+  fetchBoard: (sport, options) => fetchUnifiedBoard(sport, options),
+  decorate: decorateBoardWithScoutAudit,
+  persist: persistNormalizedBoard,
+  persistenceConfigured,
+});
 
 function shutdown() { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 5000).unref(); }
 process.on('SIGTERM', shutdown);

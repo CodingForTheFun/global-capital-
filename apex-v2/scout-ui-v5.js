@@ -16,7 +16,7 @@ var researchCache=new Map();
 var researchInflight=new Map();
 var drawerState=null;
 function esc(v){return String(v==null?'':v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];});}
-function num(v){var x=Number(v);return Number.isFinite(x)?x:null;}
+function num(v){if(v===null||v===undefined||v==='')return null;var x=Number(v);return Number.isFinite(x)?x:null;}
 function pct(v){var x=num(v);return x==null?'—':Math.round(x)+'%';}
 function dec(v,d){var x=num(v);return x==null?'—':x.toFixed(d==null?1:d).replace(/\.0$/,'');}
 function money(v){var x=num(v);return x==null?'—':(x>0?'+':'')+x;}

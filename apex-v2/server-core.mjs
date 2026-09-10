@@ -36,7 +36,7 @@ function html(res, body) {
     'x-content-type-options': 'nosniff',
     'referrer-policy': 'same-origin',
     'permissions-policy': 'camera=(), microphone=(), geolocation=()',
-    'content-security-policy': "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+    'content-security-policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
   });
   res.end(body);
 }

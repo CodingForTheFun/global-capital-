@@ -52,7 +52,7 @@ function target(rawUrl = '/') {
   if (url.pathname === '/apex/diagnostics' || url.pathname === '/apex/diagnostics/') {
     return { port: APEX_PORT, path: '/diagnostics' + url.search, injectShell: false };
   }
-  if (url.pathname === '/apex' || url.pathname === '/apex/' || url.pathname.startsWith('/apex/')) {
+  if (url.pathname === '/' || url.pathname === '/apex' || url.pathname === '/apex/' || url.pathname.startsWith('/apex/')) {
     return { port: APEX_PORT, path: '/apex-v2' + url.search, injectShell: true };
   }
 

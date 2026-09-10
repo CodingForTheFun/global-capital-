@@ -9,7 +9,7 @@ async function waitForHealth() {
     try {
       const response = await fetch(`${BASE}/api/health`, { cache: 'no-store' });
       const body = await response.json();
-      if (response.ok && body?.ok === true && body?.service === 'autoscout-apex' && body?.theOddsApiConfigured === true) return body;
+      if (response.ok && body?.ok === true && body?.service === 'autoscout-apex' && body?.provider?.configured === true) return body;
       last = `HTTP ${response.status} service=${body?.service || 'unknown'}`;
     } catch (error) {
       last = error?.message || String(error);
@@ -108,7 +108,7 @@ async function verifyBrowser() {
 
     const firstCard = (await page.locator('.asRow').first().innerText()).trim();
     if (!firstCard) throw new Error('First production research row rendered with no content');
-    if (!/OVER/i.test(firstCard) || !/UNDER/i.test(firstCard)) throw new Error('Production research row is missing Over/Under comparison');
+    if (!/OVER|UNDER/i.test(firstCard)) throw new Error('Production research row is missing its selected side');
 
     const avatarSources = await page.locator('.asAvatar img').evaluateAll((nodes) => nodes.slice(0, 10).map((node) => node.getAttribute('src')).filter(Boolean));
     let artworkResponses = 0;
@@ -121,6 +121,9 @@ async function verifyBrowser() {
     await page.locator('.asRow').first().click();
     await page.waitForSelector('#asDrawerBg.on', { timeout: 10_000 });
     await page.waitForSelector('#asDrawerBody', { timeout: 10_000 });
+    for (const side of ['OVER', 'UNDER']) {
+      await page.getByRole('button', { name: side, exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+    }
     await page.waitForFunction(() => {
       const body = document.querySelector('#asDrawerBody');
       if (!body) return false;
@@ -158,7 +161,7 @@ console.log(JSON.stringify({
   phase: 'Auto Scout v5 prop research',
   health: {
     service: health.service,
-    provider: health.preferredProvider,
+    provider: health.provider?.id,
     supportedSports: health.supportedSports,
     databaseConfigured: health?.persistence?.configured === true,
   },

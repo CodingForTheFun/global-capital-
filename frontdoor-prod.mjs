@@ -1,12 +1,14 @@
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { playerArtworkResponse } from './lib/autoscout/providers/thesportsdb-artwork.mjs';
 
 const FRONT_PORT = Number(process.env.PORT || 3000);
 const SCOUT_PORT = 3002;
 const APEX_PORT = 3001;
 const APEX_NEXT_PORT = 3003;
-const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v3.js', 'utf8').replace(/<\/script/gi, '<\\/script');
+const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v4.js', 'utf8').replace(/<\/script/gi, '<\\/script');
+const ARTWORK_SPORTS = new Set(['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB']);
 
 function child(file, port, label) {
   const proc = spawn(process.execPath, [file], {
@@ -65,7 +67,41 @@ function proxyHeaders(upstreamHeaders, transformed = false) {
   return headers;
 }
 
-const server = http.createServer((req, res) => {
+async function maybeServeArtwork(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/apex/player-artwork') return false;
+  if (req.method !== 'GET') {
+    res.writeHead(405, { 'content-type': 'application/json; charset=utf-8', allow: 'GET' });
+    res.end(JSON.stringify({ ok: false, message: 'Method not allowed.' }));
+    return true;
+  }
+  const sport = String(url.searchParams.get('sport') || '').toUpperCase();
+  const name = String(url.searchParams.get('name') || '').trim().slice(0, 90);
+  if (!ARTWORK_SPORTS.has(sport) || !name) {
+    res.writeHead(400, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ ok: false, message: 'Valid sport and player name are required.' }));
+    return true;
+  }
+  try {
+    const image = await playerArtworkResponse(sport, name);
+    res.writeHead(image.status || 200, {
+      'content-type': image.contentType || 'image/svg+xml',
+      'content-length': Buffer.byteLength(image.body),
+      'cache-control': 'public, max-age=86400, stale-while-revalidate=604800',
+      'x-content-type-options': 'nosniff',
+      'cross-origin-resource-policy': 'same-origin',
+    });
+    res.end(image.body);
+  } catch {
+    res.writeHead(502, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ ok: false, message: 'Player artwork is temporarily unavailable.' }));
+  }
+  return true;
+}
+
+const server = http.createServer(async (req, res) => {
+  if (await maybeServeArtwork(req, res)) return;
+
   const dst = target(req.url || '/');
   const proxy = http.request({
     hostname: '127.0.0.1',
@@ -87,8 +123,6 @@ const server = http.createServer((req, res) => {
     upstream.on('end', () => {
       let body = Buffer.concat(chunks).toString('utf8');
       const injection = `<script>${APEX_SHELL}</script>`;
-      // The explorer touches document.body immediately. Inject it at the end of
-      // the body so the DOM exists before the script executes in a real browser.
       body = body.includes('</body>') ? body.replace('</body>', `${injection}</body>`) : `${body}${injection}`;
       res.writeHead(upstream.statusCode || 200, proxyHeaders(upstream.headers, true));
       res.end(body);
@@ -108,7 +142,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(FRONT_PORT, '0.0.0.0', () => {
-  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; ScoutLegacy=${SCOUT_PORT}; AutoScoutCore=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}; AutoScoutShell=prop-explorer-v3`);
+  console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; ScoutLegacy=${SCOUT_PORT}; AutoScoutCore=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}; AutoScoutShell=prop-explorer-v4`);
 });
 
 setTimeout(async () => {

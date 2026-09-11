@@ -86,9 +86,13 @@ test('the prediction button is explicit, never fired by a render', () => {
 });
 
 test('credit cost per refresh follows markets x regions and is reported', () => {
-  const previous = process.env.THE_ODDS_API_REGIONS;
-  const previousMarkets = process.env.THE_ODDS_API_MAX_MARKETS_PER_EVENT;
+  const settings = ['THE_ODDS_API_REGIONS', 'THE_ODDS_API_MAX_MARKETS_PER_EVENT',
+    'THE_ODDS_API_MAX_EVENTS', 'THE_ODDS_API_BOOKMAKERS', 'THE_ODDS_API_MAX_CREDITS_PER_REFRESH'];
+  const previous = Object.fromEntries(settings.map(key => [key, process.env[key]]));
   try {
+    process.env.THE_ODDS_API_MAX_EVENTS = '25';
+    process.env.THE_ODDS_API_BOOKMAKERS = 'prizepicks,underdog,pick6,dabble_us_dfs,draftkings,fanduel,betmgm,williamhill_us,fanatics,betrivers';
+    process.env.THE_ODDS_API_MAX_CREDITS_PER_REFRESH = '250';
     // Regions scope: five regions bill five times one.
     process.env.THE_ODDS_API_REGIONS = 'us,us2,us_dfs,eu,uk';
     process.env.THE_ODDS_API_MAX_MARKETS_PER_EVENT = '25';
@@ -105,13 +109,21 @@ test('credit cost per refresh follows markets x regions and is reported', () => 
     assert.equal(narrow.billedRegions, 1);
     assert.equal(narrow.creditsPerEvent, 6);
 
-    // The whole point of reporting it: the difference is large and visible.
-    assert.ok(wide.creditsPerRefresh > narrow.creditsPerRefresh * 10);
+    // The full-coverage estimate still exposes the cost of wider scope, while
+    // the executable refresh estimate must respect its independent budget.
+    // Discovery costs one per event; listing the events costs zero.
+    assert.equal(wide.fullCoverageCeiling, 25 * (125 + 1));
+    assert.equal(narrow.fullCoverageCeiling, 25 * (6 + 1));
+    assert.ok(wide.fullCoverageCeiling > narrow.fullCoverageCeiling * 10);
+    assert.equal(wide.creditsPerRefresh, 250);
+    assert.equal(narrow.creditsPerRefresh, 175);
+    process.env.THE_ODDS_API_MAX_CREDITS_PER_REFRESH = '50';
+    assert.equal(projectedCreditsPerRefresh().creditsPerRefresh, 50);
   } finally {
-    if (previous === undefined) delete process.env.THE_ODDS_API_REGIONS;
-    else process.env.THE_ODDS_API_REGIONS = previous;
-    if (previousMarkets === undefined) delete process.env.THE_ODDS_API_MAX_MARKETS_PER_EVENT;
-    else process.env.THE_ODDS_API_MAX_MARKETS_PER_EVENT = previousMarkets;
+    for (const key of settings) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
   }
 });
 

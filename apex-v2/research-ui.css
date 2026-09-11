@@ -158,3 +158,93 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
  .asDrawer .asPropLog th,.asDrawer .asPropLog td{padding:10px 4px}.asDrawer .asPropLog td{font-size:.75rem}.asPropLog b{font-size:.8125rem}
  .asResultBadge{padding:4px;font-size:.625rem}.asDrawer .asFilterRow{flex-wrap:wrap;overflow:visible}
 }
+
+/* ---------------------------------------------------------------------------
+   PickFinder-style compact prop card.
+   Replaces the wide table row on every width; the board is one column of cards
+   on phones and a two/three-up grid on desktop.
+--------------------------------------------------------------------------- */
+.asTableViewport{overflow:visible;max-height:none;min-height:0;border:0;background:none}
+.asHeaderRow{display:none!important}
+.asList{display:grid;grid-template-columns:repeat(auto-fill,minmax(430px,1fr));gap:12px}
+.asCard{display:block;min-height:0;background:linear-gradient(160deg,#122440,#0b1727);border:1px solid #27405c;border-radius:16px;overflow:hidden}
+.asCard:hover{border-color:#4b7bad}
+.asCardHead{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 14px 10px}
+.asCard .asAvatar{width:46px;height:46px}
+.asCardId{min-width:0}
+.asCardName{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.asCardName .asPlayer{font-size:16px;font-weight:750;letter-spacing:-.3px}
+.asTeamBadge{font-size:10px;font-weight:750;letter-spacing:.6px;color:#c8dcf5;background:#1b3350;border:1px solid #38557a;border-radius:5px;padding:2px 6px}
+.asPos{font-size:10px;font-weight:750;letter-spacing:.6px;color:#8fd5b4;background:#10291f;border:1px solid #27553f;border-radius:5px;padding:2px 6px}
+.asCardMatch{font-size:11px;color:#93aac6;margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asCardMarket{font-size:13px;font-weight:650;color:#dcebff;margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
+.asCardPrice{font-size:11px;font-weight:500;color:#8fa8c6}
+.asCardGauge{display:grid;place-items:center}
+.asRing{display:grid;grid-template-columns:64px auto;align-items:center;gap:9px}
+.asRingSvg{display:block;flex:none}
+.asRingText{display:grid;gap:2px;text-align:left}
+.asRingText .asOverPct{font-size:14px;font-weight:800;color:#10b981;font-variant-numeric:tabular-nums;white-space:nowrap}
+.asRingText .asUnderPct{font-size:12px;font-weight:700;color:#f43f5e;font-variant-numeric:tabular-nums;white-space:nowrap}
+.asRingText em{font-style:normal;font-size:9px;letter-spacing:.5px;color:#7e96b3;text-transform:uppercase}
+.asRingEmpty{display:grid;grid-template-columns:1fr;place-items:center;min-width:74px;min-height:64px;border:1px dashed #33506f;border-radius:12px;padding:6px 10px}
+.asRingEmpty b{font-size:18px;color:#8aa2be}
+.asRingEmpty small{font-size:9px;color:#7d94b0;white-space:nowrap}
+.asMatchPills{display:flex;gap:7px;flex-wrap:wrap;padding:0 14px 10px}
+.asPill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#b9cfe9;background:#12283f;border:1px solid #2f4b6b;border-radius:999px;padding:5px 10px}
+.asPill i{font-style:normal;color:#7fb0e6}
+.asPillWarn{color:#f0c98a;background:#2a2013;border-color:#5c4423}
+.asBadges{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:1px;background:#1d3149;border-top:1px solid #24405c;border-bottom:1px solid #24405c}
+.asBadge{background:#0e1e31;padding:8px 3px;text-align:center;min-width:0}
+.asBadge small{display:block;font-size:9px;font-weight:750;letter-spacing:.6px;color:#8199b7}
+.asBadge b{display:block;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:#dbe8f8;margin-top:3px;overflow-wrap:anywhere}
+.asBadge em{display:block;font-style:normal;font-size:9px;color:#7b93b1;margin-top:2px;min-height:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asBadge.hot{background:#064e3b}
+.asBadge.hot b,.asBadge.hot small{color:#10b981}
+.asBadge.hot em{color:#0f9b74}
+.asBadge.cold{background:#4c0519}
+.asBadge.cold b,.asBadge.cold small{color:#f43f5e}
+.asBadge.cold em{color:#c53a53}
+.asOddsStrip{display:flex;gap:7px;overflow-x:auto;padding:10px 14px;scrollbar-width:thin}
+.asOddsChip{flex:none;min-width:104px;border:1px solid #2d4866;background:#0b1a2c;border-radius:9px;padding:7px 9px}
+.asOddsChip b{display:block;font-size:11px;font-weight:700;color:#d6e6fa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asOddsChip span{display:flex;gap:8px;margin-top:4px}
+.asOddsChip i{font-style:normal;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.asOddsChip i.o{color:#4ade9f}
+.asOddsChip i.u{color:#7fb4ff}
+.asCard .asRowActions{border-top:1px solid #24405c}
+.asNav button,.asNav a{min-width:auto;padding:0 13px;gap:2px}
+.asNav .asNavIcon{font-size:15px;line-height:1}
+.asNav button span:last-child{font-size:11px;font-weight:650}
+.asCompact .asBadge b{font-size:12px}
+.asCompact .asCardHead{padding:10px 12px 8px}
+@media(max-width:1050px){
+  .asList{grid-template-columns:1fr}
+  .asMobileMetrics{display:none!important}
+}
+@media(max-width:560px){
+  .asCardHead{grid-template-columns:42px minmax(0,1fr) auto;gap:10px;padding:12px 12px 8px}
+  .asRing{grid-template-columns:52px auto;gap:7px}
+  .asRingSvg{width:52px;height:52px}
+  .asRingText .asOverPct{font-size:12px}
+  .asRingText .asUnderPct{font-size:11px}
+  .asRingText em{display:none}
+  .asBadges{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .asBadge{padding:7px 2px}
+  .asBadge b{font-size:12px}
+  .asNav{left:8px;right:8px;transform:none;width:auto;justify-content:space-between;gap:2px}
+  .asNav button,.asNav a{min-width:0;flex:1;padding:0 4px}
+  .asNav button span:last-child{font-size:9px}
+}
+.asRingMid{fill:#e8f2ff;font-size:15px;font-weight:800;font-family:Inter,system-ui,sans-serif}
+.asCardMatch{display:flex;flex-wrap:wrap;gap:4px 8px;white-space:normal;line-height:1.35}
+.asCardMatch .asCardTime{color:#7f98b6}
+/* The header gained Saved and Settings entries when the bottom bar became the
+   five requested tabs; keep every control reachable on a phone. */
+.asTop .asBar{overflow-x:auto;scrollbar-width:none}
+.asTop .asBar::-webkit-scrollbar{display:none}
+.asIdentity,.asBtn{flex:none}
+@media(max-width:700px){
+  .asTop .asBar{height:60px;padding:0 12px;gap:7px}
+  .asTop .asBtn{height:38px;padding:0 11px;font-size:12px}
+  .asBrand{font-size:18px}
+}

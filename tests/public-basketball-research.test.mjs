@@ -90,7 +90,7 @@ test('real captured games flow through shared windows, pushes and public API sha
     assert.equal(result.windows.l5.games,5);assert.equal(result.windows.l10.games,10);assert.equal(result.windows.l15.games,15);
     assert.equal(result.windows.l10.pushes,1);
     assert.equal(result.windows.l10.hitRate,78); // 7 hits / 9 decisions, not 7 / 10.
-    assert.equal(result.windows.season.available,false);
+    assert.equal(result.coverage.seasonComplete,true);assert.equal(result.windows.season.games,result.gameLog.length);
     assert.equal(result.sections.projection,false);
     assert.equal(result.matchup.opponent,'CON');assert.ok(result.h2h.games>0);
     const under=finalizeResearch({...result,line:8,side:'UNDER'});

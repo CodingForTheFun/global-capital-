@@ -6,6 +6,7 @@ import { researchPlayerProp, researchHealth } from './lib/autoscout/research-ser
 import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
 import { projectPlayerProp, projectionsConfigured } from './lib/projections/service.mjs';
 import { askAboutProp, askConfigured } from './lib/projections/ask.mjs';
+import { recordProjection, gradeFromGameLog, accuracyReport } from './lib/projections/ledger.mjs';
 import { teammatesFor, injuryFeedConfigured } from './lib/data-sources/sportsdataio/injury-feed.mjs';
 import { accountSecret } from './lib/auth/secret.mjs';
 import { handleAccountRoutes, currentAccount, mailStatus } from './lib/auth/routes.mjs';
@@ -196,6 +197,12 @@ async function maybeServeResearch(req, res) {
       side,
       games: Math.min(40, Math.max(5, Number(url.searchParams.get('games')) || 20)),
     });
+    // Any fetched log is a chance to settle open projections for this player,
+    // at no extra provider cost. Fire and forget: grading must never delay or
+    // fail the research response it rode in on.
+    if (Array.isArray(result?.gameLog) && result.gameLog.length) {
+      gradeFromGameLog({ sport, playerName, market, gameLog: result.gameLog }).catch(() => {});
+    }
     directJson(res, result?.ok === false ? 400 : 200, sanitizePublicPayload(result || { ok: true, available: false, message: 'Historical research is unavailable.' }, { statsContext: true }));
   } catch (error) {
     console.error('[frontdoor] research request failed', String(error?.code || error?.message || 'RESEARCH_ERROR').slice(0, 120));
@@ -336,6 +343,23 @@ function planLimitResponse(res, action, budget) {
   return true;
 }
 
+async function maybeServeAccuracy(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/props/accuracy') return false;
+  if (req.method !== 'GET') {
+    directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
+    return true;
+  }
+  const sport = safeParam(url, 'sport', 12).toUpperCase();
+  try {
+    const report = await accuracyReport({ sport: ARTWORK_SPORTS.has(sport) ? sport : null });
+    directJson(res, 200, { ok: true, accuracy: report });
+  } catch {
+    directJson(res, 200, { ok: true, accuracy: null, message: 'The accuracy record is unavailable right now.' });
+  }
+  return true;
+}
+
 async function maybeServeProjection(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   // Both names serve the same handler: /predict is what the client calls,
@@ -367,6 +391,11 @@ async function maybeServeProjection(req, res) {
   }
   try {
     const result = await projectPlayerProp({ ...body, sport, playerName, market, line });
+    // Write the claim down before answering, so the record cannot be curated
+    // after the fact. A cached repeat is the same claim, already recorded.
+    if (result?.available && !result.cached) {
+      recordProjection(result, { sport, playerName, market }).catch(() => {});
+    }
     directJson(res, 200, sanitizePublicPayload(result, { statsContext: true }));
   } catch (error) {
     console.error('[frontdoor] projection request failed', String(error?.code || error?.message || 'PROJECTION_ERROR').slice(0, 120));
@@ -539,6 +568,7 @@ const server = http.createServer(async (req, res) => {
   if (await maybeServeAccount(req, res)) return;
   if (await maybeServeResearch(req, res)) return;
   if (await maybeServeResearchBatch(req, res)) return;
+  if (await maybeServeAccuracy(req, res)) return;
   if (await maybeServeProjection(req, res)) return;
   if (await maybeServeAsk(req, res)) return;
   if (await maybeServeTeammates(req, res)) return;

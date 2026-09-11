@@ -698,8 +698,18 @@ function predictionStrip(g,line){
    +'<button class="asBtn asPredictBtn" data-predict="'+esc(g.key)+'">Re-run</button>'
   +'</div>'
   +(entry.primaryDriver?'<p class="asPredictDriver">'+esc(entry.primaryDriver)+'</p>':'')
-  +'<p class="asPredictFootnote">Model estimate — not a measured statistic.</p>'
+  +'<p class="asPredictFootnote">'+esc(calibrationNote(entry))+'</p>'
   +'</div>';
+}
+// Say how the number was reconciled, in one line. A projection blended against
+// eight real games is a different claim from one the log was too short to
+// check, and the customer is entitled to know which they are looking at.
+function calibrationNote(entry){
+ var c=entry&&entry.calibration;
+ if(!c||!c.applied)return 'Model estimate — not a measured statistic. The game log was too short to calibrate against.';
+ var parts=['Model estimate, calibrated against '+c.sampleSize+' logged games'];
+ if(c.clamped)parts.push('pulled back into the range those games support');
+ return parts.join(' · ')+'. Not a measured statistic.';
 }
 function rowHtml(g){
  var line=boardLine(g),side=defaultSide(g);
@@ -1101,7 +1111,7 @@ async function toggleSaved(key){
 // system that owns plans and per-account saved props. The legacy access code is
 // still accepted by the server for the people who already have one, so it stays
 // reachable at the bottom rather than being silently withdrawn.
-var account={authenticated:false,user:null,csrfToken:null},accountHealth=null,entitlement=null,authBusy=false;
+var account={authenticated:false,user:null,csrfToken:null},accountHealth=null,entitlement=null,accuracy=null,authBusy=false;
 async function accountJson(path,options){try{var response=await nativeFetch(path,options||{headers:{'accept':'application/json'}});var data=await response.json().catch(function(){return null;});return {status:response.status,data:data};}catch{return {status:0,data:null};}}
 function accountPost(path,body){return accountJson(path,{method:'POST',headers:Object.assign({'content-type':'application/json'},account.csrfToken?{'x-csrf-token':account.csrfToken}:{}),body:JSON.stringify(body||{})});}
 async function loadAccount(){
@@ -1109,6 +1119,7 @@ async function loadAccount(){
  account=me.data&&me.data.authenticated?{authenticated:true,user:me.data.user,csrfToken:me.data.csrfToken||null}:{authenticated:false,user:null,csrfToken:null};
  var health=await accountJson('/api/account/health');accountHealth=health.data&&health.data.ok?health.data:null;
  var plan=await accountJson('/api/account/entitlement');entitlement=plan.data&&plan.data.ok?plan.data.entitlement:null;
+ var record=await accountJson('/api/props/accuracy');accuracy=record.data&&record.data.ok?record.data.accuracy:null;
  var button=document.getElementById('asAccount');
  if(button){button.textContent=account.authenticated?'Account':'Sign in';button.classList.toggle('asPrimary',!account.authenticated);}
 }
@@ -1119,6 +1130,26 @@ function planBlock(){
  var rows=[['Plan',entitlement.planName],['AI predictions',remainingText(left.predictions,limits.predictionsPerDay)],['Ask Claude',remainingText(left.ask,limits.askPerDay)],['Betslip',limits.slipSize+' picks']];
  return '<div class="asPlanCard">'+rows.map(function(row){return '<div class="asPlanRow"><span>'+esc(row[0])+'</span><b>'+esc(row[1])+'</b></div>';}).join('')+'</div>'
  +'<p class="asNotice">Daily counts reset at midnight UTC. Paid plans are not on sale yet, so every account is on '+esc(entitlement.planName)+'.</p>';
+}
+// The graded record of every prediction this app has made.
+//
+// It shows the counts from the first pick and withholds the rates until enough
+// have settled to mean anything. A hit rate over three picks is not a hit rate,
+// and printing one would be the marketing claim this record exists to replace.
+function accuracyBlock(){
+ if(!accuracy)return '';
+ var rows=[['Predictions recorded',String(accuracy.recorded)],['Graded so far',String(accuracy.graded)],['Awaiting the game',String(accuracy.awaitingResult)]];
+ if(accuracy.sufficient){
+  rows.push(['Picks that landed',accuracy.hitRate+'% of '+accuracy.calledPicks]);
+  if(accuracy.brierScore!=null)rows.push(['Calibration (Brier)',accuracy.brierScore+' — lower is better']);
+  if(accuracy.meanAbsoluteError!=null)rows.push(['Average miss',accuracy.meanAbsoluteError+' per prop']);
+ }
+ var note=accuracy.sufficient
+  ?'Every prediction is written down when it is made and graded against the real box score. Past results do not predict future ones.'
+  :'Rates appear once '+accuracy.minimumForRate+' picks have been graded. Until then the count is the only honest thing to show.';
+ return '<hr><h3>Model record</h3><div class="asPlanCard">'
+  +rows.map(function(row){return '<div class="asPlanRow"><span>'+esc(row[0])+'</span><b>'+esc(row[1])+'</b></div>';}).join('')
+  +'</div><p class="asNotice">'+esc(note)+'</p>';
 }
 function googleBlock(){
  if(!accountHealth||!accountHealth.google||!accountHealth.google.available)return '';
@@ -1151,6 +1182,7 @@ function signedInPanel(){
   '<p class="asNotice">Signed in as <b>'+esc(email)+'</b>.</p>'
   +planBlock()
   +'<hr><h3>Saved props</h3><p class="asNotice">'+(serverSaves?'Your saved props follow this account on any device.':'Saved props could not load right now. They are safe — try again shortly.')+'</p>'
+  +accuracyBlock()
   +'<hr><div class="asAuthActions"><button class="asBtn" id="asChangePassword">Change password</button><button class="asBtn" id="asSignOutAll">Sign out everywhere</button><button class="asBtn asPrimary" id="asSignOut">Sign out</button></div>'
   +'<p class="asNotice" id="asAuthError" role="alert"></p>');
  document.getElementById('asSignOut').onclick=async function(){
@@ -1214,6 +1246,7 @@ function authPanel(view,prefill){
   authUnavailableNotice()+googleBlock()+tabs+form
   +'<p class="asNotice" id="asAuthError" role="alert"></p>'
   +'<hr><p class="asNotice">Auto Scout is a research tool. It reports what the connected feeds actually returned — it does not take bets or handle money.</p>'
+  +accuracyBlock()
   +'<details class="asAuthLegacy"><summary>I have an access code</summary><form id="asLegacyForm"><label for="asCredential">Access code or owner password</label><input class="asControl" id="asCredential" type="password" autocomplete="current-password" required><button class="asBtn" type="submit">Use access code</button></form></details>');
  document.querySelectorAll('[data-auth]').forEach(function(button){button.onclick=function(){authPanel(button.dataset.auth,document.getElementById('asEmail')?document.getElementById('asEmail').value:'');};});
  var emailInput=document.getElementById('asEmail');

@@ -14,6 +14,8 @@ var rulesEnabled=true, saveEpoch=0;
 var savePending=new Set();
 
 var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB'];
+var BOARD_VIEWS={research:'Prop Research',players:'Players',popular:'Popular',discrepancies:'Line Discrepancies',saved:'Saved Props'};
+var hydrating=false, hydrated=new Set(), hydrateFailed=false;
 var sport='NFL';try{sport=(localStorage.getItem('autoscout-sport')||'NFL').toUpperCase();}catch{}
 if(SPORTS.indexOf(sport)<0)sport='NFL';
 var payload={props:[],data:{lines:[],players:[]},meta:{}};
@@ -30,9 +32,9 @@ var researchInflight=new Map();
 var drawerState=null;
 function esc(v){return String(v==null?'':v).replace(/[&<>\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c];});}
 function num(v){if(v===null||v===undefined||v==='')return null;var x=Number(v);return Number.isFinite(x)?x:null;}
-function pct(v){var x=num(v);return x==null?'Unavailable':Math.round(x)+'%';}
-function dec(v,d){var x=num(v);return x==null?'Unavailable':x.toFixed(d==null?1:d).replace(/\.0$/,'');}
-function money(v){var x=num(v);return x==null?'Unavailable':(x>0?'+':'')+x;}
+function pct(v){var x=num(v);return x==null?'—':Math.round(x)+'%';}
+function dec(v,d){var x=num(v);return x==null?'—':x.toFixed(d==null?1:d).replace(/\.0$/,'');}
+function money(v){var x=num(v);return x==null?'—':(x>0?'+':'')+x;}
 function when(v){if(!v)return'TBD';var d=new Date(v);if(Number.isNaN(d.getTime()))return'TBD';return d.toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'});}
 function shortDate(v){if(!v)return'—';var d=new Date(v);if(Number.isNaN(d.getTime()))return String(v).slice(0,10);return d.toLocaleDateString([], {month:'numeric',day:'numeric'});}
 function uniq(a){return Array.from(new Set(a.filter(Boolean)));}
@@ -64,12 +66,12 @@ function researchFor(g,line,side){
 function styles(){return `<style id="autoscout-v5-style">:root{--bg:#070a11;--panel:#0d1320;--panel2:#111a29;--panel3:#172236;--line:#223049;--line2:#31415f;--text:#f7f9fc;--muted:#8896aa;--soft:#bcc6d6;--green:#33e49b;--green2:#0fbf7e;--blue:#5ea1ff;--red:#ff6878;--amber:#f0c45f;--violet:#8b7dff}*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.app,.topbar,.shell,.bottom,.drawerbg,.apxOverlay,.apxPageBanner,.apx2{display:none!important}button,input,select{font:inherit}.as5{min-height:100vh;padding-bottom:70px;background:radial-gradient(circle at 50% -120px,#192442 0,transparent 460px),var(--bg)}.asTop{position:sticky;top:0;z-index:30;background:rgba(7,10,17,.95);backdrop-filter:blur(18px);border-bottom:1px solid #182235}.asBar{height:58px;max-width:1380px;margin:auto;padding:0 14px;display:flex;align-items:center;gap:10px}.asLogo{width:32px;height:32px;border-radius:9px;background:linear-gradient(145deg,#66f0b0,#3c8fff);display:grid;place-items:center;color:#071018;font-weight:1000}.asBrand{font-size:18px;font-weight:950;letter-spacing:-.04em}.asBrand i{font-style:normal;color:var(--green)}.asGrow{flex:1}.asStatus{font-size:9px;color:var(--muted)}.asBtn{height:34px;border:1px solid var(--line2);background:#111927;color:#e6ecf5;border-radius:8px;padding:0 10px;font-size:9px;font-weight:900}.asSports{max-width:1380px;margin:auto;padding:0 12px 7px;display:flex;gap:5px;overflow:auto}.asSport{height:31px;border:1px solid transparent;background:transparent;color:#7f8b9c;border-radius:9px;padding:0 12px;font-size:10px;font-weight:900;white-space:nowrap}.asSport.on{color:#fff;background:#18253a;border-color:#355171}.asMain{max-width:1380px;margin:auto;padding:14px}.asHero{display:flex;gap:10px;align-items:end;margin-bottom:12px}.asHero h1{margin:0;font-size:25px;letter-spacing:-.05em}.asHero p{margin:3px 0 0;color:var(--muted);font-size:11px}.asHeroBadge{margin-left:auto;border:1px solid #285a46;background:#0e241c;color:#7ef0bd;border-radius:999px;padding:7px 10px;font-size:8px;font-weight:950}.asFilters{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(4,minmax(115px,.7fr));gap:6px;margin-bottom:10px}.asControl{height:39px;border:1px solid var(--line);background:#0c121d;color:#eef2f8;border-radius:9px;padding:0 10px;font-size:10px;outline:none}.asControl:focus{border-color:#4e78aa}.asSummary{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:10px}.asSummaryItem{border:1px solid var(--line);background:#0c121c;border-radius:10px;padding:9px 10px}.asSummaryItem small{display:block;color:#738198;font-size:7px;text-transform:uppercase;letter-spacing:.08em;font-weight:900}.asSummaryItem b{display:block;font-size:14px;margin-top:2px}.asHeaderRow{display:grid;grid-template-columns:minmax(270px,1.4fr) 82px 82px repeat(5,70px) 90px 94px;gap:0;padding:0 12px 6px;color:#657389;font-size:7px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}.asList{display:grid;grid-template-columns:1fr;gap:7px}.asRow{border:1px solid #25334c;background:linear-gradient(180deg,#111a2a 0,#0b1019 100%);border-radius:12px;overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.14);cursor:pointer}.asRowMain{display:grid;grid-template-columns:minmax(270px,1.4fr) 82px 82px repeat(5,70px) 90px 94px;align-items:center;min-height:78px}.asPlayerCell{display:grid;grid-template-columns:50px 1fr;gap:10px;align-items:center;padding:9px 12px}.asAvatar{width:48px;height:48px;border-radius:50%;overflow:hidden;background:#172137;border:1px solid #3a4968;position:relative}.asAvatar img{width:100%;height:100%;object-fit:cover;position:relative;z-index:1}.asAvatarFallback{position:absolute;inset:0;display:grid;place-items:center;font-weight:950;color:#9fb3ce}.asPlayer{font-size:13px;font-weight:950;letter-spacing:-.02em}.asGame{font-size:8px;color:#8997aa;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.asMarket{font-size:9px;color:#dfe6f0;margin-top:5px;font-weight:850}.asCell{padding:8px 6px;text-align:center;border-left:1px solid rgba(34,48,73,.62)}.asCell small{display:block;font-size:6px;color:#6f7d92;font-weight:900;text-transform:uppercase}.asCell b{display:block;font-size:10px;margin-top:2px}.asCell .good{color:var(--green)}.asCell .bad{color:var(--red)}.asCell .warn{color:var(--amber)}.asLine{font-size:15px!important}.asQuote{font-size:8px;color:#94a1b4;margin-top:2px}.asBookRail{display:flex;gap:5px;overflow:auto;border-top:1px solid var(--line);padding:7px 9px}.asBookChip{min-width:108px;border:1px solid #283650;background:#0a0f18;border-radius:8px;padding:6px}.asBookTop{display:flex;justify-content:space-between;font-size:7px;color:#7f8da2}.asBookTop b{color:#fff}.asBookVals{display:flex;gap:7px;margin-top:3px;font-size:8px;font-weight:850}.asBookVals .o{color:var(--green)}.asBookVals .u{color:var(--blue)}.asRowActions{display:flex;align-items:center;gap:7px;border-top:1px solid #1f2a3e;padding:6px 10px;font-size:7px;color:#6f7d91}.asSource{color:#8cb4ee}.asSave{margin-left:auto;height:25px;border:1px solid var(--line2);background:#101827;color:#aab6c7;border-radius:7px;padding:0 8px;font-size:7px;font-weight:950}.asSave.on{color:#ffd874}.asResearchState{font-weight:900;color:#7d8ba1}.asResearchState.ready{color:var(--green)}.asResearchState.unavailable{color:var(--amber)}.asMobileMetrics{display:none}.asEmpty{padding:56px 20px;text-align:center;color:var(--muted);border:1px solid var(--line);border-radius:14px;background:#0c121c}.asEmpty b{display:block;color:#fff;margin-bottom:6px}.asDrawerBg{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.72);display:none}.asDrawerBg.on{display:block}.asDrawer{position:absolute;right:0;top:0;width:min(820px,100%);height:100%;background:#080d15;overflow:auto;border-left:1px solid var(--line)}.asDrawerHead{position:sticky;top:0;z-index:4;background:rgba(8,13,21,.97);backdrop-filter:blur(18px);padding:11px 14px;border-bottom:1px solid var(--line);display:grid;grid-template-columns:56px 1fr 34px;gap:10px;align-items:center}.asDrawerAvatar{width:54px;height:54px;border-radius:50%;overflow:hidden;background:#172137;border:1px solid #3a4968}.asDrawerAvatar img{width:100%;height:100%;object-fit:cover}.asDrawerHead h2{margin:0;font-size:18px}.asDrawerHead p{margin:2px 0 0;color:#8d9aae;font-size:9px}.asClose{width:34px;height:34px;border:1px solid var(--line2);background:#101827;color:#fff;border-radius:9px}.asDrawerBody{padding:10px}.asSection{border:1px solid var(--line);border-radius:12px;background:#0d131e;margin-bottom:9px;overflow:hidden}.asSectionTitle{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--line)}.asSectionTitle h3{margin:0;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:#8190a4}.asSectionTitle span{margin-left:auto;color:#64748b;font-size:7px}.asSectionBody{padding:10px}.asResearchTop{display:grid;grid-template-columns:1.4fr 1fr;gap:8px}.asPicker{display:flex;gap:6px;align-items:center}.asMarketSelect{height:38px;flex:1;border:1px solid var(--line2);background:#09101a;color:#fff;border-radius:8px;padding:0 8px;font-size:9px}.asLineCtl{display:grid;grid-template-columns:36px 70px 36px;gap:4px}.asLineBtn{border:1px solid var(--line2);background:#111a29;color:#fff;border-radius:8px;font-weight:950}.asLineVal{height:38px;display:grid;place-items:center;border:1px solid #36506f;background:#0b1421;border-radius:8px;font-size:16px;font-weight:1000}.asSideToggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:7px}.asSideBtn{height:32px;border:1px solid var(--line);background:#0a1019;color:#718096;border-radius:8px;font-size:8px;font-weight:950}.asSideBtn.on.over{color:#9af2cb;border-color:#2d6d51;background:#10281e}.asSideBtn.on.under{color:#a9ccff;border-color:#315a8a;background:#0f1d30}.asContext{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}.asCtx{border:1px solid #24334c;background:#0a1019;border-radius:8px;padding:8px}.asCtx small{display:block;color:#718097;font-size:6px;text-transform:uppercase;font-weight:900}.asCtx b{display:block;font-size:10px;margin-top:2px;overflow:hidden;text-overflow:ellipsis}.asWindows{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}.asWindow{border:1px solid #24334c;background:#0a1019;border-radius:8px;padding:7px 5px;text-align:left;color:#fff}.asWindow.on{border-color:#39674f;background:#0e211a}.asWindow small{display:block;color:#8090a6;font-size:6px;font-weight:950}.asWindow b{display:block;font-size:12px;margin-top:2px}.asWindow em{display:block;font-style:normal;color:#7ddcb0;font-size:7px;margin-top:2px}.asChartWrap{overflow-x:auto}.asChart{height:250px;min-width:540px;display:flex;align-items:stretch;gap:5px;position:relative;padding:16px 8px 31px;border-radius:9px;background:linear-gradient(180deg,#0a1019,#07100d)}.asThreshold{position:absolute;left:8px;right:8px;border-top:2px dashed #75849b;z-index:2}.asThresholdLabel{position:absolute;right:8px;transform:translateY(-50%);background:#172238;border:1px solid #3b4b67;border-radius:6px;padding:3px 5px;font-size:7px;font-weight:950;z-index:3}.asBarCol{flex:1;min-width:27px;position:relative;height:100%;display:flex;align-items:flex-end;justify-content:center}.asBar{width:100%;max-width:44px;border:1px solid #2a7658;background:linear-gradient(180deg,#35e8a1,#10875f);border-radius:8px 8px 3px 3px;position:relative;z-index:1;min-height:3px}.asBar.miss{border-color:#713845;background:linear-gradient(180deg,#e16b78,#813341)}.asBar.push{border-color:#746236;background:linear-gradient(180deg,#e5bf5c,#8d6e24)}.asBarVal{position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:950;white-space:nowrap}.asBarLabel{position:absolute;bottom:-25px;left:50%;transform:translateX(-50%);font-size:6px;color:#7b899d;text-align:center;white-space:nowrap}.asChartEmpty{height:180px;display:grid;place-items:center;color:#8390a3;font-size:9px}.asFilterRow{display:flex;gap:5px;overflow:auto;margin-bottom:7px}.asFilterBtn{height:27px;border:1px solid var(--line);background:#0a1019;color:#8592a6;border-radius:7px;padding:0 8px;font-size:7px;font-weight:950;white-space:nowrap}.asFilterBtn.on{color:#fff;border-color:#3d5677;background:#17243a}.asTableWrap{overflow:auto}.asTable{width:100%;min-width:690px;border-collapse:collapse}.asTable th,.asTable td{text-align:left;padding:7px 6px;border-bottom:1px solid #1f2b3e;font-size:8px}.asTable th{color:#718097;font-size:6px;text-transform:uppercase}.asHit{color:var(--green);font-weight:950}.asMiss{color:var(--red);font-weight:950}.asPushText{color:var(--amber);font-weight:950}.asCompare{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:7px 0;border-bottom:1px solid #202b3e;font-size:8px}.asCompare:last-child{border-bottom:0}.asBest{color:var(--green);font-weight:950}.asNotice{color:#92a0b3;font-size:9px;line-height:1.5}.asError{border:1px solid #63434a;background:#211319;color:#f1aab3;border-radius:8px;padding:9px;font-size:9px}.asLoading{height:120px;display:grid;place-items:center;color:#8898ad;font-size:9px}.asPulse{width:22px;height:22px;border-radius:50%;border:2px solid #25334d;border-top-color:var(--green);animation:spin .8s linear infinite;margin:0 auto 8px}@keyframes spin{to{transform:rotate(360deg)}}@media(max-width:980px){.asHeaderRow{display:none}.asRowMain{grid-template-columns:minmax(230px,1.4fr) repeat(4,68px)}.asRowMain>.asCell:nth-of-type(n+6){display:none}.asFilters{grid-template-columns:1fr 1fr 1fr}.asFilters input{grid-column:1/-1}.asSummary{grid-template-columns:repeat(3,1fr)}.asSummaryItem:nth-child(n+4){display:none}}@media(max-width:650px){.asMain{padding:10px}.asBar{padding:0 10px}.asStatus{display:none}.asHero{align-items:start}.asHero h1{font-size:21px}.asHero p{font-size:9px}.asHeroBadge{font-size:7px;padding:6px 8px}.asFilters{grid-template-columns:1fr 1fr}.asFilters input{grid-column:1/-1}.asSummary{grid-template-columns:repeat(3,1fr)}.asRowMain{display:block;min-height:0}.asPlayerCell{grid-template-columns:54px 1fr auto;padding:10px}.asPlayerCell:after{content:attr(data-line);font-size:17px;font-weight:1000;text-align:right}.asRowMain>.asCell{display:none!important}.asMobileMetrics{display:grid!important;grid-template-columns:repeat(6,1fr);border-top:1px solid var(--line)}.asMobileMetrics .asCell{display:block!important;border-left:1px solid var(--line);padding:7px 2px}.asMobileMetrics .asCell:first-child{border-left:0}.asBookRail{padding:7px}.asResearchTop{grid-template-columns:1fr}.asContext{grid-template-columns:repeat(2,1fr)}.asWindows{grid-template-columns:repeat(3,1fr)}.asChart{height:235px;min-width:520px}.asDrawerHead h2{font-size:16px}.asDrawerBody{padding:8px}}</style>`;}
 function shell(){
  document.body.insertAdjacentHTML('beforeend',styles()+`<link rel="stylesheet" href="/assets/autoscout-research.css"><div class="as5" id="as5">
- <header class="asTop"><div class="asBar"><a class="asIdentity" href="/apex" aria-label="Auto Scout Research"><div class="asLogo">A</div><span class="asBrand">AUTO<i>SCOUT</i></span></a><span class="asDesktopLabel">RESEARCH WORKSPACE</span><span class="asGrow"></span><span class="asStatus" id="asStatus">Current sportsbook lines</span><button class="asBtn" id="asRefresh">Refresh</button><button class="asBtn" id="asAccount">Account</button></div><div class="asSports" id="asSports" aria-label="Sports"></div></header>
+ <header class="asTop"><div class="asBar"><a class="asIdentity" href="/apex" aria-label="Auto Scout Research"><div class="asLogo">A</div><span class="asBrand">AUTO<i>SCOUT</i></span></a><span class="asDesktopLabel">RESEARCH WORKSPACE</span><span class="asGrow"></span><span class="asStatus" id="asStatus">Current sportsbook lines</span><button class="asBtn" id="asRefresh">Refresh</button><button class="asBtn" data-view="saved">Saved</button><button class="asBtn" id="asSettings">Settings</button><button class="asBtn" id="asAccount">Account</button></div><div class="asSports" id="asSports" aria-label="Sports"></div></header>
  <main class="asMain"><section class="asHero"><div><h1 id="asPageTitle">Prop Research</h1><p id="asSubtitle" aria-live="polite">Loading current markets…</p></div><span class="asHeroBadge">MAIN LINES ONLY</span></section>
  <section class="asFilters" aria-label="Filter player props"><label class="asSearchLabel"><span class="asSrOnly">Search player, market or team</span><input class="asControl" id="asSearch" placeholder="Search player, market, team…" type="search"></label><label><span class="asSrOnly">Market</span><select class="asControl" id="asMarket"></select></label><label><span class="asSrOnly">Sportsbook</span><select class="asControl" id="asBook"></select></label><label><span class="asSrOnly">Over or Under</span><select class="asControl" id="asSide"><option value="all">Over + Under</option><option value="OVER">Over</option><option value="UNDER">Under</option></select></label><button class="asBtn asFilterTrigger" id="asAdvancedToggle" aria-expanded="false">Filters <span id="asFilterCount"></span></button></section>
  <dialog id="asFilterSheet" class="asFilterSheet" aria-labelledby="asFilterTitle"><div class="asSheetHead"><h2 id="asFilterTitle">Research filters</h2><button class="asBtn" id="asFilterDone">Done</button></div><section id="asAdvanced" class="asAdvanced"></section></dialog><div class="asToolbar"><span id="asResultCount" aria-live="polite"></span><button class="asBtn" id="asRules" role="switch" aria-checked="true">Rules on</button><button class="asBtn" id="asColumns">Columns</button><button class="asBtn" id="asResearchBatch">Load research</button><label>Sort <select class="asControl" id="asSort"><option value="research">Research coverage</option><option value="recent">Recent hit rate</option><option value="l5">L5 hit rate</option><option value="l10">L10 hit rate</option><option value="l15">L15 hit rate</option><option value="season">Season hit rate</option><option value="h2h">H2H hit rate</option><option value="projection">Projection difference</option><option value="books">Most books</option><option value="player">Player A–Z</option><option value="time">Game time</option></select></label></div>
- <section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">— means research has not loaded. Unavailable means no usable value was returned. Pushes are excluded from hit rates.</p></main>
- <nav class="asNav" aria-label="Main navigation"><button data-view="research" class="on">Research</button><a href="/live">Live</a><button data-view="saved">Saved</button><a href="/props">Scanner</a><button id="asSettings" aria-label="Display settings">Settings</button></nav>
+ <section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">— means the connected feeds returned no usable value. 0G means no previous meeting with this opponent. Pushes are excluded from hit rates.</p></main>
+ <nav class="asNav" aria-label="Main navigation"><button data-view="research" class="on" data-icon="props"><span class="asNavIcon" aria-hidden="true">☲</span><span>Props</span></button><button data-view="players" data-icon="players"><span class="asNavIcon" aria-hidden="true">●</span><span>Players</span></button><button data-view="popular" data-icon="popular"><span class="asNavIcon" aria-hidden="true">▲</span><span>Popular</span></button><button data-view="discrepancies" data-icon="trend"><span class="asNavIcon" aria-hidden="true">↗</span><span>Discrepancies</span></button><button id="asDiscord" data-icon="chat"><span class="asNavIcon" aria-hidden="true">○</span><span>Discord</span></button></nav>
  <div class="asDrawerBg" id="asDrawerBg"><aside class="asDrawer" role="dialog" aria-modal="true" aria-labelledby="asDrawerTitle" tabindex="-1"><div class="asDrawerHead"><div class="asDrawerAvatar"><img id="asDrawerImg" alt=""></div><div><h2 id="asDrawerTitle">Player research</h2><span id="asInjuryBadge" class="asInjuryBadge" hidden></span><p id="asDrawerSub"></p></div><button class="asClose" id="asClose" aria-label="Back to research"><span class="asBackText">Back</span><span aria-hidden="true">×</span></button></div><div class="asDrawerBody" id="asDrawerBody"></div></aside></div>
  <dialog id="asUtility" class="asUtility" aria-labelledby="asUtilityTitle"></dialog><div id="asToast" class="asToast" role="status" aria-live="polite"></div></div>`);
  document.getElementById('asRefresh').onclick=()=>load();
@@ -85,7 +87,12 @@ function shell(){
  document.getElementById('asColumns').onclick=columnsPanel;
  document.getElementById('asClose').onclick=closeDrawer;
  document.getElementById('asDrawerBg').onclick=e=>{if(e.target.id==='asDrawerBg')closeDrawer();};
- document.querySelectorAll('[data-view]').forEach(b=>b.onclick=async()=>{activeView=b.dataset.view;displayCount=40;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on',x===b));document.getElementById('asPageTitle').textContent=activeView==='saved'?'Saved Props':'Prop Research';renderControls();renderAdvanced();renderList();if(activeView==='saved'){b.disabled=true;try{await loadSaved();if(activeView==='saved'){renderControls();renderAdvanced();renderList();}}finally{b.disabled=false;}}});
+ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=async()=>{activeView=b.dataset.view;displayCount=40;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on',x===b));document.getElementById('asPageTitle').textContent=BOARD_VIEWS[activeView]||'Prop Research';renderControls();renderAdvanced();renderList();if(activeView==='saved'){b.disabled=true;try{await loadSaved();if(activeView==='saved'){renderControls();renderAdvanced();renderList();}}finally{b.disabled=false;}}});
+ document.getElementById('asDiscord').onclick=()=>{
+  var url=typeof window.AUTOSCOUT_DISCORD_URL==='string'?window.AUTOSCOUT_DISCORD_URL:'';
+  if(/^https:\/\/(discord\.gg|discord\.com)\//.test(url)){window.open(url,'_blank','noopener');return;}
+  toast('No Discord invite is configured yet.');
+ };
  document.getElementById('asAccount').onclick=accountPanel;
  document.getElementById('asSettings').onclick=settingsPanel;
  document.addEventListener('keydown',e=>{if(!drawerState)return;if(e.key==='Escape'){e.preventDefault();closeDrawer();}if(e.key==='Tab'){var items=Array.from(document.querySelectorAll('.asDrawer button,.asDrawer select,.asDrawer input,.asDrawer a')).filter(x=>!x.disabled&&x.getClientRects().length);var first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}});
@@ -114,7 +121,18 @@ function visible(ignoreResearch=false){
      timeWindow:advanced.today?'TODAY':'ALL',minProjectionDelta:ignoreResearch||!rulesEnabled?null:advanced.delta??null,startsAfter:dayBoundary(advanced.day),startsBefore:advanced.before||dayBoundary(advanced.day,true)}).matchesFilters);
  });
  function score(g){var r=researchFor(g),c=r?.context||{};if(sortBy==='books')return books(g).length;if(sortBy==='time')return Number.isFinite(Date.parse(g.gameStartTime))?-Date.parse(g.gameStartTime):null;if(sortBy==='projection')return num(c.projection)==null?null:(defaultSide(g)==='UNDER'?-1:1)*(num(c.projection)-boardLine(g));if(sortBy==='research')return r?.available?2:r?.sections?.context?1:0;if(sortBy==='recent')return num(r?.windows?.l5?.hitRate);return num(sortBy==='h2h'?r?.h2h?.hitRate:r?.windows?.[sortBy]?.hitRate);}
- a.sort((a,b)=>{if(sortBy==='player')return a.playerName.localeCompare(b.playerName);var av=score(a),bv=score(b);return av==null&&bv!=null?1:bv==null&&av!=null?-1:(bv??0)-(av??0)||a.playerName.localeCompare(b.playerName)||a.key.localeCompare(b.key);});return a;
+ a.sort((a,b)=>{if(sortBy==='player')return a.playerName.localeCompare(b.playerName);var av=score(a),bv=score(b);return av==null&&bv!=null?1:bv==null&&av!=null?-1:(bv??0)-(av??0)||a.playerName.localeCompare(b.playerName)||a.key.localeCompare(b.key);});
+ if(activeView==='players')a.sort((x,y)=>x.playerName.localeCompare(y.playerName)||x.market.localeCompare(y.market));
+ if(activeView==='popular')a.sort((x,y)=>books(y).length-books(x).length||x.playerName.localeCompare(y.playerName));
+ if(activeView==='discrepancies'){a=a.filter(g=>lineSpread(g)>0);a.sort((x,y)=>lineSpread(y)-lineSpread(x));}
+ return a;
+}
+// A real disagreement between books on the same side, in the units of the
+// market itself. Books that do not quote the side contribute nothing.
+function lineSpread(g){
+ var side=defaultSide(g),lines=sideRows(g,side).map(r=>num(r.line)).filter(v=>v!=null);
+ if(lines.length<2)return 0;
+ return Number((Math.max.apply(null,lines)-Math.min.apply(null,lines)).toFixed(2));
 }
 function researchParams(g,line,side){var q=new URLSearchParams({sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:String(line==null?'':line),side:side||defaultSide(g),games:'40',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',team:g.team||''});return q.toString();}
 async function getResearch(g,line,side,force){
@@ -137,25 +155,193 @@ function hrClass(v){var x=num(v);return x==null?'warn':x>=70?'good':x<45?'bad':'
 function windowMetric(r,id){var w=r&&r.available&&r.windows&&r.windows[id];return w?'<b class="'+hrClass(w.hitRate)+'">'+pct(w.hitRate)+'</b><div class="asQuote">avg '+dec(w.average,1)+'</div>':'<b>—</b>';}
 function projMetric(r,line){var p=r&&r.available&&r.context?num(r.context.projection):null,l=num(line);if(p==null)return'<b>—</b>';var d=l==null?null:p-l;return'<b>'+dec(p,1)+'</b><div class="asQuote '+(d!=null&&d>0?'good':d!=null&&d<0?'bad':'')+'">Δ '+(d==null?'—':(d>0?'+':'')+dec(d,1))+'</div>';}
 function bookRail(g){var map=new Map();g.rows.forEach(function(r){var k=r.sportsbookKey||r.sportsbook;if(!map.has(k))map.set(k,{key:k,name:r.sportsbook||k,o:null,u:null});map.get(k)[r.side==='OVER'?'o':'u']=r;});return Array.from(map.values()).sort(function(a,b){return String(a.name).localeCompare(String(b.name));}).map(function(x){return'<div class="asBookChip"><div class="asBookTop"><b>'+esc(String(x.name||x.key).slice(0,14))+'</b><span>'+esc(x.key||'')+'</span></div><div class="asBookVals"><span class="o">O '+esc(x.o?x.o.line:'—')+' '+esc(x.o?money(x.o.price):'')+'</span><span class="u">U '+esc(x.u?x.u.line:'—')+' '+esc(x.u?money(x.u.price):'')+'</span></div></div>';}).join('');}
-function rowHtml(g){
- var line=boardLine(g),side=defaultSide(g),quote=bestPrice(g,side,line)||sideRows(g,side).find(x=>num(x.line)===num(line)&&(bookFilter==='all'||x.sportsbookKey===bookFilter)),r=researchFor(g,line,side),c=r?.context||{},team=g.team||r?.player?.team||c.team,position=g.position||c.position||c.playerPosition;
- var metric=(label,value,sub='')=>'<div class="asCell" data-column="'+metricColumn(label)+'"><small>'+esc(label)+'</small><b class="'+(value==='Unavailable'?'asUnavailable':'')+'">'+value+'</b>'+(sub?'<div class="asQuote">'+sub+'</div>':'')+'</div>';
- var win=k=>metric(k==='season'?'Season':k.toUpperCase(),r?pct(r?.windows?.[k]?.hitRate):'—',num(r?.windows?.[k]?.average)==null?'':dec(r.windows[k].average)+' avg · '+r.windows[k].games+' games');
- var state=researchInflight.has(researchKey(g,line,side))?'Loading research':r?(r.available?'Game log available':r.sections?.context?'Partial research available':'Historical data unavailable'):'Open to research';
- return `<article class="asRow" data-open="${esc(g.key)}" tabindex="0" aria-label="Research ${esc(g.playerName+' '+g.market)}"><div class="asRowMain"><div class="asPlayerCell"><div class="asAvatar"><div class="asAvatarFallback">${esc(initials(g.playerName))}</div><img loading="lazy" src="${esc(artUrl(g))}" alt=""></div><div><div class="asPlayer">${esc(g.playerName)}</div><div class="asGame">${esc([displayTeam(team),position].filter(Boolean).join(' · ')||'Team / position unavailable')}</div><div class="asGame">${esc(g.awayTeam+' @ '+g.homeTeam)} · ${esc(when(g.gameStartTime))}</div><div class="asMarket">${esc(g.market)}</div></div></div>${metric(g.archived?'Saved line':'Line',esc(dec(line)),esc(side+' · '+money(quote?.price))+'<br>'+esc(quote?.sportsbook||'Price unavailable'))}${metric('Projection',r?dec(c.projection):'—',num(c.projection)!=null?'Δ '+dec((side==='UNDER'?-1:1)*(num(c.projection)-line)):'')}${win('l5')}${win('l10')}${win('l15')}${win('season')}${metric('H2H',r?pct(r?.h2h?.hitRate):'—',num(r?.h2h?.average)!=null?dec(r.h2h.average)+' avg':'')}${metric('L10 average',r?dec(r?.windows?.l10?.average):'—')}${metric('Books',books(g).length)}</div><div class="asMobileMetrics">${metric(g.archived?'Saved line':'Line',dec(line),esc(side+' · '+money(quote?.price))+'<br>'+esc(quote?.sportsbook||'Sportsbook unavailable'))}${metric('Projection',r?dec(c.projection):'—')}${win('l5')}${win('l10')}${win('l15')}${win('season')}${metric('H2H',r?pct(r?.h2h?.hitRate):'—')}${metric('Books',books(g).length)}</div><div class="asBookRail">${bookRail(g)}</div><div class="asRowActions"><span class="asResearchState ${r?.available?'ready':''}">${esc(g.archived?'Saved snapshot · no current line':state)}</span><span class="asRowUpdated">${g.archived?esc(shortDate(g.savedAt)):esc(shortDate(g.rows[0]?.providerUpdatedAt))}</span><button class="asSave ${favorites.has(g.key)?'on':''}" data-fav="${esc(g.key)}" aria-label="${favorites.has(g.key)?'Unsave':'Save'} ${esc(g.playerName+' '+g.market)}" aria-pressed="${favorites.has(g.key)}" ${savePending.has(g.key)?'disabled aria-busy="true"':''}>${favorites.has(g.key)?'★ Saved':'☆ Save'}</button></div></article>`;
+// ---------------------------------------------------------------------------
+// PickFinder-style compact card.
+//
+// Every value below comes from the hydrated research payload or from the live
+// sportsbook rows. Where a feed supplies nothing the cell renders an em dash;
+// nothing here invents a number, and no badge is coloured off an absent value.
+// ---------------------------------------------------------------------------
+function rateTone(v){var x=num(v);return x==null?'':x>=60?'hot':x<=40?'cold':'';}
+function headlineWindow(r){
+ if(!r||!r.available||!r.windows)return null;
+ var ids=['season','l20','l15','l10','l5'];
+ for(var i=0;i<ids.length;i++){var w=r.windows[ids[i]];if(w&&num(w.hitRate)!=null)return{id:ids[i],w:w};}
+ return null;
 }
+// Hit rates are measured over decided games, so the two sides of one window sum
+// to 100 by construction; the opposite side is a restatement, not an estimate.
+function gaugeRates(r,side){
+ var h=headlineWindow(r);if(!h)return null;
+ var active=num(h.w.hitRate);if(active==null)return null;
+ var over=side==='UNDER'?100-active:active;
+ return{over:over,under:100-over,basis:h.w.label||h.id.toUpperCase(),games:num(h.w.games)};
+}
+function ringGauge(rates){
+ if(!rates)return '<div class="asRing asRingEmpty"><b>—</b><small>No game log</small></div>';
+ var radius=26,circumference=2*Math.PI*radius,over=Math.max(0,Math.min(100,rates.over));
+ var arc=(over/100)*circumference;
+ return '<div class="asRing"><svg class="asRingSvg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Over '+over.toFixed(1)+' percent, under '+(100-over).toFixed(1)+' percent">'
+  +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#4c0519" stroke-width="7"></circle>'
+  +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#f43f5e" stroke-width="7" stroke-dasharray="'+(circumference-arc).toFixed(2)+' '+arc.toFixed(2)+'" stroke-dashoffset="'+(-arc).toFixed(2)+'" transform="rotate(-90 32 32)"></circle>'
+  +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#10b981" stroke-width="7" stroke-dasharray="'+arc.toFixed(2)+' '+(circumference-arc).toFixed(2)+'" transform="rotate(-90 32 32)"></circle>'
+  +'<text x="32" y="32" class="asRingMid" text-anchor="middle" dominant-baseline="central">'+Math.round(over)+'%</text>'
+  +'</svg><div class="asRingText"><b class="asOverPct">O '+over.toFixed(1)+'%</b><span class="asUnderPct">U '+(100-over).toFixed(1)+'%</span>'
+  +'<em>'+esc(rates.basis)+(rates.games?' · '+rates.games+'g':'')+'</em></div></div>';
+}
+function badge(id,label,value,tone,sub){
+ return '<div class="asBadge '+tone+'"'+(id?' data-column="'+esc(id)+'"':'')+'><small>'+esc(label)+'</small><b>'+esc(value)+'</b><em>'+esc(sub||'')+'</em></div>';
+}
+function windowBadge(r,id,label,column){
+ var w=r&&r.available&&r.windows?r.windows[id]:null,rate=w?num(w.hitRate):null;
+ return badge(column||id,label,rate==null?'—':Math.round(rate)+'%',rateTone(rate),w&&num(w.games)?w.games+'g':'');
+}
+// A player who has never faced this opponent has a real answer — no meetings —
+// which is not the same as a lookup that failed.
+function h2hBadge(r){
+ if(!r||!r.available)return badge('h2h','H2H','—','','');
+ var games=num(r.coverage&&r.coverage.h2hGames);
+ if(games===0)return badge('h2h','H2H','0G','','no meetings');
+ var h=r.h2h||{},hits=num(h.hits),misses=num(h.misses),rate=num(h.hitRate);
+ var record=hits==null||misses==null?'—':hits+'/'+(hits+misses);
+ return badge('h2h','H2H',record,rateTone(rate),rate==null?(games?games+'g':''):Math.round(rate)+'%');
+}
+function streakBadge(r,side){
+ var streak=r&&r.available?r.streak:null,count=streak?num(streak.count):null;
+ if(count==null)return badge('','STRK','—','','');
+ return badge('','STRK',String(count),count>=3?'hot':count===0?'cold':'',(side==='UNDER'?'under':'over'));
+}
+function averageBadge(r){
+ var h=headlineWindow(r),average=h?num(h.w.average):null;
+ if(average==null){var l10=r&&r.available&&r.windows?num(r.windows.l10&&r.windows.l10.average):null;
+  return badge('average','AVG',l10==null?'—':dec(l10,1),'',l10==null?'':'L10');}
+ return badge('average','AVG',dec(average,1),'',h.id==='season'?'SZN':h.id.toUpperCase());
+}
+function diffBadge(r,side){
+ var d=r&&r.available?r.diff:null,value=d?num(d.value):null;
+ if(value==null)return badge('','DIFF','—','','');
+ var favourable=side==='UNDER'?value<0:value>0,percent=num(d.percent);
+ return badge('','DIFF',(value>0?'+':'')+dec(value,1),value===0?'':favourable?'hot':'cold',
+  percent==null?'':(percent>0?'+':'')+Math.round(percent)+'%');
+}
+function badgeStrip(g,r,side){
+ return '<div class="asBadges">'+windowBadge(r,'l5','L5')+windowBadge(r,'l10','L10')+windowBadge(r,'l15','L15')
+  +h2hBadge(r)+streakBadge(r,side)+averageBadge(r)+diffBadge(r,side)+windowBadge(r,'season','SZN','season')+'</div>';
+}
+// Opponent defensive rank and team moneyline are rendered only when a feed
+// actually supplies them. Neither is derivable from the connected player-prop
+// and game-log feeds, so on the current data these pills stay hidden rather
+// than showing a placeholder that looks like a real ranking.
+function matchupPills(r){
+ var c=r&&r.context?r.context:{},pills=[];
+ var rank=num(c.opponentDefenseRank!=null?c.opponentDefenseRank:c.defenseRank);
+ var moneyline=num(c.moneylineProbability!=null?c.moneylineProbability:c.winProbability);
+ var injury=c.injuryStatus||c.injury||null;
+ if(rank!=null)pills.push('<span class="asPill"><i aria-hidden="true">◆</i> Defense #'+Math.round(rank)+'</span>');
+ if(moneyline!=null)pills.push('<span class="asPill">Moneyline '+Math.round(moneyline<=1?moneyline*100:moneyline)+'%</span>');
+ if(injury)pills.push('<span class="asPill asPillWarn">'+esc(String(injury).slice(0,28))+'</span>');
+ return pills.length?'<div class="asMatchPills">'+pills.join('')+'</div>':'';
+}
+function oddsStrip(g){
+ var map=new Map();
+ g.rows.forEach(function(r){var k=r.sportsbookKey||r.sportsbook;if(!map.has(k))map.set(k,{key:k,name:r.sportsbook||k,o:null,u:null});
+  map.get(k)[r.side==='OVER'?'o':'u']=r;});
+ var chips=Array.from(map.values()).sort(function(a,b){return String(a.name).localeCompare(String(b.name));}).map(function(x){
+  return '<div class="asOddsChip"><b>'+esc(String(x.name||x.key).slice(0,16))+'</b><span>'
+   +(x.o?'<i class="o">O '+esc(dec(x.o.line))+' '+esc(money(x.o.price))+'</i>':'')
+   +(x.u?'<i class="u">U '+esc(dec(x.u.line))+' '+esc(money(x.u.price))+'</i>':'')+'</span></div>';});
+ return chips.length?'<div class="asOddsStrip" aria-label="Sportsbook lines">'+chips.join('')+'</div>':'';
+}
+function rowHtml(g){
+ var line=boardLine(g),side=defaultSide(g);
+ var quote=bestPrice(g,side,line)||sideRows(g,side).find(x=>num(x.line)===num(line)&&(bookFilter==='all'||x.sportsbookKey===bookFilter));
+ var r=researchFor(g,line,side),c=r&&r.context?r.context:{};
+ var team=g.team||(r&&r.player?r.player.team:null)||c.team,position=g.position||c.position||c.playerPosition;
+ var state=researchInflight.has(researchKey(g,line,side))||hydrating?'Loading research'
+  :r?(r.available?'Game log available':r.sections&&r.sections.context?'Partial research available':'Historical data unavailable')
+  :'Open to research';
+ var marketLabel=(line==null?'':'O/U '+dec(line)+' ')+g.market;
+ return '<article class="asRow asCard" data-open="'+esc(g.key)+'" tabindex="0" aria-label="Research '+esc(g.playerName+' '+g.market)+'">'
+  +'<div class="asCardHead">'
+   +'<div class="asAvatar"><div class="asAvatarFallback">'+esc(initials(g.playerName))+'</div><img loading="lazy" src="'+esc(artUrl(g))+'" alt=""></div>'
+   +'<div class="asCardId"><div class="asCardName"><span class="asPlayer">'+esc(g.playerName)+'</span>'
+    +(displayTeam(team)?'<span class="asTeamBadge">'+esc(displayTeam(team))+'</span>':'')
+    +(position?'<span class="asPos">'+esc(position)+'</span>':'')+'</div>'
+    +'<div class="asCardMatch"><span>'+esc(displayTeam(g.awayTeam)+' @ '+displayTeam(g.homeTeam))+'</span><span class="asCardTime">'+esc(when(g.gameStartTime))+'</span></div>'
+    +'<div class="asCardMarket">'+esc(marketLabel)+(quote&&num(quote.price)!=null?'<span class="asCardPrice">'+esc(side+' '+money(quote.price))+(quote.sportsbook?' · '+esc(quote.sportsbook):'')+'</span>':'')+'</div>'
+   +'</div>'
+   +'<div class="asCardGauge">'+ringGauge(gaugeRates(r,side))+'</div>'
+  +'</div>'
+  +matchupPills(r)
+  +badgeStrip(g,r,side)
+  +oddsStrip(g)
+  +'<div class="asRowActions"><span class="asResearchState '+(r&&r.available?'ready':'')+'">'
+   +esc(g.archived?'Saved snapshot · no current line':state)+'</span>'
+   +'<span class="asRowUpdated">'+esc(g.archived?shortDate(g.savedAt):shortDate(g.rows[0]&&g.rows[0].providerUpdatedAt))+'</span>'
+   +'<button class="asSave '+(favorites.has(g.key)?'on':'')+'" data-fav="'+esc(g.key)+'" aria-label="'
+   +(favorites.has(g.key)?'Unsave':'Save')+' '+esc(g.playerName+' '+g.market)+'" aria-pressed="'+favorites.has(g.key)+'"'
+   +(savePending.has(g.key)?' disabled aria-busy="true"':'')+'>'+(favorites.has(g.key)?'★ Saved':'☆ Save')+'</button>'
+  +'</div></article>';
+}
+
 function renderSummary(){var gs=groups(),events=uniq(gs.map(function(g){return g.eventId;})).length,booksAll=uniq(gs.flatMap(function(g){return books(g);})).length,ready=gs.filter(function(g){var r=researchFor(g);return r&&r.available;}).length;document.getElementById('asSummary').innerHTML=[['Markets',gs.length],['Events',events],['Sportsbooks',booksAll],['Research ready',ready],['Live lines',(payload.props||[]).length]].map(function(x){return'<div class="asSummaryItem"><small>'+esc(x[0])+'</small><b>'+esc(x[1])+'</b></div>';}).join('');}
 function renderList(){persistFilters();updateFilterStatus();renderListLight();}
 function bindRows(){document.querySelectorAll('[data-open]').forEach(el=>{var open=()=>{var g=groups().find(x=>x.key===el.dataset.open)||(()=>{var saved=savedRecords.get(el.dataset.open);return saved?{...saved,archived:true}:null;})();if(g)openDrawer(g);};el.onclick=open;el.onkeydown=e=>{if(e.target===el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();open();}};});document.querySelectorAll('[data-fav]').forEach(b=>b.onclick=async e=>{e.stopPropagation();b.disabled=true;await toggleSaved(b.dataset.fav);renderListLight();});}
+// Resolve the visible slate in one request so the board arrives with its hit
+// rates already computed, instead of a grid of dashes waiting on clicks.
+function hydrateKeyFor(g){return researchKey(g,boardLine(g),defaultSide(g));}
+function hydrateTargets(){
+ return visible(true).filter(function(g){
+  var key=hydrateKeyFor(g);
+  return !researchFor(g,boardLine(g),defaultSide(g))&&!researchInflight.has(key)&&!hydrated.has(key);
+ }).slice(0,Math.max(12,Math.min(60,displayCount)));
+}
+async function hydrateBoard(){
+ if(hydrating)return;
+ var targets=hydrateTargets();
+ if(!targets.length)return;
+ var generation=loadGeneration,selected=sport;
+ hydrating=true;
+ targets.forEach(function(g){hydrated.add(hydrateKeyFor(g));});
+ renderBatchControl();
+ try{
+  var response=await nativeFetch('/api/apex/research-batch',{method:'POST',headers:{'content-type':'application/json'},
+   body:JSON.stringify({props:targets.map(function(g){var line=boardLine(g),side=defaultSide(g);
+    return {key:researchKey(g,line,side),sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',
+     line:line,side:side,team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',games:40};})})});
+  var body=await response.json();
+  if(generation!==loadGeneration||selected!==sport)return;
+  if(!response.ok||!body||!body.results)throw Error('batch');
+  hydrateFailed=false;
+  targets.forEach(function(g){
+   var key=hydrateKeyFor(g),out=body.results[key];
+   if(!out)return;
+   var entry={value:out,expires:Date.now()+(out.available?15:5)*60000};
+   researchCache.set(key,entry);researchCache.set('base|'+g.key,entry);
+  });
+ }catch(e){hydrateFailed=true;}
+ finally{
+  hydrating=false;
+  if(generation===loadGeneration&&selected===sport)renderListLight();
+ }
+}
+function renderBatchControl(){
+ var batch=document.getElementById('asResearchBatch');
+ if(!batch)return;
+ var pending=hydrateTargets().length;
+ batch.disabled=hydrating;
+ batch.textContent=hydrating?'Loading research…':hydrateFailed?'Retry research':pending?'Research '+pending+' more':'Research loaded';
+ batch.onclick=function(){if(hydrateFailed){hydrated.clear();hydrateFailed=false;}hydrateBoard();};
+}
 async function prefetch(list){await Promise.all(list.map(async g=>{await getResearch(g,boardLine(g),defaultSide(g),false);if(g.sport===sport)renderListLight();}));}
 function renderListLight(){
  var list=document.getElementById('asList'),a=visible(),focused=(list.contains(document.activeElement)||document.querySelector('.asHeaderRow').contains(document.activeElement))?focusToken(document.activeElement):null,origin=focusToken(lastFocus);
  applyColumnHeaders();document.getElementById('asResultCount').textContent=a.length+' markets · '+(activeView==='saved'?(saveLoadError?'Saved props unavailable':serverSaves?'Saved to access profile':'Saved on this device'):'Available board');
  if(!a.length){list.innerHTML='<div class="asEmpty"><b>'+esc(activeView==='saved'?'No saved props in this view.':payload.meta?.warning?'Props could not load.':(payload.props||[]).length?'No props match your filters.':'No live props available for '+sport+'.')+'</b><p>'+esc(activeView==='saved'?'Save a prop to return to it here.':(payload.props||[]).length?'Clear filters or try another market.':'Try another sport or refresh shortly.')+'</p><button class="asBtn" id="asResetEmpty">'+((payload.props||[]).length?'Clear filters':'Refresh')+'</button></div>';document.getElementById('asResetEmpty').onclick=()=>{query='';marketFilter=bookFilter=sideFilter='all';advanced={};document.getElementById('asSearch').value='';document.getElementById('asSide').value='all';renderAdvanced();renderControls();(payload.props||[]).length?renderList():load();};}
  else{list.innerHTML=a.slice(0,displayCount).map(rowHtml).join('');bindRows();}
- var pending=visible(true).filter(g=>!researchFor(g)&&!researchInflight.has(researchKey(g,boardLine(g),defaultSide(g))));
  document.getElementById('asMore').innerHTML=(a.length>displayCount?'<button class="asBtn" id="asShowMore">Show next 40 markets</button>':'');
- var batch=document.getElementById('asResearchBatch');batch.disabled=!pending.length;batch.textContent=pending.length?'Research '+Math.min(12,pending.length)+' props':researchInflight.size?'Loading research…':'Research loaded';batch.onclick=e=>{e.target.disabled=true;prefetch(pending.slice(0,12));};
+ renderBatchControl();
+ if(!hydrateFailed)hydrateBoard();
  document.getElementById('asShowMore')?.addEventListener('click',()=>{displayCount+=40;renderListLight();});renderSummary();lastFocus=focusElement(origin)||lastFocus;if(focused&&!drawerState)restoreFocus(focused);
 }
 function normTeam(v){return String(v||'').toUpperCase().replace(/[^A-Z]/g,'');}
@@ -248,7 +434,7 @@ function renderDrawer(){
 }
 function render(){renderSports();renderControls();renderSummary();var m=payload.meta||{};document.getElementById('asSubtitle').textContent=(m.stale?'Last available board · ':'')+sport+' · '+(m.events||0)+' events · '+(m.sportsbookCount||0)+' sportsbooks'+(m.fetchedAt?' · Updated '+new Date(m.fetchedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'');document.getElementById('asStatus').textContent=m.stale?'Last available lines':'Main sportsbook lines';if(!document.getElementById('asAdvanced').contains(document.activeElement))renderAdvanced();renderList();}
 async function load(){
- var generation=++loadGeneration,selected=sport,keepBoard=payloadSport===selected&&(payload.props||[]).length>0;loadController?.abort();loadController=new AbortController();loading=true;renderSports();document.getElementById('asRefresh').disabled=true;
+ hydrated.clear();hydrateFailed=false;var generation=++loadGeneration,selected=sport,keepBoard=payloadSport===selected&&(payload.props||[]).length>0;loadController?.abort();loadController=new AbortController();loading=true;renderSports();document.getElementById('asRefresh').disabled=true;
  document.getElementById('asStatus').textContent=keepBoard?'Refreshing lines…':'Loading lines…';
  if(!keepBoard){document.getElementById('asSubtitle').textContent='Loading '+selected+' markets…';document.getElementById('asList').innerHTML=Array.from({length:5},()=>'<div class="asSkeleton" aria-hidden="true"></div>').join('');}
  document.getElementById('asList').setAttribute('aria-busy','true');
@@ -267,7 +453,6 @@ function persistFilters(){storeLocal('autoscout-filters-'+sport,{query,market:ma
 function dayBoundary(day,end=false){if(!/^\d{4}-\d{2}-\d{2}$/.test(day||''))return null;var d=new Date(day+'T00:00:00');if(end)d.setDate(d.getDate()+1);return Number.isFinite(d.getTime())?new Date(d.getTime()-(end?1:0)).toISOString():null;}
 function activeFilterCount(){return Number(!!query)+Number(marketFilter!=='all')+Number(bookFilter!=='all')+Number(sideFilter!=='all')+['team','opponent','game','before','day','today'].filter(k=>!!advanced[k]).length+Number(!!advanced.availability&&advanced.availability!=='ALL')+(rulesEnabled?Object.values(advanced.thresholds||{}).filter(v=>num(v)!=null).length+Number(num(advanced.delta)!=null):0);}
 function updateFilterStatus(){var count=activeFilterCount();document.getElementById('asFilterCount').textContent=count?'('+count+')':'';var b=document.getElementById('asRules');b.setAttribute('aria-checked',String(rulesEnabled));b.textContent='Rules '+(rulesEnabled?'on':'off');b.title='Optional hit-rate and projection thresholds. Regular lines are always required.';}
-function metricColumn(label){return ({Projection:'projection',L5:'l5',L10:'l10',L15:'l15',Season:'season',H2H:'h2h','L10 average':'average',Books:'books'})[label]||'line';}
 function visibleColumns(){var hidden=Array.isArray(prefs.hiddenColumns)?prefs.hiddenColumns:[];return COLUMN_DEFS.filter(([id])=>!hidden.includes(id));}
 function applyColumnHeaders(){var cols=visibleColumns(),root=document.getElementById('as5');root.style.setProperty('--as-columns','minmax(250px,2.5fr) 132px '+cols.map(c=>c[2]+'px').join(' '));root.style.setProperty('--as-table-min',(382+cols.reduce((n,c)=>n+c[2],0))+'px');COLUMN_DEFS.forEach(([id])=>root.classList.toggle('asHide-'+id,!cols.some(c=>c[0]===id)));document.querySelector('.asHeaderRow').innerHTML='<span>Player / market</span><span>Line / book</span>'+cols.map(([id,label])=>['projection','l5','l10','l15','season','h2h','books'].includes(id)?'<button class="asColumnSort" data-sort="'+id+'" aria-pressed="'+(sortBy===id)+'" aria-label="Sort by '+label+'">'+label+(sortBy===id?' ↓':'')+'</button>':'<span>'+label+'</span>').join('');document.querySelectorAll('[data-sort]').forEach(b=>b.onclick=()=>{sortBy=b.dataset.sort;document.getElementById('asSort').value=sortBy;renderList();});}
 function columnsPanel(){utility('Visible columns','<div class="asSettings">'+COLUMN_DEFS.map(([id,label])=>'<label><span>'+label+'</span><input type="checkbox" data-column-setting="'+id+'" '+(visibleColumns().some(c=>c[0]===id)?'checked':'')+'></label>').join('')+'</div><p class="asNotice">Player and sportsbook line always remain visible.</p>');document.querySelectorAll('[data-column-setting]').forEach(el=>el.onchange=()=>{var hidden=new Set(Array.isArray(prefs.hiddenColumns)?prefs.hiddenColumns:[]);if(el.checked)hidden.delete(el.dataset.columnSetting);else hidden.add(el.dataset.columnSetting);prefs.hiddenColumns=Array.from(hidden);storeLocal('autoscout-preferences',prefs);renderListLight();});}

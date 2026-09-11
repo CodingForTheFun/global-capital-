@@ -12,6 +12,9 @@ const APEX_NEXT_PORT = 3003;
 const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v5.js', 'utf8').replace(/<\/script/gi, '<\\/script');
 const ARTWORK_SPORTS = new Set(['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB']);
 const researchLimits = new Map();
+// One board load hydrates at most this many cards, resolved this many at a time.
+const MAX_BATCH_PROPS = 60;
+const BATCH_CONCURRENCY = 8;
 const CLIENT_MODULES = new Map([
   'lib/analytics/research.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
   'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
@@ -163,6 +166,99 @@ async function maybeServeResearch(req, res) {
   return true;
 }
 
+function readJsonBody(req, limit = 96 * 1024) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > limit) { req.destroy(); resolve(null); return; }
+      chunks.push(Buffer.from(chunk));
+    });
+    req.on('end', () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+      catch { resolve(null); }
+    });
+    req.on('error', () => resolve(null));
+  });
+}
+
+function batchEntry(raw) {
+  const text = (value, max) => String(value ?? '').trim().slice(0, max);
+  const sport = text(raw?.sport, 12).toUpperCase();
+  const playerName = text(raw?.playerName, 90);
+  const market = text(raw?.market, 100);
+  const key = text(raw?.key, 200);
+  const line = raw?.line === null || raw?.line === undefined || raw?.line === '' ? null : Number(raw.line);
+  const side = text(raw?.side, 10).toUpperCase() || 'OVER';
+  if (!key || !ARTWORK_SPORTS.has(sport) || !playerName || !market) return null;
+  if (line !== null && !Number.isFinite(line)) return null;
+  if (!['OVER', 'UNDER'].includes(side)) return null;
+  return {
+    key,
+    params: {
+      sport, playerName, market, line, side,
+      providerPlayerId: text(raw?.providerPlayerId, 48) || null,
+      team: text(raw?.team, 40) || null,
+      homeTeam: text(raw?.homeTeam, 60) || null,
+      awayTeam: text(raw?.awayTeam, 60) || null,
+      opponent: text(raw?.opponent, 60) || null,
+      providerMarketKey: text(raw?.marketId, 64) || null,
+      games: Math.min(40, Math.max(5, Number(raw?.games) || 40)),
+    },
+  };
+}
+
+/**
+ * Hydrate a whole slate in one request.
+ *
+ * Every card used to wait on its own click, so an opening board was a grid of
+ * dashes. The work per prop is unchanged — this runs the same
+ * `researchPlayerProp` — but resolving the slate together lets the athlete-id
+ * and game-log caches serve the second prop for a player from the first one's
+ * fetch, and returns the finished hit rates with the list.
+ */
+async function maybeServeResearchBatch(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/apex/research-batch') return false;
+  if (req.method !== 'POST') {
+    directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'POST' });
+    return true;
+  }
+  if (!researchRateAllowed(req)) {
+    directJson(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many research requests. Try again shortly.' }, { 'retry-after': '60' });
+    return true;
+  }
+  const body = await readJsonBody(req);
+  const requested = Array.isArray(body?.props) ? body.props.slice(0, MAX_BATCH_PROPS) : null;
+  if (!requested?.length) {
+    directJson(res, 400, { ok: false, code: 'INVALID_BATCH_REQUEST', message: 'A list of props is required.' });
+    return true;
+  }
+  const entries = requested.map(batchEntry).filter(Boolean);
+  if (!entries.length) {
+    directJson(res, 400, { ok: false, code: 'INVALID_BATCH_REQUEST', message: 'Valid sport, player, market, line and side are required.' });
+    return true;
+  }
+  const results = {};
+  let cursor = 0;
+  async function worker() {
+    while (cursor < entries.length) {
+      const entry = entries[cursor++];
+      try {
+        const result = await researchPlayerProp(entry.params);
+        results[entry.key] = sanitizePublicPayload(result || { ok: true, available: false, message: 'Historical research is unavailable.' }, { statsContext: true });
+      } catch (error) {
+        console.error('[frontdoor] batch research entry failed', String(error?.code || error?.message || 'RESEARCH_ERROR').slice(0, 120));
+        results[entry.key] = { ok: false, available: false, code: 'RESEARCH_PROVIDER_ERROR', message: 'Historical player research is temporarily unavailable.' };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(BATCH_CONCURRENCY, entries.length) }, worker));
+  directJson(res, 200, { ok: true, requested: entries.length, results });
+  return true;
+}
+
 async function maybeServeArtwork(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   if (url.pathname !== '/api/apex/player-artwork') return false;
@@ -203,6 +299,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (await maybeServeResearch(req, res)) return;
+  if (await maybeServeResearchBatch(req, res)) return;
   if (await maybeServeArtwork(req, res)) return;
 
   const dst = target(req.url || '/');

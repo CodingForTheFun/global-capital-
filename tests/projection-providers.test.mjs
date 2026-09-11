@@ -187,9 +187,10 @@ test('a schema the provider cannot serve falls back to prompt-carried JSON', asy
       fetchImpl: async (_url, init) => {
         const body = JSON.parse(init.body);
         calls.push(Boolean(body.response_format.schema));
-        // First attempt (with schema) 500s the way the live endpoint did.
+        // A rejected schema is a 400 INVALID_ARGUMENT — that is the only
+        // shape worth re-asking without the schema.
         if (body.response_format.schema) {
-          return { ok: false, status: 500, json: async () => ({ error: { code: 500, message: 'Internal error encountered.' } }) };
+          return { ok: false, status: 400, json: async () => ({ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'Invalid JSON payload received.' } }) };
         }
         return { ok: true, status: 200, json: async () => ({ output_text: '{"projection":34.1,"probability_over":0.61}' }) };
       },
@@ -217,5 +218,46 @@ test('a bad key or a rate limit is never retried without the schema', async () =
       });
       assert.equal(attempts, 1, `status ${status} must not be retried`);
     }
+  } finally { delete process.env.GEMINI_API_KEY; }
+});
+
+test('a busy provider reads as busy, and is not re-asked without the schema', async () => {
+  // Google answers "this model is experiencing high demand" with a 500 — seen
+  // live on gemini-3.8-flash. That is capacity, not a bad request: the user
+  // should be told to try again, and the call must not be spent twice.
+  assert.equal(gemini.busy(500, 'gemini-3.8-flash is currently experiencing high demand, spikes in demand are usually temporary. Please try again later.'), true);
+  assert.equal(gemini.busy(503, null), true);
+  assert.equal(gemini.busy(500, 'Internal error encountered.'), false);
+  assert.equal(gemini.busy(400, 'high demand'), false);
+
+  process.env.GEMINI_API_KEY = 'ok';
+  let attempts = 0;
+  try {
+    const result = await gemini.generate({
+      system: 's', payload: {}, schema: PROJECTION_OUTPUT_SCHEMA,
+      fetchImpl: async () => {
+        attempts += 1;
+        return { ok: false, status: 500, json: async () => ({ error: { code: 500, message: 'Model is currently experiencing high demand, please try again later.' } }) };
+      },
+    });
+    assert.equal(result.code, 'PROJECTION_RATE_LIMITED');
+    assert.equal(attempts, 1, 'a busy provider must not be asked twice');
+  } finally { delete process.env.GEMINI_API_KEY; }
+});
+
+test('a genuine 5xx is not re-asked without the schema either', async () => {
+  process.env.GEMINI_API_KEY = 'ok';
+  let attempts = 0;
+  try {
+    await gemini.generate({
+      system: 's', payload: {}, schema: PROJECTION_OUTPUT_SCHEMA,
+      fetchImpl: async () => {
+        attempts += 1;
+        return { ok: false, status: 500, json: async () => ({ error: { code: 500, message: 'Internal error encountered.' } }) };
+      },
+    });
+    // The schema is not what a server-side failure is complaining about, and
+    // a second call costs quota that is scarce exactly when this happens.
+    assert.equal(attempts, 1);
   } finally { delete process.env.GEMINI_API_KEY; }
 });

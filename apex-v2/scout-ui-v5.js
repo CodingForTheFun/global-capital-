@@ -584,7 +584,7 @@ function projectionCard(g,line){
  var key=projectionKey(g,line), entry=projectionFor(g,line);
  var head='<div class="asSectionTitle"><h3>Modelled projection</h3><span>Model estimate · not a measured statistic</span></div>';
  if(projectionPending.has(key)){
-  return '<section class="asSection asProjection">'+head+'<div class="asSectionBody"><div class="asLoading" role="status"><div class="asPulse"></div>Modelling this prop…</div></div></section>';
+  return '<section class="asSection asProjection">'+head+'<div class="asSectionBody"><div class="asLoading" role="status"><div class="asPulse"></div>Modelling this prop — the full breakdown can take up to a minute.</div></div></section>';
  }
  if(!entry){
   // Reaching here means there is no run to re-price — either none yet, or one

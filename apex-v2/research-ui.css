@@ -111,3 +111,50 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asHistoryTable th:not(:first-child),.asHistoryTable td:not(:first-child){text-align:right;font-variant-numeric:tabular-nums}
 .asHistoryTable time span{display:block;color:var(--asMuted);font-size:.9em;margin-top:3px}
 .asHistoryChart svg{min-width:0}
+
+/* Player research: compact windows, one chart scale, and a readable primary log. */
+.asDrawer{--green:#10b981;--red:#f43f5e;--amber:#f59e0b;--blue:#3b82f6;background:#0a0f1d;color:#f8fafc;font-variant-numeric:tabular-nums}
+.asDrawerHead{background:#0b1120f5;border-color:#1f293d}.asDrawerBody{padding:18px}
+.asDrawer .asSection{background:#111827;border-color:#1f293d;border-radius:12px;margin-bottom:14px}
+.asDrawer .asSectionTitle{border-color:#1f293d;padding:12px 16px}.asDrawer .asSectionBody{padding:16px}
+.asDrawer .asSectionTitle h3{color:#cbd5e1;font-size:.8125rem;font-weight:650}
+.asDrawer .asResearchTop{grid-template-columns:minmax(0,1.4fr) minmax(180px,1fr);gap:16px}
+.asDrawer .asMarketSelect,.asDrawer .asLineVal{background:#0b1120;border-color:#334155;height:46px;font-size:1rem}
+.asDrawer .asLineCtl{grid-template-columns:44px minmax(0,1fr) 44px;gap:6px}
+.asDrawer .asLineVal{text-align:center;font-size:1.375rem;font-weight:750;width:100%;padding:0 4px}
+.asDrawer .asLineBtn{min-height:46px;background:#161f38;border-color:#334155;font-size:1.5rem}
+.asDrawer .asSideToggle{padding:4px;background:#0b1120;border:1px solid #1f293d;border-radius:10px;gap:4px;margin-top:12px}
+.asDrawer .asSideBtn{border-color:transparent;min-height:44px;background:transparent;border-radius:6px;letter-spacing:.06em}
+.asDrawer .asSideBtn.on.over{background:#10b98120;border-color:#10b98180;color:#6ee7b7}
+.asDrawer .asSideBtn.on.under{background:#3b82f620;border-color:#3b82f680;color:#bfdbfe}
+.asDrawer .asNotice{color:#94a3b8;font-size:.8125rem;margin:12px 0 0}
+.asDrawer .asWindows{grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.asDrawer .asWindow{min-width:0;padding:12px 9px;background:#0b1120;border:1px solid #263247;border-radius:9px;min-height:110px}
+.asDrawer .asWindow.on{background:#16233d;border-color:#3b82f6;box-shadow:inset 0 0 0 1px #3b82f6}
+.asDrawer .asWindow small{color:#a5b4cc;font-size:.75rem;letter-spacing:.06em}
+.asDrawer .asWindow b{font-size:1.375rem;font-weight:750;line-height:1.3;margin:5px 0;color:#f8fafc}
+.asDrawer .asWindow.on b{color:#93c5fd}.asDrawer .asWindow em,.asDrawer .asWindow span{font-size:.75rem;line-height:1.5;color:#94a3b8;overflow-wrap:anywhere;display:block}
+.asDrawer .asFilterRow{gap:6px;margin:0 0 14px;padding-top:12px}.asDrawer .asFilterBtn{background:#0b1120;border-color:#263247;border-radius:7px;min-height:44px;padding:0 12px;font-size:.75rem;text-transform:uppercase;max-width:100%;white-space:normal}
+.asDrawer .asFilterBtn.on{border-color:#3b82f6;background:#16233d;color:#dbeafe}
+.asDrawer .asChart{height:230px;min-width:0;gap:10px;margin:24px 0 42px;padding:0 8px;background:repeating-linear-gradient(to top,transparent,transparent 56px,#1f293d 57px)}
+.asDrawer .asBarCol{min-width:34px;flex:1 0 34px;min-height:0}.asDrawer .asChartBar{width:85%;max-width:44px;background:#10b981;border-radius:4px 4px 1px 1px}
+.asDrawer .asChartBar.miss{background:#f43f5e}.asDrawer .asChartBar.push{background:#f59e0b}.asDrawer .asChartBar.unknown{background:#64748b}
+.asDrawer .asBarVal{font-size:.75rem;font-weight:700;top:-20px}.asDrawer .asBarLabel{color:#94a3b8;font-size:.6875rem}
+.asDrawer .asThreshold{border-color:#3b82f6;opacity:1;z-index:2}.asDrawer .asThreshold span{position:absolute;left:0;bottom:3px;background:#0b1120e8;color:#93c5fd;font-size:.6875rem;padding:2px 5px;border-radius:3px}
+.asDrawer .asZeroLine{border-color:#334155}.asDrawer .asResearchTabs{border-color:#1f293d;background:#0a0f1d}
+.asDrawer .asCtx{background:#0b1120;border-color:#263247}.asDrawer .asCtx small{color:#94a3b8}
+.asDrawer .asPropLog{min-width:0;table-layout:fixed;width:100%}.asPropLog caption{text-align:left;color:#94a3b8;font-size:.75rem;padding:0 0 12px}
+.asDrawer .asPropLog th,.asDrawer .asPropLog td{padding:12px 8px;white-space:normal;overflow-wrap:anywhere;border-color:#1f293d;text-align:right}
+.asDrawer .asPropLog th{color:#94a3b8;font-size:.6875rem;letter-spacing:.04em}.asDrawer .asPropLog td{font-size:.8125rem}
+.asDrawer .asPropLog th:first-child,.asDrawer .asPropLog td:first-child{text-align:left;width:23%}.asDrawer .asPropLog th:last-child{width:18%}
+.asPropLog tbody tr:nth-child(odd){background:#0b112080}.asPropLog tbody tr:hover{background:#161f38}.asPropLog time small{display:block;font-size:.6875rem;color:#94a3b8;margin-top:2px}
+.asPropLog b{font-size:.9375rem}.asResultBadge{display:inline-block;padding:4px 7px;border-radius:5px;font-size:.6875rem;letter-spacing:.035em;font-weight:750}
+.asResultBadge.asHit{background:#10b98118;color:#34d399}.asResultBadge.asMiss{background:#f43f5e18;color:#fb7185}.asResultBadge.asPushText{background:#f59e0b18;color:#fbbf24}
+.asGameDetails{margin-top:16px;border-top:1px solid #1f293d}.asGameDetails summary{padding:14px 0;min-height:44px;color:#94a3b8;font-size:.8125rem;cursor:pointer}
+@media(max-width:700px){
+ .asDrawerBody{padding:12px}.asDrawer .asSectionBody{padding:12px}.asDrawer .asResearchTop{grid-template-columns:minmax(0,1fr);gap:10px}
+ .asDrawer .asWindows{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.asDrawer .asWindow{min-height:104px;padding:10px}
+ .asDrawer .asWindow b{font-size:1.25rem}.asDrawer .asChart{height:210px}.asDrawer .asBarCol{min-width:32px;flex-basis:32px}
+ .asDrawer .asPropLog th,.asDrawer .asPropLog td{padding:10px 4px}.asDrawer .asPropLog td{font-size:.75rem}.asPropLog b{font-size:.8125rem}
+ .asResultBadge{padding:4px;font-size:.625rem}.asDrawer .asFilterRow{flex-wrap:wrap;overflow:visible}
+}

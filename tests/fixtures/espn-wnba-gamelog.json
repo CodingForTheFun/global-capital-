@@ -1,0 +1,694 @@
+{
+  "names": [
+    "minutes",
+    "points",
+    "totalRebounds",
+    "assists",
+    "steals",
+    "blocks",
+    "turnovers",
+    "fieldGoalsMade-fieldGoalsAttempted",
+    "fieldGoalPct",
+    "threePointFieldGoalsMade-threePointFieldGoalsAttempted",
+    "threePointPct",
+    "freeThrowsMade-freeThrowsAttempted",
+    "freeThrowPct",
+    "fouls"
+  ],
+  "filters": [
+    {
+      "displayName": "League",
+      "name": "league",
+      "value": "wnba",
+      "options": [
+        {
+          "value": "wnba",
+          "displayValue": "Women's National Basketball Association",
+          "shortDisplayName": "WNBA"
+        },
+        {
+          "value": "womens-college-basketball",
+          "displayValue": "NCAA Women's Basketball",
+          "shortDisplayName": "NCAAW"
+        }
+      ]
+    },
+    {
+      "displayName": "Season",
+      "name": "season",
+      "value": "2026",
+      "options": [
+        {
+          "value": "2026",
+          "displayValue": "2026"
+        },
+        {
+          "value": "2025",
+          "displayValue": "2025"
+        },
+        {
+          "value": "2024",
+          "displayValue": "2024"
+        }
+      ]
+    }
+  ],
+  "events": {
+    "401857181": {
+      "id": "401857181",
+      "gameDate": "2026-08-28T23:30:00.000+00:00",
+      "homeTeamId": "5",
+      "awayTeamId": "18",
+      "homeTeamScore": "111",
+      "awayTeamScore": "91",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "18",
+        "displayName": "Connecticut Sun",
+        "abbreviation": "CON"
+      }
+    },
+    "401857168": {
+      "id": "401857168",
+      "gameDate": "2026-08-23T23:00:00.000+00:00",
+      "homeTeamId": "19",
+      "awayTeamId": "5",
+      "homeTeamScore": "90",
+      "awayTeamScore": "113",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "19",
+        "displayName": "Chicago Sky",
+        "abbreviation": "CHI"
+      }
+    },
+    "401857164": {
+      "id": "401857164",
+      "gameDate": "2026-08-22T23:00:00.000+00:00",
+      "homeTeamId": "9",
+      "awayTeamId": "5",
+      "homeTeamScore": "109",
+      "awayTeamScore": "102",
+      "gameResult": "L",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "9",
+        "displayName": "New York Liberty",
+        "abbreviation": "NY"
+      }
+    },
+    "401857158": {
+      "id": "401857158",
+      "gameDate": "2026-08-21T00:00:00.000+00:00",
+      "homeTeamId": "3",
+      "awayTeamId": "5",
+      "homeTeamScore": "91",
+      "awayTeamScore": "85",
+      "gameResult": "L",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "3",
+        "displayName": "Dallas Wings",
+        "abbreviation": "DAL"
+      }
+    },
+    "401857153": {
+      "id": "401857153",
+      "gameDate": "2026-08-18T23:00:00.000+00:00",
+      "homeTeamId": "131935",
+      "awayTeamId": "5",
+      "homeTeamScore": "95",
+      "awayTeamScore": "101",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "131935",
+        "displayName": "Toronto Tempo",
+        "abbreviation": "TOR"
+      }
+    },
+    "401857150": {
+      "id": "401857150",
+      "gameDate": "2026-08-16T21:00:00.000+00:00",
+      "homeTeamId": "20",
+      "awayTeamId": "5",
+      "homeTeamScore": "91",
+      "awayTeamScore": "95",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "20",
+        "displayName": "Atlanta Dream",
+        "abbreviation": "ATL"
+      }
+    },
+    "401857143": {
+      "id": "401857143",
+      "gameDate": "2026-08-14T23:30:00.000+00:00",
+      "homeTeamId": "5",
+      "awayTeamId": "3",
+      "homeTeamScore": "98",
+      "awayTeamScore": "87",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "3",
+        "displayName": "Dallas Wings",
+        "abbreviation": "DAL"
+      }
+    },
+    "401857134": {
+      "id": "401857134",
+      "gameDate": "2026-08-11T23:30:00.000+00:00",
+      "homeTeamId": "5",
+      "awayTeamId": "9",
+      "homeTeamScore": "106",
+      "awayTeamScore": "92",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "9",
+        "displayName": "New York Liberty",
+        "abbreviation": "NY"
+      }
+    },
+    "401857126": {
+      "id": "401857126",
+      "gameDate": "2026-08-08T19:30:00.000+00:00",
+      "homeTeamId": "19",
+      "awayTeamId": "5",
+      "homeTeamScore": "86",
+      "awayTeamScore": "90",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "19",
+        "displayName": "Chicago Sky",
+        "abbreviation": "CHI"
+      }
+    },
+    "401857119": {
+      "id": "401857119",
+      "gameDate": "2026-08-06T23:00:00.000+00:00",
+      "homeTeamId": "5",
+      "awayTeamId": "17",
+      "homeTeamScore": "84",
+      "awayTeamScore": "86",
+      "gameResult": "L",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "17",
+        "displayName": "Las Vegas Aces",
+        "abbreviation": "LV"
+      }
+    },
+    "401857107": {
+      "id": "401857107",
+      "gameDate": "2026-08-02T17:00:00.000+00:00",
+      "homeTeamId": "8",
+      "awayTeamId": "5",
+      "homeTeamScore": "108",
+      "awayTeamScore": "100",
+      "gameResult": "L",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "8",
+        "displayName": "Minnesota Lynx",
+        "abbreviation": "MIN"
+      }
+    },
+    "401857104": {
+      "id": "401857104",
+      "gameDate": "2026-08-01T02:00:00.000+00:00",
+      "homeTeamId": "132052",
+      "awayTeamId": "5",
+      "homeTeamScore": "98",
+      "awayTeamScore": "112",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "132052",
+        "displayName": "Portland Fire",
+        "abbreviation": "POR"
+      }
+    },
+    "401857094": {
+      "id": "401857094",
+      "gameDate": "2026-07-29T01:30:00.000+00:00",
+      "homeTeamId": "14",
+      "awayTeamId": "5",
+      "homeTeamScore": "95",
+      "awayTeamScore": "105",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "14",
+        "displayName": "Seattle Storm",
+        "abbreviation": "SEA"
+      }
+    },
+    "401857320": {
+      "id": "401857320",
+      "gameDate": "2026-07-26T00:30:00.000+00:00",
+      "homeTeamId": "133384",
+      "awayTeamId": "133383",
+      "homeTeamScore": "122",
+      "awayTeamScore": "129",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "133383",
+        "abbreviation": "SPO",
+        "isAllStar": true
+      },
+      "opponent": {
+        "id": "133384",
+        "displayName": "TEAM COOP",
+        "abbreviation": "COOP"
+      }
+    },
+    "401857090": {
+      "id": "401857090",
+      "gameDate": "2026-07-23T00:00:00.000+00:00",
+      "homeTeamId": "5",
+      "awayTeamId": "18",
+      "homeTeamScore": "123",
+      "awayTeamScore": "88",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "18",
+        "displayName": "Connecticut Sun",
+        "abbreviation": "CON"
+      }
+    },
+    "401857077": {
+      "id": "401857077",
+      "gameDate": "2026-07-19T00:00:00.000+00:00",
+      "homeTeamId": "5",
+      "awayTeamId": "9",
+      "homeTeamScore": "108",
+      "awayTeamScore": "88",
+      "gameResult": "W",
+      "leagueAbbreviation": "WNBA",
+      "team": {
+        "id": "5",
+        "abbreviation": "IND",
+        "isAllStar": false
+      },
+      "opponent": {
+        "id": "9",
+        "displayName": "New York Liberty",
+        "abbreviation": "NY"
+      }
+    }
+  },
+  "seasonTypes": [
+    {
+      "displayName": "2026 Regular Season",
+      "categories": [
+        {
+          "type": "event",
+          "events": [
+            {
+              "eventId": "401857181",
+              "stats": [
+                "34",
+                "34",
+                "5",
+                "12",
+                "3",
+                "0",
+                "5",
+                "12-19",
+                "63.2",
+                "6-12",
+                "50.0",
+                "4-6",
+                "66.7",
+                "4"
+              ]
+            },
+            {
+              "eventId": "401857168",
+              "stats": [
+                "32",
+                "37",
+                "3",
+                "10",
+                "1",
+                "0",
+                "5",
+                "13-24",
+                "54.2",
+                "8-12",
+                "66.7",
+                "3-4",
+                "75.0",
+                "0"
+              ]
+            },
+            {
+              "eventId": "401857164",
+              "stats": [
+                "35",
+                "21",
+                "4",
+                "7",
+                "1",
+                "0",
+                "2",
+                "9-18",
+                "50.0",
+                "2-6",
+                "33.3",
+                "1-4",
+                "25.0",
+                "4"
+              ]
+            },
+            {
+              "eventId": "401857158",
+              "stats": [
+                "35",
+                "10",
+                "4",
+                "9",
+                "1",
+                "1",
+                "3",
+                "4-15",
+                "26.7",
+                "2-8",
+                "25.0",
+                "0-1",
+                "0.0",
+                "4"
+              ]
+            },
+            {
+              "eventId": "401857153",
+              "stats": [
+                "33",
+                "24",
+                "3",
+                "7",
+                "0",
+                "0",
+                "7",
+                "7-16",
+                "43.8",
+                "4-9",
+                "44.4",
+                "6-7",
+                "85.7",
+                "3"
+              ]
+            },
+            {
+              "eventId": "401857150",
+              "stats": [
+                "41",
+                "26",
+                "3",
+                "9",
+                "0",
+                "0",
+                "5",
+                "9-20",
+                "45.0",
+                "3-10",
+                "30.0",
+                "5-6",
+                "83.3",
+                "4"
+              ]
+            },
+            {
+              "eventId": "401857143",
+              "stats": [
+                "34",
+                "29",
+                "3",
+                "10",
+                "1",
+                "0",
+                "1",
+                "11-18",
+                "61.1",
+                "2-8",
+                "25.0",
+                "5-6",
+                "83.3",
+                "5"
+              ]
+            },
+            {
+              "eventId": "401857134",
+              "stats": [
+                "35",
+                "22",
+                "4",
+                "10",
+                "1",
+                "0",
+                "4",
+                "7-15",
+                "46.7",
+                "4-8",
+                "50.0",
+                "4-4",
+                "100.0",
+                "2"
+              ]
+            },
+            {
+              "eventId": "401857126",
+              "stats": [
+                "36",
+                "26",
+                "4",
+                "11",
+                "2",
+                "1",
+                "6",
+                "7-15",
+                "46.7",
+                "5-6",
+                "83.3",
+                "7-10",
+                "70.0",
+                "3"
+              ]
+            },
+            {
+              "eventId": "401857119",
+              "stats": [
+                "38",
+                "20",
+                "3",
+                "8",
+                "1",
+                "0",
+                "8",
+                "7-20",
+                "35.0",
+                "2-10",
+                "20.0",
+                "4-6",
+                "66.7",
+                "4"
+              ]
+            },
+            {
+              "eventId": "401857107",
+              "stats": [
+                "34",
+                "19",
+                "1",
+                "10",
+                "1",
+                "0",
+                "4",
+                "8-18",
+                "44.4",
+                "2-9",
+                "22.2",
+                "1-1",
+                "100.0",
+                "1"
+              ]
+            },
+            {
+              "eventId": "401857104",
+              "stats": [
+                "34",
+                "26",
+                "10",
+                "10",
+                "2",
+                "1",
+                "4",
+                "5-9",
+                "55.6",
+                "2-5",
+                "40.0",
+                "14-17",
+                "82.4",
+                "4"
+              ]
+            },
+            {
+              "eventId": "401857094",
+              "stats": [
+                "33",
+                "32",
+                "4",
+                "7",
+                "1",
+                "1",
+                "4",
+                "9-14",
+                "64.3",
+                "4-7",
+                "57.1",
+                "10-10",
+                "100.0",
+                "4"
+              ]
+            },
+            {
+              "eventId": "401857320",
+              "stats": [
+                "21",
+                "17",
+                "4",
+                "5",
+                "1",
+                "0",
+                "5",
+                "6-17",
+                "35.3",
+                "5-15",
+                "33.3",
+                "0-0",
+                "0.0",
+                "0"
+              ]
+            },
+            {
+              "eventId": "401857090",
+              "stats": [
+                "27",
+                "27",
+                "2",
+                "11",
+                "1",
+                "1",
+                "6",
+                "8-13",
+                "61.5",
+                "5-9",
+                "55.6",
+                "6-6",
+                "100.0",
+                "2"
+              ]
+            },
+            {
+              "eventId": "401857077",
+              "stats": [
+                "26",
+                "17",
+                "2",
+                "7",
+                "0",
+                "0",
+                "7",
+                "5-14",
+                "35.7",
+                "2-8",
+                "25.0",
+                "5-5",
+                "100.0",
+                "2"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -13,7 +13,7 @@ import { handleAccountRoutes, currentAccount, mailStatus } from './lib/auth/rout
 import { handleGoogleRoutes } from './lib/auth/google-routes.mjs';
 import { createAccountSessions } from './lib/auth/session.mjs';
 import { googleHealth } from './lib/auth/google.mjs';
-import { gateActive, gatedPath, gateHealth } from './lib/auth/gate.mjs';
+import { gateActive, gatedPath, gatedApi, gateHealth } from './lib/auth/gate.mjs';
 import { landingPage } from './lib/auth/landing.mjs';
 import { entitlementFor, publicEntitlement } from './lib/billing/entitlements.mjs';
 import { consume, peek } from './lib/billing/usage.mjs';
@@ -516,11 +516,23 @@ async function maybeServeArtwork(req, res) {
 
 async function maybeServeGate(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
-  if (req.method !== 'GET' && req.method !== 'HEAD') return false;
-  if (!gatedPath(url.pathname) || !gateActive()) return false;
+  if (!gateActive()) return false;
+
+  const isApi = gatedApi(url.pathname);
+  const isPage = (req.method === 'GET' || req.method === 'HEAD') && gatedPath(url.pathname);
+  if (!isApi && !isPage) return false;
 
   const { user } = await currentAccount(req, accountSessions).catch(() => ({ user: null }));
   if (user) return false;
+
+  if (isApi) {
+    directJson(res, 401, {
+      ok: false,
+      code: 'AUTH_REQUIRED',
+      message: 'Create a free account to see props.',
+    });
+    return true;
+  }
 
   const health = gateHealth();
   const body = landingPage({

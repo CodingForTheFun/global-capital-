@@ -223,3 +223,41 @@ test('the prompt forbids writing a section from memory', async () => {
   // And it must check the market against the position before writing.
   assert.match(prompt, /quarterback|position/i);
 });
+
+test('the gate covers the prop data, not just the page that renders it', async () => {
+  const { gatedApi } = await import('../lib/auth/gate.mjs');
+  // Gating only the HTML would be cosmetic: the board is built from these.
+  for (const path of [
+    '/api/apex/props', '/api/apex/props?sport=NFL', '/api/apex/research',
+    '/api/apex/research-batch', '/api/apex/line-history', '/api/props/predict',
+    '/api/props/ask', '/api/props/teammates',
+  ]) {
+    assert.equal(gatedApi(path), true, `${path} must require an account`);
+  }
+  // But never the routes a signed-out visitor needs to become a signed-in one,
+  // nor the public claim about the model's record.
+  for (const path of [
+    '/api/account/register', '/api/account/login', '/api/account/health',
+    '/api/account/google/start', '/api/props/accuracy', '/api/health',
+    '/assets/lib/analytics/research.mjs',
+  ]) {
+    assert.equal(gatedApi(path), false, `${path} must stay open`);
+  }
+});
+
+test('a gated API answers script with 401 JSON, never a landing page', async () => {
+  const frontdoor = await fs.readFile(new URL('../frontdoor-prod.mjs', import.meta.url), 'utf8');
+  const gate = frontdoor.slice(frontdoor.indexOf('async function maybeServeGate'));
+  const body = gate.slice(0, gate.indexOf('async function maybeServeAccount'));
+  assert.match(body, /if \(isApi\) \{/);
+  assert.match(body, /AUTH_REQUIRED/);
+  // The 401 must come before the HTML branch, or an API caller gets a hero
+  // section where it expected JSON.
+  assert.ok(body.indexOf('AUTH_REQUIRED') < body.indexOf('landingPage('));
+});
+
+test('the landing page redirect cannot carry script into the page', () => {
+  const hostile = landingPage({ next: '/props?a=</script><script>alert(1)</script>' });
+  assert.ok(!hostile.includes('</script><script>alert(1)'), 'the tag must not survive into the document');
+  assert.match(hostile, /next="\/props\?a=&lt;\/script&gt;/);
+});

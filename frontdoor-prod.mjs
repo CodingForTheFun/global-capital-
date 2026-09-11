@@ -13,6 +13,8 @@ import { handleAccountRoutes, currentAccount, mailStatus } from './lib/auth/rout
 import { handleGoogleRoutes } from './lib/auth/google-routes.mjs';
 import { createAccountSessions } from './lib/auth/session.mjs';
 import { googleHealth } from './lib/auth/google.mjs';
+import { gateActive, gatedPath, gatedApi, gateHealth } from './lib/auth/gate.mjs';
+import { landingPage } from './lib/auth/landing.mjs';
 import { entitlementFor, publicEntitlement } from './lib/billing/entitlements.mjs';
 import { consume, peek } from './lib/billing/usage.mjs';
 
@@ -36,6 +38,7 @@ const CLIENT_MODULES = new Map([
   'lib/analytics/research.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
   'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
   'lib/betting/kelly.mjs', 'lib/markets/line-lag.mjs',
+  'lib/projections/reprice.mjs', 'lib/projections/baseline.mjs', 'lib/projections/schema.mjs',
 ].map(file => ['/assets/' + file, file]));
 CLIENT_MODULES.set('/assets/autoscout-research.css', 'apex-v2/research-ui.css');
 
@@ -511,6 +514,45 @@ async function maybeServeArtwork(req, res) {
   return true;
 }
 
+async function maybeServeGate(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (!gateActive()) return false;
+
+  const isApi = gatedApi(url.pathname);
+  const isPage = (req.method === 'GET' || req.method === 'HEAD') && gatedPath(url.pathname);
+  if (!isApi && !isPage) return false;
+
+  const { user } = await currentAccount(req, accountSessions).catch(() => ({ user: null }));
+  if (user) return false;
+
+  if (isApi) {
+    directJson(res, 401, {
+      ok: false,
+      code: 'AUTH_REQUIRED',
+      message: 'Create a free account to see props.',
+    });
+    return true;
+  }
+
+  const health = gateHealth();
+  const body = landingPage({
+    passwordSignup: health.passwordSignup,
+    googleSignup: health.googleSignup,
+    beta: health.beta,
+    // Send them back where they were headed once they are in.
+    next: url.pathname === '/' ? '/' : url.pathname + url.search,
+  });
+  res.writeHead(200, {
+    'content-type': 'text/html; charset=utf-8',
+    'content-length': Buffer.byteLength(body),
+    // Never cached: the same URL serves the board once they have an account.
+    'cache-control': 'no-store, max-age=0',
+    'x-content-type-options': 'nosniff',
+  });
+  res.end(req.method === 'HEAD' ? undefined : body);
+  return true;
+}
+
 async function maybeServeAccount(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   if (!url.pathname.startsWith('/api/account')) return false;
@@ -519,11 +561,14 @@ async function maybeServeAccount(req, res) {
   if (url.pathname === '/api/account/health' && req.method === 'GET') {
     const google = googleHealth();
     const mail = mailStatus();
+    const gate = gateHealth();
     directJson(res, 200, {
       ok: true,
       // Readiness only — never the provider name, the client id, or the keys.
-      password: { available: mail.configured, reason: mail.configured ? null : 'EMAIL_DELIVERY_UNCONFIGURED' },
+      password: { available: gate.passwordSignup, reason: gate.passwordSignup ? null : 'EMAIL_DELIVERY_UNCONFIGURED' },
       google: { available: google.available },
+      gate: { active: gate.active, beta: gate.beta },
+      mailDelivery: mail.configured,
     });
     return true;
   }
@@ -565,6 +610,7 @@ const server = http.createServer(async (req, res) => {
     res.end(readFileSync(asset, 'utf8'));
     return;
   }
+  if (await maybeServeGate(req, res)) return;
   if (await maybeServeAccount(req, res)) return;
   if (await maybeServeResearch(req, res)) return;
   if (await maybeServeResearchBatch(req, res)) return;

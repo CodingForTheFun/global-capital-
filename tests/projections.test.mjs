@@ -94,7 +94,11 @@ test('the output schema is strict so the model cannot invent extra fields', () =
   assert.equal(PROJECTION_OUTPUT_SCHEMA.additionalProperties, false);
   assert.deepEqual(
     PROJECTION_OUTPUT_SCHEMA.required,
-    ['projection', 'probability_over', 'confidence', 'primary_driver', 'data_gaps'],
+    ['projection', 'probability_over', 'confidence', 'primary_driver',
+      // The deep-dive sections are required in shape, so a skipped section is
+      // always distinguishable from one the model quietly dropped.
+      'scheme_matchup', 'usage_ripple', 'schedule_fatigue', 'game_script',
+      'data_gaps'],
   );
   // The caller derives EV and the pick; the model must not supply them.
   assert.equal('ev_percent' in PROJECTION_OUTPUT_SCHEMA.properties, false);

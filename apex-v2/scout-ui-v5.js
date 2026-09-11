@@ -5,6 +5,7 @@ var { analyzeResearch, researchTeamMatches, researchOpponentMatches, analyzeLine
 var { evaluatePropAgainstFilters } = await import('/assets/lib/filters/index.mjs');
 var { kellyStake, sizeSlip, DEFAULT_KELLY_FRACTION } = await import('/assets/lib/betting/kelly.mjs');
 var { detectStaleLine, staleLineLabel } = await import('/assets/lib/markets/line-lag.mjs');
+var { repriceProjection } = await import('/assets/lib/projections/reprice.mjs');
 function displayTeam(value){return String(value||'').replace(/^(?:nfl|nba|wnba|mlb|nhl|ncaaf|ncaab)_([a-z0-9]{2,5})$/i,(_,code)=>code.toUpperCase());}
 function readStored(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}}
 var activeView='research', advanced={}, loadGeneration=0, loadController=null, lastFocus=null;
@@ -141,7 +142,7 @@ function toggleSlip(key){
  renderSlip();renderListLight();
 }
 function slipPickProbability(pick){
- var entry=projections.get([pick.key,num(pick.line)].join('|'));
+ var entry=projectionFor({key:pick.key,rows:pick.rows||[]},num(pick.line))||projections.get([pick.key,num(pick.line)].join('|'));
  if(!entry||!entry.available)return null;
  return pick.side==='UNDER'?num(entry.probabilityUnder):num(entry.probabilityOver);
 }
@@ -262,7 +263,7 @@ function visible(ignoreResearch=false){
  if(activeView==='discrepancies'){a=a.filter(g=>lineSpread(g)>0);a.sort((x,y)=>lineSpread(y)-lineSpread(x));}
  if(quick.stale)a=a.filter(g=>staleFor(g));
  if(quick.side)a=a.filter(g=>sideRows(g,quick.side).length);
- if(quick.highEv)a=a.filter(function(g){var e=projections.get(projectionKey(g,boardLine(g)));return e&&e.available&&num(e.ev)!=null&&num(e.ev)>5;});
+ if(quick.highEv)a=a.filter(function(g){var e=projectionFor(g,boardLine(g));return e&&e.available&&num(e.ev)!=null&&num(e.ev)>5;});
  return a;
 }
 // A real disagreement between books on the same side, in the units of the
@@ -414,6 +415,31 @@ function staleBadge(g){
   +'<span class="asStaleText">'+esc(staleLineLabel(signal))+'</span></div>';
 }
 function projectionKey(g,line){return [g.key,num(line)].join('|');}
+// A projection is an estimate of what the player will do, so it survives a
+// change of line — only the pricing moves. Nudging the research line used to
+// discard the estimate and demand another paid request; now the nearest run
+// for this prop is re-priced against the new line in the browser, and the
+// edge, EV, model percentage and badge all update immediately. A fresh run is
+// still one click away for anything the arithmetic cannot know.
+function projectionFor(g,line){
+ var target=num(line);
+ var exact=projections.get(projectionKey(g,target));
+ if(exact)return exact;
+ if(target==null)return null;
+ var prefix=g.key+'|', best=null, bestGap=Infinity;
+ projections.forEach(function(entry,key){
+  // Scenario runs carry an '|out:' suffix and answer a different question.
+  if(key.indexOf(prefix)!==0||key.indexOf('|out:')>=0)return;
+  if(!entry||!entry.available)return;
+  var from=num(entry.line);
+  if(from==null)return;
+  var gap=Math.abs(from-target);
+  if(gap<bestGap){bestGap=gap;best=entry;}
+ });
+ if(!best)return null;
+ var over=bestPrice(g,'OVER',target), under=bestPrice(g,'UNDER',target);
+ return repriceProjection(best,{line:target,overPrice:over?num(over.price):null,underPrice:under?num(under.price):null});
+}
 function pickTone(pick){
  var label=String(pick||'');
  return label==='STRONG OVER'?'strongOver':label==='LEAN OVER'?'leanOver'
@@ -544,20 +570,30 @@ function describeGaps(gaps){
   :known.slice(0,-1).join(', ')+' and '+known[known.length-1];
  return 'Estimated without '+list+(unknown?', among other context':'')+'.';
 }
+// The deep-dive sections. The server has already dropped any the model could
+// not ground in the payload, so an absent section here means there was nothing
+// to say — not that the analysis failed.
+function analysisHtml(entry){
+ var sections=entry&&Array.isArray(entry.analysis)?entry.analysis:[];
+ if(!sections.length)return '';
+ return '<div class="asAnalysis">'+sections.map(function(row){
+  return '<details class="asAnalysisRow"><summary>'+esc(row.label)+'</summary><p>'+esc(row.body)+'</p></details>';
+ }).join('')+'</div>';
+}
 function projectionCard(g,line){
- var key=projectionKey(g,line), entry=projections.get(key);
+ var key=projectionKey(g,line), entry=projectionFor(g,line);
  var head='<div class="asSectionTitle"><h3>Modelled projection</h3><span>Model estimate · not a measured statistic</span></div>';
  if(projectionPending.has(key)){
   return '<section class="asSection asProjection">'+head+'<div class="asSectionBody"><div class="asLoading" role="status"><div class="asPulse"></div>Modelling this prop…</div></div></section>';
  }
  if(!entry){
-  // A projection is tied to the line it was run against. When the stepper
-  // moves, the old estimate no longer describes this bet — say that rather
-  // than showing a stale number, and wait for a click before spending again.
+  // Reaching here means there is no run to re-price — either none yet, or one
+  // whose game log was too short to measure a spread from, which is the only
+  // case where moving the line genuinely needs the model again.
   var other=Array.from(projections.keys()).some(function(k){return k.indexOf(g.key+'|')===0;});
   return '<section class="asSection asProjection">'+head+'<div class="asSectionBody">'
    +'<p class="asNotice">'+(other
-     ? 'The line changed, so the previous estimate no longer applies to this bet. Re-estimate to update the verdict.'
+     ? 'This prop\u2019s game log was too short to re-price the estimate at a new line. Run it again to estimate against this line directly.'
      : 'Estimate this prop against the current line using the connected model. Uses one paid request.')+'</p>'
    +'<button class="asBtn asPrimary" data-project="'+esc(g.key)+'">Run projection</button></div></section>';
  }
@@ -588,8 +624,11 @@ function projectionCard(g,line){
      num(entry.impliedOver)==null?'':'book '+Math.round(entry.impliedOver*100)+'%')
   +'</div>'
   +(entry.primaryDriver?'<p class="asProjDriver"><small>Primary driver</small>'+esc(entry.primaryDriver)+'</p>':'')
+  +analysisHtml(entry)
   +(gaps.length?'<p class="asNotice asProjGaps">'+esc(describeGaps(gaps))+'</p>':'')
-  +'<p class="asProjFootnote">Model estimate generated '+esc(when(entry.generatedAt))+'. Not a measured statistic and not betting advice.</p>'
+  +'<p class="asProjFootnote">'+esc(entry.repriced
+     ? 'Projection of '+dec(entry.projection,1)+' from the model run at '+dec(entry.modelLine,1)+', re-priced against this line from the spread of the player\u2019s own game log. Run it again to re-estimate the projection itself.'
+     : 'Model estimate generated '+when(entry.generatedAt)+'.')+' Not a measured statistic and not betting advice.</p>'
   +'<button class="asBtn" data-project="'+esc(g.key)+'">Re-run</button>'
   +'</div></section>';
 }
@@ -664,7 +703,7 @@ async function runProjection(g,line,side){
 // scanner sees the call and the two numbers behind it without opening the
 // prop. It appears only once a prediction exists for THIS line.
 function headerVerdict(g,line){
- var entry=projections.get(projectionKey(g,line));
+ var entry=projectionFor(g,line);
  if(!entry||!entry.available)return '';
  var over=num(entry.probabilityOver);
  var side=entry.side==='UNDER'?'under':'over';
@@ -677,7 +716,7 @@ function headerVerdict(g,line){
   +'</div></div>';
 }
 function predictionStrip(g,line){
- var key=projectionKey(g,line), entry=projections.get(key);
+ var key=projectionKey(g,line), entry=projectionFor(g,line);
  if(projectionPending.has(key)){
   return '<div class="asPredict asPredictBusy" role="status">Generating prediction…</div>';
  }
@@ -883,7 +922,7 @@ function contextGrid(r,line,g){
  var sport=(g&&g.sport)||(r&&r.player&&r.player.sport)||'';
  // The board's own projection feed is empty, but a generated model estimate is
  // a real number for this prop — bind the tile to it and label it as modelled.
- var modelled=g?projections.get(projectionKey(g,line)):null;
+ var modelled=g?projectionFor(g,line):null;
  var projection=num(c.projection);
  if(projection==null&&modelled&&modelled.available)projection=num(modelled.projection);
  var modelSourced=num(c.projection)==null&&projection!=null;
@@ -984,7 +1023,7 @@ function emptyLog(r,g,base){
  var venue=drawerState&&drawerState.filter;
  var opponent=(r&&r.matchup&&r.matchup.opponent)||(base&&base.matchup&&base.matchup.opponent)||'this opponent';
  var message=venue==='h2h'
-  ? 'No head-to-head meetings with '+esc(opponent)+' in the games on record.'
+  ? 'No direct matchups recorded this season against '+esc(opponent)+'. Recent form is shown instead.'
   : venue==='home'?'No home games in the games on record.'
   : venue==='away'?'No away games in the games on record.'
   : 'No completed games match this selection.';

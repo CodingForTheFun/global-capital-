@@ -439,3 +439,12 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asUtility #asAuthForm button[type=submit]{width:100%}
 .asAuthLink{height:auto;padding:10px 0;border:0;background:transparent;color:#8bb4ff;font:500 13px Inter,system-ui;text-decoration:underline}
 .asAuthLink:hover{color:#b8d3ff}
+
+/* --- deep-dive analysis --------------------------------------------------- */
+.asAnalysis{margin-top:14px;display:grid;gap:7px}
+.asAnalysisRow{border:1px solid #294562;background:#0b1a2c;border-radius:10px;overflow:hidden}
+.asAnalysisRow summary{cursor:pointer;padding:12px 14px;font-size:12px;font-weight:650;color:#bcd3ee;list-style:none}
+.asAnalysisRow summary::-webkit-details-marker{display:none}
+.asAnalysisRow summary:before{content:"▸";display:inline-block;width:16px;color:#7c9dc4}
+.asAnalysisRow[open] summary:before{content:"▾"}
+.asAnalysisRow p{margin:0;padding:0 14px 14px 30px;font-size:13px;line-height:1.7;color:#a8bfda}

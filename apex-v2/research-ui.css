@@ -416,3 +416,26 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asFallbackLog li{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 10px;border:1px solid #263e58;border-radius:8px;background:#0b1728;font-size:12px}
 .asFallbackLog span{color:#9db4d0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .asFallbackLog b{font-variant-numeric:tabular-nums;font-weight:750}
+
+/* --- accounts ------------------------------------------------------------ */
+/* The sign-in panel lives inside .asUtility, so it inherits that dialog's
+   surface and only needs the pieces the dialog does not already provide. */
+.asAuthTabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#0b1a2c;border:1px solid #2c4563;border-radius:10px;padding:4px;margin-bottom:18px}
+.asAuthTabs button{height:38px;border:0;border-radius:7px;background:transparent;color:#a7bcd6;font:650 13px Inter,system-ui}
+.asAuthTabs button[aria-selected=true]{background:#2f70ed;color:#fff}
+.asGoogleBtn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;height:46px;text-decoration:none;background:#fff;color:#1f2733;border-color:#fff;font-weight:650}
+.asGoogleBtn:hover{background:#e9eef6}
+.asGoogleMark{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#4285f4;color:#fff;font:800 13px Inter,system-ui}
+.asAuthOr{display:flex;align-items:center;gap:12px;margin:16px 0;color:#8ba3c1;font-size:12px}
+.asAuthOr:before,.asAuthOr:after{content:"";flex:1;border-top:1px solid #2c4563}
+.asAuthActions{display:flex;flex-wrap:wrap;gap:8px}
+.asPlanCard{border:1px solid #294562;background:#0b1a2c;border-radius:12px;padding:6px 14px;margin:16px 0}
+.asPlanRow{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:11px 0;border-bottom:1px solid #1d3149;font-size:13px;color:#a8bfda}
+.asPlanRow:last-child{border-bottom:0}
+.asPlanRow b{color:#eaf2ff;font-weight:650;font-variant-numeric:tabular-nums;text-align:right}
+.asAuthLegacy{margin-top:6px}
+.asAuthLegacy summary{cursor:pointer;color:#8ba3c1;font-size:12px;padding:6px 0}
+.asAuthLegacy button{margin-top:4px}
+.asUtility #asAuthForm button[type=submit]{width:100%}
+.asAuthLink{height:auto;padding:10px 0;border:0;background:transparent;color:#8bb4ff;font:500 13px Inter,system-ui;text-decoration:underline}
+.asAuthLink:hover{color:#b8d3ff}

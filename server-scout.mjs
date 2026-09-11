@@ -13,6 +13,9 @@ import { generateAccessCode, redeemAccessCode, listAccessCodes, revokeAccessCode
 import { getPickFinderConnectionState } from './scanner/secure-store.mjs';
 import { internalDetail } from './lib/safe-error.mjs';
 import { readSavedProps, updateSavedProps } from './lib/autoscout/saved-props.mjs';
+import { createAccountSessions, ACCOUNT_COOKIE } from './lib/auth/session.mjs';
+import { accountSecret } from './lib/auth/secret.mjs';
+import { resolveSession as resolveAccountSession } from './lib/auth/service.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const publicDir = path.join(__dirname, 'public');
@@ -29,6 +32,27 @@ await fs.mkdir(dataDir, { recursive: true });
 bootstrapProviders();
 
 const sessions = createSessionCodec({ secret: dashboardSessionSecret });
+// Email/Google accounts are issued at the frontdoor, which this server never
+// sees. Verifying that cookie here is what lets a signed-in account reach its
+// own saved props instead of being told to enter an access code it never had.
+const accountSessions = createAccountSessions({ secret: accountSecret() });
+// The colon is deliberate: encodeSubject() strips it from legacy access-code
+// subjects, so no access code can ever collide with an account's saved props.
+const ACCOUNT_SUBJECT_PREFIX = 'acct:';
+
+async function accountBridgeSession(req) {
+  const token = parseCookies(req)[ACCOUNT_COOKIE];
+  if (!token) return null;
+  const session = accountSessions.read(token);
+  if (!session.valid) return null;
+  // Check the stored sessionVersion, so a password change or "sign out
+  // everywhere" ends this path at the same instant it ends the others.
+  const user = await resolveAccountSession({ userId: session.userId, sessionVersion: session.sessionVersion });
+  if (!user) return null;
+  // Always MEMBER. An account holder is a customer, never an operator: owner
+  // powers stay behind the owner password alone.
+  return { authenticated: true, role: MEMBER, subject: `${ACCOUNT_SUBJECT_PREFIX}${user.id}`, reason: null };
+}
 const rateLimiter = createRateLimiter();
 const startedAt = new Date().toISOString();
 
@@ -51,7 +75,7 @@ function json(res, status, payload, extraHeaders = {}) {
 async function authSession(req) {
   if (!authRequired) return { authenticated: true, role: OWNER, subject: OWNER };
   const session = sessions.readToken(parseCookies(req)[SESSION_COOKIE]);
-  if (!session.authenticated) return session;
+  if (!session.authenticated) return (await accountBridgeSession(req)) || session;
   if (session.role === MEMBER && !(await isAccessCodeActive(session.subject))) {
     return { authenticated: false, role: null, subject: null, reason: 'code-revoked' };
   }

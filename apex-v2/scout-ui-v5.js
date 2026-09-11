@@ -698,8 +698,18 @@ function predictionStrip(g,line){
    +'<button class="asBtn asPredictBtn" data-predict="'+esc(g.key)+'">Re-run</button>'
   +'</div>'
   +(entry.primaryDriver?'<p class="asPredictDriver">'+esc(entry.primaryDriver)+'</p>':'')
-  +'<p class="asPredictFootnote">Model estimate — not a measured statistic.</p>'
+  +'<p class="asPredictFootnote">'+esc(calibrationNote(entry))+'</p>'
   +'</div>';
+}
+// Say how the number was reconciled, in one line. A projection blended against
+// eight real games is a different claim from one the log was too short to
+// check, and the customer is entitled to know which they are looking at.
+function calibrationNote(entry){
+ var c=entry&&entry.calibration;
+ if(!c||!c.applied)return 'Model estimate — not a measured statistic. The game log was too short to calibrate against.';
+ var parts=['Model estimate, calibrated against '+c.sampleSize+' logged games'];
+ if(c.clamped)parts.push('pulled back into the range those games support');
+ return parts.join(' · ')+'. Not a measured statistic.';
 }
 function rowHtml(g){
  var line=boardLine(g),side=defaultSide(g);
@@ -1096,14 +1106,200 @@ async function toggleSaved(key){
  toast(removing?'Prop removed.':serverSaves?'Saved to your access profile.':'Saved on this device.');
  }finally{savePending.delete(key);}
 }
+// --- accounts ---------------------------------------------------------------
+// Two sign-in systems coexist here. This panel drives the email/Google account
+// system that owns plans and per-account saved props. The legacy access code is
+// still accepted by the server for the people who already have one, so it stays
+// reachable at the bottom rather than being silently withdrawn.
+var account={authenticated:false,user:null,csrfToken:null},accountHealth=null,entitlement=null,accuracy=null,authBusy=false;
+async function accountJson(path,options){try{var response=await nativeFetch(path,options||{headers:{'accept':'application/json'}});var data=await response.json().catch(function(){return null;});return {status:response.status,data:data};}catch{return {status:0,data:null};}}
+function accountPost(path,body){return accountJson(path,{method:'POST',headers:Object.assign({'content-type':'application/json'},account.csrfToken?{'x-csrf-token':account.csrfToken}:{}),body:JSON.stringify(body||{})});}
+async function loadAccount(){
+ var me=await accountJson('/api/account/me');
+ account=me.data&&me.data.authenticated?{authenticated:true,user:me.data.user,csrfToken:me.data.csrfToken||null}:{authenticated:false,user:null,csrfToken:null};
+ var health=await accountJson('/api/account/health');accountHealth=health.data&&health.data.ok?health.data:null;
+ var plan=await accountJson('/api/account/entitlement');entitlement=plan.data&&plan.data.ok?plan.data.entitlement:null;
+ var record=await accountJson('/api/props/accuracy');accuracy=record.data&&record.data.ok?record.data.accuracy:null;
+ var button=document.getElementById('asAccount');
+ if(button){button.textContent=account.authenticated?'Account':'Sign in';button.classList.toggle('asPrimary',!account.authenticated);}
+}
+function remainingText(remaining,limit){if(!Number.isFinite(limit))return 'Unavailable';return (Number.isFinite(remaining)?remaining:limit)+' of '+limit+' left today';}
+function planBlock(){
+ if(!entitlement)return '';
+ var left=entitlement.remaining||{},limits=entitlement.limits||{};
+ var rows=[['Plan',entitlement.planName],['AI predictions',remainingText(left.predictions,limits.predictionsPerDay)],['Ask Claude',remainingText(left.ask,limits.askPerDay)],['Betslip',limits.slipSize+' picks']];
+ return '<div class="asPlanCard">'+rows.map(function(row){return '<div class="asPlanRow"><span>'+esc(row[0])+'</span><b>'+esc(row[1])+'</b></div>';}).join('')+'</div>'
+ +'<p class="asNotice">Daily counts reset at midnight UTC. Paid plans are not on sale yet, so every account is on '+esc(entitlement.planName)+'.</p>';
+}
+// The graded record of every prediction this app has made.
+//
+// It shows the counts from the first pick and withholds the rates until enough
+// have settled to mean anything. A hit rate over three picks is not a hit rate,
+// and printing one would be the marketing claim this record exists to replace.
+function accuracyBlock(){
+ if(!accuracy)return '';
+ var rows=[['Predictions recorded',String(accuracy.recorded)],['Graded so far',String(accuracy.graded)],['Awaiting the game',String(accuracy.awaitingResult)]];
+ if(accuracy.sufficient){
+  rows.push(['Picks that landed',accuracy.hitRate+'% of '+accuracy.calledPicks]);
+  if(accuracy.brierScore!=null)rows.push(['Calibration (Brier)',accuracy.brierScore+' — lower is better']);
+  if(accuracy.meanAbsoluteError!=null)rows.push(['Average miss',accuracy.meanAbsoluteError+' per prop']);
+ }
+ var note=accuracy.sufficient
+  ?'Every prediction is written down when it is made and graded against the real box score. Past results do not predict future ones.'
+  :'Rates appear once '+accuracy.minimumForRate+' picks have been graded. Until then the count is the only honest thing to show.';
+ return '<hr><h3>Model record</h3><div class="asPlanCard">'
+  +rows.map(function(row){return '<div class="asPlanRow"><span>'+esc(row[0])+'</span><b>'+esc(row[1])+'</b></div>';}).join('')
+  +'</div><p class="asNotice">'+esc(note)+'</p>';
+}
+function googleBlock(){
+ if(!accountHealth||!accountHealth.google||!accountHealth.google.available)return '';
+ return '<a class="asBtn asGoogleBtn" href="/api/account/google/start"><span class="asGoogleMark" aria-hidden="true">G</span>Continue with Google</a><div class="asAuthOr"><span>or</span></div>';
+}
+function passwordAvailable(){return !!(accountHealth&&accountHealth.password&&accountHealth.password.available);}
+function authUnavailableNotice(){
+ var google=!!(accountHealth&&accountHealth.google&&accountHealth.google.available);
+ if(passwordAvailable())return '';
+ if(google)return '<p class="asNotice">Email sign-up is not switched on yet, because verification codes cannot be delivered. Use Google for now — it confirms your address for us.</p>';
+ return '<div class="asAvailability">Sign-in is not switched on yet. Google sign-in and verification email both need to be configured before accounts can be created. Everything else on Auto Scout works without an account.</div>';
+}
+function authField(id,label,type,autocomplete){
+ return '<label for="'+id+'">'+esc(label)+'</label><input class="asControl" id="'+id+'" type="'+type+'" autocomplete="'+autocomplete+'" required>';
+}
+function authError(message){var el=document.getElementById('asAuthError');if(el)el.textContent=message||'';}
+function withBusy(form,run){
+ return async function(event){
+  event.preventDefault();
+  if(authBusy)return;
+  authBusy=true;
+  var button=form.querySelector('button[type=submit]');if(button)button.disabled=true;
+  authError('');
+  try{await run();}finally{authBusy=false;if(button)button.disabled=false;}
+ };
+}
+function signedInPanel(){
+ var email=account.user&&account.user.email?account.user.email:'your account';
+ utility('Your account',
+  '<p class="asNotice">Signed in as <b>'+esc(email)+'</b>.</p>'
+  +planBlock()
+  +'<hr><h3>Saved props</h3><p class="asNotice">'+(serverSaves?'Your saved props follow this account on any device.':'Saved props could not load right now. They are safe — try again shortly.')+'</p>'
+  +accuracyBlock()
+  +'<hr><div class="asAuthActions"><button class="asBtn" id="asChangePassword">Change password</button><button class="asBtn" id="asSignOutAll">Sign out everywhere</button><button class="asBtn asPrimary" id="asSignOut">Sign out</button></div>'
+  +'<p class="asNotice" id="asAuthError" role="alert"></p>');
+ document.getElementById('asSignOut').onclick=async function(){
+  await accountPost('/api/account/logout');
+  await afterAuthChange('Signed out.');
+ };
+ document.getElementById('asSignOutAll').onclick=async function(){
+  var result=await accountPost('/api/account/logout-all');
+  if(result.status!==200){authError('Could not sign out your other devices. Try again shortly.');return;}
+  await afterAuthChange('Signed out on every device.');
+ };
+ document.getElementById('asChangePassword').onclick=changePasswordPanel;
+}
+function changePasswordPanel(){
+ utility('Change password','<form id="asAuthForm">'+authField('asCurrentPassword','Current password','password','current-password')+authField('asNewPassword','New password','password','new-password')+'<button class="asBtn asPrimary" type="submit">Update password</button></form><p class="asNotice" id="asAuthError" role="alert"></p><p class="asNotice">Changing your password signs out every other device.</p>');
+ var form=document.getElementById('asAuthForm');
+ form.onsubmit=withBusy(form,async function(){
+  var result=await accountPost('/api/account/password/change',{currentPassword:document.getElementById('asCurrentPassword').value,newPassword:document.getElementById('asNewPassword').value});
+  if(result.status!==200||!result.data||!result.data.ok){authError((result.data&&result.data.message)||'That password could not be updated.');return;}
+  if(result.data.csrfToken)account.csrfToken=result.data.csrfToken;
+  toast('Password updated.');signedInPanel();
+ });
+}
+function verifyPanel(email,purpose){
+ var reset=purpose==='reset';
+ utility(reset?'Reset your password':'Confirm your email',
+  '<p class="asNotice">We sent a code to <b>'+esc(email)+'</b>. Enter it below.</p>'
+  +'<form id="asAuthForm">'+authField('asCode','Code','text','one-time-code')
+  +(reset?authField('asResetPassword','New password','password','new-password'):'')
+  +'<button class="asBtn asPrimary" type="submit">'+(reset?'Set new password':'Confirm')+'</button></form>'
+  +'<button class="asBtn" id="asResend">Send another code</button>'
+  +'<p class="asNotice" id="asAuthError" role="alert"></p>');
+ var form=document.getElementById('asAuthForm');
+ form.onsubmit=withBusy(form,async function(){
+  var code=document.getElementById('asCode').value.trim();
+  var result=reset
+   ? await accountPost('/api/account/password/reset',{email:email,code:code,password:document.getElementById('asResetPassword').value})
+   : await accountPost('/api/account/verify',{email:email,code:code});
+  if(result.status!==200||!result.data||!result.data.ok){authError((result.data&&result.data.message)||'That code did not work.');return;}
+  toast(reset?'Password reset. Sign in with it now.':'Email confirmed. Sign in to continue.');
+  authPanel('signin',email);
+ });
+ document.getElementById('asResend').onclick=async function(){
+  await accountPost('/api/account/resend',{email:email,purpose:reset?'reset_password':'verify_email'});
+  toast('If that address has an account, another code is on its way.');
+ };
+}
+function authPanel(view,prefill){
+ var mode=view||'signin',signup=mode==='signup',forgot=mode==='forgot';
+ var canPassword=passwordAvailable();
+ var tabs=canPassword
+  ?'<div class="asAuthTabs" role="tablist"><button role="tab" aria-selected="'+(!signup)+'" data-auth="signin">Sign in</button><button role="tab" aria-selected="'+signup+'" data-auth="signup">Create account</button></div>'
+  :'';
+ var form=canPassword
+  ?'<form id="asAuthForm">'+authField('asEmail','Email','email','email')
+   +(forgot?'':authField('asPassword',signup?'Choose a password':'Password','password',signup?'new-password':'current-password'))
+   +'<button class="asBtn asPrimary" type="submit">'+(forgot?'Email me a reset code':signup?'Create account':'Sign in')+'</button></form>'
+   +(forgot?'<button class="asAuthLink" data-auth="signin">Back to sign in</button>':'<button class="asAuthLink" data-auth="forgot">Forgot password</button>')
+  :'';
+ utility(forgot?'Reset your password':signup?'Create your account':'Sign in to Auto Scout',
+  authUnavailableNotice()+googleBlock()+tabs+form
+  +'<p class="asNotice" id="asAuthError" role="alert"></p>'
+  +'<hr><p class="asNotice">Auto Scout is a research tool. It reports what the connected feeds actually returned — it does not take bets or handle money.</p>'
+  +accuracyBlock()
+  +'<details class="asAuthLegacy"><summary>I have an access code</summary><form id="asLegacyForm"><label for="asCredential">Access code or owner password</label><input class="asControl" id="asCredential" type="password" autocomplete="current-password" required><button class="asBtn" type="submit">Use access code</button></form></details>');
+ document.querySelectorAll('[data-auth]').forEach(function(button){button.onclick=function(){authPanel(button.dataset.auth,document.getElementById('asEmail')?document.getElementById('asEmail').value:'');};});
+ var emailInput=document.getElementById('asEmail');
+ if(emailInput&&prefill)emailInput.value=prefill;
+ var authForm=document.getElementById('asAuthForm');
+ if(authForm)authForm.onsubmit=withBusy(authForm,async function(){
+  var email=document.getElementById('asEmail').value.trim();
+  if(forgot){
+   await accountPost('/api/account/password/forgot',{email:email});
+   verifyPanel(email,'reset');return;
+  }
+  var password=document.getElementById('asPassword').value;
+  if(signup){
+   var created=await accountPost('/api/account/register',{email:email,password:password});
+   if(!created.data||!created.data.ok){authError((created.data&&created.data.message)||'That account could not be created.');return;}
+   verifyPanel(email,'verify');return;
+  }
+  var result=await accountPost('/api/account/login',{email:email,password:password});
+  if(result.status!==200||!result.data||!result.data.ok){
+   if(result.data&&result.data.requiresVerification){verifyPanel(result.data.email||email,'verify');return;}
+   authError((result.data&&result.data.message)||'Sign-in failed. Check your details and try again.');return;
+  }
+  await afterAuthChange('Signed in.');
+ });
+ var legacy=document.getElementById('asLegacyForm');
+ if(legacy)legacy.onsubmit=withBusy(legacy,async function(){
+  var result=await accountJson('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({accessCode:document.getElementById('asCredential').value})});
+  if(result.status!==200){authError('That access code was not accepted.');return;}
+  await afterAuthChange('Access code accepted.');
+ });
+}
+async function afterAuthChange(message){
+ saveEpoch++;serverSaves=null;profile=null;savedRecords=new Map();favorites=new Set();
+ await loadAccount();
+ await loadSaved();
+ renderList();
+ toast(message);
+ var dialog=document.getElementById('asUtility');if(dialog&&dialog.open)dialog.close();
+}
 async function accountPanel(){
- if(!await loadSaved()){utility('Saved props unavailable','<p class="asNotice">Your saved list could not load. Please try again shortly.</p><button class="asBtn" id="asRetryAccount">Try again</button>');document.getElementById('asRetryAccount').onclick=accountPanel;return;}
- if(serverSaves){utility('Your access profile','<p class="asNotice">Signed in as '+esc(profile?.role==='owner'?'owner':'member')+'. Your saved props are stored on the server for this access profile. Keep your personal access code private; sharing it also shares its saved list.</p><button class="asBtn" id="asSignOut">Sign out</button><button class="asBtn" id="asImport">Import device saves</button><hr><h3>Alerts</h3><p class="asNotice">Alert delivery is unavailable. Saved props can be reviewed here at any time.</p>');
- document.getElementById('asSignOut').onclick=async()=>{var response=await nativeFetch('/api/auth/logout',{method:'POST'});if(!response.ok){toast('Could not sign out.');return;}saveEpoch++;serverSaves=null;profile=null;savedRecords=new Map();favorites=new Set();closeDrawer();await loadSaved();document.getElementById('asUtility').close();renderList();};
- document.getElementById('asImport').onclick=async e=>{e.target.disabled=true;var rows=readStored('autoscout-saved-records',[]),failed=0;for(var row of rows){var response=await nativeFetch('/api/saved-props',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(row)}).catch(()=>null);if(!response?.ok)failed++;}await loadSaved();renderList();toast(failed?'Some device saves could not be imported.':'Device saves imported.');e.target.disabled=false;};return;}
- utility('Sign in to Auto Scout','<p class="asNotice">Use your personal access code or owner password. Signing in lets you return to your saved props on another device.</p><form id="asLoginForm"><label>Access code or owner password<input class="asControl" id="asCredential" type="password" autocomplete="current-password" required></label><button class="asBtn asPrimary" type="submit">Sign in</button><p class="asNotice" id="asLoginError" role="alert"></p></form><p class="asNotice">Without signing in, saves stay on this device.</p>');
- document.getElementById('asLoginForm').onsubmit=async e=>{e.preventDefault();var button=e.target.querySelector('button');button.disabled=true;try{var response=await nativeFetch('/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({accessCode:document.getElementById('asCredential').value})});if(!response.ok){document.getElementById('asLoginError').textContent='Sign-in failed. Check your code and try again.';return;}document.getElementById('asCredential').value='';await loadSaved();renderList();await accountPanel();}catch{document.getElementById('asLoginError').textContent='Sign-in is temporarily unavailable.';}finally{button.disabled=false;}};
+ await loadAccount();
+ if(account.authenticated){await loadSaved();signedInPanel();return;}
+ authPanel('signin','');
+}
+// Google sends the browser back with a result in the query string. Report it
+// once, then strip it so a refresh does not repeat the message.
+function reportSigninRedirect(){
+ var value=new URLSearchParams(location.search).get('signin');
+ if(!value)return;
+ history.replaceState(null,'',location.pathname+location.hash);
+ if(value==='ok')return;
+ toast(value==='cancelled'?'Google sign-in was cancelled.':value==='expired'?'That sign-in link expired. Please try again.':'Google sign-in could not be completed.');
 }
 
-shell();loadSaved().then(()=>{if(!loading)renderListLight();});load();setInterval(function(){if(!document.hidden&&!drawerState&&!loading)load();},90000);
+shell();reportSigninRedirect();loadAccount();loadSaved().then(()=>{if(!loading)renderListLight();});load();setInterval(function(){if(!document.hidden&&!drawerState&&!loading)load();},90000);
 })().catch(function(){var root=document.getElementById('as5')||document.querySelector('main')||document.body;root.replaceChildren();var message=document.createElement('p');message.textContent='Auto Scout could not load. Please refresh to try again.';message.setAttribute('role','alert');root.appendChild(message);var retry=document.createElement('button');retry.textContent='Refresh';retry.onclick=function(){location.reload();};root.appendChild(retry);});

@@ -6,7 +6,15 @@ import { researchPlayerProp, researchHealth } from './lib/autoscout/research-ser
 import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
 import { projectPlayerProp, projectionsConfigured } from './lib/projections/service.mjs';
 import { askAboutProp, askConfigured } from './lib/projections/ask.mjs';
+import { recordProjection, gradeFromGameLog, accuracyReport } from './lib/projections/ledger.mjs';
 import { teammatesFor, injuryFeedConfigured } from './lib/data-sources/sportsdataio/injury-feed.mjs';
+import { accountSecret } from './lib/auth/secret.mjs';
+import { handleAccountRoutes, currentAccount, mailStatus } from './lib/auth/routes.mjs';
+import { handleGoogleRoutes } from './lib/auth/google-routes.mjs';
+import { createAccountSessions } from './lib/auth/session.mjs';
+import { googleHealth } from './lib/auth/google.mjs';
+import { entitlementFor, publicEntitlement } from './lib/billing/entitlements.mjs';
+import { consume, peek } from './lib/billing/usage.mjs';
 
 const FRONT_PORT = Number(process.env.PORT || 3000);
 const SCOUT_PORT = 3002;
@@ -30,6 +38,12 @@ const CLIENT_MODULES = new Map([
   'lib/betting/kelly.mjs', 'lib/markets/line-lag.mjs',
 ].map(file => ['/assets/' + file, file]));
 CLIENT_MODULES.set('/assets/autoscout-research.css', 'apex-v2/research-ui.css');
+
+// Accounts live at the frontdoor, not in the legacy Scout server: that server
+// gates every /api/* path behind its own access code, which would lock people
+// out of the very routes they need to create an account.
+const sessionSecret = accountSecret();
+const accountSessions = createAccountSessions({ secret: sessionSecret });
 
 function child(file, port, label) {
   const proc = spawn(process.execPath, [file], {
@@ -183,6 +197,12 @@ async function maybeServeResearch(req, res) {
       side,
       games: Math.min(40, Math.max(5, Number(url.searchParams.get('games')) || 20)),
     });
+    // Any fetched log is a chance to settle open projections for this player,
+    // at no extra provider cost. Fire and forget: grading must never delay or
+    // fail the research response it rode in on.
+    if (Array.isArray(result?.gameLog) && result.gameLog.length) {
+      gradeFromGameLog({ sport, playerName, market, gameLog: result.gameLog }).catch(() => {});
+    }
     directJson(res, result?.ok === false ? 400 : 200, sanitizePublicPayload(result || { ok: true, available: false, message: 'Historical research is unavailable.' }, { statsContext: true }));
   } catch (error) {
     console.error('[frontdoor] research request failed', String(error?.code || error?.message || 'RESEARCH_ERROR').slice(0, 120));
@@ -291,6 +311,55 @@ async function maybeServeResearchBatch(req, res) {
  * measured; this reports what a model estimated, and the response says so in
  * `modelled` and `source` so the two can never be mistaken for each other.
  */
+/**
+ * Who this request counts against, and what their plan allows.
+ *
+ * A signed-out visitor is counted by IP. That is weaker than an account — a
+ * new address resets it — but the alternative is either counting everyone
+ * together (one user exhausts the day for everybody) or refusing anonymous
+ * use entirely, and this is the honest middle: the cheap identity gets the
+ * cheap allowance.
+ */
+async function planFor(req) {
+  const { user } = await currentAccount(req, accountSessions).catch(() => ({ user: null }));
+  const entitlement = await entitlementFor(user?.id || null);
+  return {
+    user,
+    entitlement,
+    subject: user?.id ? `user:${user.id}` : `ip:${requestIp(req)}`,
+  };
+}
+
+function planLimitResponse(res, action, budget) {
+  directJson(res, 429, {
+    ok: false,
+    code: 'PLAN_LIMIT_REACHED',
+    limit: budget.limit,
+    used: budget.used,
+    message: action === 'ask'
+      ? `You have used all ${budget.limit} questions for today. The count resets at midnight UTC.`
+      : `You have used all ${budget.limit} predictions for today. The count resets at midnight UTC.`,
+  });
+  return true;
+}
+
+async function maybeServeAccuracy(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/props/accuracy') return false;
+  if (req.method !== 'GET') {
+    directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
+    return true;
+  }
+  const sport = safeParam(url, 'sport', 12).toUpperCase();
+  try {
+    const report = await accuracyReport({ sport: ARTWORK_SPORTS.has(sport) ? sport : null });
+    directJson(res, 200, { ok: true, accuracy: report });
+  } catch {
+    directJson(res, 200, { ok: true, accuracy: null, message: 'The accuracy record is unavailable right now.' });
+  }
+  return true;
+}
+
 async function maybeServeProjection(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   // Both names serve the same handler: /predict is what the client calls,
@@ -308,6 +377,9 @@ async function maybeServeProjection(req, res) {
     directJson(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many projection requests. Try again shortly.' }, { 'retry-after': '60' });
     return true;
   }
+  const plan = await planFor(req);
+  const budget = consume({ subject: plan.subject, action: 'predict', limit: plan.entitlement.plan.predictionsPerDay });
+  if (!budget.allowed) return planLimitResponse(res, 'predict', budget);
   const body = await readJsonBody(req, 64 * 1024);
   const sport = String(body?.sport || '').trim().toUpperCase();
   const playerName = String(body?.playerName || '').trim().slice(0, 90);
@@ -319,6 +391,11 @@ async function maybeServeProjection(req, res) {
   }
   try {
     const result = await projectPlayerProp({ ...body, sport, playerName, market, line });
+    // Write the claim down before answering, so the record cannot be curated
+    // after the fact. A cached repeat is the same claim, already recorded.
+    if (result?.available && !result.cached) {
+      recordProjection(result, { sport, playerName, market }).catch(() => {});
+    }
     directJson(res, 200, sanitizePublicPayload(result, { statsContext: true }));
   } catch (error) {
     console.error('[frontdoor] projection request failed', String(error?.code || error?.message || 'PROJECTION_ERROR').slice(0, 120));
@@ -348,6 +425,9 @@ async function maybeServeAsk(req, res) {
     directJson(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many questions. Try again shortly.' }, { 'retry-after': '60' });
     return true;
   }
+  const askPlan = await planFor(req);
+  const askBudget = consume({ subject: askPlan.subject, action: 'ask', limit: askPlan.entitlement.plan.askPerDay });
+  if (!askBudget.allowed) return planLimitResponse(res, 'ask', askBudget);
   const body = await readJsonBody(req, 64 * 1024);
   const sport = String(body?.prop?.sport || '').trim().toUpperCase();
   if (!ARTWORK_SPORTS.has(sport)) {
@@ -431,6 +511,53 @@ async function maybeServeArtwork(req, res) {
   return true;
 }
 
+async function maybeServeAccount(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (!url.pathname.startsWith('/api/account')) return false;
+
+  // What the sign-in panel needs to tell the truth about which paths work.
+  if (url.pathname === '/api/account/health' && req.method === 'GET') {
+    const google = googleHealth();
+    const mail = mailStatus();
+    directJson(res, 200, {
+      ok: true,
+      // Readiness only — never the provider name, the client id, or the keys.
+      password: { available: mail.configured, reason: mail.configured ? null : 'EMAIL_DELIVERY_UNCONFIGURED' },
+      google: { available: google.available },
+    });
+    return true;
+  }
+
+  if (url.pathname === '/api/account/entitlement' && req.method === 'GET') {
+    const plan = await planFor(req);
+    const entitlement = publicEntitlement(plan.entitlement);
+    directJson(res, 200, {
+      ok: true,
+      entitlement: {
+        ...entitlement,
+        // What is actually left today, so the panel states a fact rather than
+        // an allowance the user has already spent.
+        remaining: {
+          predictions: peek({ subject: plan.subject, action: 'predict', limit: entitlement.limits.predictionsPerDay }).remaining,
+          ask: peek({ subject: plan.subject, action: 'ask', limit: entitlement.limits.askPerDay }).remaining,
+        },
+      },
+    });
+    return true;
+  }
+
+  try {
+    if (await handleGoogleRoutes(req, res, url, { sessions: accountSessions, json: directJson, secret: sessionSecret })) return true;
+    if (await handleAccountRoutes(req, res, url, { sessions: accountSessions, json: directJson, secret: sessionSecret })) return true;
+  } catch (error) {
+    console.error('[frontdoor] account route failed', String(error?.code || error?.message || 'ACCOUNT_ERROR').slice(0, 120));
+    directJson(res, 500, { ok: false, message: 'That request could not be completed.' });
+    return true;
+  }
+  directJson(res, 404, { ok: false, code: 'NOT_FOUND', message: 'Unknown account route.' });
+  return true;
+}
+
 const server = http.createServer(async (req, res) => {
   const asset = CLIENT_MODULES.get(new URL(req.url || '/', 'http://localhost').pathname);
   if (asset && req.method === 'GET') {
@@ -438,8 +565,10 @@ const server = http.createServer(async (req, res) => {
     res.end(readFileSync(asset, 'utf8'));
     return;
   }
+  if (await maybeServeAccount(req, res)) return;
   if (await maybeServeResearch(req, res)) return;
   if (await maybeServeResearchBatch(req, res)) return;
+  if (await maybeServeAccuracy(req, res)) return;
   if (await maybeServeProjection(req, res)) return;
   if (await maybeServeAsk(req, res)) return;
   if (await maybeServeTeammates(req, res)) return;

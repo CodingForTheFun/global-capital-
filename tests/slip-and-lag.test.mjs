@@ -198,3 +198,46 @@ test('the shell injection preserves $ sequences in the client bundle', () => {
   const ui = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
   assert.ok(ui.includes("'$'"), 'the bundle formats currency with a bare $');
 });
+
+test('context tiles are dropped on absent values, not rendered as a dash', () => {
+  const ui = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
+  // The old filter compared against the literal 'Unavailable'. Once empty
+  // values began rendering as an em dash that comparison stopped matching and
+  // every empty tile rendered as a bare dash. Filter on the value instead.
+  assert.equal(/items\.filter\(x=>x\[1\]!=='Unavailable'\)/.test(ui), false);
+  assert.match(ui, /items\.filter\(function\(x\)\{return x\[1\]!=null&&x\[1\]!==''/);
+
+  // A season total may only be derived when the sample really is the season.
+  assert.match(ui, /seasonTotal==null&&seasonComplete&&seasonAverage!=null&&seasonGames/);
+
+  // Usage tiles come from game-log fields, and an absent metric is omitted
+  // rather than defaulted to a plausible-looking number.
+  assert.match(ui, /function usageTiles\(/);
+  assert.match(ui, /return t\[1\]!=null&&t\[1\]!==0;/);
+});
+
+test('the empty filtered log explains itself and falls back to recent form', () => {
+  const ui = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
+  assert.match(ui, /No head-to-head meetings with/);
+  assert.match(ui, /Showing recent form instead/);
+  assert.match(ui, /function emptyLog\(/);
+});
+
+test('model data gaps reach the user as copy, never as field names', () => {
+  const ui = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
+  // The raw join that printed "opponentDefenseRank, restDays" is gone.
+  assert.equal(/Missing from the payload: '\+esc\(gaps\.join/.test(ui), false);
+  assert.match(ui, /function describeGaps\(/);
+  assert.match(ui, /opponentDefenseRank:'how this defence ranks'/);
+
+  // Pull the translator out of the bundle and exercise it.
+  const start = ui.indexOf('var GAP_COPY=');
+  const end = ui.indexOf('function projectionCard(');
+  // eslint-disable-next-line no-new-func
+  const describeGaps = new Function(`${ui.slice(start, end)}\n; return describeGaps;`)();
+  assert.equal(describeGaps(['opponentDefenseRank', 'restDays']),
+    'Estimated without how this defence ranks and days of rest.');
+  assert.equal(describeGaps(['restDays']), 'Estimated without days of rest.');
+  assert.equal(describeGaps(['somethingNew']), 'Some context was unavailable for this estimate.');
+  assert.equal(describeGaps([]), '');
+});

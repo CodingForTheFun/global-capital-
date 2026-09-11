@@ -515,6 +515,35 @@ function askPanel(g,line,side){
   +'<button class="asBtn asPrimary" type="submit"'+(busy?' disabled':'')+'>Ask</button></form>'
   +'<p class="asPredictFootnote">Answers come from the same data on this card. Not betting advice.</p>';
 }
+// data_gaps is the model naming evidence it did not get. It is genuinely
+// useful — it is why a confidence is low — but the raw field names read like
+// debug output, so they are translated into product copy and anything without
+// a translation is summarised rather than printed verbatim.
+var GAP_COPY={
+ opponentDefenseRank:'how this defence ranks',
+ opponentPaceRank:'the opponent\'s pace',
+ restDays:'days of rest',
+ gamesInLastSevenDays:'recent schedule load',
+ isBackToBack:'back-to-back status',
+ injuryStatus:'an injury report',
+ teamMoneyline:'the game line',
+ gameTotal:'the game total',
+ minutes:'minutes played',
+ expectedMinutes:'expected minutes',
+ projection:'a projection feed',
+ gameLog:'a full game log',
+};
+function describeGaps(gaps){
+ var known=[],unknown=0;
+ (gaps||[]).forEach(function(gap){
+  var copy=GAP_COPY[String(gap).trim()];
+  if(copy&&known.indexOf(copy)<0)known.push(copy);else if(!copy)unknown++;
+ });
+ if(!known.length)return unknown?'Some context was unavailable for this estimate.':'';
+ var list=known.length===1?known[0]
+  :known.slice(0,-1).join(', ')+' and '+known[known.length-1];
+ return 'Estimated without '+list+(unknown?', among other context':'')+'.';
+}
 function projectionCard(g,line){
  var key=projectionKey(g,line), entry=projections.get(key);
  var head='<div class="asSectionTitle"><h3>Modelled projection</h3><span>Model estimate · not a measured statistic</span></div>';
@@ -522,8 +551,14 @@ function projectionCard(g,line){
   return '<section class="asSection asProjection">'+head+'<div class="asSectionBody"><div class="asLoading" role="status"><div class="asPulse"></div>Modelling this prop…</div></div></section>';
  }
  if(!entry){
+  // A projection is tied to the line it was run against. When the stepper
+  // moves, the old estimate no longer describes this bet — say that rather
+  // than showing a stale number, and wait for a click before spending again.
+  var other=Array.from(projections.keys()).some(function(k){return k.indexOf(g.key+'|')===0;});
   return '<section class="asSection asProjection">'+head+'<div class="asSectionBody">'
-   +'<p class="asNotice">Estimate this prop against the current line using the connected model. Uses one paid request.</p>'
+   +'<p class="asNotice">'+(other
+     ? 'The line changed, so the previous estimate no longer applies to this bet. Re-estimate to update the verdict.'
+     : 'Estimate this prop against the current line using the connected model. Uses one paid request.')+'</p>'
    +'<button class="asBtn asPrimary" data-project="'+esc(g.key)+'">Run projection</button></div></section>';
  }
  if(!entry.available){
@@ -553,7 +588,7 @@ function projectionCard(g,line){
      num(entry.impliedOver)==null?'':'book '+Math.round(entry.impliedOver*100)+'%')
   +'</div>'
   +(entry.primaryDriver?'<p class="asProjDriver"><small>Primary driver</small>'+esc(entry.primaryDriver)+'</p>':'')
-  +(gaps.length?'<p class="asNotice asProjGaps">Missing from the payload: '+esc(gaps.join(', '))+'</p>':'')
+  +(gaps.length?'<p class="asNotice asProjGaps">'+esc(describeGaps(gaps))+'</p>':'')
   +'<p class="asProjFootnote">Model estimate generated '+esc(when(entry.generatedAt))+'. Not a measured statistic and not betting advice.</p>'
   +'<button class="asBtn" data-project="'+esc(g.key)+'">Re-run</button>'
   +'</div></section>';
@@ -625,6 +660,22 @@ async function runProjection(g,line,side){
 }
 // Inline prediction on the board card. One explicit click, one paid request:
 // nothing here fires on render, on scroll, or on a page change.
+// The verdict sits at the top-right of the card, next to the gauge, so a
+// scanner sees the call and the two numbers behind it without opening the
+// prop. It appears only once a prediction exists for THIS line.
+function headerVerdict(g,line){
+ var entry=projections.get(projectionKey(g,line));
+ if(!entry||!entry.available)return '';
+ var over=num(entry.probabilityOver);
+ var side=entry.side==='UNDER'?'under':'over';
+ var shown=side==='under'?num(entry.probabilityUnder):over;
+ return '<div class="asVerdict">'
+  +'<span class="asPickBadge '+pickTone(entry.pick)+'">'+esc(entry.pick||'PASS')+'</span>'
+  +'<div class="asVerdictFigs">'
+   +'<span><small>Model '+esc(side)+'</small><b>'+(shown==null?'—':Math.round(shown*100)+'%')+'</b></span>'
+   +'<span><small>Edge</small><b>'+esc(signed(entry.edge,1))+'</b></span>'
+  +'</div></div>';
+}
 function predictionStrip(g,line){
  var key=projectionKey(g,line), entry=projections.get(key);
  if(projectionPending.has(key)){
@@ -668,7 +719,7 @@ function rowHtml(g){
     +'<div class="asCardMatch"><span>'+esc(displayTeam(g.awayTeam)+' @ '+displayTeam(g.homeTeam))+'</span><span class="asCardTime">'+esc(when(g.gameStartTime))+'</span></div>'
     +'<div class="asCardMarket">'+esc(marketLabel)+(quote&&num(quote.price)!=null?'<span class="asCardPrice">'+esc(side+' '+money(quote.price))+(quote.sportsbook?' · '+esc(quote.sportsbook):'')+'</span>':'')+'</div>'
    +'</div>'
-   +'<div class="asCardGauge">'+ringGauge(gaugeRates(r,side))+'</div>'
+   +'<div class="asCardGauge">'+headerVerdict(g,line,side)+ringGauge(gaugeRates(r,side))+'</div>'
   +'</div>'
   +matchupPills(r)
   +badgeStrip(g,r,side)
@@ -794,11 +845,74 @@ function shuffleRank(g){var v=shuffleOrder.get(g.key);return v==null?Number.MAX_
 function normTeam(v){return String(v||'').toUpperCase().replace(/[^A-Z]/g,'');}
 function recalcFromGameLog(base,line,side){return analyzeResearch(base,line,side,drawerState?.filter||'all');}
 function marketOptions(g){var candidates=viewGroups();if(!candidates.some(x=>x.key===g.key))candidates.push(g);return candidates.filter(function(x){return x.sport===g.sport&&x.eventId===g.eventId&&x.playerName===g.playerName;}).map(function(x){return'<option value="'+esc(x.key)+'" '+(x.key===g.key?'selected':'')+'>'+esc(x.market)+'</option>';}).join('');}
-function contextGrid(r,line){
- var c=r?.context||{},projection=num(c.projection),items=[['Projection',dec(projection)],['Projection − line',projection==null||num(line)==null?'Unavailable':dec(projection-num(line))],['Season average',dec(c.seasonAverage)],['Season total',dec(c.seasonStat)],['Average minutes',dec(c.averageMinutes)],['Expected minutes',dec(c.expectedMinutes)],['Starter',c.isStarter===true?'Yes':c.isStarter===false?'No':'Unavailable'],['Injury',c.injuryStatus||'Unavailable'],['Opponent rank',num(c.opponentRank)==null?'Unavailable':'#'+c.opponentRank],['Opponent',r?.matchup?.opponent||'Unavailable'],['Home sample avg',dec(r?.splits?.home?.average)],['Away sample avg',dec(r?.splits?.away?.average)]];
- items=items.filter(x=>x[1]!=='Unavailable');
- return items.length?'<div class="asContext">'+items.map(x=>'<div class="asCtx"><small>'+esc(x[0])+'</small><b>'+esc(x[1])+'</b></div>').join('')+'</div>':'<p class="asNotice">Additional player context has not been reported.</p>';
+function averageField(rows,field){
+ var values=(rows||[]).map(function(row){return num(row[field]);}).filter(function(v){return v!=null;});
+ if(!values.length)return null;
+ return values.reduce(function(a,b){return a+b;},0)/values.length;
 }
+// Usage tiles differ by sport because the feeds do. Minutes exist for
+// basketball and hockey; football and baseball carry different columns
+// entirely. Every figure here is averaged from the real game log, and a metric
+// the log does not carry is omitted rather than defaulted — a "sensible
+// default" minutes figure reads as measured and is not.
+function usageTiles(r,sport){
+ var rows=r&&Array.isArray(r.gameLog)?r.gameLog:[];
+ var wanted=sport==='NBA'||sport==='WNBA'?[['Average minutes','minutes']]
+  :sport==='NHL'?[['Average time on ice','minutes']]
+  :sport==='NFL'||sport==='NCAAF'?[['Targets / game','targets'],['Rush attempts / game','rushingAttempts'],['Pass attempts / game','passingAttempts']]
+  :sport==='MLB'?[['Hits / game','hits'],['Strikeouts / game','strikeouts']]
+  :[];
+ return wanted.map(function(t){return [t[0],averageField(rows,t[1])];})
+  // A metric a player never accumulates (a receiver's rush attempts) is
+  // clutter rather than signal, so a flat zero is dropped with the nulls.
+  .filter(function(t){return t[1]!=null&&t[1]!==0;})
+  .map(function(t){return [t[0],dec(t[1],1)];});
+}
+function contextGrid(r,line,g){
+ var c=r&&r.context?r.context:{};
+ var sport=(g&&g.sport)||(r&&r.player&&r.player.sport)||'';
+ // The board's own projection feed is empty, but a generated model estimate is
+ // a real number for this prop — bind the tile to it and label it as modelled.
+ var modelled=g?projections.get(projectionKey(g,line)):null;
+ var projection=num(c.projection);
+ if(projection==null&&modelled&&modelled.available)projection=num(modelled.projection);
+ var modelSourced=num(c.projection)==null&&projection!=null;
+
+ // A season total is the sum of the season's games. Deriving it from an
+ // average is only sound when the sample IS the season; otherwise the tile is
+ // omitted rather than showing a total built from part of one.
+ var seasonAverage=num(c.seasonAverage);
+ var seasonTotal=num(c.seasonStat);
+ var seasonWindow=r&&r.windows?r.windows.season:null;
+ var seasonGames=seasonWindow?num(seasonWindow.games):null;
+ var seasonComplete=r&&r.coverage?r.coverage.seasonComplete===true:false;
+ if(seasonTotal==null&&seasonComplete&&seasonAverage!=null&&seasonGames)seasonTotal=seasonAverage*seasonGames;
+
+ var items=[
+  ['Projection',projection==null?null:dec(projection,1)+(modelSourced?' *':'')],
+  ['Projection − line',projection==null||num(line)==null?null:dec(projection-num(line),1)],
+  ['Season average',seasonAverage==null?null:dec(seasonAverage,1)],
+  ['Season total',seasonTotal==null?null:dec(seasonTotal,1)],
+ ].concat(usageTiles(r,sport)).concat([
+  ['Starter',c.isStarter===true?'Yes':c.isStarter===false?'No':null],
+  ['Injury',c.injuryStatus||null],
+  ['Opponent rank',num(c.opponentRank)==null?null:'#'+c.opponentRank],
+  ['Opponent',(r&&r.matchup&&r.matchup.opponent)||null],
+  ['Home sample avg',num(r&&r.splits&&r.splits.home&&r.splits.home.average)==null?null:dec(r.splits.home.average,1)],
+  ['Away sample avg',num(r&&r.splits&&r.splits.away&&r.splits.away.average)==null?null:dec(r.splits.away.average,1)],
+ ]);
+ // Filter on the value being absent, not on a display string. The previous
+ // check compared against 'Unavailable', which stopped matching when empty
+ // values began rendering as an em dash — every empty tile then rendered as a
+ // bare dash instead of being dropped.
+ items=items.filter(function(x){return x[1]!=null&&x[1]!=='';});
+ if(!items.length)return '<p class="asNotice">Additional player context has not been reported.</p>';
+ return '<div class="asContext">'+items.map(function(x){
+   return '<div class="asCtx"><small>'+esc(x[0])+'</small><b class="asCtxValue">'+esc(x[1])+'</b></div>';
+  }).join('')+'</div>'
+  +(modelSourced?'<p class="asNotice">* Projection is a model estimate, not a reported projection.</p>':'');
+}
+
 function windowCards(r,selected){return'<div class="asWindows">'+['l5','l10','l15','l20','season','h2h'].map(k=>{
  var w=k==='h2h'?r?.h2h:r?.windows?.[k],emptyH2h=k==='h2h'&&w?.games===0&&r?.matchup?.opponent;
  var label=k==='season'?'SZN':k.toUpperCase(),title=k==='season'?'Season '+(r?.season||''):k==='h2h'?'Games vs '+(r?.matchup?.opponent||'opponent'):label;
@@ -853,6 +967,32 @@ async function historyHtml(g,book,side){
 function openDrawer(g){if(!drawerState)lastFocus=document.activeElement;if(sandbox.key!==g.key)sandbox={key:g.key,out:new Set(),roster:null,loading:false};drawerState={g,line:boardLine(g),side:defaultSide(g),window:'l10',filter:'all',base:null,historyBook:bookFilter!=='all'?bookFilter:books(g)[0]};document.getElementById('asDrawerBg').classList.add('on');document.body.style.overflow='hidden';document.querySelector('.asMain').inert=true;document.querySelector('.asTop').inert=true;document.querySelector('.asNav').inert=true;renderDrawer();document.getElementById('asClose').focus();getResearch(g,drawerState.line,drawerState.side,false).then(r=>{if(!drawerState||drawerState.g.key!==g.key)return;drawerState.base=r;renderDrawer();});}
 function loadHistoryIntoDrawer(){if(!drawerState)return;var {g,historyBook,side}=drawerState;historyHtml(g,historyBook,side).then(html=>{if(drawerState?.g.key!==g.key||drawerState?.historyBook!==historyBook||drawerState?.side!==side)return;var el=document.getElementById('asHistory');if(el)el.innerHTML=html;});}
 function researchAvailability(base){var c=String(base?.code||'');if(/UNMAPPED/.test(c))return 'This market does not yet have a supported historical statistic. Current sportsbook lines remain available.';if(/SEASON_ONLY|NO_GAME_LOG/.test(c)||base?.sections?.seasonTotal)return 'Season or player context is available, but completed game logs were not returned. Hit rates require individual game results.';if(/PLAYER.*MATCH|AMBIGUOUS/.test(c))return 'This player could not be uniquely matched to historical statistics. Current sportsbook lines remain available.';return 'Historical research could not be loaded for this player and market. Any supplied player context and sportsbook lines remain available.';}
+// An empty filtered log is usually the head-to-head view on a player who has
+// not faced this opponent. Say that in plain language and show the recent form
+// that does exist, rather than leaving a dead table.
+function emptyLog(r,g,base){
+ var venue=drawerState&&drawerState.filter;
+ var opponent=(r&&r.matchup&&r.matchup.opponent)||(base&&base.matchup&&base.matchup.opponent)||'this opponent';
+ var message=venue==='h2h'
+  ? 'No head-to-head meetings with '+esc(opponent)+' in the games on record.'
+  : venue==='home'?'No home games in the games on record.'
+  : venue==='away'?'No away games in the games on record.'
+  : 'No completed games match this selection.';
+ // r is the FILTERED analysis, so in the head-to-head view its log is the
+ // empty set we are explaining. Recent form has to come from the unfiltered
+ // run or there is nothing to fall back to.
+ var unfiltered=base?analyzeResearch(base,drawerState?drawerState.line:null,drawerState?drawerState.side:'OVER','all'):null;
+ var recent=(unfiltered&&Array.isArray(unfiltered.gameLog)?unfiltered.gameLog
+  :(base&&Array.isArray(base.gameLog)?base.gameLog:[])).slice(0,10);
+ if(!recent.length)return '<p class="asNotice">'+message+'</p>';
+ var rows=recent.map(function(row){
+  var tone=row.push?'asPushText':row.hit===true?'asHit':row.hit===false?'asMiss':'';
+  return '<li><span>'+esc(shortDate(row.date))+'</span><span>'+esc(row.opponent||'—')+'</span>'
+   +'<b class="'+tone+'">'+esc(dec(row.value,1))+'</b></li>';
+ }).join('');
+ return '<p class="asNotice">'+message+' Showing recent form instead.</p>'
+  +'<ul class="asFallbackLog">'+rows+'</ul>';
+}
 function renderDrawer(){
  if(!drawerState)return;var focused=document.getElementById('asDrawerBody').contains(document.activeElement)?focusToken(document.activeElement):null;var {g,line,side}=drawerState,base=drawerState.base||researchFor(g,line,side),r=base?recalcFromGameLog(base,line,side):null;
  var injury=document.getElementById('asInjuryBadge');injury.hidden=!base?.context?.injuryStatus;injury.textContent=base?.context?.injuryStatus||'';
@@ -863,12 +1003,12 @@ function renderDrawer(){
  var filters='<div class="asFilterRow">'+[['all','All'],['home','Home'],['away','Away'],['h2h','VS '+(r?.matchup?.opponent||'opponent')]].map(([id,label])=>'<button class="asFilterBtn '+(drawerState.filter===id?'on':'')+'" data-filter="'+id+'" aria-pressed="'+(drawerState.filter===id)+'">'+esc(label)+'</button>').join('')+'</div>';
  var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['sandbox','Scenario'],['ask','Ask']];
  var tabBar='<div class="asResearchTabs" role="tablist" aria-label="Player research sections">'+tabs.map(([id,label])=>'<button role="tab" class="asResearchTab" id="asTab-'+id+'" data-research-panel="'+id+'" aria-controls="asPanel-'+id+'" aria-selected="'+(panel===id)+'" tabindex="'+(panel===id?'0':'-1')+'">'+label+'</button>').join('')+'</div>';
- var logContent=filteredGames(r).length?gameTable(r,g):'<p class="asNotice">No completed games match this selection.</p>';
+ var logContent=filteredGames(r).length?gameTable(r,g):emptyLog(r,g,base);
  var projectionHtml=projectionCard(g,line);
  var pillsHtml=section('Hit rate',hitPills(r||base));
  var panels={sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
   ask:section('Ask about this prop',askPanel(g,line,side)),
-  overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line)),games:windowCards(r,drawerState.window)+filters+section('Game log',logContent),lines:section('Every book',bookMatrix(g))+section('Sportsbook line shop',comparisonRows(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
+  overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Game log',logContent),lines:section('Every book',bookMatrix(g))+section('Sportsbook line shop',comparisonRows(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
  document.getElementById('asDrawerBody').innerHTML=(g.archived?'<p class="asAvailability">Saved snapshot from '+esc(when(g.savedAt))+'. Current sportsbook offers are unavailable for this prop.</p>':'')+section('Research controls',controls)+(!base?'<div class="asLoading" role="status">Loading player research…</div>':!base.available?'<p class="asAvailability">'+esc(researchAvailability(base))+'</p><button class="asBtn" id="asRetryResearch">Retry research</button>':'')+tabBar+'<div role="tabpanel" id="asPanel-'+panel+'" aria-labelledby="asTab-'+panel+'" tabindex="0">'+panels[panel]+'</div>';
  document.querySelectorAll('[data-research-panel]').forEach(b=>{b.onclick=()=>{drawerState.panel=b.dataset.researchPanel;renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();var i=tabs.findIndex(t=>t[0]===b.dataset.researchPanel),next=e.key==='Home'?0:e.key==='End'?2:(i+(e.key==='ArrowRight'?1:2))%3;drawerState.panel=tabs[next][0];renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};});
  document.querySelectorAll('[data-project]').forEach(b=>b.onclick=()=>runProjection(g,line,side));

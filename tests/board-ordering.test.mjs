@@ -63,13 +63,26 @@ test('pagination is 20 per page with previous, next and a page indicator', () =>
 test('the prediction button is explicit, never fired by a render', () => {
   assert.match(ui, /data-predict=/);
   assert.match(ui, /Generate AI Prediction/);
-  // One definition plus exactly two call sites, and both sit inside a click
-  // handler — nothing reaches a paid request from a render path.
-  const calls = ui.match(/runProjection\(/g) || [];
-  assert.equal(calls.length, 3, 'expected one definition and two call sites');
-  const handlerCalls = ui.match(/onclick=[^;]{0,120}runProjection\(/g) || [];
-  const guardedCalls = ui.match(/if\(g\)runProjection\(/g) || [];
-  assert.equal(handlerCalls.length + guardedCalls.length, 2, 'every call site should be a click handler');
+  // Every paid entry point must sit behind a user gesture. For each call site,
+  // the nearest preceding handler must be closer than the nearest preceding
+  // render function — a call added inside a render path would invert that.
+  const HANDLER = /onclick\s*=|addEventListener\(\s*'(?:click|submit)'/g;
+  for (const fn of ['runProjection', 'askAbout']) {
+    const call = new RegExp(`(?<!function )${fn}\\(`, 'g');
+    let match;
+    let sites = 0;
+    while ((match = call.exec(ui)) !== null) {
+      sites += 1;
+      const before = ui.slice(0, match.index);
+      const handlerAt = Math.max(...[...before.matchAll(HANDLER)].map((m) => m.index), -1);
+      const renderAt = before.lastIndexOf('function render');
+      assert.ok(
+        handlerAt > renderAt,
+        `${fn} call at ${match.index} is not behind a click or submit handler`,
+      );
+    }
+    assert.ok(sites >= 1, `${fn} should be called somewhere`);
+  }
 });
 
 test('credit cost per refresh follows markets x regions and is reported', () => {

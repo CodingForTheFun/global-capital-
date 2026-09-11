@@ -3,6 +3,8 @@
 var nativeFetch=window.fetch.bind(window);
 var { analyzeResearch, researchTeamMatches, researchOpponentMatches, analyzeLineHistory } = await import('/assets/lib/analytics/research.mjs');
 var { evaluatePropAgainstFilters } = await import('/assets/lib/filters/index.mjs');
+var { kellyStake, sizeSlip, DEFAULT_KELLY_FRACTION } = await import('/assets/lib/betting/kelly.mjs');
+var { detectStaleLine, staleLineLabel } = await import('/assets/lib/markets/line-lag.mjs');
 function displayTeam(value){return String(value||'').replace(/^(?:nfl|nba|wnba|mlb|nhl|ncaaf|ncaab)_([a-z0-9]{2,5})$/i,(_,code)=>code.toUpperCase());}
 function readStored(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}}
 var activeView='research', advanced={}, loadGeneration=0, loadController=null, lastFocus=null;
@@ -18,6 +20,12 @@ var BOARD_VIEWS={research:'Prop Research',players:'Players',popular:'Popular',di
 var hydrating=false, hydrated=new Set(), hydrateFailed=false;
 var projections=new Map(), projectionPending=new Set();
 var shuffleOrder=new Map(), page=1;
+var slip=readStored('autoscout-slip',[]), bankroll=num(readStored('autoscout-bankroll',null));
+var kellyPart=num(readStored('autoscout-kelly-fraction',null))||0.25;
+var slipOpen=false, quick={highEv:false,stale:false,side:null};
+var staleCache=new Map();
+var askThreads=new Map(), askPending=new Set();
+var sandbox={key:null,out:new Set(),roster:null,loading:false};
 var PAGE_SIZE=20;
 var sport='NFL';try{sport=(localStorage.getItem('autoscout-sport')||'NFL').toUpperCase();}catch{}
 if(SPORTS.indexOf(sport)<0)sport='NFL';
@@ -73,10 +81,10 @@ function shell(){
  <main class="asMain"><section class="asHero"><div><h1 id="asPageTitle">Prop Research</h1><p id="asSubtitle" aria-live="polite">Loading current markets…</p></div><span class="asHeroBadge">MAIN LINES ONLY</span></section>
  <section class="asFilters" aria-label="Filter player props"><label class="asSearchLabel"><span class="asSrOnly">Search player, market or team</span><input class="asControl" id="asSearch" placeholder="Search player, market, team…" type="search"></label><label><span class="asSrOnly">Market</span><select class="asControl" id="asMarket"></select></label><label><span class="asSrOnly">Sportsbook</span><select class="asControl" id="asBook"></select></label><label><span class="asSrOnly">Over or Under</span><select class="asControl" id="asSide"><option value="all">Over + Under</option><option value="OVER">Over</option><option value="UNDER">Under</option></select></label><button class="asBtn asFilterTrigger" id="asAdvancedToggle" aria-expanded="false">Filters <span id="asFilterCount"></span></button></section>
  <dialog id="asFilterSheet" class="asFilterSheet" aria-labelledby="asFilterTitle"><div class="asSheetHead"><h2 id="asFilterTitle">Research filters</h2><button class="asBtn" id="asFilterDone">Done</button></div><section id="asAdvanced" class="asAdvanced"></section></dialog><div class="asToolbar"><span id="asResultCount" aria-live="polite"></span><button class="asBtn" id="asRules" role="switch" aria-checked="true">Rules on</button><button class="asBtn" id="asColumns">Columns</button><button class="asBtn" id="asResearchBatch">Load research</button><label>Sort <select class="asControl" id="asSort"><option value="shuffle">Shuffled (no order)</option><option value="research">Research coverage</option><option value="recent">Recent hit rate</option><option value="l5">L5 hit rate</option><option value="l10">L10 hit rate</option><option value="l15">L15 hit rate</option><option value="season">Season hit rate</option><option value="h2h">H2H hit rate</option><option value="projection">Projection difference</option><option value="books">Most books</option><option value="player">Player A–Z</option><option value="time">Game time</option></select></label></div>
- <section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">— means the connected feeds returned no usable value. 0G means no previous meeting with this opponent. Pushes are excluded from hit rates.</p></main>
+ <section class="asQuick" id="asQuick" aria-label="Quick filters"></section><section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">— means the connected feeds returned no usable value. 0G means no previous meeting with this opponent. Pushes are excluded from hit rates.</p></main>
  <nav class="asNav" aria-label="Main navigation"><button data-view="research" class="on" data-icon="props"><span class="asNavIcon" aria-hidden="true">☲</span><span>Props</span></button><button data-view="players" data-icon="players"><span class="asNavIcon" aria-hidden="true">●</span><span>Players</span></button><button data-view="popular" data-icon="popular"><span class="asNavIcon" aria-hidden="true">▲</span><span>Popular</span></button><button data-view="discrepancies" data-icon="trend"><span class="asNavIcon" aria-hidden="true">↗</span><span>Discrepancies</span></button><button id="asDiscord" data-icon="chat"><span class="asNavIcon" aria-hidden="true">○</span><span>Discord</span></button></nav>
  <div class="asDrawerBg" id="asDrawerBg"><aside class="asDrawer" role="dialog" aria-modal="true" aria-labelledby="asDrawerTitle" tabindex="-1"><div class="asDrawerHead"><div class="asDrawerAvatar"><img id="asDrawerImg" alt=""></div><div><h2 id="asDrawerTitle">Player research</h2><span id="asInjuryBadge" class="asInjuryBadge" hidden></span><p id="asDrawerSub"></p></div><button class="asClose" id="asClose" aria-label="Back to research"><span class="asBackText">Back</span><span aria-hidden="true">×</span></button></div><div class="asDrawerBody" id="asDrawerBody"></div></aside></div>
- <dialog id="asUtility" class="asUtility" aria-labelledby="asUtilityTitle"></dialog><div id="asToast" class="asToast" role="status" aria-live="polite"></div></div>`);
+ <aside class="asSlipDrawer" id="asSlip" aria-label="Betslip"></aside><dialog id="asUtility" class="asUtility" aria-labelledby="asUtilityTitle"></dialog><div id="asToast" class="asToast" role="status" aria-live="polite"></div></div>`);
  document.getElementById('asRefresh').onclick=()=>load();
  var searchTimer;document.getElementById('asSearch').oninput=e=>{query=e.target.value;page=1;clearTimeout(searchTimer);searchTimer=setTimeout(renderList,180);};
  document.getElementById('asMarket').onchange=e=>{marketFilter=e.target.value;page=1;renderList();};
@@ -99,7 +107,7 @@ function shell(){
  document.getElementById('asAccount').onclick=accountPanel;
  document.getElementById('asSettings').onclick=settingsPanel;
  document.addEventListener('keydown',e=>{if(!drawerState)return;if(e.key==='Escape'){e.preventDefault();closeDrawer();}if(e.key==='Tab'){var items=Array.from(document.querySelectorAll('.asDrawer button,.asDrawer select,.asDrawer input,.asDrawer a')).filter(x=>!x.disabled&&x.getClientRects().length);var first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}});
- document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;applyPreferences();renderAdvanced();
+ document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;applyPreferences();renderAdvanced();renderSlip();
 }
 function focusToken(element){if(!element)return null;return{id:element.id,data:Object.fromEntries(['open','fav','side','window','filter','gameDetail','sort'].filter(k=>element.dataset?.[k]!=null).map(k=>[k,element.dataset[k]])),value:element.id==='asLineInput'?element.value:null};}
 function focusElement(token){if(!token)return null;if(token.id)return document.getElementById(token.id);var keys=Object.keys(token.data);return keys.length?Array.from(document.querySelectorAll('[data-open],[data-fav],[data-side],[data-window],[data-filter],[data-game-detail],[data-sort]')).find(x=>keys.every(k=>x.dataset[k]===token.data[k])):null;}
@@ -107,6 +115,129 @@ function restoreFocus(token){var element=focusElement(token);if(element){if(toke
 function closeDrawer(){document.getElementById('asDrawerBg')?.classList.remove('on');document.body.style.overflow='';document.querySelectorAll('.asMain,.asTop,.asNav').forEach(x=>x.inert=false);drawerState=null;if(lastFocus?.isConnected)lastFocus.focus();}
 function renderSports(){if(!document.getElementById('asSports').children.length)document.getElementById('asSports').innerHTML=SPORTS.map(s=>'<button class="asSport '+(s===sport?'on':'')+'" aria-pressed="'+(s===sport)+'" data-sport="'+s+'">'+s+'</button>').join('');document.querySelectorAll('[data-sport]').forEach(b=>{b.classList.toggle('on',b.dataset.sport===sport);b.setAttribute('aria-pressed',String(b.dataset.sport===sport));b.onclick=()=>{if(sport===b.dataset.sport)return;persistFilters();sport=b.dataset.sport;saveState();closeDrawer();restoreFilters();document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;page=1;renderAdvanced();load();};});}
 function viewGroups(){var current=groups().filter(g=>g.sport===sport);if(activeView!=='saved')return current;var merged=new Map(current.filter(g=>favorites.has(g.key)).map(g=>[g.key,g]));savedRecords.forEach(g=>{if(g.sport===sport&&favorites.has(g.key)&&!merged.has(g.key))merged.set(g.key,{...g,archived:true});});return Array.from(merged.values());}
+// Sports come from what the board actually serves. Adding a chip for a league
+// with no pipeline behind it would open an empty board, so the list is the
+// supported set and nothing else.
+// ---------------------------------------------------------------------------
+// Betslip and stake sizing.
+//
+// Kelly needs a probability. The board only has one for props whose prediction
+// has been generated, so a pick without one shows "needs a prediction" instead
+// of a dollar figure invented from its price. Stakes are quarter-Kelly and
+// capped by the shared module — see lib/betting/kelly.mjs for why.
+// ---------------------------------------------------------------------------
+function slipHas(key){return slip.some(function(x){return x.key===key;});}
+function toggleSlip(key){
+ var g=groups().find(function(x){return x.key===key;});
+ if(!g)return;
+ if(slipHas(key))slip=slip.filter(function(x){return x.key!==key;});
+ else{
+  var line=boardLine(g),side=defaultSide(g),quote=bestPrice(g,side,line,true);
+  slip.push({key:key,sport:g.sport,playerName:g.playerName,market:g.market,
+   line:num(line),side:side,price:quote?num(quote.price):null,
+   sportsbook:quote?(quote.sportsbook||quote.sportsbookKey):null});
+ }
+ storeLocal('autoscout-slip',slip);
+ renderSlip();renderListLight();
+}
+function slipPickProbability(pick){
+ var entry=projections.get([pick.key,num(pick.line)].join('|'));
+ if(!entry||!entry.available)return null;
+ return pick.side==='UNDER'?num(entry.probabilityUnder):num(entry.probabilityOver);
+}
+function renderSlip(){
+ var host=document.getElementById('asSlip');
+ if(!host)return;
+ host.classList.toggle('on',slipOpen);
+ var count=slip.length;
+ var toggle='<button class="asSlipToggle" id="asSlipToggle" aria-expanded="'+slipOpen+'" aria-controls="asSlipBody">'
+  +'<span>Betslip</span><span class="asSlipCount">'+count+'</span></button>';
+ if(!slipOpen){host.innerHTML=toggle;bindSlip();return;}
+ var sized=sizeSlip(slip.map(function(pick){
+  return {ref:pick,probability:slipPickProbability(pick),americanOdds:pick.price};
+ }),{bankroll:bankroll,fraction:kellyPart});
+ var rows=sized.picks.map(function(row){
+  var pick=row.ref,k=row.kelly;
+  var stake=k&&num(k.stake)!=null?'$'+k.stake.toFixed(2):null;
+  var note=!k?'Needs a prediction':num(k.stake)==null?'Set a bankroll'
+   :!k.edge?'No edge at this price':k.capped?'Capped at '+Math.round(k.stakeFraction*100)+'% of roll':null;
+  return '<li class="asSlipRow"><div class="asSlipMain"><b>'+esc(pick.playerName)+'</b>'
+   +'<span>'+esc(pick.side+' '+dec(pick.line)+' '+pick.market)+'</span>'
+   +'<em>'+esc((pick.sportsbook||'No price')+(pick.price!=null?' '+money(pick.price):''))+'</em></div>'
+   +'<div class="asSlipStake">'+(stake?'<b>'+esc(stake)+'</b>':'<b class="asSlipMuted">—</b>')
+   +(note?'<em>'+esc(note)+'</em>':'')+'</div>'
+   +'<button class="asSlipRemove" data-slip-remove="'+esc(pick.key)+'" aria-label="Remove '+esc(pick.playerName)+'">×</button></li>';
+ }).join('');
+ host.innerHTML=toggle
+  +'<div class="asSlipBody" id="asSlipBody">'
+   +'<div class="asSlipBank"><label for="asBankroll">Total bankroll</label>'
+    +'<div class="asSlipBankRow"><span>$</span><input id="asBankroll" class="asControl" type="number" min="0" step="10" inputmode="decimal" value="'+(bankroll==null?'':bankroll)+'" placeholder="1000"></div>'
+    +'<label for="asKellyFraction">Kelly fraction</label>'
+    +'<select id="asKellyFraction" class="asControl">'
+     +[['0.125','Eighth'],['0.25','Quarter'],['0.5','Half'],['1','Full']].map(function(o){
+       return '<option value="'+o[0]+'" '+(Number(o[0])===kellyPart?'selected':'')+'>'+o[1]+' Kelly</option>';}).join('')
+    +'</select></div>'
+   +(count?'<ul class="asSlipList">'+rows+'</ul>':'<p class="asNotice">No picks yet. Add one from any card.</p>')
+   +(count?'<div class="asSlipTotal"><span>Suggested total</span><b>'+(sized.totalStake==null?'—':'$'+sized.totalStake.toFixed(2))+'</b>'
+     +(sized.sharePercent!=null?'<em>'+sized.sharePercent+'% of bankroll</em>':'')+'</div>':'')
+   +(sized.exceedsBankroll?'<p class="asSlipWarn">These stakes are sized independently and add up to more than your bankroll. Scale them down — the maths does not account for picks moving together.</p>':'')
+   +(count&&sized.unsizedCount?'<p class="asNotice">'+sized.unsizedCount+' pick'+(sized.unsizedCount===1?'':'s')+' cannot be sized until a prediction has been generated.</p>':'')
+   +'<p class="asSlipFootnote">Stake suggestions come from a model estimate, not a measured probability. Not betting advice.</p>'
+   +(count?'<button class="asBtn" id="asSlipClear">Clear slip</button>':'')
+  +'</div>';
+ bindSlip();
+}
+function bindSlip(){
+ var toggle=document.getElementById('asSlipToggle');
+ if(toggle)toggle.onclick=function(){slipOpen=!slipOpen;renderSlip();};
+ var bank=document.getElementById('asBankroll');
+ if(bank)bank.onchange=function(){
+  var value=num(bank.value);
+  bankroll=value!=null&&value>0?value:null;
+  storeLocal('autoscout-bankroll',bankroll);renderSlip();
+ };
+ var fraction=document.getElementById('asKellyFraction');
+ if(fraction)fraction.onchange=function(){
+  kellyPart=num(fraction.value)||0.25;storeLocal('autoscout-kelly-fraction',kellyPart);renderSlip();
+ };
+ var clear=document.getElementById('asSlipClear');
+ if(clear)clear.onclick=function(){slip=[];storeLocal('autoscout-slip',slip);renderSlip();renderListLight();};
+ document.querySelectorAll('[data-slip-remove]').forEach(function(b){
+  b.onclick=function(){slip=slip.filter(function(x){return x.key!==b.dataset.slipRemove;});
+   storeLocal('autoscout-slip',slip);renderSlip();renderListLight();};
+ });
+}
+function renderQuick(){
+ var host=document.getElementById('asQuick');
+ if(!host)return;
+ var sports='<div class="asQuickRow" role="group" aria-label="Sport">'
+  +SPORTS.map(function(s){return '<button class="asChip '+(s===sport?'on':'')+'" data-quick-sport="'+s+'" aria-pressed="'+(s===sport)+'">'+s+'</button>';}).join('')
+  +'</div>';
+ var toggles=[
+  ['highEv','High EV &gt;5%',quick.highEv],
+  ['stale','⚡ Stale lines',quick.stale],
+  ['over','Over only',quick.side==='OVER'],
+  ['under','Under only',quick.side==='UNDER'],
+ ].map(function(t){return '<button class="asChip asChipToggle '+(t[2]?'on':'')+'" data-quick="'+t[0]+'" aria-pressed="'+t[2]+'">'+t[1]+'</button>';}).join('');
+ host.innerHTML=sports+'<div class="asQuickRow asQuickToggles" role="group" aria-label="Quick filters">'+toggles+'</div>';
+ host.querySelectorAll('[data-quick-sport]').forEach(function(b){
+  b.onclick=function(){
+   if(sport===b.dataset.quickSport)return;
+   persistFilters();sport=b.dataset.quickSport;saveState();closeDrawer();restoreFilters();
+   document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;
+   document.getElementById('asSort').value=sortBy;page=1;renderAdvanced();load();
+  };
+ });
+ host.querySelectorAll('[data-quick]').forEach(function(b){
+  b.onclick=function(){
+   var id=b.dataset.quick;
+   if(id==='highEv')quick.highEv=!quick.highEv;
+   else if(id==='stale')quick.stale=!quick.stale;
+   else quick.side=quick.side===(id==='over'?'OVER':'UNDER')?null:(id==='over'?'OVER':'UNDER');
+   page=1;renderQuick();renderList();
+  };
+ });
+}
 function renderControls(){var gs=viewGroups(),markets=uniq([...gs.map(function(g){return g.market;}),marketFilter==='all'?null:marketFilter]).sort(),booksList=uniq([...gs.flatMap(function(g){return g.rows.map(function(r){return r.sportsbookKey;});}),bookFilter==='all'?null:bookFilter]).sort();document.getElementById('asMarket').innerHTML='<option value="all">All markets</option>'+markets.map(function(x){return'<option value="'+esc(x)+'" '+(x===marketFilter?'selected':'')+'>'+esc(x)+'</option>';}).join('');document.getElementById('asBook').innerHTML='<option value="all">All books</option>'+booksList.map(function(x){return'<option value="'+esc(x)+'" '+(x===bookFilter?'selected':'')+'>'+esc(gs.flatMap(g=>g.rows).find(r=>r.sportsbookKey===x)?.sportsbook||x)+'</option>';}).join('');}
 function visible(ignoreResearch=false){
  var a=viewGroups();
@@ -129,6 +260,9 @@ function visible(ignoreResearch=false){
  if(activeView==='players')a.sort((x,y)=>x.playerName.localeCompare(y.playerName)||x.market.localeCompare(y.market));
  if(activeView==='popular')a.sort((x,y)=>books(y).length-books(x).length||x.playerName.localeCompare(y.playerName));
  if(activeView==='discrepancies'){a=a.filter(g=>lineSpread(g)>0);a.sort((x,y)=>lineSpread(y)-lineSpread(x));}
+ if(quick.stale)a=a.filter(g=>staleFor(g));
+ if(quick.side)a=a.filter(g=>sideRows(g,quick.side).length);
+ if(quick.highEv)a=a.filter(function(g){var e=projections.get(projectionKey(g,boardLine(g)));return e&&e.available&&num(e.ev)!=null&&num(e.ev)>5;});
  return a;
 }
 // A real disagreement between books on the same side, in the units of the
@@ -266,6 +400,19 @@ function oddsStrip(g){
 // Each projection costs a paid API call, so it is requested per prop on an
 // explicit click rather than fanned out across the whole board.
 // ---------------------------------------------------------------------------
+function staleFor(g){
+ if(staleCache.has(g.key))return staleCache.get(g.key);
+ var signal=null;
+ try{signal=detectStaleLine(g.rows);}catch(e){signal=null;}
+ staleCache.set(g.key,signal);
+ return signal;
+}
+function staleBadge(g){
+ var signal=staleFor(g);
+ if(!signal)return '';
+ return '<div class="asStale"><span class="asStaleTag">⚡ Stale Line</span>'
+  +'<span class="asStaleText">'+esc(staleLineLabel(signal))+'</span></div>';
+}
 function projectionKey(g,line){return [g.key,num(line)].join('|');}
 function pickTone(pick){
  var label=String(pick||'');
@@ -276,6 +423,97 @@ function signed(value,digits){var x=num(value);return x==null?'—':(x>0?'+':'')
 function projectionMetric(label,value,tone,sub){
  return '<div class="asProjMetric '+(tone||'')+'"><small>'+esc(label)+'</small><b>'+esc(value)+'</b>'
   +(sub?'<em>'+esc(sub)+'</em>':'')+'</div>';
+}
+// Hit-rate pills. A window with no games shows an empty track and says so
+// rather than rendering a 0% bar, which reads as "never hits".
+function hitPills(r){
+ var rows=[['l5','L5'],['l10','L10'],['season','Season']].map(function(w){
+  var win=r&&r.available&&r.windows?r.windows[w[0]]:null,rate=win?num(win.hitRate):null;
+  var tone=rate==null?'':rate>=60?'hot':rate<=40?'cold':'';
+  return '<div class="asPill '+tone+'"><div class="asPillHead"><small>'+w[1]+'</small>'
+   +'<b>'+(rate==null?'—':Math.round(rate)+'%')+'</b></div>'
+   +'<div class="asPillTrack"><span style="width:'+(rate==null?0:Math.max(2,Math.min(100,rate)))+'%"></span></div>'
+   +'<em>'+esc(win&&num(win.games)?win.games+' games':'no sample')+'</em></div>';
+ }).join('');
+ return '<div class="asPills">'+rows+'</div>';
+}
+// Full book matrix. Columns are the books this prop actually has; a book that
+// is not quoting is absent rather than shown with a blank price.
+function bookMatrix(g){
+ var map=new Map();
+ g.rows.forEach(function(row){
+  var k=row.sportsbookKey||row.sportsbook;
+  if(!map.has(k))map.set(k,{key:k,name:row.sportsbook||k,over:null,under:null});
+  map.get(k)[row.side==='OVER'?'over':'under']=row;
+ });
+ var books=Array.from(map.values()).sort(function(a,b){return String(a.name).localeCompare(String(b.name));});
+ if(!books.length)return '<p class="asNotice">No sportsbook is quoting this prop right now.</p>';
+ var bestOver=books.filter(function(b){return b.over&&num(b.over.price)!=null;})
+  .sort(function(a,b){return num(b.over.price)-num(a.over.price);})[0];
+ var bestUnder=books.filter(function(b){return b.under&&num(b.under.price)!=null;})
+  .sort(function(a,b){return num(b.under.price)-num(a.under.price);})[0];
+ var body=books.map(function(b){
+  var sharp=staleFor(g);
+  var flagged=sharp&&(sharp.retailKey===String(b.key).toLowerCase()||sharp.sharpKey===String(b.key).toLowerCase());
+  return '<tr'+(flagged?' class="asMatrixFlag"':'')+'><th scope="row">'+esc(b.name)+'</th>'
+   +'<td>'+esc(b.over?dec(b.over.line):'—')+'</td>'
+   +'<td class="'+(bestOver&&bestOver.key===b.key?'asBest':'')+'">'+esc(b.over?money(b.over.price):'—')+'</td>'
+   +'<td>'+esc(b.under?dec(b.under.line):'—')+'</td>'
+   +'<td class="'+(bestUnder&&bestUnder.key===b.key?'asBest':'')+'">'+esc(b.under?money(b.under.price):'—')+'</td></tr>';
+ }).join('');
+ return '<div class="asTableWrap"><table class="asTable asMatrix"><thead><tr><th>Book</th>'
+  +'<th>O line</th><th>O price</th><th>U line</th><th>U price</th></tr></thead><tbody>'+body+'</tbody></table></div>'
+  +'<p class="asNotice">Best price on each side is highlighted. Prices are compared at the line each book is offering.</p>';
+}
+// Scenario sandbox. The team-mate list is the real depth chart; toggling one
+// out re-runs the actual projection with that absence in the payload. There is
+// no fixed usage bump here — an invented percentage would not be a simulation.
+function sandboxPanel(g,line,side){
+ if(sandbox.key!==g.key)return '<p class="asNotice">Loading team-mates…</p>';
+ if(sandbox.loading)return '<div class="asLoading" role="status"><div class="asPulse"></div>Loading team-mates…</div>';
+ var roster=sandbox.roster;
+ if(!roster||!roster.available){
+  return '<p class="asNotice">The roster feed is not enabled, so there is no team-mate list to simulate against. '
+   +'Turn on AUTOSCOUT_INJURY_FEED with a SportsDataIO key to use this.</p>';
+ }
+ if(!roster.teammates.length)return '<p class="asNotice">No team-mates were returned for this team.</p>';
+ var chips=roster.teammates.slice(0,12).map(function(mate){
+  var on=sandbox.out.has(mate.playerName);
+  return '<button class="asChip asSandboxChip '+(on?'on':'')+'" data-sandbox="'+esc(mate.playerName)+'" aria-pressed="'+on+'">'
+   +esc(mate.playerName)+(mate.position?' <em>'+esc(mate.position)+'</em>':'')
+   +(mate.injuryStatus?' <i>'+esc(mate.injuryStatus)+'</i>':'')+'</button>';
+ }).join('');
+ var out=Array.from(sandbox.out);
+ var entry=out.length?projections.get(projectionKey(g,line)+'|out:'+out.slice().sort().join(',')):null;
+ var result='';
+ if(out.length){
+  result=entry&&entry.available
+   ? '<div class="asSandboxResult"><span class="asPickBadge '+pickTone(entry.pick)+'">'+esc(entry.pick)+'</span>'
+     +'<span class="asPredictFig"><small>Projection</small><b>'+esc(dec(entry.projection,1))+'</b></span>'
+     +'<span class="asPredictFig"><small>Edge</small><b>'+esc(signed(entry.edge,1))+'</b></span>'
+     +'<span class="asPredictFig"><small>EV</small><b>'+esc(num(entry.ev)==null?'—':signed(entry.ev,1)+'%')+'</b></span></div>'
+     +(entry.primaryDriver?'<p class="asPredictDriver">'+esc(entry.primaryDriver)+'</p>':'')
+   : '<button class="asBtn asPrimary" id="asSandboxRun">Re-estimate with '+out.length+' out</button>';
+ }
+ return '<p class="asNotice">Mark a team-mate out and re-estimate. The model re-reads the same game log with that absence noted'
+  +(roster.injuryReport?'':' — the plan in use does not carry injury status, so these are roster names only')+'.</p>'
+  +'<div class="asSandboxChips">'+chips+'</div>'+result
+  +'<p class="asPredictFootnote">A simulated estimate, not a measured outcome.</p>';
+}
+// Ask: a short grounded conversation about this prop.
+function askPanel(g,line,side){
+ var thread=askThreads.get(g.key)||[];
+ var busy=askPending.has(g.key);
+ var log=thread.map(function(turn){
+  return '<div class="asAskTurn '+(turn.role==='user'?'user':'bot')+'"><b>'+(turn.role==='user'?'You':'Claude')+'</b>'
+   +'<p>'+esc(turn.content)+'</p></div>';
+ }).join('');
+ return (log?'<div class="asAskLog">'+log+'</div>':'')
+  +(busy?'<div class="asLoading" role="status"><div class="asPulse"></div>Thinking…</div>':'')
+  +'<form class="asAskForm" id="asAskForm"><label class="asSrOnly" for="asAskInput">Ask about this prop</label>'
+  +'<input class="asControl" id="asAskInput" placeholder="Ask about this prop…" maxlength="500" autocomplete="off"'+(busy?' disabled':'')+'>'
+  +'<button class="asBtn asPrimary" type="submit"'+(busy?' disabled':'')+'>Ask</button></form>'
+  +'<p class="asPredictFootnote">Answers come from the same data on this card. Not betting advice.</p>';
 }
 function projectionCard(g,line){
  var key=projectionKey(g,line), entry=projections.get(key);
@@ -320,8 +558,46 @@ function projectionCard(g,line){
   +'<button class="asBtn" data-project="'+esc(g.key)+'">Re-run</button>'
   +'</div></section>';
 }
+async function loadRoster(g){
+ if(sandbox.key===g.key&&(sandbox.roster||sandbox.loading))return;
+ sandbox={key:g.key,out:new Set(),roster:null,loading:true};
+ renderDrawer();
+ var query=new URLSearchParams({sport:g.sport,team:g.team||'',playerName:g.playerName});
+ var out=null;
+ try{
+  var response=await nativeFetch('/api/props/teammates?'+query.toString());
+  out=await response.json();
+ }catch(e){out={available:false};}
+ if(sandbox.key!==g.key)return;
+ sandbox.roster=out;sandbox.loading=false;
+ renderDrawer();
+}
+async function askAbout(g,line,side,question){
+ if(askPending.has(g.key))return;
+ var thread=askThreads.get(g.key)||[];
+ thread=thread.concat([{role:'user',content:question}]);
+ askThreads.set(g.key,thread);askPending.add(g.key);renderDrawer();
+ var r=researchFor(g,line,side)||null;
+ var body={question:question,history:thread.slice(0,-1),
+  prop:{sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:num(line),
+   team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',
+   overPrice:(bestPrice(g,'OVER',line,true)||{}).price??null,
+   underPrice:(bestPrice(g,'UNDER',line,true)||{}).price??null,
+   windows:r&&r.windows?r.windows:null,
+   gameLog:r&&Array.isArray(r.gameLog)?r.gameLog.slice(0,25):[]}};
+ var answer;
+ try{
+  var response=await nativeFetch('/api/props/ask',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  var j=await response.json();
+  answer=j&&j.available?j.answer:(j&&j.message)||'That question could not be answered right now.';
+ }catch(e){answer='That question could not be answered right now.';}
+ askPending.delete(g.key);
+ askThreads.set(g.key,(askThreads.get(g.key)||[]).concat([{role:'assistant',content:answer}]));
+ if(drawerState&&drawerState.g.key===g.key)renderDrawer();
+}
 async function runProjection(g,line,side){
- var key=projectionKey(g,line);
+ var outNames=(arguments.length>3&&arguments[3])?arguments[3]:[];
+ var key=projectionKey(g,line)+(outNames.length?'|out:'+outNames.slice().sort().join(','):'');
  if(projectionPending.has(key))return;
  projectionPending.add(key);renderDrawer();
  var quote=bestPrice(g,'OVER',line,true), under=bestPrice(g,'UNDER',line,true);
@@ -334,7 +610,8 @@ async function runProjection(g,line,side){
    overPrice:row.side==='OVER'?num(row.price):null,underPrice:row.side==='UNDER'?num(row.price):null};}),
   windows:r&&r.windows?r.windows:null,
   gameLog:r&&Array.isArray(r.gameLog)?r.gameLog.slice(0,25).map(function(x){return {date:x.date,opponent:x.opponent,isHome:x.isHome,value:x.value,minutes:x.minutes};}):[],
-  injuryStatus:r&&r.context?r.context.injuryStatus||'':''};
+  injuryStatus:r&&r.context?r.context.injuryStatus||'':'',
+  teammatesOut:outNames.map(function(name){return {playerName:name};})};
  var out;
  try{
   var response=await nativeFetch('/api/props/project',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
@@ -344,6 +621,7 @@ async function runProjection(g,line,side){
  projectionPending.delete(key);projections.set(key,out);
  if(drawerState&&drawerState.g.key===g.key)renderDrawer();
  if(g.sport===sport)renderListLight();
+ renderSlip();
 }
 // Inline prediction on the board card. One explicit click, one paid request:
 // nothing here fires on render, on scroll, or on a page change.
@@ -394,11 +672,13 @@ function rowHtml(g){
   +'</div>'
   +matchupPills(r)
   +badgeStrip(g,r,side)
+  +staleBadge(g)
   +oddsStrip(g)
   +predictionStrip(g,line)
   +'<div class="asRowActions"><span class="asResearchState '+(r&&r.available?'ready':'')+'">'
    +esc(g.archived?'Saved snapshot · no current line':state)+'</span>'
    +'<span class="asRowUpdated">'+esc(g.archived?shortDate(g.savedAt):shortDate(g.rows[0]&&g.rows[0].providerUpdatedAt))+'</span>'
+   +'<button class="asBtn asSlipAdd" data-slip="'+esc(g.key)+'">'+(slip.some(function(x){return x.key===g.key;})?'✓ In slip':'+ Add to Slip')+'</button>'
    +'<button class="asSave '+(favorites.has(g.key)?'on':'')+'" data-fav="'+esc(g.key)+'" aria-label="'
    +(favorites.has(g.key)?'Unsave':'Save')+' '+esc(g.playerName+' '+g.market)+'" aria-pressed="'+favorites.has(g.key)+'"'
    +(savePending.has(g.key)?' disabled aria-busy="true"':'')+'>'+(favorites.has(g.key)?'★ Saved':'☆ Save')+'</button>'
@@ -428,6 +708,7 @@ function renderPagination(total){
 function renderSummary(){var gs=groups(),events=uniq(gs.map(function(g){return g.eventId;})).length,booksAll=uniq(gs.flatMap(function(g){return books(g);})).length,ready=gs.filter(function(g){var r=researchFor(g);return r&&r.available;}).length;document.getElementById('asSummary').innerHTML=[['Markets',gs.length],['Events',events],['Sportsbooks',booksAll],['Research ready',ready],['Live lines',(payload.props||[]).length]].map(function(x){return'<div class="asSummaryItem"><small>'+esc(x[0])+'</small><b>'+esc(x[1])+'</b></div>';}).join('');}
 function renderList(){persistFilters();updateFilterStatus();renderListLight();}
 function bindRows(){
+ document.querySelectorAll('[data-slip]').forEach(b=>b.onclick=e=>{e.stopPropagation();toggleSlip(b.dataset.slip);});
  document.querySelectorAll('[data-predict]').forEach(b=>b.onclick=e=>{
   e.stopPropagation();
   var g=groups().find(x=>x.key===b.dataset.predict);
@@ -490,7 +771,7 @@ function renderListLight(){
  renderPagination(a.length);
  renderBatchControl();
  if(!hydrateFailed)hydrateBoard();
- renderSummary();lastFocus=focusElement(origin)||lastFocus;if(focused&&!drawerState)restoreFocus(focused);
+ renderSummary();renderQuick();lastFocus=focusElement(origin)||lastFocus;if(focused&&!drawerState)restoreFocus(focused);
 }
 // Fisher-Yates. Walks the array from the end, swapping each element with a
 // uniformly chosen one at or before it, so every permutation is equally likely.
@@ -569,7 +850,7 @@ async function historyHtml(g,book,side){
  return'<div class="asContext"><div class="asCtx"><small>First observed</small><b>'+dec(a.line)+'</b></div><div class="asCtx"><small>Last observed</small><b>'+dec(b.line)+'</b></div><div class="asCtx"><small>Observed line change</small><b>'+(move>0?'+':'')+dec(move)+'</b></div><div class="asCtx"><small>Current offer</small><b>'+dec(current?.line)+'</b></div></div><p class="asNotice">'+(series.building?'Building line history':series.changes.length<2?'No line or price changes observed.':'Observed changes for this sportsbook and side.')+' '+rows.length+' stored observations.'+((j.rows||[]).length===1000?' History limited to the first 1,000 observations; the current offer may be newer.':'')+'</p>'+historyChart(series)+'<div class="asTableWrap"><table class="asTable asHistoryTable"><thead><tr><th>Observed</th><th>Line</th><th>Price</th></tr></thead><tbody>'+series.changes.slice().reverse().map(x=>'<tr><td><time datetime="'+esc(x.created_at)+'">'+esc(new Date(x.created_at).toLocaleDateString())+'<span>'+esc(new Date(x.created_at).toLocaleTimeString())+'</span></time></td><td>'+dec(x.line)+'</td><td>'+money(x.price)+'</td></tr>').join('')+'</tbody></table></div>';
  }catch{return'<p class="asNotice">Line history could not load. Close and reopen the drawer to try again shortly.</p>';}
 }
-function openDrawer(g){if(!drawerState)lastFocus=document.activeElement;drawerState={g,line:boardLine(g),side:defaultSide(g),window:'l10',filter:'all',base:null,historyBook:bookFilter!=='all'?bookFilter:books(g)[0]};document.getElementById('asDrawerBg').classList.add('on');document.body.style.overflow='hidden';document.querySelector('.asMain').inert=true;document.querySelector('.asTop').inert=true;document.querySelector('.asNav').inert=true;renderDrawer();document.getElementById('asClose').focus();getResearch(g,drawerState.line,drawerState.side,false).then(r=>{if(!drawerState||drawerState.g.key!==g.key)return;drawerState.base=r;renderDrawer();});}
+function openDrawer(g){if(!drawerState)lastFocus=document.activeElement;if(sandbox.key!==g.key)sandbox={key:g.key,out:new Set(),roster:null,loading:false};drawerState={g,line:boardLine(g),side:defaultSide(g),window:'l10',filter:'all',base:null,historyBook:bookFilter!=='all'?bookFilter:books(g)[0]};document.getElementById('asDrawerBg').classList.add('on');document.body.style.overflow='hidden';document.querySelector('.asMain').inert=true;document.querySelector('.asTop').inert=true;document.querySelector('.asNav').inert=true;renderDrawer();document.getElementById('asClose').focus();getResearch(g,drawerState.line,drawerState.side,false).then(r=>{if(!drawerState||drawerState.g.key!==g.key)return;drawerState.base=r;renderDrawer();});}
 function loadHistoryIntoDrawer(){if(!drawerState)return;var {g,historyBook,side}=drawerState;historyHtml(g,historyBook,side).then(html=>{if(drawerState?.g.key!==g.key||drawerState?.historyBook!==historyBook||drawerState?.side!==side)return;var el=document.getElementById('asHistory');if(el)el.innerHTML=html;});}
 function researchAvailability(base){var c=String(base?.code||'');if(/UNMAPPED/.test(c))return 'This market does not yet have a supported historical statistic. Current sportsbook lines remain available.';if(/SEASON_ONLY|NO_GAME_LOG/.test(c)||base?.sections?.seasonTotal)return 'Season or player context is available, but completed game logs were not returned. Hit rates require individual game results.';if(/PLAYER.*MATCH|AMBIGUOUS/.test(c))return 'This player could not be uniquely matched to historical statistics. Current sportsbook lines remain available.';return 'Historical research could not be loaded for this player and market. Any supplied player context and sportsbook lines remain available.';}
 function renderDrawer(){
@@ -580,15 +861,33 @@ function renderDrawer(){
  var section=(title,body,sub='')=>'<section class="asSection"><div class="asSectionTitle"><h3>'+title+'</h3><span>'+sub+'</span></div><div class="asSectionBody">'+body+'</div></section>';
  var controls='<div class="asResearchTop"><label>Market<select class="asMarketSelect" id="asMarketSwitch">'+marketOptions(g)+'</select></label><div><label>Research line</label><div class="asLineCtl"><button class="asLineBtn" id="asLineMinus" aria-label="Decrease line">−</button><input class="asLineVal" id="asLineInput" type="number" step="0.5" aria-label="Research line" value="'+(line==null?'':line)+'"><button class="asLineBtn" id="asLinePlus" aria-label="Increase line">+</button></div></div></div><div class="asSideToggle">'+['OVER','UNDER'].map(x=>'<button class="asSideBtn '+x.toLowerCase()+' '+(side===x?'on':'')+'" data-side="'+x+'" aria-pressed="'+(side===x)+'">'+x+'</button>').join('')+'</div><p class="asNotice">Adjusting this line changes your research, not sportsbook offers.</p>';
  var filters='<div class="asFilterRow">'+[['all','All'],['home','Home'],['away','Away'],['h2h','VS '+(r?.matchup?.opponent||'opponent')]].map(([id,label])=>'<button class="asFilterBtn '+(drawerState.filter===id?'on':'')+'" data-filter="'+id+'" aria-pressed="'+(drawerState.filter===id)+'">'+esc(label)+'</button>').join('')+'</div>';
- var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines']];
+ var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['sandbox','Scenario'],['ask','Ask']];
  var tabBar='<div class="asResearchTabs" role="tablist" aria-label="Player research sections">'+tabs.map(([id,label])=>'<button role="tab" class="asResearchTab" id="asTab-'+id+'" data-research-panel="'+id+'" aria-controls="asPanel-'+id+'" aria-selected="'+(panel===id)+'" tabindex="'+(panel===id?'0':'-1')+'">'+label+'</button>').join('')+'</div>';
  var logContent=filteredGames(r).length?gameTable(r,g):'<p class="asNotice">No completed games match this selection.</p>';
  var projectionHtml=projectionCard(g,line);
- var panels={overview:projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line)),games:windowCards(r,drawerState.window)+filters+section('Game log',logContent),lines:section('Sportsbook line shop',comparisonRows(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
+ var pillsHtml=section('Hit rate',hitPills(r||base));
+ var panels={sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
+  ask:section('Ask about this prop',askPanel(g,line,side)),
+  overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line)),games:windowCards(r,drawerState.window)+filters+section('Game log',logContent),lines:section('Every book',bookMatrix(g))+section('Sportsbook line shop',comparisonRows(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
  document.getElementById('asDrawerBody').innerHTML=(g.archived?'<p class="asAvailability">Saved snapshot from '+esc(when(g.savedAt))+'. Current sportsbook offers are unavailable for this prop.</p>':'')+section('Research controls',controls)+(!base?'<div class="asLoading" role="status">Loading player research…</div>':!base.available?'<p class="asAvailability">'+esc(researchAvailability(base))+'</p><button class="asBtn" id="asRetryResearch">Retry research</button>':'')+tabBar+'<div role="tabpanel" id="asPanel-'+panel+'" aria-labelledby="asTab-'+panel+'" tabindex="0">'+panels[panel]+'</div>';
  document.querySelectorAll('[data-research-panel]').forEach(b=>{b.onclick=()=>{drawerState.panel=b.dataset.researchPanel;renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();var i=tabs.findIndex(t=>t[0]===b.dataset.researchPanel),next=e.key==='Home'?0:e.key==='End'?2:(i+(e.key==='ArrowRight'?1:2))%3;drawerState.panel=tabs[next][0];renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};});
  document.querySelectorAll('[data-project]').forEach(b=>b.onclick=()=>runProjection(g,line,side));
+ document.querySelectorAll('[data-sandbox]').forEach(b=>b.onclick=()=>{
+  var name=b.dataset.sandbox;
+  if(sandbox.out.has(name))sandbox.out.delete(name);else sandbox.out.add(name);
+  renderDrawer();
+ });
+ document.getElementById('asSandboxRun')?.addEventListener('click',()=>runProjection(g,line,side,Array.from(sandbox.out)));
+ document.getElementById('asAskForm')?.addEventListener('submit',e=>{
+  e.preventDefault();
+  var input=document.getElementById('asAskInput');
+  var question=String(input.value||'').trim();
+  if(!question)return;
+  input.value='';
+  askAbout(g,line,side,question);
+ });
  document.getElementById('asRetryResearch')?.addEventListener('click',async e=>{e.target.disabled=true;e.target.textContent='Retrying…';var result=await getResearch(g,line,side,true);if(drawerState?.g.key===g.key){drawerState.base=result;renderDrawer();}});
+ if(panel==='sandbox'&&!sandbox.roster&&!sandbox.loading)loadRoster(g);
  document.getElementById('asMarketSwitch').onchange=e=>{var next=viewGroups().find(x=>x.key===e.target.value);if(next)openDrawer(next);};
  var changeLine=value=>{var n=num(value);if(n==null){toast('Enter a valid research line.');return;}drawerState.line=n;renderDrawer();document.getElementById('asLineInput')?.focus();};
  document.getElementById('asLineMinus').onclick=()=>changeLine(Number(((num(line)??0)-.5).toFixed(2)));
@@ -602,7 +901,7 @@ function renderDrawer(){
 }
 function render(){renderSports();renderControls();renderSummary();var m=payload.meta||{};document.getElementById('asSubtitle').textContent=(m.stale?'Last available board · ':'')+sport+' · '+(m.events||0)+' events · '+(m.sportsbookCount||0)+' sportsbooks'+(m.fetchedAt?' · Updated '+new Date(m.fetchedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'');document.getElementById('asStatus').textContent=m.stale?'Last available lines':'Main sportsbook lines';if(!document.getElementById('asAdvanced').contains(document.activeElement))renderAdvanced();renderList();}
 async function load(){
- hydrated.clear();hydrateFailed=false;var generation=++loadGeneration,selected=sport,keepBoard=payloadSport===selected&&(payload.props||[]).length>0;loadController?.abort();loadController=new AbortController();loading=true;renderSports();document.getElementById('asRefresh').disabled=true;
+ hydrated.clear();hydrateFailed=false;staleCache.clear();var generation=++loadGeneration,selected=sport,keepBoard=payloadSport===selected&&(payload.props||[]).length>0;loadController?.abort();loadController=new AbortController();loading=true;renderSports();document.getElementById('asRefresh').disabled=true;
  document.getElementById('asStatus').textContent=keepBoard?'Refreshing lines…':'Loading lines…';
  if(!keepBoard){document.getElementById('asSubtitle').textContent='Loading '+selected+' markets…';document.getElementById('asList').innerHTML=Array.from({length:5},()=>'<div class="asSkeleton" aria-hidden="true"></div>').join('');}
  document.getElementById('asList').setAttribute('aria-busy','true');

@@ -89,17 +89,44 @@ test('unknown schema keywords are stripped rather than sent and risked', () => {
   assert.equal(converted.properties.a.type, 'number');
 });
 
-test('the model JSON is read from the documented path, and from a fenced block', () => {
-  assert.deepEqual(gemini.extractJson({ output_text: '{"projection":31.2}' }), { projection: 31.2 });
+test('the answer is found wherever the provider nests it', () => {
+  const answer = { projection: 31.2, probability_over: 0.58 };
+  assert.deepEqual(gemini.extractJson({ output_text: JSON.stringify(answer) }), answer);
   // Some responses fence the JSON even when asked not to.
-  assert.deepEqual(gemini.extractJson({ output_text: '```json\n{"projection":9}\n```' }), { projection: 9 });
-  // Fallback paths, so a shape change is a miss rather than a crash.
-  assert.deepEqual(gemini.extractJson({ output: [{ text: '{"a":1}' }] }), { a: 1 });
-  assert.deepEqual(gemini.extractJson({ candidates: [{ content: { parts: [{ text: '{"b":2}' }] } }] }), { b: 2 });
-  // A blocked or empty response is null, never a fabricated object.
+  assert.deepEqual(gemini.extractJson({ output_text: '```json\n' + JSON.stringify(answer) + '\n```' }), answer);
+
+  // The live response nested it under `steps`, a shape the docs did not show.
+  // Rather than hard-code one more path, the reader walks the body — so a
+  // future shape change is a miss to fix, not an outage.
+  assert.deepEqual(gemini.extractJson({
+    id: 'v1_x', status: 'completed', usage: {}, model: 'gemini-3.8-flash',
+    steps: [{ type: 'model', content: [{ text: JSON.stringify(answer) }] }],
+  }), answer);
+  assert.deepEqual(gemini.extractJson({ steps: [{ parts: [{ text: JSON.stringify(answer) }] }] }), answer);
+});
+
+test('the reader accepts only the answer it asked for, never any JSON lying around', () => {
+  // A walk that took the first parseable object would latch onto usage
+  // metadata or an echoed request and hand it on as a projection.
+  assert.equal(gemini.extractJson({ steps: [{ text: '{"unrelated":1}' }] }), null);
+  assert.equal(gemini.extractJson({ usage: { total_tokens: 10 }, steps: [{ text: '{"total_tokens":10}' }] }), null);
+  // A blocked or prose-only response is null, never a fabricated object.
   assert.equal(gemini.extractJson({}), null);
   assert.equal(gemini.extractJson({ output_text: 'I cannot help with that.' }), null);
   assert.equal(gemini.extractJson(null), null);
+});
+
+test('the walk is bounded, so a hostile or huge body cannot hang the request', () => {
+  // Depth beyond the limit is abandoned rather than followed.
+  let deep = { projection: 1, probability_over: 0.5 };
+  let wrapped = { text: JSON.stringify(deep) };
+  for (let i = 0; i < 40; i += 1) wrapped = { nest: wrapped };
+  assert.equal(gemini.extractJson(wrapped), null);
+
+  // And a cycle terminates instead of recursing forever.
+  const cyclic = { steps: [] };
+  cyclic.steps.push(cyclic);
+  assert.equal(gemini.extractJson(cyclic), null);
 });
 
 test('the request sent to Gemini matches the documented contract', async () => {

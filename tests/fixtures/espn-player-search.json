@@ -1,0 +1,32 @@
+{
+  "results": [
+    {
+      "type": "player",
+      "totalFound": 1,
+      "page": 1,
+      "limit": 5,
+      "displayName": "Players",
+      "contents": [
+        {
+          "id": "5ec40e1c-3104-322e-b80f-f358ea26aad4",
+          "uid": "s:40~l:59~a:4433403",
+          "guid": "5ec40e1c-3104-322e-b80f-f358ea26aad4",
+          "type": "player",
+          "displayName": "Caitlin Clark",
+          "description": "WNBA",
+          "subtitle": "Indiana Fever",
+          "link": {
+            "app": "sportscenter://x-callback-url/showClubhouse?uid=s:40~l:59~a:4433403",
+            "web": "https://www.espn.com/wnba/player/_/id/4433403/caitlin-clark"
+          },
+          "image": {
+            "default": "https://a.espncdn.com/i/headshots/wnba/players/full/4433403.png",
+            "defaultDark": "https://a.espncdn.com/i/headshots/wnba/players/full/4433403.png"
+          },
+          "defaultLeagueSlug": "wnba",
+          "sport": "basketball"
+        }
+      ]
+    }
+  ]
+}

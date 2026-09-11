@@ -218,7 +218,7 @@ test('context tiles are dropped on absent values, not rendered as a dash', () =>
 
 test('the empty filtered log explains itself and falls back to recent form', () => {
   const ui = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
-  assert.match(ui, /No head-to-head meetings with/);
+  assert.match(ui, /No direct matchups recorded this season against/);
   assert.match(ui, /Showing recent form instead/);
   assert.match(ui, /function emptyLog\(/);
 });

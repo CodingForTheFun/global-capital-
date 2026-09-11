@@ -139,7 +139,7 @@ test('an invalid key reads as unconfigured, not as a passing outage', async () =
       system: 's', payload: {}, schema: PROJECTION_OUTPUT_SCHEMA,
       fetchImpl: async () => ({
         ok: false, status: 400,
-        json: async () => ([{ error: { code: 400, status: 'INVALID_ARGUMENT', details: [{ reason: 'API_KEY_INVALID' }] } }]),
+        json: async () => ([{ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'API key not valid.', details: [{ reason: 'API_KEY_INVALID' }] } }]),
       }),
     });
     assert.equal(result.code, 'PROJECTION_NOT_CONFIGURED');
@@ -176,4 +176,46 @@ test('switching provider invalidates the cache rather than reusing an answer', a
   // A different model is a different answer to the same question.
   assert.match(source, /providerHealth\(\)\.provider, providerHealth\(\)\.model/);
   assert.equal(typeof service.projectionHealth().provider, 'object');
+});
+
+test('a schema the provider cannot serve falls back to prompt-carried JSON', async () => {
+  process.env.GEMINI_API_KEY = 'ok';
+  const calls = [];
+  try {
+    const result = await gemini.generate({
+      system: 's', payload: {}, schema: PROJECTION_OUTPUT_SCHEMA,
+      fetchImpl: async (_url, init) => {
+        const body = JSON.parse(init.body);
+        calls.push(Boolean(body.response_format.schema));
+        // First attempt (with schema) 500s the way the live endpoint did.
+        if (body.response_format.schema) {
+          return { ok: false, status: 500, json: async () => ({ error: { code: 500, message: 'Internal error encountered.' } }) };
+        }
+        return { ok: true, status: 200, json: async () => ({ output_text: '{"projection":34.1,"probability_over":0.61}' }) };
+      },
+    });
+    assert.deepEqual(calls, [true, false], 'schema first, then without');
+    assert.equal(result.ok, true);
+    assert.equal(result.parsed.projection, 34.1);
+    // Still JSON-constrained on the fallback, just not schema-constrained.
+    assert.equal(calls.length, 2);
+  } finally { delete process.env.GEMINI_API_KEY; }
+});
+
+test('a bad key or a rate limit is never retried without the schema', async () => {
+  process.env.GEMINI_API_KEY = 'ok';
+  let attempts = 0;
+  try {
+    for (const [status, reason] of [[400, 'API_KEY_INVALID'], [429, 'RATE_LIMIT_EXCEEDED']]) {
+      attempts = 0;
+      await gemini.generate({
+        system: 's', payload: {}, schema: PROJECTION_OUTPUT_SCHEMA,
+        fetchImpl: async () => {
+          attempts += 1;
+          return { ok: false, status, json: async () => ({ error: { status: 'X', details: [{ reason }] } }) };
+        },
+      });
+      assert.equal(attempts, 1, `status ${status} must not be retried`);
+    }
+  } finally { delete process.env.GEMINI_API_KEY; }
 });

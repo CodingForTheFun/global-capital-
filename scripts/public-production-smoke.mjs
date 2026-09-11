@@ -19,6 +19,50 @@ async function waitForHealth() {
   throw new Error(`Production health did not become ready: ${last || 'unknown error'}`);
 }
 
+/**
+ * Get past the account gate.
+ *
+ * The board and its data now require a free account, so this check has to hold
+ * one too — the "public" pipeline it verifies is the signed-in pipeline. It
+ * registers a throwaway account per run rather than carrying a fixed
+ * credential in the repository.
+ *
+ * Returns a cookie header, or null when the gate is off and one is not needed.
+ */
+async function openSession() {
+  let health = null;
+  try {
+    const response = await fetch(`${BASE}/api/account/health`, { cache: 'no-store' });
+    health = response.ok ? await response.json() : null;
+  } catch {
+    health = null;
+  }
+  // An older deploy with no gate at all: nothing to sign in to.
+  if (!health?.gate) return null;
+  if (health.gate.active !== true) return null;
+
+  if (health.password?.available !== true) {
+    throw new Error('The account gate is active but password sign-up is unavailable, so this check cannot reach the board.');
+  }
+
+  const email = `smoke-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@smoke.autoscout.test`;
+  const password = `Smoke-${Math.random().toString(36).slice(2)}-${Date.now()}!`;
+  const response = await fetch(`${BASE}/api/account/register`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok || body?.ok !== true) {
+    throw new Error(`Could not create a smoke account: HTTP ${response.status} ${body?.code || ''}`.trim());
+  }
+  const setCookie = response.headers.getSetCookie ? response.headers.getSetCookie() : [];
+  const session = setCookie.map((value) => String(value).split(';')[0]).find((value) => value.startsWith('sp_account='));
+  if (!session) throw new Error('Registration succeeded but returned no session cookie.');
+  console.log(`Signed in as a throwaway smoke account (${email}).`);
+  return session;
+}
+
 function assertRealProp(row) {
   for (const key of ['playerName', 'market', 'sportsbook', 'side']) {
     if (!String(row?.[key] || '').trim()) throw new Error(`Real prop missing ${key}`);
@@ -35,12 +79,13 @@ function assertRealProp(row) {
   }
 }
 
-async function verifyApi() {
+async function verifyApi(cookie) {
+  const authed = cookie ? { cache: 'no-store', headers: { cookie } } : { cache: 'no-store' };
   const sports = ['NFL', 'NBA', 'WNBA', 'MLB', 'NCAAF'];
   const results = [];
   let sample = null;
   for (const sport of sports) {
-    const response = await fetch(`${BASE}/api/apex/props?sport=${encodeURIComponent(sport)}`, { cache: 'no-store' });
+    const response = await fetch(`${BASE}/api/apex/props?sport=${encodeURIComponent(sport)}`, authed);
     if (!response.ok) throw new Error(`${sport} prop API returned HTTP ${response.status}`);
     const body = await response.json();
     results.push({
@@ -69,7 +114,7 @@ async function verifyApi() {
   researchUrl.searchParams.set('homeTeam', sample.homeTeam || '');
   researchUrl.searchParams.set('awayTeam', sample.awayTeam || '');
   researchUrl.searchParams.set('games', '20');
-  const researchResponse = await fetch(researchUrl, { cache: 'no-store' });
+  const researchResponse = await fetch(researchUrl, authed);
   if (!researchResponse.ok) throw new Error(`Research API returned HTTP ${researchResponse.status}`);
   const research = await researchResponse.json();
   if (research?.ok !== true) throw new Error(`Research API returned an unsafe failure shape: ${research?.code || 'unknown'}`);
@@ -83,10 +128,18 @@ async function verifyApi() {
   return { results, sample, research };
 }
 
-async function verifyBrowser() {
+async function verifyBrowser(cookie) {
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    if (cookie) {
+      const [name, ...rest] = cookie.split('=');
+      // Without this the browser lands on the landing page, not the board.
+      await context.addCookies([{
+        name, value: rest.join('='), url: BASE, httpOnly: true, sameSite: 'Lax',
+      }]);
+    }
+    const page = await context.newPage();
     const networkUrls = [];
     page.on('request', (request) => networkUrls.push(request.url()));
     const response = await page.goto(`${BASE}/apex`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -117,7 +170,7 @@ async function verifyBrowser() {
     const avatarSources = await page.locator('.asAvatar img').evaluateAll((nodes) => nodes.slice(0, 10).map((node) => node.getAttribute('src')).filter(Boolean));
     let artworkResponses = 0;
     for (const src of avatarSources) {
-      const artwork = await fetch(new URL(src, BASE), { cache: 'no-store' });
+      const artwork = await fetch(new URL(src, BASE), cookie ? { cache: 'no-store', headers: { cookie } } : { cache: 'no-store' });
       if (artwork.ok && String(artwork.headers.get('content-type') || '').toLowerCase().startsWith('image/')) artworkResponses += 1;
     }
     if (artworkResponses < 1) throw new Error('Player artwork endpoint did not return a usable image response');
@@ -159,8 +212,9 @@ async function verifyBrowser() {
 }
 
 const health = await waitForHealth();
-const api = await verifyApi();
-const browser = await verifyBrowser();
+const session = await openSession();
+const api = await verifyApi(session);
+const browser = await verifyBrowser(session);
 
 console.log(JSON.stringify({
   ok: true,

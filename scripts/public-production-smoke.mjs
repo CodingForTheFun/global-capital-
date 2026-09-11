@@ -97,13 +97,17 @@ async function verifyBrowser() {
     const cardCount = await page.locator('.asRow').count();
     if (cardCount < 1) throw new Error('No visible v5 research prop row rendered in production');
 
-    for (const selector of ['#asSports', '#asSearch', '#asMarket', '#asBook', '#asSide', '#asSort', '#asSummary', '#asList', '.asHeaderRow', '.asBookRail', '.asAvatar img', '.asResearchState']) {
+    // The desktop table became per-card badges and the book rail became the
+    // odds strip, so these are the surfaces that carry that data now. The old
+    // .asHeaderRow is still in the DOM but is display:none, which makes its
+    // innerText empty — assert the badges instead of a hidden element.
+    for (const selector of ['#asSports', '#asSearch', '#asMarket', '#asBook', '#asSide', '#asSort', '#asSummary', '#asList', '.asBadges', '.asOddsStrip', '.asAvatar img', '.asResearchState']) {
       if (await page.locator(selector).count() < 1) throw new Error(`Auto Scout v5 control or data surface missing in production: ${selector}`);
     }
 
-    const headerText = (await page.locator('.asHeaderRow').innerText()).trim();
-    for (const label of ['Projection', 'L5', 'L10', 'L15', 'Season', 'H2H', 'Average', 'Books']) {
-      if (!headerText.toLowerCase().includes(label.toLowerCase())) throw new Error(`Research column missing from v5 desktop table: ${label}`);
+    const badgeText = (await page.locator('.asRow').first().locator('.asBadges').innerText()).trim();
+    for (const label of ['L5', 'L10', 'L15', 'H2H', 'STRK', 'AVG', 'DIFF', 'SZN']) {
+      if (!badgeText.toLowerCase().includes(label.toLowerCase())) throw new Error(`Research measure missing from the v5 prop card: ${label}`);
     }
 
     const firstCard = (await page.locator('.asRow').first().innerText()).trim();

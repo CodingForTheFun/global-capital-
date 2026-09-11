@@ -248,3 +248,171 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
   .asTop .asBtn{height:38px;padding:0 11px;font-size:12px}
   .asBrand{font-size:18px}
 }
+
+/* ---------------------------------------------------------------------------
+   Modelled projection card. Visually distinct from the measured research
+   sections on purpose — a reader should never mistake an estimate for an
+   observed statistic.
+--------------------------------------------------------------------------- */
+.asProjection{border-color:#3c3a6b;background:linear-gradient(160deg,#181a34,#10142a)}
+.asProjection .asSectionTitle{border-color:#3c3a6b}
+.asProjection .asSectionTitle h3{color:#c7c2ff}
+.asProjection .asSectionTitle span{color:#8f8ab8;font-style:italic}
+.asProjHead{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.asProjVs{display:flex;align-items:center;gap:14px}
+.asProjVsCell small{display:block;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#9a94c4;font-weight:700}
+.asProjVsCell b{display:block;font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.5px;margin-top:3px}
+.asProjVsSep{font-size:11px;color:#7d77a8;text-transform:uppercase;letter-spacing:1px;font-weight:700}
+.asPickBadge{font-size:12px;font-weight:850;letter-spacing:.8px;padding:9px 14px;border-radius:999px;border:1px solid;white-space:nowrap}
+.asPickBadge.strongOver{background:#064e3b;color:#10b981;border-color:#10b981}
+.asPickBadge.leanOver{background:#06301f;color:#4ade9f;border-color:#2c6b50}
+.asPickBadge.strongUnder{background:#4c0519;color:#f43f5e;border-color:#f43f5e}
+.asPickBadge.leanUnder{background:#330714;color:#fb7185;border-color:#7d2740}
+.asPickBadge.pass{background:#1b2436;color:#9fb0c7;border-color:#3a4c67}
+.asProjMetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.asProjMetric{border:1px solid #34335e;background:#0e1225;border-radius:10px;padding:10px 8px;text-align:center;min-width:0}
+.asProjMetric small{display:block;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#9a94c4;font-weight:700}
+.asProjMetric b{display:block;font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px;color:#e9e6ff;overflow-wrap:anywhere}
+.asProjMetric em{display:block;font-style:normal;font-size:10px;color:#8b85b4;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asProjMetric.good b{color:#34d399}
+.asProjMetric.bad b{color:#fb7185}
+.asProjDriver{margin:14px 0 0;font-size:13px;line-height:1.6;color:#dcd8f5;border-left:3px solid #6d63c8;padding-left:12px}
+.asProjDriver small{display:block;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#9a94c4;font-weight:700;margin-bottom:4px}
+.asProjGaps{margin-top:12px;color:#c5b98f}
+.asProjFootnote{margin:14px 0 12px;font-size:11px;line-height:1.6;color:#847ead;font-style:italic}
+@media(max-width:560px){
+  .asProjMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .asProjVsCell b{font-size:22px}
+  .asProjHead{gap:10px}
+}
+
+/* Board pagination */
+.asPager{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:22px}
+.asPagerState{font-size:13px;font-weight:650;color:#cfdcee;text-align:center;min-width:150px}
+.asPagerState em{display:block;font-style:normal;font-size:11px;font-weight:400;color:#8ba2be;margin-top:3px}
+.asPager .asBtn[disabled]{opacity:.4;cursor:not-allowed}
+
+/* Inline AI prediction on a board card */
+.asPredict{border-top:1px solid #2c2f56;background:#141734;padding:10px 14px}
+.asPredictBtn{height:34px;font-size:12px}
+.asPredict .asPrimary{background:#5b53c8;border-color:#6f66e0}
+.asPredict .asPrimary:hover{background:#6f66e0}
+.asPredictBusy{font-size:12px;color:#b9b2e8;font-weight:600}
+.asPredictNote{font-size:12px;color:#c7b892;margin-right:10px}
+.asPredictTop{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.asPredictTop .asPickBadge{font-size:11px;padding:6px 11px}
+.asPredictFig{display:flex;flex-direction:column;line-height:1.15}
+.asPredictFig small{font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:#9a94c4;font-weight:700}
+.asPredictFig b{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;color:#e9e6ff;margin-top:2px}
+.asPredictFig b.good{color:#34d399}
+.asPredictFig b.bad{color:#fb7185}
+.asPredictTop .asBtn{margin-left:auto}
+.asPredictDriver{margin:9px 0 0;font-size:12px;line-height:1.55;color:#d6d1f2}
+.asPredictFootnote{margin:7px 0 0;font-size:10px;color:#8b85b4;font-style:italic}
+@media(max-width:560px){
+  .asPredictTop .asBtn{margin-left:0;width:100%;order:9}
+  .asPager{gap:10px}
+}
+
+/* Quick filter bar */
+.asQuick{position:sticky;top:118px;z-index:20;background:linear-gradient(#0a1524,#0a1524f2);padding:10px 0 12px;margin-bottom:14px;display:grid;gap:8px}
+.asQuickRow{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.asQuickRow::-webkit-scrollbar{display:none}
+.asChip{flex:none;height:34px;padding:0 14px;border:1px solid #2f4b6b;background:#102034;color:#accae8;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.asChip:hover{background:#1a3552}
+.asChip.on{background:#2f70ed;border-color:#4c86f5;color:#fff}
+.asChipToggle.on{background:#064e3b;border-color:#10b981;color:#6ee7b7}
+.asChip em{font-style:normal;opacity:.7;font-size:10px}
+.asChip i{font-style:normal;color:#f0c98a;font-size:10px}
+
+/* Stale line badge */
+.asStale{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:9px 14px;background:linear-gradient(90deg,#3a2a06,#1c1508);border-top:1px solid #6b5210}
+.asStaleTag{font-size:11px;font-weight:900;letter-spacing:.5px;color:#0b1019;background:#f5c451;border-radius:6px;padding:4px 8px;white-space:nowrap}
+.asStaleText{font-size:11px;color:#f0d79a;font-weight:600}
+
+/* Betslip drawer */
+.asSlipDrawer{position:fixed;right:16px;bottom:86px;z-index:60;width:min(380px,calc(100vw - 32px));display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.asSlipToggle{height:46px;padding:0 18px;border:1px solid #4c86f5;background:#2f70ed;color:#fff;border-radius:999px;font-size:14px;font-weight:750;display:flex;align-items:center;gap:10px;box-shadow:0 10px 30px #0009}
+.asSlipCount{min-width:24px;height:24px;border-radius:999px;background:#0b1019;color:#8fc0ff;display:grid;place-items:center;font-size:12px;font-weight:800}
+.asSlipBody{width:100%;max-height:min(70vh,560px);overflow:auto;background:#0c1a2c;border:1px solid #2f4b6b;border-radius:14px;padding:14px;box-shadow:0 20px 60px #000a;order:-1}
+.asSlipBank{display:grid;gap:6px;margin-bottom:12px}
+.asSlipBank label{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#93acc9;font-weight:700}
+.asSlipBankRow{display:flex;align-items:center;gap:6px}
+.asSlipBankRow span{font-size:16px;color:#93acc9}
+.asSlipList{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.asSlipRow{display:grid;grid-template-columns:minmax(0,1fr) auto 26px;gap:10px;align-items:center;padding:10px;border:1px solid #29425f;border-radius:10px;background:#0b1728}
+.asSlipMain{min-width:0}
+.asSlipMain b{display:block;font-size:13px;font-weight:700}
+.asSlipMain span{display:block;font-size:11px;color:#9db4d0;margin-top:2px}
+.asSlipMain em{display:block;font-style:normal;font-size:10px;color:#7d95b3;margin-top:2px}
+.asSlipStake{text-align:right}
+.asSlipStake b{display:block;font-size:15px;font-weight:800;color:#34d399;font-variant-numeric:tabular-nums}
+.asSlipStake b.asSlipMuted{color:#7d95b3}
+.asSlipStake em{display:block;font-style:normal;font-size:10px;color:#8ba2be;margin-top:2px}
+.asSlipRemove{width:26px;height:26px;border:1px solid #3a5477;background:#122842;color:#b9cce4;border-radius:7px;font-size:15px;line-height:1}
+.asSlipTotal{display:flex;align-items:baseline;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #29425f}
+.asSlipTotal span{font-size:12px;color:#93acc9}
+.asSlipTotal b{font-size:18px;font-weight:800;color:#fff;margin-left:auto;font-variant-numeric:tabular-nums}
+.asSlipTotal em{font-style:normal;font-size:11px;color:#8ba2be;width:100%;text-align:right}
+.asSlipWarn{margin:10px 0 0;font-size:11px;line-height:1.6;color:#f0c98a;background:#2a2013;border:1px solid #5c4423;border-radius:8px;padding:9px}
+.asSlipFootnote{margin:10px 0 8px;font-size:10px;font-style:italic;color:#7d95b3;line-height:1.5}
+.asSlipAdd{height:30px;font-size:11px;padding:0 10px;border-color:#3a5477;background:#14263c}
+
+/* Hit-rate pills */
+.asPills{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.asPill{border:1px solid #29425f;background:#0b1728;border-radius:10px;padding:10px}
+.asPillHead{display:flex;align-items:baseline;justify-content:space-between}
+.asPillHead small{font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#93acc9;font-weight:700}
+.asPillHead b{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+.asPillTrack{height:6px;border-radius:999px;background:#1b2f47;margin:8px 0 6px;overflow:hidden}
+.asPillTrack span{display:block;height:100%;border-radius:999px;background:#5ea1ff}
+.asPill.hot .asPillTrack span{background:#10b981}
+.asPill.hot .asPillHead b{color:#10b981}
+.asPill.cold .asPillTrack span{background:#f43f5e}
+.asPill.cold .asPillHead b{color:#f43f5e}
+.asPill em{font-style:normal;font-size:10px;color:#8ba2be}
+
+/* Book matrix */
+.asMatrix th[scope=row]{color:#dbe8f8;font-weight:650;white-space:nowrap}
+.asMatrix td{text-align:right}
+.asMatrixFlag{background:#2a200f}
+.asMatrixFlag th[scope=row]{color:#f5c451}
+
+/* Scenario sandbox */
+.asSandboxChips{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}
+.asSandboxChip.on{background:#4c0519;border-color:#f43f5e;color:#fda4af}
+.asSandboxResult{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:12px;padding:12px;border:1px solid #34335e;background:#0e1225;border-radius:10px}
+
+/* Ask */
+.asAskLog{display:grid;gap:10px;margin-bottom:12px;max-height:320px;overflow:auto}
+.asAskTurn{padding:10px 12px;border-radius:10px;border:1px solid #29425f;background:#0b1728}
+.asAskTurn.user{background:#12263f}
+.asAskTurn b{display:block;font-size:10px;letter-spacing:.5px;text-transform:uppercase;color:#93acc9;margin-bottom:5px}
+.asAskTurn p{margin:0;font-size:13px;line-height:1.6;color:#dce8f7;white-space:pre-wrap}
+.asAskForm{display:flex;gap:8px}
+.asAskForm .asControl{flex:1}
+@media(max-width:700px){
+  .asQuick{top:104px}
+  .asPills{grid-template-columns:1fr}
+  .asSlipDrawer{right:8px;left:8px;width:auto;align-items:stretch}
+  .asSlipToggle{justify-content:center}
+}
+
+/* Verdict in the card header */
+.asVerdict{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom:8px}
+.asVerdict .asPickBadge{font-size:10px;padding:5px 10px;letter-spacing:.6px}
+.asVerdictFigs{display:flex;gap:12px}
+.asVerdictFigs span{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
+.asVerdictFigs small{font-size:9px;letter-spacing:.4px;text-transform:uppercase;color:#8fa6c2;font-weight:700}
+.asVerdictFigs b{font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;color:#e2ecfa;margin-top:2px}
+.asCardGauge{flex-direction:column;align-items:flex-end}
+
+/* Context values settle in rather than snapping when a payload resolves */
+.asCtxValue{transition:color .25s ease,opacity .25s ease}
+.asReduceMotion .asCtxValue{transition:none}
+
+/* Recent-form fallback when a filtered log is empty */
+.asFallbackLog{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:5px}
+.asFallbackLog li{display:grid;grid-template-columns:56px minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 10px;border:1px solid #263e58;border-radius:8px;background:#0b1728;font-size:12px}
+.asFallbackLog span{color:#9db4d0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asFallbackLog b{font-variant-numeric:tabular-nums;font-weight:750}

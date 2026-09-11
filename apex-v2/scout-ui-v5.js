@@ -5,7 +5,7 @@ var { analyzeResearch, researchTeamMatches, researchOpponentMatches, analyzeLine
 var { evaluatePropAgainstFilters } = await import('/assets/lib/filters/index.mjs');
 function displayTeam(value){return String(value||'').replace(/^(?:nfl|nba|wnba|mlb|nhl|ncaaf|ncaab)_([a-z0-9]{2,5})$/i,(_,code)=>code.toUpperCase());}
 function readStored(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}}
-var activeView='research', advanced={}, displayCount=40, loadGeneration=0, loadController=null, lastFocus=null;
+var activeView='research', advanced={}, loadGeneration=0, loadController=null, lastFocus=null;
 var savedRecords=new Map(), serverSaves=null, saveLoadError=false, profile=null, historyCache=new Map(), researchQueue=[], activeResearch=0;
 var prefs=readStored('autoscout-preferences',{compact:false,books:false,reduceMotion:false});
 if(!prefs||typeof prefs!=='object'||Array.isArray(prefs))prefs={};
@@ -17,6 +17,8 @@ var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB'];
 var BOARD_VIEWS={research:'Prop Research',players:'Players',popular:'Popular',discrepancies:'Line Discrepancies',saved:'Saved Props'};
 var hydrating=false, hydrated=new Set(), hydrateFailed=false;
 var projections=new Map(), projectionPending=new Set();
+var shuffleOrder=new Map(), page=1;
+var PAGE_SIZE=20;
 var sport='NFL';try{sport=(localStorage.getItem('autoscout-sport')||'NFL').toUpperCase();}catch{}
 if(SPORTS.indexOf(sport)<0)sport='NFL';
 var payload={props:[],data:{lines:[],players:[]},meta:{}};
@@ -25,7 +27,7 @@ var query='';
 var marketFilter='all';
 var bookFilter='all';
 var sideFilter='all';
-var sortBy='research';
+var sortBy='shuffle';
 restoreFilters();
 var favorites=new Set(readStored('autoscout-favorites',[]));
 var researchCache=new Map();
@@ -70,17 +72,17 @@ function shell(){
  <header class="asTop"><div class="asBar"><a class="asIdentity" href="/apex" aria-label="Auto Scout Research"><div class="asLogo">A</div><span class="asBrand">AUTO<i>SCOUT</i></span></a><span class="asDesktopLabel">RESEARCH WORKSPACE</span><span class="asGrow"></span><span class="asStatus" id="asStatus">Current sportsbook lines</span><button class="asBtn" id="asRefresh">Refresh</button><button class="asBtn" data-view="saved">Saved</button><button class="asBtn" id="asSettings">Settings</button><button class="asBtn" id="asAccount">Account</button></div><div class="asSports" id="asSports" aria-label="Sports"></div></header>
  <main class="asMain"><section class="asHero"><div><h1 id="asPageTitle">Prop Research</h1><p id="asSubtitle" aria-live="polite">Loading current markets…</p></div><span class="asHeroBadge">MAIN LINES ONLY</span></section>
  <section class="asFilters" aria-label="Filter player props"><label class="asSearchLabel"><span class="asSrOnly">Search player, market or team</span><input class="asControl" id="asSearch" placeholder="Search player, market, team…" type="search"></label><label><span class="asSrOnly">Market</span><select class="asControl" id="asMarket"></select></label><label><span class="asSrOnly">Sportsbook</span><select class="asControl" id="asBook"></select></label><label><span class="asSrOnly">Over or Under</span><select class="asControl" id="asSide"><option value="all">Over + Under</option><option value="OVER">Over</option><option value="UNDER">Under</option></select></label><button class="asBtn asFilterTrigger" id="asAdvancedToggle" aria-expanded="false">Filters <span id="asFilterCount"></span></button></section>
- <dialog id="asFilterSheet" class="asFilterSheet" aria-labelledby="asFilterTitle"><div class="asSheetHead"><h2 id="asFilterTitle">Research filters</h2><button class="asBtn" id="asFilterDone">Done</button></div><section id="asAdvanced" class="asAdvanced"></section></dialog><div class="asToolbar"><span id="asResultCount" aria-live="polite"></span><button class="asBtn" id="asRules" role="switch" aria-checked="true">Rules on</button><button class="asBtn" id="asColumns">Columns</button><button class="asBtn" id="asResearchBatch">Load research</button><label>Sort <select class="asControl" id="asSort"><option value="research">Research coverage</option><option value="recent">Recent hit rate</option><option value="l5">L5 hit rate</option><option value="l10">L10 hit rate</option><option value="l15">L15 hit rate</option><option value="season">Season hit rate</option><option value="h2h">H2H hit rate</option><option value="projection">Projection difference</option><option value="books">Most books</option><option value="player">Player A–Z</option><option value="time">Game time</option></select></label></div>
+ <dialog id="asFilterSheet" class="asFilterSheet" aria-labelledby="asFilterTitle"><div class="asSheetHead"><h2 id="asFilterTitle">Research filters</h2><button class="asBtn" id="asFilterDone">Done</button></div><section id="asAdvanced" class="asAdvanced"></section></dialog><div class="asToolbar"><span id="asResultCount" aria-live="polite"></span><button class="asBtn" id="asRules" role="switch" aria-checked="true">Rules on</button><button class="asBtn" id="asColumns">Columns</button><button class="asBtn" id="asResearchBatch">Load research</button><label>Sort <select class="asControl" id="asSort"><option value="shuffle">Shuffled (no order)</option><option value="research">Research coverage</option><option value="recent">Recent hit rate</option><option value="l5">L5 hit rate</option><option value="l10">L10 hit rate</option><option value="l15">L15 hit rate</option><option value="season">Season hit rate</option><option value="h2h">H2H hit rate</option><option value="projection">Projection difference</option><option value="books">Most books</option><option value="player">Player A–Z</option><option value="time">Game time</option></select></label></div>
  <section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">— means the connected feeds returned no usable value. 0G means no previous meeting with this opponent. Pushes are excluded from hit rates.</p></main>
  <nav class="asNav" aria-label="Main navigation"><button data-view="research" class="on" data-icon="props"><span class="asNavIcon" aria-hidden="true">☲</span><span>Props</span></button><button data-view="players" data-icon="players"><span class="asNavIcon" aria-hidden="true">●</span><span>Players</span></button><button data-view="popular" data-icon="popular"><span class="asNavIcon" aria-hidden="true">▲</span><span>Popular</span></button><button data-view="discrepancies" data-icon="trend"><span class="asNavIcon" aria-hidden="true">↗</span><span>Discrepancies</span></button><button id="asDiscord" data-icon="chat"><span class="asNavIcon" aria-hidden="true">○</span><span>Discord</span></button></nav>
  <div class="asDrawerBg" id="asDrawerBg"><aside class="asDrawer" role="dialog" aria-modal="true" aria-labelledby="asDrawerTitle" tabindex="-1"><div class="asDrawerHead"><div class="asDrawerAvatar"><img id="asDrawerImg" alt=""></div><div><h2 id="asDrawerTitle">Player research</h2><span id="asInjuryBadge" class="asInjuryBadge" hidden></span><p id="asDrawerSub"></p></div><button class="asClose" id="asClose" aria-label="Back to research"><span class="asBackText">Back</span><span aria-hidden="true">×</span></button></div><div class="asDrawerBody" id="asDrawerBody"></div></aside></div>
  <dialog id="asUtility" class="asUtility" aria-labelledby="asUtilityTitle"></dialog><div id="asToast" class="asToast" role="status" aria-live="polite"></div></div>`);
  document.getElementById('asRefresh').onclick=()=>load();
- var searchTimer;document.getElementById('asSearch').oninput=e=>{query=e.target.value;displayCount=40;clearTimeout(searchTimer);searchTimer=setTimeout(renderList,180);};
- document.getElementById('asMarket').onchange=e=>{marketFilter=e.target.value;displayCount=40;renderList();};
- document.getElementById('asBook').onchange=e=>{bookFilter=e.target.value;displayCount=40;renderList();};
- document.getElementById('asSide').onchange=e=>{sideFilter=e.target.value;renderList();};
- document.getElementById('asSort').onchange=e=>{sortBy=e.target.value;renderList();};
+ var searchTimer;document.getElementById('asSearch').oninput=e=>{query=e.target.value;page=1;clearTimeout(searchTimer);searchTimer=setTimeout(renderList,180);};
+ document.getElementById('asMarket').onchange=e=>{marketFilter=e.target.value;page=1;renderList();};
+ document.getElementById('asBook').onchange=e=>{bookFilter=e.target.value;page=1;renderList();};
+ document.getElementById('asSide').onchange=e=>{sideFilter=e.target.value;page=1;renderList();};
+ document.getElementById('asSort').onchange=e=>{sortBy=e.target.value;page=1;renderList();};
  document.getElementById('asAdvancedToggle').onclick=()=>{renderAdvanced();document.getElementById('asFilterSheet').showModal();document.getElementById('asAdvancedToggle').setAttribute('aria-expanded','true');};
  document.getElementById('asFilterDone').onclick=()=>document.getElementById('asFilterSheet').close();
  document.getElementById('asFilterSheet').onclose=()=>{document.getElementById('asAdvancedToggle').setAttribute('aria-expanded','false');document.getElementById('asAdvancedToggle').focus();};
@@ -88,7 +90,7 @@ function shell(){
  document.getElementById('asColumns').onclick=columnsPanel;
  document.getElementById('asClose').onclick=closeDrawer;
  document.getElementById('asDrawerBg').onclick=e=>{if(e.target.id==='asDrawerBg')closeDrawer();};
- document.querySelectorAll('[data-view]').forEach(b=>b.onclick=async()=>{activeView=b.dataset.view;displayCount=40;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on',x===b));document.getElementById('asPageTitle').textContent=BOARD_VIEWS[activeView]||'Prop Research';renderControls();renderAdvanced();renderList();if(activeView==='saved'){b.disabled=true;try{await loadSaved();if(activeView==='saved'){renderControls();renderAdvanced();renderList();}}finally{b.disabled=false;}}});
+ document.querySelectorAll('[data-view]').forEach(b=>b.onclick=async()=>{activeView=b.dataset.view;page=1;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on',x===b));document.getElementById('asPageTitle').textContent=BOARD_VIEWS[activeView]||'Prop Research';renderControls();renderAdvanced();renderList();if(activeView==='saved'){b.disabled=true;try{await loadSaved();if(activeView==='saved'){renderControls();renderAdvanced();renderList();}}finally{b.disabled=false;}}});
  document.getElementById('asDiscord').onclick=()=>{
   var url=typeof window.AUTOSCOUT_DISCORD_URL==='string'?window.AUTOSCOUT_DISCORD_URL:'';
   if(/^https:\/\/(discord\.gg|discord\.com)\//.test(url)){window.open(url,'_blank','noopener');return;}
@@ -103,7 +105,7 @@ function focusToken(element){if(!element)return null;return{id:element.id,data:O
 function focusElement(token){if(!token)return null;if(token.id)return document.getElementById(token.id);var keys=Object.keys(token.data);return keys.length?Array.from(document.querySelectorAll('[data-open],[data-fav],[data-side],[data-window],[data-filter],[data-game-detail],[data-sort]')).find(x=>keys.every(k=>x.dataset[k]===token.data[k])):null;}
 function restoreFocus(token){var element=focusElement(token);if(element){if(token.value!=null)element.value=token.value;element.focus({preventScroll:true});}return element;}
 function closeDrawer(){document.getElementById('asDrawerBg')?.classList.remove('on');document.body.style.overflow='';document.querySelectorAll('.asMain,.asTop,.asNav').forEach(x=>x.inert=false);drawerState=null;if(lastFocus?.isConnected)lastFocus.focus();}
-function renderSports(){if(!document.getElementById('asSports').children.length)document.getElementById('asSports').innerHTML=SPORTS.map(s=>'<button class="asSport '+(s===sport?'on':'')+'" aria-pressed="'+(s===sport)+'" data-sport="'+s+'">'+s+'</button>').join('');document.querySelectorAll('[data-sport]').forEach(b=>{b.classList.toggle('on',b.dataset.sport===sport);b.setAttribute('aria-pressed',String(b.dataset.sport===sport));b.onclick=()=>{if(sport===b.dataset.sport)return;persistFilters();sport=b.dataset.sport;saveState();closeDrawer();restoreFilters();document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;displayCount=40;renderAdvanced();load();};});}
+function renderSports(){if(!document.getElementById('asSports').children.length)document.getElementById('asSports').innerHTML=SPORTS.map(s=>'<button class="asSport '+(s===sport?'on':'')+'" aria-pressed="'+(s===sport)+'" data-sport="'+s+'">'+s+'</button>').join('');document.querySelectorAll('[data-sport]').forEach(b=>{b.classList.toggle('on',b.dataset.sport===sport);b.setAttribute('aria-pressed',String(b.dataset.sport===sport));b.onclick=()=>{if(sport===b.dataset.sport)return;persistFilters();sport=b.dataset.sport;saveState();closeDrawer();restoreFilters();document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;page=1;renderAdvanced();load();};});}
 function viewGroups(){var current=groups().filter(g=>g.sport===sport);if(activeView!=='saved')return current;var merged=new Map(current.filter(g=>favorites.has(g.key)).map(g=>[g.key,g]));savedRecords.forEach(g=>{if(g.sport===sport&&favorites.has(g.key)&&!merged.has(g.key))merged.set(g.key,{...g,archived:true});});return Array.from(merged.values());}
 function renderControls(){var gs=viewGroups(),markets=uniq([...gs.map(function(g){return g.market;}),marketFilter==='all'?null:marketFilter]).sort(),booksList=uniq([...gs.flatMap(function(g){return g.rows.map(function(r){return r.sportsbookKey;});}),bookFilter==='all'?null:bookFilter]).sort();document.getElementById('asMarket').innerHTML='<option value="all">All markets</option>'+markets.map(function(x){return'<option value="'+esc(x)+'" '+(x===marketFilter?'selected':'')+'>'+esc(x)+'</option>';}).join('');document.getElementById('asBook').innerHTML='<option value="all">All books</option>'+booksList.map(function(x){return'<option value="'+esc(x)+'" '+(x===bookFilter?'selected':'')+'>'+esc(gs.flatMap(g=>g.rows).find(r=>r.sportsbookKey===x)?.sportsbook||x)+'</option>';}).join('');}
 function visible(ignoreResearch=false){
@@ -122,7 +124,8 @@ function visible(ignoreResearch=false){
      timeWindow:advanced.today?'TODAY':'ALL',minProjectionDelta:ignoreResearch||!rulesEnabled?null:advanced.delta??null,startsAfter:dayBoundary(advanced.day),startsBefore:advanced.before||dayBoundary(advanced.day,true)}).matchesFilters);
  });
  function score(g){var r=researchFor(g),c=r?.context||{};if(sortBy==='books')return books(g).length;if(sortBy==='time')return Number.isFinite(Date.parse(g.gameStartTime))?-Date.parse(g.gameStartTime):null;if(sortBy==='projection')return num(c.projection)==null?null:(defaultSide(g)==='UNDER'?-1:1)*(num(c.projection)-boardLine(g));if(sortBy==='research')return r?.available?2:r?.sections?.context?1:0;if(sortBy==='recent')return num(r?.windows?.l5?.hitRate);return num(sortBy==='h2h'?r?.h2h?.hitRate:r?.windows?.[sortBy]?.hitRate);}
- a.sort((a,b)=>{if(sortBy==='player')return a.playerName.localeCompare(b.playerName);var av=score(a),bv=score(b);return av==null&&bv!=null?1:bv==null&&av!=null?-1:(bv??0)-(av??0)||a.playerName.localeCompare(b.playerName)||a.key.localeCompare(b.key);});
+ if(sortBy==='shuffle')a.sort((x,y)=>shuffleRank(x)-shuffleRank(y));
+ else a.sort((a,b)=>{if(sortBy==='player')return a.playerName.localeCompare(b.playerName);var av=score(a),bv=score(b);return av==null&&bv!=null?1:bv==null&&av!=null?-1:(bv??0)-(av??0)||a.playerName.localeCompare(b.playerName)||a.key.localeCompare(b.key);});
  if(activeView==='players')a.sort((x,y)=>x.playerName.localeCompare(y.playerName)||x.market.localeCompare(y.market));
  if(activeView==='popular')a.sort((x,y)=>books(y).length-books(x).length||x.playerName.localeCompare(y.playerName));
  if(activeView==='discrepancies'){a=a.filter(g=>lineSpread(g)>0);a.sort((x,y)=>lineSpread(y)-lineSpread(x));}
@@ -340,6 +343,34 @@ async function runProjection(g,line,side){
  }catch(e){out={available:false,message:'The projection could not be generated. Try again shortly.'};}
  projectionPending.delete(key);projections.set(key,out);
  if(drawerState&&drawerState.g.key===g.key)renderDrawer();
+ if(g.sport===sport)renderListLight();
+}
+// Inline prediction on the board card. One explicit click, one paid request:
+// nothing here fires on render, on scroll, or on a page change.
+function predictionStrip(g,line){
+ var key=projectionKey(g,line), entry=projections.get(key);
+ if(projectionPending.has(key)){
+  return '<div class="asPredict asPredictBusy" role="status">Generating prediction…</div>';
+ }
+ if(!entry){
+  return '<div class="asPredict"><button class="asBtn asPrimary asPredictBtn" data-predict="'+esc(g.key)+'">Generate AI Prediction</button></div>';
+ }
+ if(!entry.available){
+  return '<div class="asPredict"><span class="asPredictNote">'+esc(entry.message||'Prediction unavailable.')+'</span>'
+   +'<button class="asBtn asPredictBtn" data-predict="'+esc(g.key)+'">Retry</button></div>';
+ }
+ var evTone=num(entry.ev)==null?'':num(entry.ev)>0?'good':'bad';
+ return '<div class="asPredict asPredictDone">'
+  +'<div class="asPredictTop">'
+   +'<span class="asPickBadge '+pickTone(entry.pick)+'">'+esc(entry.pick||'PASS')+'</span>'
+   +'<span class="asPredictFig"><small>Edge</small><b>'+esc(signed(entry.edge,1))+'</b></span>'
+   +'<span class="asPredictFig"><small>EV</small><b class="'+evTone+'">'+esc(num(entry.ev)==null?'—':signed(entry.ev,1)+'%')+'</b></span>'
+   +'<span class="asPredictFig"><small>Conf</small><b>'+esc(num(entry.confidence)==null?'—':Math.round(entry.confidence)+'%')+'</b></span>'
+   +'<button class="asBtn asPredictBtn" data-predict="'+esc(g.key)+'">Re-run</button>'
+  +'</div>'
+  +(entry.primaryDriver?'<p class="asPredictDriver">'+esc(entry.primaryDriver)+'</p>':'')
+  +'<p class="asPredictFootnote">Model estimate — not a measured statistic.</p>'
+  +'</div>';
 }
 function rowHtml(g){
  var line=boardLine(g),side=defaultSide(g);
@@ -364,6 +395,7 @@ function rowHtml(g){
   +matchupPills(r)
   +badgeStrip(g,r,side)
   +oddsStrip(g)
+  +predictionStrip(g,line)
   +'<div class="asRowActions"><span class="asResearchState '+(r&&r.available?'ready':'')+'">'
    +esc(g.archived?'Saved snapshot · no current line':state)+'</span>'
    +'<span class="asRowUpdated">'+esc(g.archived?shortDate(g.savedAt):shortDate(g.rows[0]&&g.rows[0].providerUpdatedAt))+'</span>'
@@ -373,9 +405,35 @@ function rowHtml(g){
   +'</div></article>';
 }
 
+function renderPagination(total){
+ var host=document.getElementById('asMore');
+ if(!host)return;
+ var pages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+ if(total<=PAGE_SIZE){host.innerHTML='';return;}
+ var first=(page-1)*PAGE_SIZE+1, last=Math.min(total,page*PAGE_SIZE);
+ host.innerHTML='<nav class="asPager" aria-label="Board pages">'
+  +'<button class="asBtn" id="asPrev" '+(page<=1?'disabled':'')+'>Previous</button>'
+  +'<span class="asPagerState" aria-live="polite">Page '+page+' of '+pages
+   +'<em>'+first+'–'+last+' of '+total+' props</em></span>'
+  +'<button class="asBtn" id="asNext" '+(page>=pages?'disabled':'')+'>Next</button>'
+  +'</nav>';
+ var go=function(next){
+  page=Math.max(1,Math.min(pages,next));
+  renderListLight();
+  document.querySelector('.asMain')?.scrollIntoView({block:'start',behavior:prefs.reduceMotion?'auto':'smooth'});
+ };
+ document.getElementById('asPrev').onclick=function(){go(page-1);};
+ document.getElementById('asNext').onclick=function(){go(page+1);};
+}
 function renderSummary(){var gs=groups(),events=uniq(gs.map(function(g){return g.eventId;})).length,booksAll=uniq(gs.flatMap(function(g){return books(g);})).length,ready=gs.filter(function(g){var r=researchFor(g);return r&&r.available;}).length;document.getElementById('asSummary').innerHTML=[['Markets',gs.length],['Events',events],['Sportsbooks',booksAll],['Research ready',ready],['Live lines',(payload.props||[]).length]].map(function(x){return'<div class="asSummaryItem"><small>'+esc(x[0])+'</small><b>'+esc(x[1])+'</b></div>';}).join('');}
 function renderList(){persistFilters();updateFilterStatus();renderListLight();}
-function bindRows(){document.querySelectorAll('[data-open]').forEach(el=>{var open=()=>{var g=groups().find(x=>x.key===el.dataset.open)||(()=>{var saved=savedRecords.get(el.dataset.open);return saved?{...saved,archived:true}:null;})();if(g)openDrawer(g);};el.onclick=open;el.onkeydown=e=>{if(e.target===el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();open();}};});document.querySelectorAll('[data-fav]').forEach(b=>b.onclick=async e=>{e.stopPropagation();b.disabled=true;await toggleSaved(b.dataset.fav);renderListLight();});}
+function bindRows(){
+ document.querySelectorAll('[data-predict]').forEach(b=>b.onclick=e=>{
+  e.stopPropagation();
+  var g=groups().find(x=>x.key===b.dataset.predict);
+  if(g)runProjection(g,boardLine(g),defaultSide(g));
+ });
+ document.querySelectorAll('[data-open]').forEach(el=>{var open=()=>{var g=groups().find(x=>x.key===el.dataset.open)||(()=>{var saved=savedRecords.get(el.dataset.open);return saved?{...saved,archived:true}:null;})();if(g)openDrawer(g);};el.onclick=open;el.onkeydown=e=>{if(e.target===el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();open();}};});document.querySelectorAll('[data-fav]').forEach(b=>b.onclick=async e=>{e.stopPropagation();b.disabled=true;await toggleSaved(b.dataset.fav);renderListLight();});}
 // Resolve the visible slate in one request so the board arrives with its hit
 // rates already computed, instead of a grid of dashes waiting on clicks.
 function hydrateKeyFor(g){return researchKey(g,boardLine(g),defaultSide(g));}
@@ -383,7 +441,7 @@ function hydrateTargets(){
  return visible(true).filter(function(g){
   var key=hydrateKeyFor(g);
   return !researchFor(g,boardLine(g),defaultSide(g))&&!researchInflight.has(key)&&!hydrated.has(key);
- }).slice(0,Math.max(12,Math.min(60,displayCount)));
+ }).slice(0,PAGE_SIZE*2);
 }
 async function hydrateBoard(){
  if(hydrating)return;
@@ -427,12 +485,31 @@ function renderListLight(){
  var list=document.getElementById('asList'),a=visible(),focused=(list.contains(document.activeElement)||document.querySelector('.asHeaderRow').contains(document.activeElement))?focusToken(document.activeElement):null,origin=focusToken(lastFocus);
  applyColumnHeaders();document.getElementById('asResultCount').textContent=a.length+' markets · '+(activeView==='saved'?(saveLoadError?'Saved props unavailable':serverSaves?'Saved to access profile':'Saved on this device'):'Available board');
  if(!a.length){list.innerHTML='<div class="asEmpty"><b>'+esc(activeView==='saved'?'No saved props in this view.':payload.meta?.warning?'Props could not load.':(payload.props||[]).length?'No props match your filters.':'No live props available for '+sport+'.')+'</b><p>'+esc(activeView==='saved'?'Save a prop to return to it here.':(payload.props||[]).length?'Clear filters or try another market.':'Try another sport or refresh shortly.')+'</p><button class="asBtn" id="asResetEmpty">'+((payload.props||[]).length?'Clear filters':'Refresh')+'</button></div>';document.getElementById('asResetEmpty').onclick=()=>{query='';marketFilter=bookFilter=sideFilter='all';advanced={};document.getElementById('asSearch').value='';document.getElementById('asSide').value='all';renderAdvanced();renderControls();(payload.props||[]).length?renderList():load();};}
- else{list.innerHTML=a.slice(0,displayCount).map(rowHtml).join('');bindRows();}
- document.getElementById('asMore').innerHTML=(a.length>displayCount?'<button class="asBtn" id="asShowMore">Show next 40 markets</button>':'');
+ else{var pages=Math.max(1,Math.ceil(a.length/PAGE_SIZE));if(page>pages)page=pages;if(page<1)page=1;
+  list.innerHTML=a.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE).map(rowHtml).join('');bindRows();}
+ renderPagination(a.length);
  renderBatchControl();
  if(!hydrateFailed)hydrateBoard();
- document.getElementById('asShowMore')?.addEventListener('click',()=>{displayCount+=40;renderListLight();});renderSummary();lastFocus=focusElement(origin)||lastFocus;if(focused&&!drawerState)restoreFocus(focused);
+ renderSummary();lastFocus=focusElement(origin)||lastFocus;if(focused&&!drawerState)restoreFocus(focused);
 }
+// Fisher-Yates. Walks the array from the end, swapping each element with a
+// uniformly chosen one at or before it, so every permutation is equally likely.
+function fisherYates(list){
+ var a=list.slice();
+ for(var i=a.length-1;i>0;i--){
+  var j=Math.floor(Math.random()*(i+1));
+  var swap=a[i];a[i]=a[j];a[j]=swap;
+ }
+ return a;
+}
+// Shuffled once per load, not once per render: re-drawing the board when a
+// filter changes or research lands must not move a card out from under the
+// reader's finger, and a page number has to mean the same thing twice.
+function reshuffleBoard(){
+ shuffleOrder=new Map();
+ fisherYates(groups().map(function(g){return g.key;})).forEach(function(key,index){shuffleOrder.set(key,index);});
+}
+function shuffleRank(g){var v=shuffleOrder.get(g.key);return v==null?Number.MAX_SAFE_INTEGER:v;}
 function normTeam(v){return String(v||'').toUpperCase().replace(/[^A-Z]/g,'');}
 function recalcFromGameLog(base,line,side){return analyzeResearch(base,line,side,drawerState?.filter||'all');}
 function marketOptions(g){var candidates=viewGroups();if(!candidates.some(x=>x.key===g.key))candidates.push(g);return candidates.filter(function(x){return x.sport===g.sport&&x.eventId===g.eventId&&x.playerName===g.playerName;}).map(function(x){return'<option value="'+esc(x.key)+'" '+(x.key===g.key?'selected':'')+'>'+esc(x.market)+'</option>';}).join('');}
@@ -533,13 +610,13 @@ async function load(){
  try{var response=await nativeFetch('/api/apex/props?sport='+encodeURIComponent(selected),{signal:loadController.signal}),j=await response.json();if(!response.ok||!Array.isArray(j?.props))throw Error();if(generation!==loadGeneration)return;payload=j;payloadSport=selected;}
  catch(e){if(generation!==loadGeneration)return;if(keepBoard){payload={...payload,meta:{...payload.meta,stale:true,warning:'Refresh failed. Showing the last available lines.'}};toast('Refresh failed. Showing the last available lines.');}else{payload={props:[],data:{},meta:{warning:'Props are temporarily unavailable.'}};payloadSport=selected;}}
  finally{clearTimeout(timeout);}
- if(generation!==loadGeneration)return;loading=false;document.getElementById('asRefresh').disabled=false;document.getElementById('asList').setAttribute('aria-busy','false');render();
+ if(generation!==loadGeneration)return;loading=false;reshuffleBoard();page=1;document.getElementById('asRefresh').disabled=false;document.getElementById('asList').setAttribute('aria-busy','false');render();
 }
 function toast(message){var el=document.getElementById('asToast');el.textContent=message;el.classList.add('on');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('on'),3500);}
 function applyPreferences(){document.getElementById('as5')?.classList.toggle('asCompact',prefs.compact);document.getElementById('as5')?.classList.toggle('asShowBooks',prefs.books);document.getElementById('as5')?.classList.toggle('asReduceMotion',prefs.reduceMotion);}
 function utility(title,html){var dialog=document.getElementById('asUtility');dialog.innerHTML='<div class="asUtilityHead"><h2 id="asUtilityTitle">'+esc(title)+'</h2><button class="asClose" id="asUtilityClose" aria-label="Close '+esc(title)+'">×</button></div>'+html;document.getElementById('asUtilityClose').onclick=()=>dialog.close();if(!dialog.open)dialog.showModal();return dialog;}
 function storeLocal(key,value){try{localStorage.setItem(key,JSON.stringify(value));}catch{}}
-function restoreFilters(){var f=readStored('autoscout-filters-'+sport,{});if(!f||typeof f!=='object')f={};query=typeof f.query==='string'?f.query:'';marketFilter=typeof f.market==='string'?f.market:'all';bookFilter=typeof f.book==='string'?f.book:'all';sideFilter=['all','OVER','UNDER'].includes(f.side)?f.side:'all';sortBy=['research','recent','l5','l10','l15','season','h2h','projection','books','player','time'].includes(f.sort)?f.sort:'research';advanced=f.advanced&&typeof f.advanced==='object'&&!Array.isArray(f.advanced)?f.advanced:{};rulesEnabled=f.rulesEnabled!==false;}
+function restoreFilters(){var f=readStored('autoscout-filters-'+sport,{});if(!f||typeof f!=='object')f={};query=typeof f.query==='string'?f.query:'';marketFilter=typeof f.market==='string'?f.market:'all';bookFilter=typeof f.book==='string'?f.book:'all';sideFilter=['all','OVER','UNDER'].includes(f.side)?f.side:'all';sortBy=['shuffle','research','recent','l5','l10','l15','season','h2h','projection','books','player','time'].includes(f.sort)?f.sort:'shuffle';advanced=f.advanced&&typeof f.advanced==='object'&&!Array.isArray(f.advanced)?f.advanced:{};rulesEnabled=f.rulesEnabled!==false;}
 function persistFilters(){storeLocal('autoscout-filters-'+sport,{query,market:marketFilter,book:bookFilter,side:sideFilter,sort:sortBy,advanced,rulesEnabled});}
 function dayBoundary(day,end=false){if(!/^\d{4}-\d{2}-\d{2}$/.test(day||''))return null;var d=new Date(day+'T00:00:00');if(end)d.setDate(d.getDate()+1);return Number.isFinite(d.getTime())?new Date(d.getTime()-(end?1:0)).toISOString():null;}
 function activeFilterCount(){return Number(!!query)+Number(marketFilter!=='all')+Number(bookFilter!=='all')+Number(sideFilter!=='all')+['team','opponent','game','before','day','today'].filter(k=>!!advanced[k]).length+Number(!!advanced.availability&&advanced.availability!=='ALL')+(rulesEnabled?Object.values(advanced.thresholds||{}).filter(v=>num(v)!=null).length+Number(num(advanced.delta)!=null):0);}
@@ -554,7 +631,7 @@ function renderAdvanced(){
  html+=['l5','l10','l15','season','h2h'].map(k=>'<label>'+k.toUpperCase()+' minimum %<input class="asControl" type="number" min="0" max="100" step="1" data-threshold="'+k+'" '+(!rulesEnabled?'disabled':'')+' value="'+esc(advanced.thresholds?.[k]??'')+'" placeholder="Any"></label>').join('');
  html+='<label>Projection difference<input class="asControl" type="number" step="0.5" data-advanced="delta" '+(!rulesEnabled?'disabled':'')+' value="'+esc(advanced.delta??'')+'" placeholder="Any"></label><label>Starts before<input class="asControl" type="datetime-local" data-advanced="before" value="'+esc(advanced.before||'')+'"></label><label class="asCheckbox"><input type="checkbox" id="asToday" '+(advanced.today?'checked':'')+'> Today only</label><button class="asBtn" id="asClear">Clear filters</button><p class="asNotice">Rules control only hit-rate and projection thresholds. Missing values never qualify. Regular lines are always required.</p>';
  document.getElementById('asAdvanced').innerHTML=html;
- var update=()=>{displayCount=40;updateFilterStatus();renderList();};
+ var update=()=>{page=1;updateFilterStatus();renderList();};
  document.querySelectorAll('[data-advanced]').forEach(el=>el.onchange=()=>{advanced[el.dataset.advanced]=el.value;if(el.dataset.advanced==='day'){advanced.today=false;document.getElementById('asToday').checked=false;}update();});
  document.querySelectorAll('[data-threshold]').forEach(el=>el.onchange=()=>{advanced.thresholds={...advanced.thresholds,[el.dataset.threshold]:num(el.value)};update();});
  document.getElementById('asToday').onchange=e=>{advanced.today=e.target.checked;if(advanced.today){advanced.day='';document.querySelector('[data-advanced=day]').value='';}update();};

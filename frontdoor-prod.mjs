@@ -288,7 +288,9 @@ async function maybeServeResearchBatch(req, res) {
  */
 async function maybeServeProjection(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
-  if (url.pathname !== '/api/props/project') return false;
+  // Both names serve the same handler: /predict is what the client calls,
+  // /project is kept so anything already pointed at it keeps working.
+  if (url.pathname !== '/api/props/predict' && url.pathname !== '/api/props/project') return false;
   if (req.method !== 'POST') {
     directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'POST' });
     return true;

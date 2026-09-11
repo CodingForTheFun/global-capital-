@@ -285,3 +285,31 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
   .asProjVsCell b{font-size:22px}
   .asProjHead{gap:10px}
 }
+
+/* Board pagination */
+.asPager{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;margin-top:22px}
+.asPagerState{font-size:13px;font-weight:650;color:#cfdcee;text-align:center;min-width:150px}
+.asPagerState em{display:block;font-style:normal;font-size:11px;font-weight:400;color:#8ba2be;margin-top:3px}
+.asPager .asBtn[disabled]{opacity:.4;cursor:not-allowed}
+
+/* Inline AI prediction on a board card */
+.asPredict{border-top:1px solid #2c2f56;background:#141734;padding:10px 14px}
+.asPredictBtn{height:34px;font-size:12px}
+.asPredict .asPrimary{background:#5b53c8;border-color:#6f66e0}
+.asPredict .asPrimary:hover{background:#6f66e0}
+.asPredictBusy{font-size:12px;color:#b9b2e8;font-weight:600}
+.asPredictNote{font-size:12px;color:#c7b892;margin-right:10px}
+.asPredictTop{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.asPredictTop .asPickBadge{font-size:11px;padding:6px 11px}
+.asPredictFig{display:flex;flex-direction:column;line-height:1.15}
+.asPredictFig small{font-size:9px;letter-spacing:.5px;text-transform:uppercase;color:#9a94c4;font-weight:700}
+.asPredictFig b{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;color:#e9e6ff;margin-top:2px}
+.asPredictFig b.good{color:#34d399}
+.asPredictFig b.bad{color:#fb7185}
+.asPredictTop .asBtn{margin-left:auto}
+.asPredictDriver{margin:9px 0 0;font-size:12px;line-height:1.55;color:#d6d1f2}
+.asPredictFootnote{margin:7px 0 0;font-size:10px;color:#8b85b4;font-style:italic}
+@media(max-width:560px){
+  .asPredictTop .asBtn{margin-left:0;width:100%;order:9}
+  .asPager{gap:10px}
+}

@@ -274,3 +274,46 @@ test('the cache key ignores a one-cent price tick but not a real price move', as
   // The line itself must stay exact: a different line is a different bet.
   assert.match(service, /input\.market, input\.line,/);
 });
+
+// --- the request shape the SDK actually accepts -----------------------------
+// Verified against @anthropic-ai/sdk 0.125.0. These are the settings that would
+// fail on the FIRST real call rather than at edit time, which is exactly the
+// kind of breakage a test should hold still — this path has never run against
+// the live model, so nothing else is watching it.
+
+test('the projection request matches the SDK surface it was written against', async () => {
+  const service = await fs.readFile(new URL('../lib/projections/service.mjs', import.meta.url), 'utf8');
+
+  // Structured outputs go through parse(), not create() plus hand-parsing.
+  assert.match(service, /messages\.parse\(/);
+  assert.match(service, /jsonSchemaOutputFormat\(PROJECTION_OUTPUT_SCHEMA\)/);
+  assert.match(service, /from '@anthropic-ai\/sdk\/helpers\/json-schema'/);
+
+  // Effort belongs inside output_config; at the top level it is ignored.
+  assert.match(service, /output_config: \{ effort: EFFORT, format:/);
+
+  // temperature is rejected outright on this model family.
+  assert.doesNotMatch(service, /temperature/);
+  // Thinking is on by default here; passing a budget is a 400.
+  assert.doesNotMatch(service, /budget_tokens/);
+
+  // An exact model id, with no date suffix appended.
+  assert.match(service, /'claude-opus-5'/);
+  assert.doesNotMatch(service, /claude-opus-5-\d{8}/);
+});
+
+test('the token ceiling and timeout leave room for a high-effort answer', async () => {
+  const { projectionHealth } = await import('../lib/projections/service.mjs');
+  const service = await fs.readFile(new URL('../lib/projections/service.mjs', import.meta.url), 'utf8');
+
+  const maxTokens = Number(service.match(/const MAX_TOKENS = (\d+)/)[1]);
+  // Thinking tokens count against this, and the response now carries four
+  // written sections. Too low and the answer truncates, which fails the call.
+  assert.ok(maxTokens >= 16000, `max_tokens ${maxTokens} risks truncation at high effort`);
+
+  const timeout = Number(service.match(/const REQUEST_TIMEOUT_MS = ([\d_]+)/)[1].replace(/_/g, ''));
+  // An abort does not refund the request, so waiting is cheaper than retrying.
+  assert.ok(timeout >= 120_000, `timeout ${timeout}ms is short for a high-effort turn`);
+
+  assert.ok(['low', 'medium', 'high', 'xhigh', 'max'].includes(projectionHealth().effort));
+});

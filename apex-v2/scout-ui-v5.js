@@ -16,6 +16,7 @@ var savePending=new Set();
 var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB'];
 var BOARD_VIEWS={research:'Prop Research',players:'Players',popular:'Popular',discrepancies:'Line Discrepancies',saved:'Saved Props'};
 var hydrating=false, hydrated=new Set(), hydrateFailed=false;
+var projections=new Map(), projectionPending=new Set();
 var sport='NFL';try{sport=(localStorage.getItem('autoscout-sport')||'NFL').toUpperCase();}catch{}
 if(SPORTS.indexOf(sport)<0)sport='NFL';
 var payload={props:[],data:{lines:[],players:[]},meta:{}};
@@ -252,6 +253,94 @@ function oddsStrip(g){
    +(x.u?'<i class="u">U '+esc(dec(x.u.line))+' '+esc(money(x.u.price))+'</i>':'')+'</span></div>';});
  return chips.length?'<div class="asOddsStrip" aria-label="Sportsbook lines">'+chips.join('')+'</div>':'';
 }
+// ---------------------------------------------------------------------------
+// Modelled projection card.
+//
+// This is an ESTIMATE, not an observation, and it is labelled as one wherever
+// it appears. It never merges into the measured hit-rate badges: the board's
+// numbers come from real game logs, these come from a model reading them.
+//
+// Each projection costs a paid API call, so it is requested per prop on an
+// explicit click rather than fanned out across the whole board.
+// ---------------------------------------------------------------------------
+function projectionKey(g,line){return [g.key,num(line)].join('|');}
+function pickTone(pick){
+ var label=String(pick||'');
+ return label==='STRONG OVER'?'strongOver':label==='LEAN OVER'?'leanOver'
+  :label==='STRONG UNDER'?'strongUnder':label==='LEAN UNDER'?'leanUnder':'pass';
+}
+function signed(value,digits){var x=num(value);return x==null?'—':(x>0?'+':'')+dec(x,digits==null?1:digits);}
+function projectionMetric(label,value,tone,sub){
+ return '<div class="asProjMetric '+(tone||'')+'"><small>'+esc(label)+'</small><b>'+esc(value)+'</b>'
+  +(sub?'<em>'+esc(sub)+'</em>':'')+'</div>';
+}
+function projectionCard(g,line){
+ var key=projectionKey(g,line), entry=projections.get(key);
+ var head='<div class="asSectionTitle"><h3>Modelled projection</h3><span>Model estimate · not a measured statistic</span></div>';
+ if(projectionPending.has(key)){
+  return '<section class="asSection asProjection">'+head+'<div class="asSectionBody"><div class="asLoading" role="status"><div class="asPulse"></div>Modelling this prop…</div></div></section>';
+ }
+ if(!entry){
+  return '<section class="asSection asProjection">'+head+'<div class="asSectionBody">'
+   +'<p class="asNotice">Estimate this prop against the current line using the connected model. Uses one paid request.</p>'
+   +'<button class="asBtn asPrimary" data-project="'+esc(g.key)+'">Run projection</button></div></section>';
+ }
+ if(!entry.available){
+  return '<section class="asSection asProjection">'+head+'<div class="asSectionBody">'
+   +'<p class="asAvailability">'+esc(entry.message||'A modelled projection is unavailable for this prop.')+'</p>'
+   +'<button class="asBtn" data-project="'+esc(g.key)+'">Try again</button></div></section>';
+ }
+ var pick=entry.pick||'PASS', tone=pickTone(pick);
+ var evTone=num(entry.ev)==null?'':num(entry.ev)>0?'good':'bad';
+ var edgeTone=num(entry.edge)==null?'':num(entry.edge)>0?'good':num(entry.edge)<0?'bad':'';
+ var gaps=Array.isArray(entry.dataGaps)?entry.dataGaps:[];
+ return '<section class="asSection asProjection">'+head+'<div class="asSectionBody">'
+  +'<div class="asProjHead">'
+   +'<div class="asProjVs">'
+    +'<div class="asProjVsCell"><small>Modelled</small><b>'+esc(dec(entry.projection,1))+'</b></div>'
+    +'<span class="asProjVsSep" aria-hidden="true">vs</span>'
+    +'<div class="asProjVsCell"><small>Current line</small><b>'+esc(dec(entry.line,1))+'</b></div>'
+   +'</div>'
+   +'<span class="asPickBadge '+tone+'">'+esc(pick)+'</span>'
+  +'</div>'
+  +'<div class="asProjMetrics">'
+   +projectionMetric('Edge',signed(entry.edge,1),edgeTone,num(entry.edgePercent)==null?'':signed(entry.edgePercent,0)+'%')
+   +projectionMetric('EV',num(entry.ev)==null?'—':signed(entry.ev,1)+'%',evTone,entry.side?entry.side.toLowerCase():'no side')
+   +projectionMetric('Confidence',num(entry.confidence)==null?'—':Math.round(entry.confidence)+'%','',
+     num(entry.confidence)==null?'':num(entry.confidence)>=65?'strong evidence':num(entry.confidence)>=50?'moderate':'thin evidence')
+   +projectionMetric('Model over%',num(entry.probabilityOver)==null?'—':Math.round(entry.probabilityOver*100)+'%','',
+     num(entry.impliedOver)==null?'':'book '+Math.round(entry.impliedOver*100)+'%')
+  +'</div>'
+  +(entry.primaryDriver?'<p class="asProjDriver"><small>Primary driver</small>'+esc(entry.primaryDriver)+'</p>':'')
+  +(gaps.length?'<p class="asNotice asProjGaps">Missing from the payload: '+esc(gaps.join(', '))+'</p>':'')
+  +'<p class="asProjFootnote">Model estimate generated '+esc(when(entry.generatedAt))+'. Not a measured statistic and not betting advice.</p>'
+  +'<button class="asBtn" data-project="'+esc(g.key)+'">Re-run</button>'
+  +'</div></section>';
+}
+async function runProjection(g,line,side){
+ var key=projectionKey(g,line);
+ if(projectionPending.has(key))return;
+ projectionPending.add(key);renderDrawer();
+ var quote=bestPrice(g,'OVER',line,true), under=bestPrice(g,'UNDER',line,true);
+ var r=researchFor(g,line,side)||null;
+ var body={sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:num(line),
+  team:g.team||'',position:g.position||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',
+  gameStartTime:g.gameStartTime||'',opponent:r&&r.matchup?r.matchup.opponent||'':'',
+  overPrice:quote?num(quote.price):null,underPrice:under?num(under.price):null,
+  books:g.rows.slice(0,24).map(function(row){return {sportsbook:row.sportsbook||row.sportsbookKey,line:num(row.line),
+   overPrice:row.side==='OVER'?num(row.price):null,underPrice:row.side==='UNDER'?num(row.price):null};}),
+  windows:r&&r.windows?r.windows:null,
+  gameLog:r&&Array.isArray(r.gameLog)?r.gameLog.slice(0,25).map(function(x){return {date:x.date,opponent:x.opponent,isHome:x.isHome,value:x.value,minutes:x.minutes};}):[],
+  injuryStatus:r&&r.context?r.context.injuryStatus||'':''};
+ var out;
+ try{
+  var response=await nativeFetch('/api/props/project',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  out=await response.json();
+  if(!response.ok&&!out)throw Error('projection');
+ }catch(e){out={available:false,message:'The projection could not be generated. Try again shortly.'};}
+ projectionPending.delete(key);projections.set(key,out);
+ if(drawerState&&drawerState.g.key===g.key)renderDrawer();
+}
 function rowHtml(g){
  var line=boardLine(g),side=defaultSide(g);
  var quote=bestPrice(g,side,line)||sideRows(g,side).find(x=>num(x.line)===num(line)&&(bookFilter==='all'||x.sportsbookKey===bookFilter));
@@ -417,9 +506,11 @@ function renderDrawer(){
  var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines']];
  var tabBar='<div class="asResearchTabs" role="tablist" aria-label="Player research sections">'+tabs.map(([id,label])=>'<button role="tab" class="asResearchTab" id="asTab-'+id+'" data-research-panel="'+id+'" aria-controls="asPanel-'+id+'" aria-selected="'+(panel===id)+'" tabindex="'+(panel===id?'0':'-1')+'">'+label+'</button>').join('')+'</div>';
  var logContent=filteredGames(r).length?gameTable(r,g):'<p class="asNotice">No completed games match this selection.</p>';
- var panels={overview:(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line)),games:windowCards(r,drawerState.window)+filters+section('Game log',logContent),lines:section('Sportsbook line shop',comparisonRows(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
+ var projectionHtml=projectionCard(g,line);
+ var panels={overview:projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line)),games:windowCards(r,drawerState.window)+filters+section('Game log',logContent),lines:section('Sportsbook line shop',comparisonRows(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
  document.getElementById('asDrawerBody').innerHTML=(g.archived?'<p class="asAvailability">Saved snapshot from '+esc(when(g.savedAt))+'. Current sportsbook offers are unavailable for this prop.</p>':'')+section('Research controls',controls)+(!base?'<div class="asLoading" role="status">Loading player research…</div>':!base.available?'<p class="asAvailability">'+esc(researchAvailability(base))+'</p><button class="asBtn" id="asRetryResearch">Retry research</button>':'')+tabBar+'<div role="tabpanel" id="asPanel-'+panel+'" aria-labelledby="asTab-'+panel+'" tabindex="0">'+panels[panel]+'</div>';
  document.querySelectorAll('[data-research-panel]').forEach(b=>{b.onclick=()=>{drawerState.panel=b.dataset.researchPanel;renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();var i=tabs.findIndex(t=>t[0]===b.dataset.researchPanel),next=e.key==='Home'?0:e.key==='End'?2:(i+(e.key==='ArrowRight'?1:2))%3;drawerState.panel=tabs[next][0];renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};});
+ document.querySelectorAll('[data-project]').forEach(b=>b.onclick=()=>runProjection(g,line,side));
  document.getElementById('asRetryResearch')?.addEventListener('click',async e=>{e.target.disabled=true;e.target.textContent='Retrying…';var result=await getResearch(g,line,side,true);if(drawerState?.g.key===g.key){drawerState.base=result;renderDrawer();}});
  document.getElementById('asMarketSwitch').onchange=e=>{var next=viewGroups().find(x=>x.key===e.target.value);if(next)openDrawer(next);};
  var changeLine=value=>{var n=num(value);if(n==null){toast('Enter a valid research line.');return;}drawerState.line=n;renderDrawer();document.getElementById('asLineInput')?.focus();};

@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { playerArtworkResponse } from './lib/autoscout/providers/thesportsdb-artwork.mjs';
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
 import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
+import { projectPlayerProp, projectionsConfigured } from './lib/projections/service.mjs';
 
 const FRONT_PORT = Number(process.env.PORT || 3000);
 const SCOUT_PORT = 3002;
@@ -15,6 +16,10 @@ const researchLimits = new Map();
 // One board load hydrates at most this many cards, resolved this many at a time.
 const MAX_BATCH_PROPS = 60;
 const BATCH_CONCURRENCY = 8;
+// Every projection call costs money, so this route gets its own much
+// tighter budget than the research routes rather than sharing theirs.
+const projectionLimits = new Map();
+const PROJECTION_RATE_PER_MINUTE = 12;
 const CLIENT_MODULES = new Map([
   'lib/analytics/research.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
   'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
@@ -107,6 +112,21 @@ function researchRateAllowed(req) {
     for (const [ip, row] of researchLimits) if (now - row.startedAt > 120_000) researchLimits.delete(ip);
   }
   return current.count <= 180;
+}
+
+function projectionRateAllowed(req) {
+  const now = Date.now();
+  const key = requestIp(req);
+  const current = projectionLimits.get(key);
+  if (!current || now - current.startedAt >= 60_000) {
+    projectionLimits.set(key, { startedAt: now, count: 1 });
+    return true;
+  }
+  current.count += 1;
+  if (projectionLimits.size > 2000) {
+    for (const [ip, row] of projectionLimits) if (now - row.startedAt > 120_000) projectionLimits.delete(ip);
+  }
+  return current.count <= PROJECTION_RATE_PER_MINUTE;
 }
 
 function safeParam(url, name, max = 100) {
@@ -259,6 +279,47 @@ async function maybeServeResearchBatch(req, res) {
   return true;
 }
 
+/**
+ * POST /api/props/project — a modelled projection for one prop.
+ *
+ * Separate from /api/apex/research on purpose. Research reports what was
+ * measured; this reports what a model estimated, and the response says so in
+ * `modelled` and `source` so the two can never be mistaken for each other.
+ */
+async function maybeServeProjection(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/props/project') return false;
+  if (req.method !== 'POST') {
+    directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'POST' });
+    return true;
+  }
+  if (!projectionsConfigured()) {
+    directJson(res, 200, { ok: true, available: false, code: 'PROJECTION_NOT_CONFIGURED', message: 'Modelled projections are not enabled.' });
+    return true;
+  }
+  if (!projectionRateAllowed(req)) {
+    directJson(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many projection requests. Try again shortly.' }, { 'retry-after': '60' });
+    return true;
+  }
+  const body = await readJsonBody(req, 64 * 1024);
+  const sport = String(body?.sport || '').trim().toUpperCase();
+  const playerName = String(body?.playerName || '').trim().slice(0, 90);
+  const market = String(body?.market || '').trim().slice(0, 100);
+  const line = body?.line === null || body?.line === undefined || body?.line === '' ? null : Number(body.line);
+  if (!ARTWORK_SPORTS.has(sport) || !playerName || !market || line === null || !Number.isFinite(line)) {
+    directJson(res, 400, { ok: false, code: 'INVALID_PROJECTION_REQUEST', message: 'Valid sport, player, market and line are required.' });
+    return true;
+  }
+  try {
+    const result = await projectPlayerProp({ ...body, sport, playerName, market, line });
+    directJson(res, 200, sanitizePublicPayload(result, { statsContext: true }));
+  } catch (error) {
+    console.error('[frontdoor] projection request failed', String(error?.code || error?.message || 'PROJECTION_ERROR').slice(0, 120));
+    directJson(res, 502, { ok: false, available: false, code: 'PROJECTION_PROVIDER_ERROR', message: 'Modelled projections are temporarily unavailable.' });
+  }
+  return true;
+}
+
 async function maybeServeArtwork(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   if (url.pathname !== '/api/apex/player-artwork') return false;
@@ -300,6 +361,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (await maybeServeResearch(req, res)) return;
   if (await maybeServeResearchBatch(req, res)) return;
+  if (await maybeServeProjection(req, res)) return;
   if (await maybeServeArtwork(req, res)) return;
 
   const dst = target(req.url || '/');

@@ -20,42 +20,19 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - name: Capture dependency snapshot and public schemas
+      - name: Verify public roster schema without paid requests
         run: |
           mkdir -p /tmp/history-review
-          tar -czf /tmp/history-review/dependencies.tar.gz node_modules
           node --input-type=module <<'JS'
           import { writeFile } from 'node:fs/promises';
-          const base = 'https://site.web.api.espn.com/apis';
-          const examples = [
-            ['defense','football','nfl','Micah Parsons'],
-            ['tackles','football','nfl','Bobby Wagner'],
-            ['kicker','football','nfl','Brandon Aubrey'],
-            ['pitcher','baseball','mlb','Paul Skenes','pitching'],
-            ['goalie','hockey','nhl','Igor Shesterkin'],
-            ['college','basketball','mens-college-basketball','Braden Smith'],
-            ['common','football','nfl','Josh Allen']
-          ];
-          async function capture(name,url) {
+          const base = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
+          for (const [name,path] of [['teams','/teams?limit=1000'],['buf','/teams/2/roster'],['mia','/teams/15/roster']]) {
             try {
-              const r = await fetch(url,{signal:AbortSignal.timeout(12000)});
+              const r = await fetch(base+path,{signal:AbortSignal.timeout(12000)});
               const text = await r.text();
               await writeFile(`/tmp/history-review/${name}.json`,text);
               console.log(name,r.status,text.length);
-              return r.ok ? JSON.parse(text) : null;
-            } catch(e) { console.log(name,e.name); return null; }
-          }
-          for (const [tag,sport,league,name,category] of examples) {
-            const search = await capture(tag+'-search',`${base}/search/v2?${new URLSearchParams({query:name,sport,limit:'100',type:'player'})}`);
-            const rows = (search?.results || []).filter(g=>g.type==='player').flatMap(g=>g.contents||[]);
-            const row = rows.find(r=>r.defaultLeagueSlug===league && r.displayName.toLowerCase()===name.toLowerCase());
-            const id = row?.uid?.match(/~a:(\d+)$/)?.[1];
-            if (!id) continue;
-            const path = `${base}/common/v3/sports/${sport}/${league}/athletes/${id}/gamelog`;
-            const current = await capture(tag+'-current',path+(category?'?category='+category:''));
-            const filter = current?.filters?.find(f=>f.name==='season');
-            const previous = filter?.options?.find(o=>Number(o.value)===Number(filter.value)-1);
-            if (previous) await capture(tag+'-previous',path+'?'+new URLSearchParams({season:previous.value,...(category?{category}:{})}));
+            } catch(e) { console.log(name,e.name); }
           }
           JS
       - name: Syntax and regression suite

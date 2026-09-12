@@ -20,23 +20,24 @@ jobs:
         with:
           node-version: 22
       - run: npm ci
-      - name: Verify public roster schema without paid requests
+      - name: Syntax and regression suite
         run: |
           mkdir -p /tmp/history-review
-          node --input-type=module <<'JS'
-          import { writeFile } from 'node:fs/promises';
-          const base = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
-          for (const [name,path] of [['teams','/teams?limit=1000'],['buf','/teams/2/roster'],['mia','/teams/15/roster']]) {
-            try {
-              const r = await fetch(base+path,{signal:AbortSignal.timeout(12000)});
-              const text = await r.text();
-              await writeFile(`/tmp/history-review/${name}.json`,text);
-              console.log(name,r.status,text.length);
-            } catch(e) { console.log(name,e.name); }
-          }
-          JS
-      - name: Syntax and regression suite
-        run: npm run check
+          git rev-parse HEAD > /tmp/history-review/candidate-sha.txt
+          node --check scripts/verify-history-ui.mjs
+          set -o pipefail
+          npm run check 2>&1 | tee /tmp/history-review/check.log
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Desktop and mobile replay (no live API calls)
+        env:
+          QA_OUTPUT_DIR: /tmp/history-review/browser
+        run: |
+          set -o pipefail
+          node scripts/verify-history-ui.mjs 2>&1 | tee /tmp/history-review/browser.log
+      - name: Capture candidate source
+        if: always()
+        run: git archive --format=tar.gz HEAD > /tmp/history-review/source.tar.gz
       - name: Publish verification artifacts
         if: always()
         uses: actions/upload-artifact@v4

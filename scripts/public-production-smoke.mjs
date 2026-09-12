@@ -108,6 +108,7 @@ async function verifyApi(cookie) {
   researchUrl.searchParams.set('sport', sample.sport || 'NFL');
   researchUrl.searchParams.set('playerName', sample.playerName);
   researchUrl.searchParams.set('market', sample.market);
+  researchUrl.searchParams.set('marketId', sample.marketId || sample.statId || '');
   researchUrl.searchParams.set('line', String(sample.line));
   researchUrl.searchParams.set('side', sample.side);
   researchUrl.searchParams.set('team', sample.team || '');

@@ -24,8 +24,8 @@ jobs:
           new="const footballLabels = {assists:['AssistedTackles'],'assisted tackles':['AssistedTackles'],sacks:['Sacks']"
           assert s.count(old)==1;p.write_text(s.replace(old,new))
           p=Path('scripts/public-production-smoke.mjs');s=p.read_text()
-          old='    market: sample.market,\n    line: String(sample.line),'
-          new="    market: sample.market,\n    marketId: sample.marketId || sample.statId || '',\n    line: String(sample.line),"
+          old="  researchUrl.searchParams.set('market', sample.market);"
+          new=old+"\n  researchUrl.searchParams.set('marketId', sample.marketId || sample.statId || '');"
           assert s.count(old)==1;p.write_text(s.replace(old,new))
           p=Path('tests/football-assists-label.test.mjs');assert not p.exists()
           p.write_text("import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport {marketContract,statValue} from '../lib/data-sources/espn/stat-contract.mjs';\ntest('football assists means assisted tackles while basketball assists remains separate',()=>{\n for(const sport of ['NFL','NCAAF']){\n  const byLabel=marketContract({sport,market:'Assists'});\n  const byKey=marketContract({sport,market:'Assists',providerMarketKey:'player_assists'});\n  assert.deepEqual(byLabel.fields,['AssistedTackles']);\n  assert.deepEqual(byLabel.fields,byKey.fields);\n  assert.equal(statValue({totalTackles:'7',soloTackles:'4',assistTackles:'3'},byLabel),3);\n  assert.equal(statValue({assists:'8'},byLabel),null);\n }\n assert.deepEqual(marketContract({sport:'NBA',market:'Assists'}).fields,['Assists']);\n});\n")

@@ -32,8 +32,8 @@ test('the line difference reports its basis and falls back when a season is inco
   assert.equal(full.value, 4.5);
   assert.equal(full.percent, 23.1);
 
-  // An incomplete season leaves a null average; the widest window with games
-  // answers instead, and says so rather than implying full-season coverage.
+  // If no season average exists at all, the widest recent grounded window is
+  // still the fallback and remains explicitly identified as the DIFF basis.
   const partial = lineDifference({ season: { average: null }, l20: { average: 20 } }, 19.5);
   assert.equal(partial.basis, 'l20');
   assert.equal(partial.value, 0.5);
@@ -47,8 +47,10 @@ test('research carries streak and difference through to the card payload', () =>
   const analyzed = analyzeResearch({ gameLog: log(30, 28, 26, 12), coverage: {}, context: {} }, 19.5, 'OVER');
   assert.equal(analyzed.streak.count, 3);
   assert.equal(analyzed.streak.side, 'OVER');
-  // Four games with no season coverage: L20 is the widest window holding them.
-  assert.equal(analyzed.diff.basis, 'l20');
+  // Real current-season rows are now a valid season-to-date sample even when
+  // archive coverage is partial, so DIFF uses the same grounded SZN average.
+  assert.equal(analyzed.diff.basis, 'season');
+  assert.equal(analyzed.windows.season.partial, true);
   assert.ok(analyzed.diff.value > 0);
 
   const under = analyzeResearch({ gameLog: log(30, 28, 26, 12), coverage: {}, context: {} }, 19.5, 'UNDER');

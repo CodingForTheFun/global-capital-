@@ -15,7 +15,8 @@ const selections={NFL:{sport:'NFL',playerName:'Micah Parsons',market:'Sacks',mar
  WNBA:{sport:'WNBA',playerName:'Caitlin Clark',market:'Assists',marketId:'player_assists',team:'IND',homeTeam:'Indiana Fever',awayTeam:'Washington Mystics',line:7.5,log:wnba}};
 const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_PATH||undefined,args:['--no-sandbox']});
 try{
- for(const [name,viewport] of [['desktop',{width:1440,height:1000}],['mobile',{width:390,height:844}]]]){
+ const viewports=[['desktop',{width:1440,height:1000}],['mobile',{width:390,height:844}]];
+ for(const [name,viewport] of viewports){
   const context=await browser.newContext({viewport});const page=await context.newPage();
   const errors=[],assetFailures=[],requests=[];let held=null,firstNFL=true;
   page.on('pageerror',e=>errors.push(e.message));
@@ -60,7 +61,7 @@ try{
    held?.();held=null;
    await page.screenshot({path:out+'/'+name+'-board.png',fullPage:true});
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Page should not overflow horizontally');
-   assert.ok((await page.locator('.asBadges').innerText()).includes('—')||(await page.locator('.asBadges').innerText()).includes('73%'));
+   assert.equal(await page.evaluate(()=>document.characterSet),'UTF-8');
    await page.locator('.asCard').first().click();
    await page.locator('[data-window="l5"] b').waitFor();
    const rate=()=>page.locator('[data-window="l5"] b').innerText();

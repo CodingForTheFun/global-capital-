@@ -18,7 +18,7 @@ var savePending=new Set();
 
 var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB'];
 var BOARD_VIEWS={research:'Prop Research',players:'Players',popular:'Popular',discrepancies:'Line Discrepancies',saved:'Saved Props'};
-var hydrating=false, hydrated=new Set(), hydrateFailed=false;
+var hydrating=false, hydrated=new Set(), hydrateFailed=false, hydrateController=null;
 var projections=new Map(), projectionPending=new Set();
 var shuffleOrder=new Map(), page=1;
 var slip=readStored('autoscout-slip',[]), bankroll=num(readStored('autoscout-bankroll',null));
@@ -316,8 +316,17 @@ function gaugeRates(r,side){
  var over=side==='UNDER'?100-active:active;
  return{over:over,under:100-over,basis:h.w.label||h.id.toUpperCase(),games:num(h.w.games)};
 }
-function ringGauge(rates){
- if(!rates)return '<div class="asRing asRingEmpty"><b>—</b><small>No game log</small></div>';
+function researchEmptyLabel(r){
+ if(!r)return hydrateFailed?'Retry research':'Loading research';
+ var code=String(r.code||'');
+ if(/UNSUPPORTED|UNMAPPED/.test(code))return 'Unsupported stat';
+ if(/PLAYER.*(?:MATCH|FOUND)|AMBIGUOUS/.test(code))return 'Player unmatched';
+ if(r.available&&(r.gameLog||[]).length)return 'No decided games';
+ if(/NO_GAME_LOG/.test(code))return 'No completed games';
+ return 'Research unavailable';
+}
+function ringGauge(rates,r){
+ if(!rates)return '<div class="asRing asRingEmpty"><b>—</b><small>'+esc(researchEmptyLabel(r))+'</small></div>';
  var radius=26,circumference=2*Math.PI*radius,over=Math.max(0,Math.min(100,rates.over));
  var arc=(over/100)*circumference;
  return '<div class="asRing"><svg class="asRingSvg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Over '+over.toFixed(1)+' percent, under '+(100-over).toFixed(1)+' percent">'
@@ -333,7 +342,7 @@ function badge(id,label,value,tone,sub){
 }
 function windowBadge(r,id,label,column){
  var w=r&&r.available&&r.windows?r.windows[id]:null,rate=w?num(w.hitRate):null;
- return badge(column||id,label,rate==null?'—':Math.round(rate)+'%',rateTone(rate),w&&num(w.games)?w.games+'g':'');
+ return badge(column||id,label,rate==null?'—':Math.round(rate)+'%',rateTone(rate),(w&&num(w.games)?w.games+'g':'')+(id==='season'&&r&&r.season?' · '+r.season:''));
 }
 // A player who has never faced this opponent has a real answer — no meetings —
 // which is not the same as a lookup that failed.
@@ -768,7 +777,7 @@ function rowHtml(g){
     +'<div class="asCardMatch"><span>'+esc(displayTeam(g.awayTeam)+' @ '+displayTeam(g.homeTeam))+'</span><span class="asCardTime">'+esc(when(g.gameStartTime))+'</span></div>'
     +'<div class="asCardMarket">'+esc(marketLabel)+(quote&&num(quote.price)!=null?'<span class="asCardPrice">'+esc(side+' '+money(quote.price))+(quote.sportsbook?' · '+esc(quote.sportsbook):'')+'</span>':'')+'</div>'
    +'</div>'
-   +'<div class="asCardGauge">'+headerVerdict(g,line,side)+ringGauge(gaugeRates(r,side))+'</div>'
+   +'<div class="asCardGauge">'+headerVerdict(g,line,side)+ringGauge(gaugeRates(r,side),r)+'</div>'
   +'</div>'
   +matchupPills(r)
   +badgeStrip(g,r,side)
@@ -828,12 +837,13 @@ async function hydrateBoard(){
  if(hydrating)return;
  var targets=hydrateTargets();
  if(!targets.length)return;
- var generation=loadGeneration,selected=sport;
- hydrating=true;
+ var generation=loadGeneration,selected=sport,controller=new AbortController();
+ var timeout=setTimeout(function(){controller.abort();},90000);
+ hydrateController=controller;hydrating=true;
  targets.forEach(function(g){hydrated.add(hydrateKeyFor(g));});
  renderBatchControl();
  try{
-  var response=await nativeFetch('/api/apex/research-batch',{method:'POST',headers:{'content-type':'application/json'},
+  var response=await nativeFetch('/api/apex/research-batch',{method:'POST',signal:controller.signal,headers:{'content-type':'application/json'},
    body:JSON.stringify({props:targets.map(function(g){var line=boardLine(g),side=defaultSide(g);
     return {key:researchKey(g,line,side),sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',
      line:line,side:side,team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',games:40};})})});
@@ -843,14 +853,18 @@ async function hydrateBoard(){
   hydrateFailed=false;
   targets.forEach(function(g){
    var key=hydrateKeyFor(g),out=body.results[key];
-   if(!out)return;
+   if(!out){hydrateFailed=true;return;}
    var entry={value:out,expires:Date.now()+(out.available?15:5)*60000};
    researchCache.set(key,entry);researchCache.set('base|'+g.key,entry);
   });
- }catch(e){hydrateFailed=true;}
+ }catch(e){if(generation===loadGeneration&&selected===sport)hydrateFailed=true;}
  finally{
+  clearTimeout(timeout);
+  if(hydrateController===controller)hydrateController=null;
   hydrating=false;
-  if(generation===loadGeneration&&selected===sport)renderListLight();
+  // Even a superseded request must wake the current board. Its first render
+  // may have happened while this request still held the shared hydration lock.
+  if(!loading)renderListLight();
  }
 }
 function renderBatchControl(){
@@ -1015,7 +1029,7 @@ async function historyHtml(g,book,side){
 }
 function openDrawer(g){if(!drawerState)lastFocus=document.activeElement;if(sandbox.key!==g.key)sandbox={key:g.key,out:new Set(),roster:null,loading:false};drawerState={g,line:boardLine(g),side:defaultSide(g),window:'l10',filter:'all',base:null,historyBook:bookFilter!=='all'?bookFilter:books(g)[0]};document.getElementById('asDrawerBg').classList.add('on');document.body.style.overflow='hidden';document.querySelector('.asMain').inert=true;document.querySelector('.asTop').inert=true;document.querySelector('.asNav').inert=true;renderDrawer();document.getElementById('asClose').focus();getResearch(g,drawerState.line,drawerState.side,false).then(r=>{if(!drawerState||drawerState.g.key!==g.key)return;drawerState.base=r;renderDrawer();});}
 function loadHistoryIntoDrawer(){if(!drawerState)return;var {g,historyBook,side}=drawerState;historyHtml(g,historyBook,side).then(html=>{if(drawerState?.g.key!==g.key||drawerState?.historyBook!==historyBook||drawerState?.side!==side)return;var el=document.getElementById('asHistory');if(el)el.innerHTML=html;});}
-function researchAvailability(base){var c=String(base?.code||'');if(/UNMAPPED/.test(c))return 'This market does not yet have a supported historical statistic. Current sportsbook lines remain available.';if(/SEASON_ONLY|NO_GAME_LOG/.test(c)||base?.sections?.seasonTotal)return 'Season or player context is available, but completed game logs were not returned. Hit rates require individual game results.';if(/PLAYER.*MATCH|AMBIGUOUS/.test(c))return 'This player could not be uniquely matched to historical statistics. Current sportsbook lines remain available.';return 'Historical research could not be loaded for this player and market. Any supplied player context and sportsbook lines remain available.';}
+function researchAvailability(base){var c=String(base?.code||'');if(/UNSUPPORTED|UNMAPPED/.test(c))return 'This market does not yet have a supported historical statistic. Current sportsbook lines remain available.';if(/NO_GAME_LOG/.test(c))return 'No verified completed game results were returned for this player and statistic. Current sportsbook lines remain available.';if(/SEASON_ONLY/.test(c)||base?.sections?.seasonTotal)return 'Season or player context is available, but completed game logs were not returned. Hit rates require individual game results.';if(/PLAYER.*(?:MATCH|FOUND)|AMBIGUOUS/.test(c))return 'This player could not be uniquely matched to historical statistics. Current sportsbook lines remain available.';return 'Historical research could not be loaded for this player and market. Any supplied player context and sportsbook lines remain available.';}
 // An empty filtered log is usually the head-to-head view on a player who has
 // not faced this opponent. Say that in plain language and show the recent form
 // that does exist, rather than leaving a dead table.
@@ -1090,7 +1104,7 @@ function renderDrawer(){
 }
 function render(){renderSports();renderControls();renderSummary();var m=payload.meta||{};document.getElementById('asSubtitle').textContent=(m.stale?'Last available board · ':'')+sport+' · '+(m.events||0)+' events · '+(m.sportsbookCount||0)+' sportsbooks'+(m.fetchedAt?' · Updated '+new Date(m.fetchedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'');document.getElementById('asStatus').textContent=m.stale?'Last available lines':'Main sportsbook lines';if(!document.getElementById('asAdvanced').contains(document.activeElement))renderAdvanced();renderList();}
 async function load(){
- hydrated.clear();hydrateFailed=false;staleCache.clear();var generation=++loadGeneration,selected=sport,keepBoard=payloadSport===selected&&(payload.props||[]).length>0;loadController?.abort();loadController=new AbortController();loading=true;renderSports();document.getElementById('asRefresh').disabled=true;
+ hydrated.clear();hydrateFailed=false;staleCache.clear();var generation=++loadGeneration,selected=sport,keepBoard=payloadSport===selected&&(payload.props||[]).length>0;loadController?.abort();hydrateController?.abort();loadController=new AbortController();loading=true;renderSports();document.getElementById('asRefresh').disabled=true;
  document.getElementById('asStatus').textContent=keepBoard?'Refreshing lines…':'Loading lines…';
  if(!keepBoard){document.getElementById('asSubtitle').textContent='Loading '+selected+' markets…';document.getElementById('asList').innerHTML=Array.from({length:5},()=>'<div class="asSkeleton" aria-hidden="true"></div>').join('');}
  document.getElementById('asList').setAttribute('aria-busy','true');

@@ -13,7 +13,7 @@ const server = spawn(process.execPath, ['frontdoor-clearsports.mjs'], { env: { .
   AUTO_SCAN_MINUTES: '0', DEMO_MODE: 'false', THE_ODDS_API_KEY: '', SPORTSDATAIO_API_KEY: '', CLEARSPORTS_API_KEY: '', ANTHROPIC_API_KEY: '',
   GEMINI_API_KEY: 'edge-ci-fixture-only', NODE_OPTIONS: `--import=${path.resolve('tests/mock-guest-provider.mjs')}` }, stdio: ['ignore', 'pipe', 'pipe'] });
 let log = ''; server.stdout.on('data', c => { log += c; }); server.stderr.on('data', c => { log += c; });
-let browser; let checks = 0;
+let browser, page; let checks = 0;
 function check(value, message) { assert.ok(value, message); checks++; }
 try {
   let started = false;
@@ -44,8 +44,6 @@ try {
   const second = await ask({ prompt: 'One more?', prop: context });
   check(second.status === 403 && (await second.json()).code === 'AUTH_REQUIRED', 'Second query blocked by server');
   check((await (await fetch(base + '/api/ask-prop', { headers: { cookie } })).json()).used, 'Usage survives frontend storage reset');
-
-  // Agent-browser provides a snapshot; Playwright performs deterministic assertions.
   const cli = spawnSync('agent-browser', ['open', base], { encoding: 'utf8', timeout: 30000 });
   if (cli.status === 0) {
     const snap = spawnSync('agent-browser', ['snapshot', '-i'], { encoding: 'utf8', timeout: 30000 });
@@ -53,7 +51,7 @@ try {
     spawnSync('agent-browser', ['close'], { timeout: 10000 });
   } else await writeFile('artifacts/agent-browser-status.txt', cli.error?.message || cli.stderr || 'CLI unavailable; Playwright verification follows.');
   browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
+  page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(base, { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Jayson Tatum', exact: true }).waitFor();
@@ -68,12 +66,17 @@ try {
   check(await page.getByTestId('hit-rate').textContent() === '75% hit', 'Push excluded from denominator');
   await page.screenshot({ path: 'artifacts/edge-desktop.png', fullPage: true });
   await page.getByRole('button', { name: 'Filters 🔒', exact: true }).click();
-  await page.getByRole('dialog').waitFor(); check(await page.getByRole('heading', { name: 'Create a Free Account', exact: true }).isVisible(), 'Locked filter opens auth');
+  await page.getByRole('heading', { name: 'Create a Free Account', exact: true }).waitFor();
+  check(await page.getByRole('dialog').isVisible(), 'Locked filter opens auth');
   await page.keyboard.press('Escape');
+  await page.locator('dialog').waitFor({ state: 'hidden' });
   await page.getByRole('button', { name: 'Log In', exact: true }).click();
-  check(await page.getByRole('heading', { name: 'Welcome back', exact: true }).isVisible(), 'Login selects login form');
+  await page.getByRole('heading', { name: 'Welcome back', exact: true }).waitFor();
+  check(await page.getByRole('dialog').isVisible(), 'Login selects login form');
   await page.keyboard.press('Escape');
+  await page.locator('dialog').waitFor({ state: 'hidden' });
   await page.getByRole('button', { name: 'MLB', exact: true }).first().click();
+  await page.getByText('No sample cards match', { exact: true }).waitFor();
   check(await page.getByText('No sample cards match', { exact: true }).isVisible(), 'Empty sport is honest');
   await page.getByRole('button', { name: 'Reset filters', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -81,6 +84,7 @@ try {
   await page.screenshot({ path: 'artifacts/edge-mobile.png', fullPage: true });
   check(errors.length === 0, `No guest browser exceptions: ${errors.join('; ')}`);
   await page.getByRole('button', { name: 'Try for free', exact: true }).click();
+  await page.getByRole('heading', { name: 'Create a Free Account', exact: true }).waitFor();
   await page.getByLabel('Email address', { exact: true }).fill('edge-ci-user@local.invalid');
   await page.getByLabel('Password', { exact: true }).fill('Local-QA-only!7933');
   await page.getByRole('button', { name: 'Create Free Account', exact: true }).click();
@@ -91,6 +95,10 @@ try {
   check(!(await signedHome.text()).includes('Find the story behind the line.'), 'Signed-in home remains real research app');
   await writeFile('artifacts/edge-verification.json', JSON.stringify({ passed: checks, browserErrors: errors, liveProviderCalled: false, productionAccountsModified: false }, null, 2));
   console.log(`EDGE_RELEASE_PASS: ${checks} assertions; desktop/mobile browser checks; isolated real registration; LLM fixture only.`);
+} catch (error) {
+  await page?.screenshot({ path: 'artifacts/edge-failure.png', fullPage: true }).catch(() => {});
+  if (page) await writeFile('artifacts/edge-failure-text.txt', await page.locator('body').innerText().catch(() => 'Unavailable'));
+  throw error;
 } finally {
   await browser?.close(); server.kill('SIGTERM');
   await writeFile('artifacts/edge-server.log', log);

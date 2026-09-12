@@ -19,18 +19,14 @@ jobs:
           import {writeFile} from 'node:fs/promises';
           const base='https://site.web.api.espn.com/apis/common/v3/sports/soccer/eng.1/athletes/253989/gamelog';
           const urls={
-            nfl_clock:'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?limit=1',
-            epl_clock:'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard?limit=1',
-            nba_clock:'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?limit=1',
-            epl_2026:base+'?league=eng.1&season=2026',
-            epl_2025:base+'?league=eng.1&season=2025',
-            epl_year2025:base+'?league=eng.1&year=2025',
-            parsons_2026:'https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/4361423/gamelog?season=2026'
+            ordered:base+'?season=2025&league=eng.1',
+            all_competition:base.replace('/eng.1/','/all/')+'?season=2025&league=eng.1',
+            regional:base+'?season=2025&league=eng.1&lang=en&region=us'
           };
           for(const [name,url] of Object.entries(urls)){
             try { const r=await fetch(url,{signal:AbortSignal.timeout(15000)});const text=await r.text();
               await writeFile('evidence/'+name+'.json',text);
-              const p=JSON.parse(text); console.log(name,r.status,JSON.stringify({season:p.season,leagueSeasons:p.leagues?.map(l=>({id:l.id,season:l.season})),filters:p.filters,groups:p.seasonTypes?.map(g=>({displayName:g.displayName,seasonType:g.seasonType,events:g.categories?.map(c=>c.events?.length)}))}));
+              const p=JSON.parse(text); console.log(name,r.status,JSON.stringify({filters:p.filters,leagues:[...new Set(Object.values(p.events||{}).map(e=>e.leagueAbbreviation))],groups:p.seasonTypes?.map(g=>({displayName:g.displayName,events:g.categories?.map(c=>c.events?.length)}))}));
             }catch(e){console.log(name,e.name);}
           }
           JS

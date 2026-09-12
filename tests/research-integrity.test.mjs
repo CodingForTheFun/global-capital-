@@ -10,6 +10,19 @@ const base = { season: 2026, matchup: { opponent: 'BOS' }, gameLog: [
   {gameId:'2',date:'2026-09-02',value:20,opponent:null,isHome:false},
   {gameId:'1',date:'2026-09-01',value:30,opponent:'BOS',isHome:true},
 ] };
+test('partial logs remain labeled partial while real season-to-date results stay usable', () => {
+  const r=analyzeResearch(base,25,'OVER');
+  assert.equal(r.windows.season.hitRate,50);
+  assert.equal(r.windows.season.partial,true);
+  assert.equal(r.coverage.seasonComplete,false);
+  assert.equal(r.coverage.seasonPartial,true);
+  assert.equal(r.windows.l5.hitRate,50);
+  assert.equal(r.windows.l5.pushes,1);
+  assert.equal(r.h2h.games,2);
+  assert.equal(r.gameLog[0].hit,null);
+  assert.equal(analyzeResearch({...base,coverage:{seasonComplete:true}},25,'OVER').windows.season.hitRate,50);
+  assert.equal(analyzeResearch({gameLog:[{value:0}]},1,'UNDER').windows.l5.hitRate,100);
+});
 test('fallback game logs exclude future, unfinished and did-not-play records', () => {
   const row = { GameID: 1, DateTime: '2025-01-01T12:00:00Z', Points: 0, Status: 'Final' };
   const result = detailedGameLog('NBA', 'Points', [row,
@@ -18,16 +31,6 @@ test('fallback game logs exclude future, unfinished and did-not-play records', (
     { ...row, GameID: 6, Points: null }, { ...row, GameID: 7, DateTime: null }]);
   assert.equal(result.length, 1);
   assert.equal(result[0].value, 0);
-});
-test('partial logs never masquerade as a full season; zero is a real result', () => {
-  const r=analyzeResearch(base,25,'OVER');
-  assert.equal(r.windows.season.hitRate,null);
-  assert.equal(r.windows.l5.hitRate,50);
-  assert.equal(r.windows.l5.pushes,1);
-  assert.equal(r.h2h.games,2);
-  assert.equal(r.gameLog[0].hit,null);
-  assert.equal(analyzeResearch({...base,coverage:{seasonComplete:true}},25,'OVER').windows.season.hitRate,50);
-  assert.equal(analyzeResearch({gameLog:[{value:0}]},1,'UNDER').windows.l5.hitRate,100);
 });
 test('venue filtering recalculates the same sample for cards and charts', () => {
   const r=analyzeResearch(base,25,'UNDER','home');

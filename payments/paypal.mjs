@@ -17,7 +17,7 @@ export function paypalConfig() {
   const secret = String(process.env.PAYPAL_CLIENT_SECRET || '').trim();
   const price = money(process.env.PAYPAL_PRICE_USD);
   const currency = String(process.env.PAYPAL_CURRENCY || 'USD').trim().toUpperCase();
-  const productName = String(process.env.PAYPAL_PRODUCT_NAME || 'AutoProp Scout Pro Access').trim();
+  const productName = String(process.env.PAYPAL_PRODUCT_NAME || 'ObligePay Edge Access').trim();
   const environment = String(process.env.PAYPAL_ENV || 'sandbox').toLowerCase() === 'live' ? 'live' : 'sandbox';
   return {
     enabled: Boolean(clientId && secret && price),
@@ -79,7 +79,7 @@ export async function createPayPalOrder() {
         amount: { currency_code: config.currency, value: config.price },
       }],
       application_context: {
-        brand_name: String(process.env.PAYPAL_BRAND_NAME || 'AutoProp Scout Pro').slice(0, 127),
+        brand_name: String(process.env.PAYPAL_BRAND_NAME || 'ObligePay Edge').slice(0, 127),
         user_action: 'PAY_NOW',
         shipping_preference: 'NO_SHIPPING',
       },

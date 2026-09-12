@@ -16,9 +16,9 @@ var COLUMN_DEFS=[['projection','Projection',104],['l5','L5',78],['l10','L10',78]
 var rulesEnabled=true, saveEpoch=0;
 var savePending=new Set();
 
-var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB'];
+var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB','MLS','EPL','UCL'];
 var BOARD_VIEWS={research:'Prop Research',players:'Players',popular:'Popular',discrepancies:'Line Discrepancies',saved:'Saved Props'};
-var hydrating=false, hydrated=new Set(), hydrateFailed=false;
+var hydrating=false, hydrated=new Set(), hydrateFailed=false, hydrateController=null, hydratePending=new Set();
 var projections=new Map(), projectionPending=new Set();
 var shuffleOrder=new Map(), page=1;
 var slip=readStored('autoscout-slip',[]), bankroll=num(readStored('autoscout-bankroll',null));
@@ -57,7 +57,7 @@ function groupKey(r){return [r.sport,r.eventId,r.playerId||r.playerName,r.market
 function lineMap(){var m=new Map();((payload.data&&payload.data.lines)||[]).forEach(function(x){m.set(x.id,x);});return m;}
 function propIdForRow(r){var x=lineMap().get(r&&r.id);return x&&x.propId||null;}
 function playerMap(){var m=new Map();((payload.data&&payload.data.players)||[]).forEach(function(x){m.set(x.id,x);});return m;}
-function groups(){var m=new Map(),pm=playerMap();(payload.props||[]).forEach(function(r){if(r.isAlternate)return;var k=groupKey(r);if(!m.has(k)){var p=pm.get(r.playerId)||{};m.set(k,{key:k,sport:r.sport,eventId:r.eventId,playerId:r.playerId,playerName:r.playerName,team:r.team||p.team||'',position:p.position||'',marketId:r.marketId,market:r.market,homeTeam:r.homeTeam,awayTeam:r.awayTeam,gameStartTime:r.gameStartTime,live:!!r.live,rows:[]});}m.get(k).rows.push(r);});return Array.from(m.values());}
+function groups(){var m=new Map(),pm=playerMap();(payload.props||[]).forEach(function(r){if(r.isAlternate)return;var k=groupKey(r);if(!m.has(k)){var p=pm.get(r.playerId)||{};m.set(k,{key:k,sport:r.sport,eventId:r.eventId,playerId:r.playerId,playerName:r.playerName,entityType:r.entityType||p.entityType||'player',providerPlayerId:p.providerPlayerId||'',team:r.team||p.team||'',position:p.position||'',marketId:r.marketId,market:r.market,homeTeam:r.homeTeam,awayTeam:r.awayTeam,gameStartTime:r.gameStartTime,live:!!r.live,rows:[]});}m.get(k).rows.push(r);});return Array.from(m.values());}
 function books(g){return uniq(g.rows.map(function(r){return r.sportsbookKey;}));}
 function sideRows(g,side){return g.rows.filter(function(r){return r.side===side;});}
 function bestLine(g,side){var a=sideRows(g,side).filter(function(r){return num(r.line)!=null;});if(!a.length)return null;return a.slice().sort(function(a,b){return side==='OVER'?num(a.line)-num(b.line):num(b.line)-num(a.line);})[0];}
@@ -273,7 +273,7 @@ function lineSpread(g){
  if(lines.length<2)return 0;
  return Number((Math.max.apply(null,lines)-Math.min.apply(null,lines)).toFixed(2));
 }
-function researchParams(g,line,side){var q=new URLSearchParams({sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:String(line==null?'':line),side:side||defaultSide(g),games:'40',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',team:g.team||''});return q.toString();}
+function researchParams(g,line,side){var q=new URLSearchParams({sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:String(line==null?'':line),side:side||defaultSide(g),games:'40',providerPlayerId:g.providerPlayerId||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',team:g.team||''});return q.toString();}
 async function getResearch(g,line,side,force){
  var valueLine=line==null?boardLine(g):line,valueSide=side||defaultSide(g),key=researchKey(g,valueLine,valueSide);
  if(!force){var cached=researchFor(g,valueLine,valueSide);if(cached)return cached;}
@@ -308,64 +308,70 @@ function headlineWindow(r){
  for(var i=0;i<ids.length;i++){var w=r.windows[ids[i]];if(w&&num(w.hitRate)!=null)return{id:ids[i],w:w};}
  return null;
 }
-// Hit rates are measured over decided games, so the two sides of one window sum
-// to 100 by construction; the opposite side is a restatement, not an estimate.
+// Hits / all eligible games. Pushes occupy their own neutral share; the
+// opposite side is NOT 100 minus the active rate when a line can push.
 function gaugeRates(r,side){
  var h=headlineWindow(r);if(!h)return null;
- var active=num(h.w.hitRate);if(active==null)return null;
- var over=side==='UNDER'?100-active:active;
- return{over:over,under:100-over,basis:h.w.label||h.id.toUpperCase(),games:num(h.w.games)};
+ var n=num(h.w.games),hits=num(h.w.hits),misses=num(h.w.misses);
+ if(!n||hits==null||misses==null)return null;
+ return {over:100*(side==='UNDER'?misses:hits)/n,under:100*(side==='UNDER'?hits:misses)/n,
+  basis:(h.id==='season'?'SZN '+(r.season||''):h.w.label||h.id.toUpperCase())+(h.w.partial?' · partial':''),games:n};
 }
-function ringGauge(rates){
- if(!rates)return '<div class="asRing asRingEmpty"><b>—</b><small>No game log</small></div>';
- var radius=26,circumference=2*Math.PI*radius,over=Math.max(0,Math.min(100,rates.over));
- var arc=(over/100)*circumference;
- return '<div class="asRing"><svg class="asRingSvg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Over '+over.toFixed(1)+' percent, under '+(100-over).toFixed(1)+' percent">'
-  +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#4c0519" stroke-width="7"></circle>'
-  +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#f43f5e" stroke-width="7" stroke-dasharray="'+(circumference-arc).toFixed(2)+' '+arc.toFixed(2)+'" stroke-dashoffset="'+(-arc).toFixed(2)+'" transform="rotate(-90 32 32)"></circle>'
-  +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#10b981" stroke-width="7" stroke-dasharray="'+arc.toFixed(2)+' '+(circumference-arc).toFixed(2)+'" transform="rotate(-90 32 32)"></circle>'
+function researchState(r){
+ if(!r)return hydrateFailed?'Research needs retry':'Loading game logs';
+ if(r.available)return 'Game log available';
+ if(r.code==='NO_GAME_LOG_DATA')return 'No logs available';
+ if(r.retryable||r.code==='RESEARCH_PROVIDER_ERROR')return 'Research needs retry';
+ return 'Historical statistic unavailable';
+}
+function ringGauge(rates,r){
+ if(!rates)return '<div class="asRing asRingEmpty" title="'+esc(r?.message||researchState(r))+'">'
+  +(!r&&!hydrateFailed?'<span class="asStatSkeleton" aria-label="Loading game logs"></span>':'<b>N/A</b>')
+  +'<small>'+esc(researchState(r))+'</small></div>';
+ var radius=26,c=2*Math.PI*radius,over=Math.max(0,Math.min(100,rates.over)),under=Math.max(0,Math.min(100,rates.under));
+ var arc=over/100*c,u=under/100*c;
+ return '<div class="asRing"><svg class="asRingSvg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Over '+over.toFixed(1)+' percent, under '+under.toFixed(1)+' percent; remaining games pushed">'
+  +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#64748b" stroke-width="7"></circle>'
+  +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#f43f5e" stroke-width="7" stroke-dasharray="'+u.toFixed(2)+' '+(c-u).toFixed(2)+'" stroke-dashoffset="'+(-arc).toFixed(2)+'" transform="rotate(-90 32 32)"></circle>'
+  +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#10b981" stroke-width="7" stroke-dasharray="'+arc.toFixed(2)+' '+(c-arc).toFixed(2)+'" transform="rotate(-90 32 32)"></circle>'
   +'<text x="32" y="32" class="asRingMid" text-anchor="middle" dominant-baseline="central">'+Math.round(over)+'%</text>'
-  +'</svg><div class="asRingText"><b class="asOverPct">O '+over.toFixed(1)+'%</b><span class="asUnderPct">U '+(100-over).toFixed(1)+'%</span>'
-  +'<em>'+esc(rates.basis)+(rates.games?' · '+rates.games+'g':'')+'</em></div></div>';
+  +'</svg><div class="asRingText"><b class="asOverPct">O '+over.toFixed(1)+'%</b><span class="asUnderPct">U '+under.toFixed(1)+'%</span>'
+  +'<em>'+esc(rates.basis)+' · '+rates.games+'g</em></div></div>';
 }
 function badge(id,label,value,tone,sub){
  return '<div class="asBadge '+tone+'"'+(id?' data-column="'+esc(id)+'"':'')+'><small>'+esc(label)+'</small><b>'+esc(value)+'</b><em>'+esc(sub||'')+'</em></div>';
 }
 function windowBadge(r,id,label,column){
  var w=r&&r.available&&r.windows?r.windows[id]:null,rate=w?num(w.hitRate):null;
- return badge(column||id,label,rate==null?'—':Math.round(rate)+'%',rateTone(rate),w&&num(w.games)?w.games+'g':'');
+ var note=w&&num(w.games)?w.games+'g':'';
+ if(id==='season'&&r?.season)note+=(note?' · ':'')+r.season+(w?.partial?' partial':'');
+ return badge(column||id,label,rate==null?'N/A':Math.round(rate)+'%',rateTone(rate),note);
 }
-// A player who has never faced this opponent has a real answer — no meetings —
-// which is not the same as a lookup that failed.
 function h2hBadge(r){
- if(!r||!r.available)return badge('h2h','H2H','—','','');
- var games=num(r.coverage&&r.coverage.h2hGames);
- if(games===0)return badge('h2h','H2H','0G','','no meetings');
- var h=r.h2h||{},hits=num(h.hits),misses=num(h.misses),rate=num(h.hitRate);
- var record=hits==null||misses==null?'—':hits+'/'+(hits+misses);
- return badge('h2h','H2H',record,rateTone(rate),rate==null?(games?games+'g':''):Math.round(rate)+'%');
+ if(!r||!r.available)return badge('h2h','H2H','N/A','','');
+ var games=num(r.coverage?.h2hGames),h=r.h2h||{},hits=num(h.hits),rate=num(h.hitRate);
+ if(!games)return badge('h2h','H2H','N/A','','no meetings');
+ return badge('h2h','H2H',rate==null?'N/A':Math.round(rate)+'%',rateTone(rate),hits==null?games+'g':hits+'/'+games);
 }
 function streakBadge(r,side){
- var streak=r&&r.available?r.streak:null,count=streak?num(streak.count):null;
- if(count==null)return badge('','STRK','—','','');
- return badge('','STRK',String(count),count>=3?'hot':count===0?'cold':'',(side==='UNDER'?'under':'over'));
+ var count=r&&r.available?num(r.streak?.count):null;
+ return badge('','STRK',count==null?'N/A':String(count),count==null?'':count>=3?'hot':count===0?'cold':'',count==null?'':side==='UNDER'?'Under':'Over');
 }
 function averageBadge(r){
- var h=headlineWindow(r),average=h?num(h.w.average):null;
- if(average==null){var l10=r&&r.available&&r.windows?num(r.windows.l10&&r.windows.l10.average):null;
-  return badge('average','AVG',l10==null?'—':dec(l10,1),'',l10==null?'':'L10');}
- return badge('average','AVG',dec(average,1),'',h.id==='season'?'SZN':h.id.toUpperCase());
+ var d=r&&r.available?r.diff:null,value=d?num(d.average):null;
+ return badge('average','AVG',value==null?'N/A':value.toFixed(1),'',d?d.basis==='season'?'SZN '+(r.season||''):d.basis.toUpperCase():'');
 }
 function diffBadge(r,side){
  var d=r&&r.available?r.diff:null,value=d?num(d.value):null;
- if(value==null)return badge('','DIFF','—','','');
- var favourable=side==='UNDER'?value<0:value>0,percent=num(d.percent);
- return badge('','DIFF',(value>0?'+':'')+dec(value,1),value===0?'':favourable?'hot':'cold',
-  percent==null?'':(percent>0?'+':'')+Math.round(percent)+'%');
+ if(value==null)return badge('','DIFF','N/A','','');
+ var favourable=side==='UNDER'?value<0:value>0;
+ return badge('','DIFF',(value<0?'-':'+')+Math.abs(value).toFixed(1),value===0?'':favourable?'hot':'cold','AVG − line');
 }
 function badgeStrip(g,r,side){
- return '<div class="asBadges">'+windowBadge(r,'l5','L5')+windowBadge(r,'l10','L10')+windowBadge(r,'l15','L15')
-  +h2hBadge(r)+streakBadge(r,side)+averageBadge(r)+diffBadge(r,side)+windowBadge(r,'season','SZN','season')+'</div>';
+ if(!r&&!hydrateFailed)return '<div class="asBadges" aria-busy="true" aria-label="Loading historical statistics">'
+  +['L5','L10','L15','H2H','STRK','AVG','DIFF','SZN'].map(function(label){return '<div class="asBadge"><small>'+label+'</small><span class="asStatSkeleton" aria-hidden="true"></span></div>';}).join('')+'</div>';
+ return '<div class="asBadges" title="'+esc(r?.available?'Hit rates = hits / eligible games. Pushes are not hits and end the streak. Season excludes playoffs and prior seasons.':r?.message||researchState(r))+'">'
+  +windowBadge(r,'l5','L5')+windowBadge(r,'l10','L10')+windowBadge(r,'l15','L15')+h2hBadge(r)+streakBadge(r,side)+averageBadge(r)+diffBadge(r,side)+windowBadge(r,'season','SZN','season')+'</div>';
 }
 // Opponent defensive rank and team moneyline are rendered only when a feed
 // actually supplies them. Neither is derivable from the connected player-prop
@@ -755,20 +761,18 @@ function rowHtml(g){
  var quote=bestPrice(g,side,line)||sideRows(g,side).find(x=>num(x.line)===num(line)&&(bookFilter==='all'||x.sportsbookKey===bookFilter));
  var r=researchFor(g,line,side),c=r&&r.context?r.context:{};
  var team=g.team||(r&&r.player?r.player.team:null)||c.team,position=g.position||c.position||c.playerPosition;
- var state=researchInflight.has(researchKey(g,line,side))||hydrating?'Loading research'
-  :r?(r.available?'Game log available':r.sections&&r.sections.context?'Partial research available':'Historical data unavailable')
-  :'Open to research';
- var marketLabel=(line==null?'':'O/U '+dec(line)+' ')+g.market;
+ var state=researchState(r);
+ var marketLabel=(line==null?'':'O/U '+dec(line)+' ')+(r?.marketDisplayName||g.market);
  return '<article class="asRow asCard" data-open="'+esc(g.key)+'" tabindex="0" aria-label="Research '+esc(g.playerName+' '+g.market)+'">'
   +'<div class="asCardHead">'
-   +'<div class="asAvatar"><div class="asAvatarFallback">'+esc(initials(g.playerName))+'</div><img loading="lazy" src="'+esc(artUrl(g))+'" alt=""></div>'
-   +'<div class="asCardId"><div class="asCardName"><span class="asPlayer">'+esc(g.playerName)+'</span>'
+   +'<div class="asAvatar"><div class="asAvatarFallback">'+esc(initials(g.playerName))+'</div>'+(g.entityType==='team'?'':'<img loading="lazy" src="'+esc(artUrl(g))+'" alt="">')+'</div>'
+   +'<div class="asCardId"><div class="asCardName"><span class="asPlayer">'+esc(r?.entityType==='team'?r.player?.playerName||g.playerName:g.playerName)+'</span>'
     +(displayTeam(team)?'<span class="asTeamBadge">'+esc(displayTeam(team))+'</span>':'')
     +(position?'<span class="asPos">'+esc(position)+'</span>':'')+'</div>'
     +'<div class="asCardMatch"><span>'+esc(displayTeam(g.awayTeam)+' @ '+displayTeam(g.homeTeam))+'</span><span class="asCardTime">'+esc(when(g.gameStartTime))+'</span></div>'
     +'<div class="asCardMarket">'+esc(marketLabel)+(quote&&num(quote.price)!=null?'<span class="asCardPrice">'+esc(side+' '+money(quote.price))+(quote.sportsbook?' · '+esc(quote.sportsbook):'')+'</span>':'')+'</div>'
    +'</div>'
-   +'<div class="asCardGauge">'+headerVerdict(g,line,side)+ringGauge(gaugeRates(r,side))+'</div>'
+   +'<div class="asCardGauge">'+headerVerdict(g,line,side)+ringGauge(gaugeRates(r,side),r)+'</div>'
   +'</div>'
   +matchupPills(r)
   +badgeStrip(g,r,side)
@@ -819,47 +823,61 @@ function bindRows(){
 // rates already computed, instead of a grid of dashes waiting on clicks.
 function hydrateKeyFor(g){return researchKey(g,boardLine(g),defaultSide(g));}
 function hydrateTargets(){
- return visible(true).filter(function(g){
+ // Hydrate the page the reader is actually viewing, not the first forty rows
+ // of the entire sport. Four per response allows visible progress.
+ var shown=visible(),candidates=shown.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+ var needsResearch=(advanced.availability&&advanced.availability!=='ALL')||(rulesEnabled&&Object.values(advanced.thresholds||{}).some(v=>num(v)!=null));
+ if(needsResearch)candidates=candidates.concat(visible(true));
+ else if(!shown.length)candidates=visible(true).slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+ candidates=Array.from(new Map(candidates.map(g=>[g.key,g])).values());
+ return candidates.filter(function(g){
   var key=hydrateKeyFor(g);
   return !researchFor(g,boardLine(g),defaultSide(g))&&!researchInflight.has(key)&&!hydrated.has(key);
- }).slice(0,PAGE_SIZE*2);
+ }).slice(0,4);
 }
 async function hydrateBoard(){
- if(hydrating)return;
- var targets=hydrateTargets();
- if(!targets.length)return;
- var generation=loadGeneration,selected=sport;
- hydrating=true;
- targets.forEach(function(g){hydrated.add(hydrateKeyFor(g));});
+ if(hydrating||loading)return;
+ var targets=hydrateTargets();if(!targets.length)return;
+ var generation=loadGeneration,selected=sport,controller=new AbortController();
+ hydrateController=controller;hydrating=true;
+ targets.forEach(function(g){var key=hydrateKeyFor(g);hydrated.add(key);hydratePending.add(key);});
  renderBatchControl();
+ var timer=setTimeout(function(){controller.abort();},40000);
  try{
-  var response=await nativeFetch('/api/apex/research-batch',{method:'POST',headers:{'content-type':'application/json'},
-   body:JSON.stringify({props:targets.map(function(g){var line=boardLine(g),side=defaultSide(g);
-    return {key:researchKey(g,line,side),sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',
-     line:line,side:side,team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',games:40};})})});
+  var response=await nativeFetch('/api/apex/research-batch',{method:'POST',signal:controller.signal,headers:{'content-type':'application/json'},
+   body:JSON.stringify({props:targets.map(function(g,index){var line=boardLine(g),side=defaultSide(g);
+    // A short opaque batch key cannot be silently truncated by the API.
+    return {key:String(index),sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',
+     providerPlayerId:g.providerPlayerId||'',line:line,side:side,team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',games:40};})})});
   var body=await response.json();
   if(generation!==loadGeneration||selected!==sport)return;
-  if(!response.ok||!body||!body.results)throw Error('batch');
-  hydrateFailed=false;
-  targets.forEach(function(g){
-   var key=hydrateKeyFor(g),out=body.results[key];
-   if(!out)return;
-   var entry={value:out,expires:Date.now()+(out.available?15:5)*60000};
+  if(!response.ok||!body?.results)throw Error('batch');
+  targets.forEach(function(g,index){
+   var key=hydrateKeyFor(g),out=body.results[String(index)]||{available:false,code:'RESEARCH_PROVIDER_ERROR',retryable:true,message:'This lookup did not complete. Retry research.'};
+   var entry={value:out,expires:Date.now()+(out.retryable?1:out.available?15:5)*60000};
    researchCache.set(key,entry);researchCache.set('base|'+g.key,entry);
   });
- }catch(e){hydrateFailed=true;}
+ }catch(e){if(generation===loadGeneration&&selected===sport)hydrateFailed=true;}
  finally{
-  hydrating=false;
-  if(generation===loadGeneration&&selected===sport)renderListLight();
+  clearTimeout(timer);
+  if(hydrateController===controller){
+   hydrateController=null;hydrating=false;
+   targets.forEach(function(g){hydratePending.delete(hydrateKeyFor(g));});
+   if(generation===loadGeneration&&selected===sport)renderListLight();
+  }
  }
 }
+function retryResearch(){
+ hydrated.clear();hydrateFailed=false;
+ for(var entry of researchCache){if(entry[1]?.value?.retryable||entry[1]?.value?.code==='RESEARCH_PROVIDER_ERROR')researchCache.delete(entry[0]);}
+ renderListLight();
+}
 function renderBatchControl(){
- var batch=document.getElementById('asResearchBatch');
- if(!batch)return;
- var pending=hydrateTargets().length;
+ var batch=document.getElementById('asResearchBatch');if(!batch)return;
+ var pending=hydrateTargets().length,retry=hydrateFailed||visible().some(function(g){return researchFor(g)?.retryable;});
  batch.disabled=hydrating;
- batch.textContent=hydrating?'Loading research…':hydrateFailed?'Retry research':pending?'Research '+pending+' more':'Research loaded';
- batch.onclick=function(){if(hydrateFailed){hydrated.clear();hydrateFailed=false;}hydrateBoard();};
+ batch.textContent=hydrating?'Loading game logs…':retry?'Retry research':pending?'Load visible research':'Visible research loaded';
+ batch.onclick=retry?retryResearch:hydrateBoard;
 }
 async function prefetch(list){await Promise.all(list.map(async g=>{await getResearch(g,boardLine(g),defaultSide(g),false);if(g.sport===sport)renderListLight();}));}
 function renderListLight(){
@@ -892,7 +910,7 @@ function reshuffleBoard(){
 }
 function shuffleRank(g){var v=shuffleOrder.get(g.key);return v==null?Number.MAX_SAFE_INTEGER:v;}
 function normTeam(v){return String(v||'').toUpperCase().replace(/[^A-Z]/g,'');}
-function recalcFromGameLog(base,line,side){return analyzeResearch(base,line,side,drawerState?.filter||'all');}
+function recalcFromGameLog(base,line,side){return analyzeResearch({...base,averageWindow:drawerState?.window||'l10'},line,side,drawerState?.filter||'all');}
 function marketOptions(g){var candidates=viewGroups();if(!candidates.some(x=>x.key===g.key))candidates.push(g);return candidates.filter(function(x){return x.sport===g.sport&&x.eventId===g.eventId&&x.playerName===g.playerName;}).map(function(x){return'<option value="'+esc(x.key)+'" '+(x.key===g.key?'selected':'')+'>'+esc(x.market)+'</option>';}).join('');}
 function averageField(rows,field){
  var values=(rows||[]).map(function(row){return num(row[field]);}).filter(function(v){return v!=null;});
@@ -965,22 +983,22 @@ function contextGrid(r,line,g){
 function windowCards(r,selected){return'<div class="asWindows">'+['l5','l10','l15','l20','season','h2h'].map(k=>{
  var w=k==='h2h'?r?.h2h:r?.windows?.[k],emptyH2h=k==='h2h'&&w?.games===0&&r?.matchup?.opponent;
  var label=k==='season'?'SZN':k.toUpperCase(),title=k==='season'?'Season '+(r?.season||''):k==='h2h'?'Games vs '+(r?.matchup?.opponent||'opponent'):label;
- return'<button class="asWindow '+(k===selected?'on':'')+'" data-window="'+k+'" aria-pressed="'+(k===selected)+'" title="'+esc(title)+'"><small>'+label+'</small><b>'+esc(w?.hitRate==null?'—':w.hitRate+'%')+'</b><em>'+esc(emptyH2h?'0 games vs '+r.matchup.opponent:w?.average==null?'avg —':'avg '+dec(w.average))+'</em><span>'+esc(w?.games==null?'Sample —':w.games+'g')+(k==='season'&&r?.season?' · '+esc(r.season):'')+'</span></button>';
+ return'<button class="asWindow '+(k===selected?'on':'')+'" data-window="'+k+'" aria-pressed="'+(k===selected)+'" title="'+esc(title)+'"><small>'+label+'</small><b>'+esc(w?.hitRate==null?'N/A':w.hitRate+'%')+'</b><em>'+esc(emptyH2h?'0 games vs '+r.matchup.opponent:w?.average==null?'No eligible games':'avg '+dec(w.average))+'</em><span>'+esc(w?.games==null?'N/A':w.games+'g'+(w.partial?' · partial':''))+(k==='season'&&r?.season?' · '+esc(r.season):'')+'</span></button>';
  }).join('')+'</div>';}
-function filteredGames(r){var rows=r?.gameLog||[],w=drawerState?.window||'l10';if(w==='h2h')rows=rows.filter(x=>researchOpponentMatches(x,r?.matchup));if(w==='season'){if(r?.coverage?.seasonComplete!==true)return[];rows=rows.filter(x=>x.season==null||String(x.season)===String(r.season));}return /^l[0-9]+$/.test(w)?rows.slice(0,Number(w.slice(1))):rows;}
+function filteredGames(r){var rows=r?.gameLog||[],w=drawerState?.window||'l10';if(w==='h2h')rows=rows.filter(x=>researchOpponentMatches(x,r?.matchup));if(w==='season'){if(r?.season==null)return[];rows=rows.filter(x=>String(x.season)===String(r.season)&&(x.seasonType==null||Number(x.seasonType)===2));}return /^l[0-9]+$/.test(w)?rows.slice(0,Number(w.slice(1))):rows;}
 function chartHtml(r){
  var rows=filteredGames(r).slice().reverse(),line=num(drawerState?.line);
- if(!rows.length)return'<div class="asChartEmpty">'+(drawerState?.window==='season'?'Complete season game data is unavailable.':'Historical game data is unavailable for this selection.')+'</div>';
+ if(!rows.length)return'<div class="asChartEmpty">'+(drawerState?.window==='season'?'No current regular-season game logs are available.':'Historical game data is unavailable for this selection.')+'</div>';
  var values=rows.map(x=>x.value),low=Math.min(0,line??0,...values),high=Math.max(0,line??0,...values),span=high-low||1;
  // Leave room for value labels while keeping the line and bars on one scale.
  high+=span*.12;low-=low<0?span*.12:0;span=high-low;
  var position=value=>(value-low)/span*100;
- return'<div class="asChartLegend"><span class="asHit">● Hit</span><span class="asMiss">● Miss</span><span class="asPushText">● Push</span><span>Line '+esc(dec(line))+'</span></div><div class="asChartWrap" tabindex="0" role="region" aria-label="Game performance chart, scroll for more games"><div class="asChart" style="min-width:'+Math.max(0,rows.length*44)+'px">'+(line!=null?'<div class="asThreshold" style="bottom:'+position(line)+'%"><span>LINE '+esc(dec(line))+'</span></div>':'')+'<div class="asZeroLine" style="bottom:'+position(0)+'%"></div>'+rows.map(x=>'<button type="button" class="asBarCol" data-game-detail="'+esc(shortDate(x.date)+' · '+(x.opponent||'Opponent unavailable')+' · '+x.value+' · '+(x.push?'Push':x.hit===true?'Hit':x.hit===false?'Miss':'Result unavailable'))+'" aria-label="'+esc(shortDate(x.date)+' '+(x.opponent||'')+' result '+x.value)+'"><span class="asChartBar '+(x.push?'push':x.hit===false?'miss':x.hit===true?'':'unknown')+'" style="position:absolute;bottom:'+position(Math.min(0,x.value))+'%;height:'+Math.abs(x.value)/span*100+'%"><span class="asBarVal">'+esc(x.value)+'</span></span><span class="asBarLabel">'+esc(shortDate(x.date))+'<br>'+esc(x.opponent||'Unknown')+'</span></button>').join('')+'</div></div><p id="asGameDetail" class="asNotice" aria-live="polite">Tap a bar to inspect a game. Pushes are excluded from hit-rate calculations.</p>';
+ return'<div class="asChartLegend"><span class="asHit">● Hit</span><span class="asMiss">● Miss</span><span class="asPushText">● Push</span><span>Line '+esc(dec(line))+'</span></div><div class="asChartWrap" tabindex="0" role="region" aria-label="Game performance chart, scroll for more games"><div class="asChart" style="min-width:'+Math.max(0,rows.length*44)+'px">'+(line!=null?'<div class="asThreshold" style="bottom:'+position(line)+'%"><span>LINE '+esc(dec(line))+'</span></div>':'')+'<div class="asZeroLine" style="bottom:'+position(0)+'%"></div>'+rows.map(x=>'<button type="button" class="asBarCol" data-game-detail="'+esc(shortDate(x.date)+' · '+(x.opponent||'Opponent unavailable')+' · '+x.value+' · '+(x.push?'Push':x.hit===true?'Hit':x.hit===false?'Miss':'Result unavailable'))+'" aria-label="'+esc(shortDate(x.date)+' '+(x.opponent||'')+' result '+x.value)+'"><span class="asChartBar '+(x.push?'push':x.hit===false?'miss':x.hit===true?'':'unknown')+'" style="position:absolute;bottom:'+position(Math.min(0,x.value))+'%;height:'+Math.abs(x.value)/span*100+'%"><span class="asBarVal">'+esc(x.value)+'</span></span><span class="asBarLabel">'+esc(shortDate(x.date))+'<br>'+esc(x.opponent||'Unknown')+'</span></button>').join('')+'</div></div><p id="asGameDetail" class="asNotice" aria-live="polite">Tap a bar to inspect a game. Hit rate is hits / all games. Pushes are shown separately and end a hit streak.</p>';
 }
 function secondaryHeaders(s,marketId){if(['NBA','WNBA','NCAAB'].includes(s))return[['MIN','minutes'],['PTS','points'],['REB','rebounds'],['AST','assists'],['3PM','threes'],['STL','steals'],['BLK','blocks']];if(['NFL','NCAAF'].includes(s))return[['PASS YDS','passingYards'],['PASS TD','passingTouchdowns'],['RUSH YDS','rushingYards'],['REC','receptions'],['TARGETS','targets'],['REC YDS','receivingYards']];if(s==='MLB'&&String(marketId||'').startsWith('pitcher_'))return[['HITS ALLOWED','hitsAllowed'],['ER','earnedRuns'],['SO','strikeouts']];if(s==='MLB')return[['HITS','hits'],['TB','totalBases'],['RBI','runsBattedIn'],['RUNS','runs'],['SO','strikeouts']];if(s==='NHL')return[['SOG','shotsOnGoal'],['GOALS','goals'],['AST','assists'],['PTS','points'],['SAVES','saves']];return[];}
 function detailedGameTable(r,g){
  var extra=secondaryHeaders(g.sport,g.marketId),rows=filteredGames(r),hasStarts=rows.some(x=>typeof x.started==='boolean');
- return'<div class="asTableWrap"><table class="asTable"><thead><tr><th>Date</th><th>Opp</th><th>H/A</th><th>Game result</th><th>'+esc(g.market)+'</th><th>Prop result</th><th>'+(hasStarts?'Starter / date':'Game start')+'</th>'+extra.map(x=>'<th>'+x[0]+'</th>').join('')+'</tr></thead><tbody>'+rows.map(function(x){
+ return'<div class="asTableWrap"><table class="asTable"><thead><tr><th>Date</th><th>Opp</th><th>H/A</th><th>Game result</th><th>'+esc(r?.marketDisplayName||g.market)+'</th><th>Prop result</th><th>'+(hasStarts?'Starter / date':'Game start')+'</th>'+extra.map(x=>'<th>'+x[0]+'</th>').join('')+'</tr></thead><tbody>'+rows.map(function(x){
  var result=x.push?'PUSH':x.hit===true?'HIT':x.hit===false?'MISS':'Unavailable',cls=x.push?'asPushText':x.hit?'asHit':'asMiss';
  var date=Number.isFinite(Date.parse(x.date))?new Date(x.date):null;
  var start=x.started===true?'Starter':x.started===false?'Bench':date?date.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—';
@@ -1015,7 +1033,7 @@ async function historyHtml(g,book,side){
 }
 function openDrawer(g){if(!drawerState)lastFocus=document.activeElement;if(sandbox.key!==g.key)sandbox={key:g.key,out:new Set(),roster:null,loading:false};drawerState={g,line:boardLine(g),side:defaultSide(g),window:'l10',filter:'all',base:null,historyBook:bookFilter!=='all'?bookFilter:books(g)[0]};document.getElementById('asDrawerBg').classList.add('on');document.body.style.overflow='hidden';document.querySelector('.asMain').inert=true;document.querySelector('.asTop').inert=true;document.querySelector('.asNav').inert=true;renderDrawer();document.getElementById('asClose').focus();getResearch(g,drawerState.line,drawerState.side,false).then(r=>{if(!drawerState||drawerState.g.key!==g.key)return;drawerState.base=r;renderDrawer();});}
 function loadHistoryIntoDrawer(){if(!drawerState)return;var {g,historyBook,side}=drawerState;historyHtml(g,historyBook,side).then(html=>{if(drawerState?.g.key!==g.key||drawerState?.historyBook!==historyBook||drawerState?.side!==side)return;var el=document.getElementById('asHistory');if(el)el.innerHTML=html;});}
-function researchAvailability(base){var c=String(base?.code||'');if(/UNMAPPED/.test(c))return 'This market does not yet have a supported historical statistic. Current sportsbook lines remain available.';if(/SEASON_ONLY|NO_GAME_LOG/.test(c)||base?.sections?.seasonTotal)return 'Season or player context is available, but completed game logs were not returned. Hit rates require individual game results.';if(/PLAYER.*MATCH|AMBIGUOUS/.test(c))return 'This player could not be uniquely matched to historical statistics. Current sportsbook lines remain available.';return 'Historical research could not be loaded for this player and market. Any supplied player context and sportsbook lines remain available.';}
+function researchAvailability(base){if(base?.message)return base.message;var c=String(base?.code||'');if(/UNMAPPED/.test(c))return 'This market does not yet have a supported historical statistic. Current sportsbook lines remain available.';if(/SEASON_ONLY|NO_GAME_LOG/.test(c)||base?.sections?.seasonTotal)return 'Season or player context is available, but completed game logs were not returned. Hit rates require individual game results.';if(/PLAYER.*MATCH|AMBIGUOUS/.test(c))return 'This player could not be uniquely matched to historical statistics. Current sportsbook lines remain available.';return 'Historical research could not be loaded for this player and market. Any supplied player context and sportsbook lines remain available.';}
 // An empty filtered log is usually the head-to-head view on a player who has
 // not faced this opponent. Say that in plain language and show the recent form
 // that does exist, rather than leaving a dead table.
@@ -1045,7 +1063,7 @@ function emptyLog(r,g,base){
 function renderDrawer(){
  if(!drawerState)return;var focused=document.getElementById('asDrawerBody').contains(document.activeElement)?focusToken(document.activeElement):null;var {g,line,side}=drawerState,base=drawerState.base||researchFor(g,line,side),r=base?recalcFromGameLog(base,line,side):null;
  var injury=document.getElementById('asInjuryBadge');injury.hidden=!base?.context?.injuryStatus;injury.textContent=base?.context?.injuryStatus||'';
- document.getElementById('asDrawerImg').src=artUrl(g);document.getElementById('asDrawerTitle').textContent=g.playerName;
+ var drawerImg=document.getElementById('asDrawerImg');drawerImg.hidden=g.entityType==='team';if(g.entityType!=='team')drawerImg.src=artUrl(g);else drawerImg.removeAttribute('src');document.getElementById('asDrawerTitle').textContent=g.playerName;
  document.getElementById('asDrawerSub').textContent=[displayTeam(g.team||base?.player?.team||base?.context?.team),g.position||base?.context?.position||base?.context?.playerPosition,g.awayTeam+' @ '+g.homeTeam,when(g.gameStartTime)].filter(Boolean).join(' · ');
  var section=(title,body,sub='')=>'<section class="asSection"><div class="asSectionTitle"><h3>'+title+'</h3><span>'+sub+'</span></div><div class="asSectionBody">'+body+'</div></section>';
  var controls='<div class="asResearchTop"><label>Market<select class="asMarketSelect" id="asMarketSwitch">'+marketOptions(g)+'</select></label><div><label>Research line</label><div class="asLineCtl"><button class="asLineBtn" id="asLineMinus" aria-label="Decrease line">−</button><input class="asLineVal" id="asLineInput" type="number" step="0.5" aria-label="Research line" value="'+(line==null?'':line)+'"><button class="asLineBtn" id="asLinePlus" aria-label="Increase line">+</button></div></div></div><div class="asSideToggle">'+['OVER','UNDER'].map(x=>'<button class="asSideBtn '+x.toLowerCase()+' '+(side===x?'on':'')+'" data-side="'+x+'" aria-pressed="'+(side===x)+'">'+x+'</button>').join('')+'</div><p class="asNotice">Adjusting this line changes your research, not sportsbook offers.</p>';
@@ -1090,7 +1108,7 @@ function renderDrawer(){
 }
 function render(){renderSports();renderControls();renderSummary();var m=payload.meta||{};document.getElementById('asSubtitle').textContent=(m.stale?'Last available board · ':'')+sport+' · '+(m.events||0)+' events · '+(m.sportsbookCount||0)+' sportsbooks'+(m.fetchedAt?' · Updated '+new Date(m.fetchedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'');document.getElementById('asStatus').textContent=m.stale?'Last available lines':'Main sportsbook lines';if(!document.getElementById('asAdvanced').contains(document.activeElement))renderAdvanced();renderList();}
 async function load(){
- hydrated.clear();hydrateFailed=false;staleCache.clear();var generation=++loadGeneration,selected=sport,keepBoard=payloadSport===selected&&(payload.props||[]).length>0;loadController?.abort();loadController=new AbortController();loading=true;renderSports();document.getElementById('asRefresh').disabled=true;
+ hydrateController?.abort();hydrateController=null;hydrating=false;hydratePending.clear();hydrated.clear();hydrateFailed=false;staleCache.clear();var generation=++loadGeneration,selected=sport,keepBoard=payloadSport===selected&&(payload.props||[]).length>0;loadController?.abort();loadController=new AbortController();loading=true;renderSports();document.getElementById('asRefresh').disabled=true;
  document.getElementById('asStatus').textContent=keepBoard?'Refreshing lines…':'Loading lines…';
  if(!keepBoard){document.getElementById('asSubtitle').textContent='Loading '+selected+' markets…';document.getElementById('asList').innerHTML=Array.from({length:5},()=>'<div class="asSkeleton" aria-hidden="true"></div>').join('');}
  document.getElementById('asList').setAttribute('aria-busy','true');

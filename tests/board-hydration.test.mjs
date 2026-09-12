@@ -44,7 +44,7 @@ test('the line difference reports its basis and falls back when a season is inco
 });
 
 test('research carries streak and difference through to the card payload', () => {
-  const analyzed = analyzeResearch({ gameLog: log(30, 28, 26, 12), coverage: {}, context: {} }, 19.5, 'OVER');
+  const analyzed = analyzeResearch({ season: 2026, gameLog: log(30, 28, 26, 12).map(row => ({...row, season:2026, seasonType:2})), coverage: {}, context: {} }, 19.5, 'OVER');
   assert.equal(analyzed.streak.count, 3);
   assert.equal(analyzed.streak.side, 'OVER');
   // Real current-season rows are now a valid season-to-date sample even when
@@ -53,7 +53,7 @@ test('research carries streak and difference through to the card payload', () =>
   assert.equal(analyzed.windows.season.partial, true);
   assert.ok(analyzed.diff.value > 0);
 
-  const under = analyzeResearch({ gameLog: log(30, 28, 26, 12), coverage: {}, context: {} }, 19.5, 'UNDER');
+  const under = analyzeResearch({ season: 2026, gameLog: log(30, 28, 26, 12).map(row => ({...row, season:2026, seasonType:2})), coverage: {}, context: {} }, 19.5, 'UNDER');
   assert.equal(under.streak.count, 0);
   assert.equal(under.streak.side, 'UNDER');
 });

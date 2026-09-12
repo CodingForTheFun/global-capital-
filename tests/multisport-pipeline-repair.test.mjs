@@ -99,7 +99,7 @@ test('empty early season still backfills the previous regular season, labels the
  assert.equal(result.marketDisplayName,'Sacks taken');assert.ok(result.gameLog.every(r=>r.season==='2025'&&r.seasonType===2));
  assert.ok(result.coverage.backfilled);assert.equal(result.coverage.currentSeasonGames,0);
  const metrics=finalizeResearch({...request,...result});assert.ok(metrics.windows.l5.games>0);assert.equal(metrics.windows.season.hitRate,null);
- await lookup({...request,line:1.5,side:'UNDER'});assert.equal(calls.length,3);
+ await lookup({...request,line:1.5,side:'UNDER'});assert.equal(calls.length,4); // one cached league-season context request
 });
 
 test('current regular season excludes playoff and prior-year results; partial coverage is explicitly labeled',()=>{

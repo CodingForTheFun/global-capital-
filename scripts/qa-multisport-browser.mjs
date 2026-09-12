@@ -37,9 +37,9 @@ const calls=[];let failNext=false;
 const server=http.createServer(async(req,res)=>{
  const url=new URL(req.url,'http://localhost'),p=url.pathname,q=url.searchParams;
  const send=(value,status=200,type='application/json')=>{res.writeHead(status,{'content-type':type});res.end(Buffer.isBuffer(value)?value:JSON.stringify(value));};
- if(p==='/')return send(Buffer.from('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><script src="/ui.js"></script></body></html>'),200,'text/html');
+ if(p==='/')return send(Buffer.from('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><script src="/ui.js"></script></body></html>'),200,'text/html; charset=utf-8');
  const file=p==='/ui.js'?'apex-v2/scout-ui-v5.js':p==='/assets/autoscout-research.css'?'apex-v2/research-ui.css':p.startsWith('/assets/lib/')?p.slice(8):null;
- if(file&&fs.existsSync(file))return send(fs.readFileSync(file),200,file.endsWith('.css')?'text/css':'application/javascript');
+ if(file&&fs.existsSync(file))return send(fs.readFileSync(file),200,file.endsWith('.css')?'text/css; charset=utf-8':'application/javascript; charset=utf-8');
  if(p==='/api/apex/props')return send(DATA.boards[q.get('sport')]||{props:[],data:{},meta:{}});
  if(p==='/api/apex/research-batch'){
   let raw='';for await(const chunk of req)raw+=chunk;

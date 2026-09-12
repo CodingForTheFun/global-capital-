@@ -65,8 +65,8 @@ test('line and market changes reuse cached identity/history; mismatched team fai
     return new Response(JSON.stringify(fixture(url.includes('/search/')?'player-search':'wnba-gamelog')));
   }});
   const [a,b]=await Promise.all([provider(options),provider({...options,market:'Points',providerMarketKey:'player_points'})]);
-  assert.equal(a.available,true);assert.equal(b.gameLog[0].value,34);assert.equal(calls,2);
-  await provider({...options,line:7.5,side:'UNDER'});assert.equal(calls,2);
+  assert.equal(a.available,true);assert.equal(b.gameLog[0].value,34);assert.equal(calls,3); // identity + shared league season + game logs
+  await provider({...options,line:7.5,side:'UNDER'});assert.equal(calls,3);
   assert.equal((await provider({...options,homeTeam:'Indiana Fever',awayTeam:'Connecticut Sun'})).opponent,'CON');
   assert.equal((await provider({...options,team:'LVA'})).code,'PLAYER_TEAM_MISMATCH');
 });

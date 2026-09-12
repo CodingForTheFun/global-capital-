@@ -58,7 +58,7 @@ test('full-season card stays separate from recent windows, prior seasons and opp
   assert.equal(researchOpponentMatches({opponent:'CIN',opponentId:'MLB:99'},base.matchup),false);
   const home=analyzeResearch(base,1,'UNDER','home');
   assert.equal(home.windows.season.games,base.gameLog.filter(r=>r.isHome).length);
-  await fetcher({...p,line:2,side:'UNDER'});assert.equal(calls,2);
+  await fetcher({...p,line:2,side:'UNDER'});assert.equal(calls,3); // cached league season is shared across markets
 });
 
 test('a missing current-season event prevents a false complete-season claim',async()=>{

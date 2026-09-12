@@ -1,0 +1,81 @@
+name: Oblige actual stats validation
+on:
+  push:
+    branches: [chatgpt/oblige-actual-prop-stats]
+    paths: [.github/workflows/oblige-stats-validate.yml]
+permissions:
+  contents: write
+concurrency:
+  group: oblige-stats-validation
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify and apply the reviewed repair
+        id: patch
+        run: |
+          mkdir -p validation
+          python3 - <<'PY'
+          import base64, hashlib, lzma, pathlib
+          data=''.join(pathlib.Path('.github/oblige-stats-repair.part'+str(i)).read_text().strip() for i in range(1,4))
+          patch=lzma.decompress(base64.b64decode(data,validate=True))
+          actual=hashlib.sha256(patch).hexdigest()
+          assert actual=='f5ed4ac42d567b5ab92ac4dcc6f38741a99a9865417478b6a465ddbe5146d007', actual
+          pathlib.Path('/tmp/oblige-repair.patch').write_bytes(patch)
+          print('Verified patch:',actual)
+          PY
+          git apply --check /tmp/oblige-repair.patch
+          git apply /tmp/oblige-repair.patch
+          git diff --check
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install locked dependencies
+        id: deps
+        run: npm ci
+      - name: Syntax and full regression suite
+        id: tests
+        run: |
+          set -o pipefail
+          npm run check 2>&1 | tee validation/check.log
+      - name: Verify live public historical data
+        if: always() && steps.deps.outcome == 'success' && steps.patch.outcome == 'success'
+        id: live
+        run: |
+          set -o pipefail
+          STATS_REPORT=validation/live-history.json node scripts/verify-actual-prop-stats.mjs 2>&1 | tee validation/live-history.log
+      - name: Install Chromium for isolated browser QA
+        if: always() && steps.deps.outcome == 'success' && steps.patch.outcome == 'success'
+        id: chromium
+        run: npx playwright install --with-deps chromium
+      - name: Desktop and mobile browser QA
+        if: always() && steps.chromium.outcome == 'success'
+        id: browser
+        run: |
+          set -o pipefail
+          BROWSER_REPORT_DIR=validation/browser node scripts/verify-stats-browser.mjs 2>&1 | tee validation/browser.log
+      - name: Commit validated application changes to candidate branch only
+        if: success() && steps.tests.outcome == 'success' && steps.live.outcome == 'success' && steps.browser.outcome == 'success'
+        run: |
+          test "$GITHUB_REF_NAME" = 'chatgpt/oblige-actual-prop-stats'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add AUTOPROP_COORDINATION.md apex-v2/scout-ui-v5.js docs/oblige-real-stats-repair-2026-09-12.md lib/autoscout/research-service-v2.mjs lib/data-sources/espn/research.mjs scripts/verify-actual-prop-stats.mjs scripts/verify-stats-browser.mjs tests/actual-prop-stats.test.mjs tests/research-hydration-recovery.test.mjs tests/fixtures/espn-mlb-skenes-specialist.json tests/fixtures/espn-nfl-boswell-specialist.json tests/fixtures/espn-nfl-love-specialist.json tests/fixtures/espn-nfl-robinson-specialist.json tests/fixtures/espn-nfl-watt-specialist.json
+          git diff --cached --check
+          git commit -m 'fix: restore actual prop stats and page-first hydration'
+          git push origin HEAD:refs/heads/chatgpt/oblige-actual-prop-stats
+          git rev-parse HEAD > validation/tested-commit.txt
+      - name: Save validation reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oblige-stats-validation
+          path: validation/
+          retention-days: 1

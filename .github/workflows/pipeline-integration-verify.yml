@@ -1,0 +1,127 @@
+name: Verify reconciled multi-sport release
+on:
+  push:
+    branches: [chatgpt/multisport-log-pipeline-fix]
+    paths: [.github/workflows/pipeline-integration-verify.yml]
+permissions:
+  contents: write
+jobs:
+  integrated:
+    if: github.repository == 'CodingForTheFun/global-capital-' && github.ref == 'refs/heads/chatgpt/multisport-log-pipeline-fix'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Reconcile exact production snapshot on isolated branch
+        id: apply
+        run: |
+          mkdir -p validation-output
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-commit --no-ff 98ab2d45d4053ea465fe0820d5d3cdb22b56f020 > validation-output/merge.txt 2>&1 || true
+          python3 <<'PY'
+          import base64,hashlib,json,lzma,pathlib,subprocess
+          root=pathlib.Path.cwd()
+          conflicts=set(subprocess.check_output(['git','diff','--name-only','--diff-filter=U']).decode().splitlines())
+          assert conflicts=={'lib/analytics/research.mjs','lib/data-sources/espn/research.mjs','tests/research-integrity.test.mjs'},conflicts
+          data=lzma.decompress(base64.b64decode(pathlib.Path('scripts/pipeline-integration-resolution.txt').read_text().strip(),validate=True))
+          assert hashlib.sha256(data).hexdigest()=='1be0c73133d58925c0ff08f938dce7ef4d34902db40a46c11a5b02937c27f4a8'
+          plan=json.loads(data)
+          allowed={'lib/analytics/research.mjs','lib/data-sources/espn/research.mjs','tests/research-integrity.test.mjs','lib/data-sources/espn/stat-contract.mjs','tests/pipeline-concurrent-integration.test.mjs','tests/board-hydration.test.mjs'}
+          assert {e['path'] for e in plan}==allowed and len(plan)==len(allowed)
+          output={}
+          for e in plan:
+              p=root/e['path'];assert p.resolve().is_relative_to(root) and not p.is_symlink()
+              old=p.read_bytes() if p.exists() else b''
+              assert hashlib.sha256(old).hexdigest()==e['old'],e['path']
+              lines=old.decode().splitlines(keepends=True)
+              for a,b,s in reversed(e['edits']):
+                  assert 0<=a<=b<=len(lines)
+                  lines[a:b]=s.splitlines(keepends=True)
+              new=''.join(lines).encode();assert hashlib.sha256(new).hexdigest()==e['new'],e['path']
+              assert b'<<<<<<<' not in new,e['path']
+              output[p]=new
+          for p,data in output.items():
+              p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
+          subprocess.run(['git','add','--',*allowed],check=True)
+          assert not subprocess.check_output(['git','diff','--name-only','--diff-filter=U']).strip()
+          pathlib.Path('validation-output/expected.json').write_text(json.dumps({e['path']:e['new'] for e in plan},indent=2))
+          PY
+      - name: Install existing application dependencies
+        id: dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix apps/guest-dashboard install --include=dev --no-audit --no-fund
+      - name: Combined regression gate
+        id: regression
+        run: |
+          set -o pipefail
+          npm run check 2>&1 | tee validation-output/regression.txt
+      - name: Install browser tools
+        if: always() && steps.dependencies.outcome == 'success'
+        id: browser_install
+        run: |
+          npx playwright install --with-deps chromium
+          npm install -g agent-browser
+      - name: Research desktop and mobile gate
+        if: always() && steps.browser_install.outcome == 'success'
+        id: research_browser
+        run: |
+          set -o pipefail
+          node scripts/qa-multisport-browser.mjs 2>&1 | tee validation-output/browser.txt
+      - name: Public history integration gate
+        if: always() && steps.apply.outcome == 'success'
+        id: history
+        run: |
+          set -o pipefail
+          node scripts/verify-public-pipeline.mjs 2>&1 | tee validation-output/public-history.txt
+      - name: Build preserved guest dashboard
+        if: always() && steps.dependencies.outcome == 'success'
+        id: guest_build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: |
+          set -o pipefail
+          node scripts/prepare-edge-deploy.mjs
+          npm --prefix apps/guest-dashboard run build 2>&1 | tee validation-output/guest-build.txt
+      - name: Combined guest routing and account gate
+        if: always() && steps.guest_build.outcome == 'success' && steps.browser_install.outcome == 'success'
+        id: guest_browser
+        run: |
+          set -o pipefail
+          node scripts/verify-edge-release.mjs 2>&1 | tee validation-output/guest-browser.txt
+      - name: Publish validated integration to feature branch only
+        if: steps.regression.outcome == 'success' && steps.research_browser.outcome == 'success' && steps.history.outcome == 'success' && steps.guest_browser.outcome == 'success'
+        run: |
+          test "$(git branch --show-current)" = 'chatgpt/multisport-log-pipeline-fix'
+          python3 <<'PY'
+          import pathlib,json,hashlib
+          for name,sha in json.loads(pathlib.Path('validation-output/expected.json').read_text()).items():
+              assert hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()==sha,name
+          PY
+          git restore --worktree -- public/index.html public/checkout.html public/manifest.webmanifest payments/paypal.mjs apex-v2/scout-ui-v5.js
+          git rm scripts/pipeline-integration-resolution.txt
+          git commit -m 'Integrate strict multi-sport pipeline with current Edge guest release; preserve all newer account and deployment work'
+          git push origin HEAD:refs/heads/chatgpt/multisport-log-pipeline-fix
+          git rev-parse HEAD > validation-output/application-head.txt
+      - name: Preserve source and verification evidence
+        if: always() && steps.apply.outcome == 'success'
+        run: |
+          python3 <<'PY'
+          import pathlib,subprocess,tarfile
+          with tarfile.open('validation-output/tested-source.tar.gz','w:gz') as tar:
+              for name in sorted(set(subprocess.check_output(['git','ls-files','-z']).decode().split('\0'))):
+                  if name and pathlib.Path(name).is_file() and name!='scripts/pipeline-integration-resolution.txt':tar.add(name,arcname=name,recursive=False)
+          PY
+          cp -R artifacts validation-output/edge-artifacts 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reconciled-pipeline-validation
+          path: validation-output/
+          retention-days: 5

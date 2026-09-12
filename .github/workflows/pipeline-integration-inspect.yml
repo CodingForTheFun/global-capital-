@@ -1,0 +1,38 @@
+name: Inspect pipeline integration
+on:
+  push:
+    branches: [chatgpt/multisport-log-pipeline-fix]
+    paths: [.github/workflows/pipeline-integration-inspect.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Capture exact concurrent release and merge conflicts
+        run: |
+          mkdir -p /tmp/integration
+          git archive --format=tar.gz 98ab2d45d4053ea465fe0820d5d3cdb22b56f020 > /tmp/integration/production.tar.gz
+          git diff --binary 3a470ad8bb35f2d92173a5d495c9fc1a459b5f20 98ab2d45d4053ea465fe0820d5d3cdb22b56f020 > /tmp/integration/production-changes.patch
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-commit --no-ff 98ab2d45d4053ea465fe0820d5d3cdb22b56f020 > /tmp/integration/merge.txt 2>&1 || true
+          git diff --name-only --diff-filter=U > /tmp/integration/conflicts.txt
+          git status --short > /tmp/integration/status.txt
+          python3 <<'PY'
+          import pathlib,subprocess,tarfile
+          with tarfile.open('/tmp/integration/combined.tar.gz','w:gz') as tar:
+              for name in sorted(set(subprocess.check_output(['git','ls-files','-z']).decode().split('\0'))):
+                  if name and pathlib.Path(name).is_file():tar.add(name,arcname=name,recursive=False)
+          PY
+          cat /tmp/integration/merge.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-integration-snapshot
+          path: /tmp/integration/
+          retention-days: 3

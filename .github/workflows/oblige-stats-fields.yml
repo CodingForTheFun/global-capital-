@@ -1,0 +1,46 @@
+name: Oblige specialist field capture
+on:
+  push:
+    branches: [chatgpt/oblige-actual-prop-stats]
+    paths: [.github/workflows/oblige-stats-fields.yml]
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Fetch public historical box-score fields
+        shell: bash
+        run: |
+          mkdir -p fields
+          python3 - <<'PY'
+          import json, pathlib, urllib.request, urllib.parse
+          out=pathlib.Path('fields')
+          def get(url):
+            with urllib.request.urlopen(urllib.request.Request(url,headers={'Accept':'application/json'}),timeout=20) as r: return json.load(r)
+          for name,sport,league,category in [('Chris Boswell','football','nfl',''),('T.J. Watt','football','nfl',''),('Bijan Robinson','football','nfl',''),('Paul Skenes','baseball','mlb','pitching')]:
+            slug=name.lower().replace(' ','-').replace('.','')
+            try:
+              search=get('https://site.web.api.espn.com/apis/search/v2?'+urllib.parse.urlencode({'query':name,'sport':sport}))
+              (out/(slug+'-search.json')).write_text(json.dumps(search))
+              for group in search.get('results',[]):
+                for row in group.get('contents',[]):
+                  if row.get('displayName','').lower()==name.lower() and row.get('defaultLeagueSlug')==league:
+                    aid=row.get('uid','').split('~a:')[-1]
+                    if not aid.isdigit(): continue
+                    for season in ['','2025']:
+                      query={}
+                      if category: query['category']=category
+                      if season: query['season']=season
+                      url='https://site.web.api.espn.com/apis/common/v3/sports/'+sport+'/'+league+'/athletes/'+aid+'/gamelog?'+urllib.parse.urlencode(query)
+                      data=get(url)
+                      (out/(slug+'-'+(season or 'current')+'.json')).write_text(json.dumps(data))
+                      print(name,season or 'current',data.get('names'),data.get('categories'))
+            except Exception as e: print(name,type(e).__name__,str(e))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: oblige-specialist-fields
+          path: fields/
+          retention-days: 1

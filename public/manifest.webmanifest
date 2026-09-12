@@ -1,9 +1,9 @@
 {
-  "name": "AutoProp Scout Pro",
-  "short_name": "AutoProp",
+  "name": "ObligePay Edge",
+  "short_name": "Edge",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#07101d",
-  "theme_color": "#09111f",
+  "background_color": "#0d130f",
+  "theme_color": "#0d130f",
   "icons": [{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
 }

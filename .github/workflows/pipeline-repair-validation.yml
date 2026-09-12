@@ -1,0 +1,58 @@
+name: Pipeline repair validation
+on:
+  push:
+    branches: [chatgpt/multisport-log-pipeline-fix]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pipeline-repair-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Snapshot tracked source for isolated local tests
+        run: |
+          mkdir -p /tmp/pipeline-evidence
+          git archive --format=tar.gz HEAD > /tmp/pipeline-evidence/source.tar.gz
+          git rev-parse HEAD > /tmp/pipeline-evidence/source-sha.txt
+      - name: Capture public schema evidence without paid API requests
+        run: |
+          node --input-type=module <<'JS'
+          import { writeFile } from 'node:fs/promises';
+          const requests = {
+            nfl_search: 'https://site.web.api.espn.com/apis/search/v2?query=jordan%20love&sport=football',
+            nfl_current: 'https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/4036378/gamelog',
+            nfl_previous: 'https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/4036378/gamelog?season=2025',
+            nfl_team: 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams/9/schedule?season=2025',
+            nba: 'https://site.web.api.espn.com/apis/common/v3/sports/basketball/nba/athletes/4065648/gamelog?season=2026',
+            mlb_pitching: 'https://site.web.api.espn.com/apis/common/v3/sports/baseball/mlb/athletes/38120/gamelog?category=pitching&season=2026',
+            soccer_search: 'https://site.web.api.espn.com/apis/search/v2?query=erling%20haaland&sport=soccer',
+            college_search: 'https://site.web.api.espn.com/apis/search/v2?query=arch%20manning&sport=football',
+            live_health: 'https://www.obligepay.com/api/apex/research-health',
+            live_sacks: 'https://www.obligepay.com/api/apex/research?sport=NFL&playerName=Jordan%20Love&market=Sacks&marketId=player_sacks&line=2.5&side=OVER&homeTeam=Minnesota%20Vikings&awayTeam=Green%20Bay%20Packers'
+          };
+          for (const [name,url] of Object.entries(requests)) {
+            try {
+              const r = await fetch(url,{signal:AbortSignal.timeout(15000)});
+              const text = await r.text();
+              await writeFile(`/tmp/pipeline-evidence/${name}.json`, text);
+              console.log(name, r.status, text.length);
+            } catch(e) { console.log(name, 'unavailable', e.name); }
+          }
+          JS
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-repair-evidence
+          path: /tmp/pipeline-evidence/
+          retention-days: 3

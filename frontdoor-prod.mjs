@@ -24,6 +24,7 @@ const APEX_PORT = 3001;
 const APEX_NEXT_PORT = 3003;
 const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v5.js', 'utf8').replace(/<\/script/gi, '<\\/script');
 const ARTWORK_SPORTS = new Set(['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB']);
+const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL']);
 const researchLimits = new Map();
 // One board load hydrates at most this many cards, resolved this many at a time.
 const MAX_BATCH_PROPS = 60;
@@ -181,7 +182,7 @@ async function maybeServeResearch(req, res) {
   const lineRaw = safeParam(url, 'line', 24);
   const line = lineRaw === '' ? null : Number(lineRaw);
   const side = safeParam(url, 'side', 10).toUpperCase() || 'OVER';
-  if (!ARTWORK_SPORTS.has(sport) || !playerName || !market || (line !== null && !Number.isFinite(line)) || !['OVER','UNDER'].includes(side)) {
+  if (!RESEARCH_SPORTS.has(sport) || !playerName || !market || (line !== null && !Number.isFinite(line)) || !['OVER','UNDER'].includes(side)) {
     directJson(res, 400, { ok: false, code: 'INVALID_RESEARCH_REQUEST', message: 'Valid sport, player, market, line and side are required.' });
     return true;
   }
@@ -236,10 +237,11 @@ function batchEntry(raw) {
   const sport = text(raw?.sport, 12).toUpperCase();
   const playerName = text(raw?.playerName, 90);
   const market = text(raw?.market, 100);
-  const key = text(raw?.key, 200);
+  const key = String(raw?.key??'').trim();
+  if (key.length>512 || ['__proto__','constructor','prototype'].includes(key)) return null;
   const line = raw?.line === null || raw?.line === undefined || raw?.line === '' ? null : Number(raw.line);
   const side = text(raw?.side, 10).toUpperCase() || 'OVER';
-  if (!key || !ARTWORK_SPORTS.has(sport) || !playerName || !market) return null;
+  if (!key || !RESEARCH_SPORTS.has(sport) || !playerName || !market) return null;
   if (line !== null && !Number.isFinite(line)) return null;
   if (!['OVER', 'UNDER'].includes(side)) return null;
   return {
@@ -278,17 +280,17 @@ async function maybeServeResearchBatch(req, res) {
     return true;
   }
   const body = await readJsonBody(req);
-  const requested = Array.isArray(body?.props) ? body.props.slice(0, MAX_BATCH_PROPS) : null;
+  const requested = Array.isArray(body?.props) && body.props.length<=MAX_BATCH_PROPS ? body.props : null;
   if (!requested?.length) {
     directJson(res, 400, { ok: false, code: 'INVALID_BATCH_REQUEST', message: 'A list of props is required.' });
     return true;
   }
   const entries = requested.map(batchEntry).filter(Boolean);
-  if (!entries.length) {
+  if (!entries.length || entries.length!==requested.length || new Set(entries.map(e=>e.key)).size!==entries.length) {
     directJson(res, 400, { ok: false, code: 'INVALID_BATCH_REQUEST', message: 'Valid sport, player, market, line and side are required.' });
     return true;
   }
-  const results = {};
+  const results = Object.create(null);
   let cursor = 0;
   async function worker() {
     while (cursor < entries.length) {

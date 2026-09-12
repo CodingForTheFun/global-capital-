@@ -2,7 +2,7 @@ import { startFrugalPersistence } from '../lib/autoscout/persistence-scheduler.m
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { fetchUnifiedBoard, providerHealth, providerDiagnostics } from './provider.mjs';
-import { SUPPORTED_SPORTS } from '../lib/autoscout/models.mjs';
+import { SUPPORTED_SPORTS, AUTOMATIC_SPORTS } from '../lib/autoscout/models.mjs';
 import { decorateBoardWithScoutAudit } from '../lib/autoscout/scout-rules.mjs';
 import { persistNormalizedBoard, getLineHistory, persistenceHealth, persistenceConfigured } from '../lib/autoscout/supabase-persistence.mjs';
 import { startIngestWorker, ingestHealth } from '../lib/autoscout/ingest-worker.mjs';
@@ -149,7 +149,7 @@ server.listen(PORT, '0.0.0.0', () => console.log(`AUTOSCOUT_APEX_CORE listening 
 
 async function warmSports() {
   if (!process.env.THE_ODDS_API_KEY) return;
-  for (const sport of SUPPORTED_SPORTS) {
+  for (const sport of AUTOMATIC_SPORTS) {
     try {
       const rawBoard = await fetchUnifiedBoard(sport, {});
       const board = decorateBoardWithScoutAudit(rawBoard);
@@ -169,7 +169,7 @@ setTimeout(() => void warmSports(), 1800).unref();
 // this one forces a fresh fetch so line movement actually accumulates, at a
 // higher provider cost. Run one or the other, never both.
 startIngestWorker({
-  sports: SUPPORTED_SPORTS,
+  sports: AUTOMATIC_SPORTS,
   fetchBoard: (sport, options) => fetchUnifiedBoard(sport, options),
   decorate: decorateBoardWithScoutAudit,
   persist: persistNormalizedBoard,

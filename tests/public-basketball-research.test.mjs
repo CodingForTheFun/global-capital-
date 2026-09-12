@@ -89,12 +89,12 @@ test('real captured games flow through shared windows, pushes and public API sha
     assert.equal(result.gameLog.length,15);
     assert.equal(result.windows.l5.games,5);assert.equal(result.windows.l10.games,10);assert.equal(result.windows.l15.games,15);
     assert.equal(result.windows.l10.pushes,1);
-    assert.equal(result.windows.l10.hitRate,78); // 7 hits / 9 decisions, not 7 / 10.
+    assert.equal(result.windows.l10.hitRate,70); // Requested policy: 7 hits / 10 eligible games, including one push.
     assert.equal(result.coverage.seasonComplete,true);assert.equal(result.windows.season.games,result.gameLog.length);
     assert.equal(result.sections.projection,false);
     assert.equal(result.matchup.opponent,'CON');assert.ok(result.h2h.games>0);
     const under=finalizeResearch({...result,line:8,side:'UNDER'});
-    assert.equal(under.windows.l10.hitRate,22);assert.equal(under.windows.l10.pushes,1);
+    assert.equal(under.windows.l10.hitRate,20);assert.equal(under.windows.l10.pushes,1);
     assert.doesNotMatch(JSON.stringify(sanitizePublicPayload(result,{statsContext:true})),/espn|apikey|authorization|endpoint/i);
   } finally {globalThis.fetch=oldFetch;if(oldKey===undefined)delete process.env.CLEARSPORTS_API_KEY;else process.env.CLEARSPORTS_API_KEY=oldKey;}
 });

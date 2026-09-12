@@ -1,247 +1,139 @@
+// QA-only follow-up: do not merge this temporary verifier into production.
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { chromium } from 'playwright';
 
 const BASE = process.env.AUTOSCOUT_PUBLIC_URL || 'https://autoprop-live-production.up.railway.app';
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const PUBLIC = 'https://www.obligepay.com';
+const ROLLOUT_AFTER = Date.parse('2026-09-12T00:47:38Z');
+const BOOKS = ['prizepicks', 'underdog'];
+const report = { expectedCommit: '3a470ad8bb35f2d92173a5d495c9fc1a459b5f20', checkedAt: new Date().toISOString(), sports: [], browser: [] };
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function waitForHealth() {
-  let last = null;
-  for (let attempt = 1; attempt <= 18; attempt += 1) {
-    try {
-      const response = await fetch(`${BASE}/api/health`, { cache: 'no-store' });
-      const body = await response.json();
-      if (response.ok && body?.ok === true && body?.service === 'autoscout-apex' && body?.provider?.configured === true) return body;
-      last = `HTTP ${response.status} service=${body?.service || 'unknown'}`;
-    } catch (error) {
-      last = error?.message || String(error);
-    }
-    await sleep(10_000);
-  }
-  throw new Error(`Production health did not become ready: ${last || 'unknown error'}`);
+async function json(url, options = {}) {
+  const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(45000), ...options });
+  const body = await response.json();
+  assert.ok(response.ok, `HTTP ${response.status} from ${new URL(url).pathname}`);
+  return { response, body };
 }
-
-/**
- * Get past the account gate.
- *
- * The board and its data now require a free account, so this check has to hold
- * one too — the "public" pipeline it verifies is the signed-in pipeline. It
- * registers a throwaway account per run rather than carrying a fixed
- * credential in the repository.
- *
- * Returns a cookie header, or null when the gate is off and one is not needed.
- */
-async function openSession() {
-  let health = null;
-  try {
-    const response = await fetch(`${BASE}/api/account/health`, { cache: 'no-store' });
-    health = response.ok ? await response.json() : null;
-  } catch {
-    health = null;
+async function ready() {
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const { body } = await json(`${BASE}/api/health`);
+    if (body.ok && body.service === 'autoscout-apex' && Date.parse(body.startedAt) >= ROLLOUT_AFTER) return body;
+    await delay(2000);
   }
-  // An older deploy with no gate at all: nothing to sign in to.
-  if (!health?.gate) return null;
-  if (health.gate.active !== true) return null;
-
-  if (health.password?.available !== true) {
-    throw new Error('The account gate is active but password sign-up is unavailable, so this check cannot reach the board.');
-  }
-
-  const email = `smoke-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@smoke.autoscout.test`;
-  const password = `Smoke-${Math.random().toString(36).slice(2)}-${Date.now()}!`;
-  const response = await fetch(`${BASE}/api/account/register`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+  throw new Error('The expected new deployment was not serving health.');
+}
+async function session() {
+  const { body: status } = await json(`${BASE}/api/account/health`);
+  if (!status.gate?.active) return null;
+  assert.equal(status.password?.available, true, 'Use the existing legitimate sign-up path only.');
+  const { response, body } = await json(`${BASE}/api/account/register`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: `smoke-dfs-${randomUUID()}@smoke.autoscout.test`, password: `Smoke-${randomUUID()}!` }),
   });
-  const body = await response.json().catch(() => null);
-  if (!response.ok || body?.ok !== true) {
-    throw new Error(`Could not create a smoke account: HTTP ${response.status} ${body?.code || ''}`.trim());
-  }
-  const setCookie = response.headers.getSetCookie ? response.headers.getSetCookie() : [];
-  const session = setCookie.map((value) => String(value).split(';')[0]).find((value) => value.startsWith('sp_account='));
-  if (!session) throw new Error('Registration succeeded but returned no session cookie.');
-  console.log(`Signed in as a throwaway smoke account (${email}).`);
-  return session;
+  assert.equal(body.ok, true);
+  const cookie = response.headers.getSetCookie().map(value => value.split(';')[0]).find(value => value.startsWith('sp_account='));
+  assert.ok(cookie, 'A normal account session is required; never bypass the gate.');
+  return cookie;
 }
 
-function assertRealProp(row) {
-  for (const key of ['playerName', 'market', 'sportsbook', 'side']) {
-    if (!String(row?.[key] || '').trim()) throw new Error(`Real prop missing ${key}`);
+let browser;
+try {
+  const health = await ready();
+  const { body: publicHealth } = await json(`${PUBLIC}/api/health`);
+  assert.equal(publicHealth.startedAt, health.startedAt, 'Both domains must serve the same deployment.');
+  report.startedAt = health.startedAt;
+  report.domainsMatch = true;
+  const cookie = await session();
+  const options = cookie ? { headers: { cookie } } : {};
+  report.authenticatedSmokeSession = Boolean(cookie);
+  const boards = [];
+  for (const sport of ['NFL', 'WNBA', 'MLB', 'NBA', 'NCAAF']) {
+    const { body } = await json(`${BASE}/api/apex/props?sport=${sport}`, options);
+    assert.equal(body.meta?.coverage?.version, 2, `${sport}: old board or unverified stale fallback`);
+    const rows = body.props || [];
+    for (const row of rows) {
+      assert.equal(row.isAlternate, false, 'Regular-line board cannot return alternates.');
+      assert.ok(row.playerName && ['OVER', 'UNDER'].includes(row.side));
+      assert.ok(row.line !== null && row.line !== '' && Number.isFinite(Number(row.line)));
+    }
+    const platforms = Object.fromEntries(BOOKS.map(book => {
+      const actual = rows.filter(row => row.sportsbookKey === book);
+      const meta = body.meta.coverage.platforms[book];
+      assert.equal(meta.requested, true, `${sport}: ${book} must be requested`);
+      assert.equal(meta.lineCount, actual.length, `${sport}: metadata must match actual ${book} rows`);
+      const sample = actual[0];
+      return [book, { ...meta, sample: sample ? { player: sample.playerName, market: sample.market, side: sample.side, line: sample.line, updatedAt: sample.providerUpdatedAt } : null }];
+    }));
+    const entry = { sport, events: body.meta.events, lines: rows.length, stale: Boolean(body.meta.stale), fetchedAt: body.meta.fetchedAt,
+      complete: body.meta.coverage.complete, reasons: body.meta.coverage.reasons, availableEvents: body.meta.coverage.availableEvents,
+      checkedEvents: body.meta.coverage.checkedEvents, platforms };
+    report.sports.push(entry);
+    boards.push({ sport, rows });
   }
-  if (!['OVER', 'UNDER'].includes(row.side)) throw new Error(`Invalid prop side: ${row.side}`);
-  if (!Number.isFinite(Number(row.line))) throw new Error('Real prop is missing a numeric line');
-  if (!Number.isFinite(Number(row.price))) throw new Error('Real prop is missing sportsbook pricing');
-  if (!row.providerUpdatedAt && !row.updatedAt) throw new Error('Real prop is missing provider timestamp');
-  if (!row.ingestedAt) throw new Error('Real prop is missing Auto Scout ingestion timestamp');
-  if (!row.autoScout || !Array.isArray(row.autoScout.checks) || row.autoScout.checks.length < 1) throw new Error('Real prop is missing the auditable Auto Scout rule result');
-  if (!['QUALIFIED', 'REJECTED', 'UNAVAILABLE'].includes(row.autoScout.classification)) throw new Error(`Invalid Auto Scout classification: ${row.autoScout.classification}`);
-  for (const check of row.autoScout.checks) {
-    if (!['PASS', 'FAIL', 'UNAVAILABLE'].includes(check.status)) throw new Error(`Invalid rule status: ${check.status}`);
-  }
-}
+  console.log('DFS_LIVE_API ' + JSON.stringify({ startedAt: report.startedAt, domainsMatch: report.domainsMatch, sports: report.sports }));
 
-async function verifyApi(cookie) {
-  const authed = cookie ? { cache: 'no-store', headers: { cookie } } : { cache: 'no-store' };
-  const sports = ['NFL', 'NBA', 'WNBA', 'MLB', 'NCAAF'];
-  const results = [];
-  let sample = null;
-  for (const sport of sports) {
-    const response = await fetch(`${BASE}/api/apex/props?sport=${encodeURIComponent(sport)}`, authed);
-    if (!response.ok) throw new Error(`${sport} prop API returned HTTP ${response.status}`);
-    const body = await response.json();
-    results.push({
-      sport,
-      events: Number(body?.meta?.events || 0),
-      markets: Array.isArray(body?.meta?.marketKeys) ? body.meta.marketKeys.length : 0,
-      books: Number(body?.meta?.sportsbookCount || 0),
-      lines: Number(body?.meta?.lineCount ?? body?.props?.length ?? 0),
-      provider: body?.meta?.provider || null,
-      cacheHit: body?.meta?.cacheHit === true,
-      ruleAudit: Boolean(body?.props?.[0]?.autoScout?.checks?.length),
-      databaseConfigured: body?.persistence?.configured === true,
-    });
-    if (!sample) sample = (body?.props || []).find((row) => row?.playerName && row?.sportsbook && Number.isFinite(Number(row?.line)) && Number.isFinite(Number(row?.price)) && ['OVER', 'UNDER'].includes(row?.side));
-  }
-  if (!sample) throw new Error('No supported sport exposed a complete real player prop through the public Auto Scout API');
-  assertRealProp(sample);
-
-  const researchUrl = new URL(`${BASE}/api/apex/research`);
-  researchUrl.searchParams.set('sport', sample.sport || 'NFL');
-  researchUrl.searchParams.set('playerName', sample.playerName);
-  researchUrl.searchParams.set('market', sample.market);
-  researchUrl.searchParams.set('line', String(sample.line));
-  researchUrl.searchParams.set('side', sample.side);
-  researchUrl.searchParams.set('team', sample.team || '');
-  researchUrl.searchParams.set('homeTeam', sample.homeTeam || '');
-  researchUrl.searchParams.set('awayTeam', sample.awayTeam || '');
-  researchUrl.searchParams.set('games', '20');
-  const researchResponse = await fetch(researchUrl, authed);
-  if (!researchResponse.ok) throw new Error(`Research API returned HTTP ${researchResponse.status}`);
-  const research = await researchResponse.json();
-  if (research?.ok !== true) throw new Error(`Research API returned an unsafe failure shape: ${research?.code || 'unknown'}`);
-  if (research.available === true) {
-    if (!Array.isArray(research.gameLog) || !research.gameLog.length) throw new Error('Available research response is missing game-log rows');
-    if (!research.windows || typeof research.windows !== 'object') throw new Error('Available research response is missing rolling windows');
-  } else if (!String(research?.code || research?.message || '').trim()) {
-    throw new Error('Unavailable research response did not explain why data is unavailable');
-  }
-
-  return { results, sample, research };
-}
-
-async function verifyBrowser(cookie) {
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  browser = await chromium.launch({ headless: true });
+  for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    const context = await browser.newContext({ viewport });
     if (cookie) {
-      const [name, ...rest] = cookie.split('=');
-      // Without this the browser lands on the landing page, not the board.
-      await context.addCookies([{
-        name, value: rest.join('='), url: BASE, httpOnly: true, sameSite: 'Lax',
-      }]);
+      const [name, ...value] = cookie.split('=');
+      await context.addCookies([{ name, value: value.join('='), url: PUBLIC, httpOnly: true, sameSite: 'Lax' }]);
     }
     const page = await context.newPage();
-    const networkUrls = [];
-    page.on('request', (request) => networkUrls.push(request.url()));
-    const response = await page.goto(`${BASE}/apex`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-    if (!response?.ok()) throw new Error(`Public /apex returned HTTP ${response?.status() || 'unknown'}`);
-
-    await page.waitForSelector('#as5', { timeout: 60_000 });
-    await page.waitForSelector('.asRow', { timeout: 60_000 });
-    const cardCount = await page.locator('.asRow').count();
-    if (cardCount < 1) throw new Error('No visible v5 research prop row rendered in production');
-
-    // The desktop table became per-card badges and the book rail became the
-    // odds strip, so these are the surfaces that carry that data now. The old
-    // .asHeaderRow is still in the DOM but is display:none, which makes its
-    // innerText empty — assert the badges instead of a hidden element.
-    for (const selector of ['#asSports', '#asSearch', '#asMarket', '#asBook', '#asSide', '#asSort', '#asSummary', '#asList', '.asBadges', '.asOddsStrip', '.asAvatar img', '.asResearchState']) {
-      if (await page.locator(selector).count() < 1) throw new Error(`Auto Scout v5 control or data surface missing in production: ${selector}`);
-    }
-
-    const badgeText = (await page.locator('.asRow').first().locator('.asBadges').innerText()).trim();
-    for (const label of ['L5', 'L10', 'L15', 'H2H', 'STRK', 'AVG', 'DIFF', 'SZN']) {
-      if (!badgeText.toLowerCase().includes(label.toLowerCase())) throw new Error(`Research measure missing from the v5 prop card: ${label}`);
-    }
-
-    const firstCard = (await page.locator('.asRow').first().innerText()).trim();
-    if (!firstCard) throw new Error('First production research row rendered with no content');
-    if (!/OVER|UNDER/i.test(firstCard)) throw new Error('Production research row is missing its selected side');
-
-    const avatarSources = await page.locator('.asAvatar img').evaluateAll((nodes) => nodes.slice(0, 10).map((node) => node.getAttribute('src')).filter(Boolean));
-    let artworkResponses = 0;
-    for (const src of avatarSources) {
-      const artwork = await fetch(new URL(src, BASE), cookie ? { cache: 'no-store', headers: { cookie } } : { cache: 'no-store' });
-      if (artwork.ok && String(artwork.headers.get('content-type') || '').toLowerCase().startsWith('image/')) artworkResponses += 1;
-    }
-    if (artworkResponses < 1) throw new Error('Player artwork endpoint did not return a usable image response');
-
-    await page.locator('.asRow').first().click();
-    await page.waitForSelector('#asDrawerBg.on', { timeout: 10_000 });
-    await page.waitForSelector('#asDrawerBody', { timeout: 10_000 });
-    await page.waitForFunction(() => {
-      const body = document.querySelector('#asDrawerBody');
-      if (!body) return false;
-      return Boolean(body.querySelector('.asSection') || body.querySelector('.asError'));
-    }, null, { timeout: 30_000 });
-
-    const drawerText = (await page.locator('#asDrawerBody').innerText()).trim();
-    if (!drawerText) throw new Error('Research drawer rendered with no content');
-    const hasResearchControls = await page.locator('#asMarketSwitch, #asLineMinus, #asLinePlus').count() >= 1;
-    const hasAvailabilityMessage = /research availability|historical research|game logs/i.test(drawerText);
-    if (hasResearchControls) {
-      for (const side of ['OVER', 'UNDER']) {
-        if (await page.getByRole('button', { name: side, exact: true }).count() < 1) throw new Error('Research controls are missing side: ' + side);
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('request', request => { assert.equal(/apiKey=|THE_ODDS_API_KEY|CLEARSPORTS_API_KEY|SPORTSDATAIO_API_KEY/i.test(request.url()), false, 'No provider keys in browser URLs.'); });
+    const response = await page.goto(`${PUBLIC}/apex`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    assert.ok(response?.ok());
+    await page.waitForSelector('#as5', { timeout: 60000 });
+    await page.waitForSelector('.asRow', { timeout: 60000 });
+    const check = { viewport, platforms: [], pageErrors: errors };
+    for (const book of BOOKS) {
+      const board = boards.find(board => board.rows.some(row => row.sportsbookKey === book));
+      if (!board) { check.platforms.push({ book, status: 'no_live_lines_returned' }); continue; }
+      const tab = page.locator(`.asSport[data-sport="${board.sport}"]`);
+      if (await tab.getAttribute('aria-pressed') !== 'true') {
+        await tab.click();
+        await page.waitForResponse(response => response.url().includes('/api/apex/props') && new URL(response.url()).searchParams.get('sport') === board.sport && response.ok(), { timeout: 45000 }).catch(() => {});
       }
+      await page.waitForFunction(book => Array.from(document.querySelector('#asBook')?.options || []).some(option => option.value === book), book, { timeout: 45000 });
+      await page.selectOption('#asBook', book);
+      await page.waitForSelector('.asRow', { timeout: 15000 });
+      assert.equal(await page.locator('#asBook').inputValue(), book);
+      const card = page.locator('.asRow').first();
+      const cardText = await card.innerText();
+      assert.match(cardText, book === 'prizepicks' ? /PrizePicks/i : /Underdog/i);
+      await card.click();
+      await page.waitForSelector('#asDrawerBg.on', { timeout: 15000 });
+      await page.waitForFunction(() => document.querySelector('#asDrawerBody .asSection') || document.querySelector('#asDrawerBody .asError'), null, { timeout: 45000 });
+      const hasLineControl = await page.locator('#asLinePlus').count() > 0;
+      let lineAdjusted = false;
+      if (hasLineControl && await page.locator('#asLineInput').count()) {
+        const before = Number(await page.locator('#asLineInput').inputValue());
+        await page.locator('#asLinePlus').click();
+        await page.waitForFunction(before => Number(document.querySelector('#asLineInput')?.value) > before, before, { timeout: 15000 });
+        lineAdjusted = true;
+      }
+      const overflow = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
+      assert.ok(overflow.document <= overflow.viewport + 1, 'No horizontal document overflow with drawer open.');
+      await page.locator('#asClose').click();
+      check.platforms.push({ book, sport: board.sport, visibleCards: await page.locator('.asRow').count(), drawer: true, lineAdjusted });
     }
-    if (!hasResearchControls && !hasAvailabilityMessage) throw new Error('Research drawer exposes neither research controls nor an honest availability state');
-
-    if (networkUrls.some((url) => /apiKey=|THE_ODDS_API_KEY|CLEARSPORTS_API_KEY|SPORTSDATAIO_API_KEY/i.test(url))) {
-      throw new Error('Provider credential appeared in browser network URLs');
-    }
-
-    return {
-      cardCount,
-      firstCardPreview: firstCard.split('\n').slice(0, 14).join(' | '),
-      researchDrawerVerified: true,
-      researchControlsAvailable: hasResearchControls,
-      avatarResponsesVerified: artworkResponses,
-    };
-  } finally {
-    await browser.close();
+    const overflow = await page.evaluate(() => ({ viewport: window.innerWidth, document: document.documentElement.scrollWidth }));
+    check.overflow = overflow;
+    assert.ok(overflow.document <= overflow.viewport + 1, 'No horizontal document overflow.');
+    assert.equal(errors.length, 0, 'No uncaught browser exceptions.');
+    report.browser.push(check);
+    await context.close();
   }
+  report.ok = true;
+} catch (error) {
+  report.ok = false;
+  report.error = String(error.message || error).slice(0, 1000);
+  process.exitCode = 1;
+} finally {
+  if (browser) await browser.close();
+  console.log('DFS_DEPLOYMENT_QA ' + JSON.stringify(report));
 }
-
-const health = await waitForHealth();
-const session = await openSession();
-const api = await verifyApi(session);
-const browser = await verifyBrowser(session);
-
-console.log(JSON.stringify({
-  ok: true,
-  phase: 'Auto Scout v5 prop research',
-  health: {
-    service: health.service,
-    provider: health.provider?.id,
-    supportedSports: health.supportedSports,
-    databaseConfigured: health?.persistence?.configured === true,
-  },
-  sports: api.results,
-  sample: {
-    player: api.sample.playerName,
-    market: api.sample.market,
-    sportsbook: api.sample.sportsbook,
-    side: api.sample.side,
-    line: api.sample.line,
-    price: api.sample.price,
-    providerUpdatedAt: api.sample.providerUpdatedAt || api.sample.updatedAt,
-    ingestedAt: api.sample.ingestedAt,
-    autoScoutClassification: api.sample.autoScout?.classification || null,
-  },
-  research: {
-    available: api.research.available === true,
-    source: api.research.source || null,
-    code: api.research.code || null,
-    gamesReturned: Number(api.research?.coverage?.gamesReturned || api.research?.gameLog?.length || 0),
-  },
-  browser,
-}, null, 2));

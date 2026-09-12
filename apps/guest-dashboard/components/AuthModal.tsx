@@ -18,11 +18,12 @@ export default function AuthModal({ open, onClose, initialMode = 'register' }: {
   useEffect(() => {
     if (!open) { dialog.current?.close(); return; }
     setMode(initialMode); setMessage(''); setHealth(null);
-    dialog.current?.showModal();
+    if (!dialog.current?.open) dialog.current?.showModal();
     const controller = new AbortController();
     fetch('/api/account/health', { cache: 'no-store', signal: controller.signal })
       .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-      .then(setHealth).catch(() => { if (!controller.signal.aborted) setMessage('Account service is temporarily unavailable. Please try again.'); });
+      .then(data => { if (!controller.signal.aborted) setHealth(data); })
+      .catch(() => { if (!controller.signal.aborted) setMessage('Account service is temporarily unavailable. Please try again.'); });
     return () => controller.abort();
   }, [open, initialMode]);
 
@@ -49,8 +50,9 @@ export default function AuthModal({ open, onClose, initialMode = 'register' }: {
     finally { setBusy(false); }
   }
 
-  return <dialog ref={dialog} onCancel={onClose} onClose={onClose} aria-labelledby="auth-title"
-    className="m-auto w-[calc(100%-2rem)] max-w-md rounded-3xl border border-slate-700 bg-[#0b111d] p-6 text-slate-100 shadow-2xl backdrop:bg-black/75 backdrop:backdrop-blur-sm">
+  // React owns dialog state so an old native close event cannot close a new modal.
+  return <dialog ref={dialog} onCancel={e => { e.preventDefault(); onClose(); }} aria-labelledby="auth-title"
+    className="m-auto w-[calc(100%_-_2rem)] max-w-md rounded-3xl border border-slate-700 bg-[#0b111d] p-6 text-slate-100 shadow-2xl backdrop:bg-black/75 backdrop:backdrop-blur-sm">
     <div className="flex items-start justify-between gap-3">
       <div><p className="text-xs font-bold tracking-[.2em] text-blue-400">OBLIGEPAY EDGE</p>
         <h2 id="auth-title" className="mt-2 text-2xl font-bold">{mode === 'login' ? 'Welcome back' : mode === 'verify' ? 'Verify your email' : 'Create a Free Account'}</h2></div>
@@ -67,7 +69,7 @@ export default function AuthModal({ open, onClose, initialMode = 'register' }: {
     <form onSubmit={submit} className="space-y-3">
       <label className="block text-xs text-slate-400">Email address<input required type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} readOnly={mode === 'verify'} className="mt-1 w-full rounded-xl border border-slate-700 bg-[#06090e] p-3 text-sm text-white outline-none focus:border-blue-500"/></label>
       {mode === 'verify' ? <label className="block text-xs text-slate-400">Verification code<input required inputMode="numeric" autoComplete="one-time-code" value={code} onChange={e => setCode(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-700 bg-[#06090e] p-3 text-white"/></label>
-        : <label className="block text-xs text-slate-400">Password<input required type="password" minLength={mode === 'register' ? 12 : undefined} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-700 bg-[#06090e] p-3 text-sm text-white outline-none focus:border-blue-500"/>{mode === 'register' && <span className="mt-1 block text-slate-500">At least 12 characters.</span>}</label>}
+        : <label className="block text-xs text-slate-400">Password<input required type="password" aria-label="Password" aria-describedby={mode === 'register' ? 'password-hint' : undefined} minLength={mode === 'register' ? 12 : undefined} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} value={password} onChange={e => setPassword(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-700 bg-[#06090e] p-3 text-sm text-white outline-none focus:border-blue-500"/>{mode === 'register' && <span id="password-hint" className="mt-1 block text-slate-500">At least 12 characters.</span>}</label>}
       {message && <p role="status" className="rounded-xl border border-slate-700 p-3 text-sm leading-6 text-slate-300">{message}</p>}
       <button disabled={busy || !health || (mode === 'register' && !health.password?.available)} className="w-full rounded-xl bg-blue-600 px-4 py-3 font-bold transition hover:bg-blue-500 disabled:opacity-40">{busy ? 'Working…' : mode === 'login' ? 'Log In' : mode === 'verify' ? 'Verify and continue' : 'Create Free Account'}</button>
     </form>

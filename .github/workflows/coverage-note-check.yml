@@ -1,0 +1,45 @@
+name: Verify coverage note consistency
+on:
+  push:
+    branches: [chatgpt/prop-coverage-note]
+    paths: [.github/workflows/coverage-note-check.yml]
+permissions:
+  contents: write
+jobs:
+  check:
+    if: github.repository == 'CodingForTheFun/global-capital-' && github.ref == 'refs/heads/chatgpt/prop-coverage-note'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Correct only the stale research footnote
+        run: |
+          python3 <<'PY'
+          import pathlib,hashlib
+          p=pathlib.Path('apex-v2/scout-ui-v5.js')
+          data=p.read_bytes()
+          assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()=='d8e9172e65625cdf1eaad9ea9f95254185cae3cb'
+          old='— means the connected feeds returned no usable value. 0G means no previous meeting with this opponent. Pushes are excluded from hit rates.'
+          new='N/A means no verified value or no prior matchup; open the card for coverage details. Hit rate is hits / all eligible games. Pushes are not hits and end a hit streak.'
+          text=data.decode();assert text.count(old)==1
+          p.write_text(text.replace(old,new))
+          test=pathlib.Path('tests/research-coverage-copy.test.mjs')
+          assert not test.exists()
+          test.write_text("import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport {readFileSync} from 'node:fs';\nimport {calculatePropSplits} from '../lib/analytics/research.mjs';\ntest('research coverage copy describes all-game denominator and honest N/A',()=>{\n const source=readFileSync(new URL('../apex-v2/scout-ui-v5.js',import.meta.url),'utf8');\n assert.ok(source.includes('Hit rate is hits / all eligible games. Pushes are not hits and end a hit streak.'));\n assert.ok(source.includes('N/A means no verified value or no prior matchup'));\n assert.ok(!source.includes('Pushes are excluded from hit rates.'));\n assert.equal(typeof calculatePropSplits,'function');\n});\n")
+          PY
+      - name: Regression gate
+        run: |
+          npm ci --no-audit --no-fund
+          npm run check
+      - name: Publish validated two-file correction to feature branch only
+        run: |
+          test "$(git branch --show-current)" = 'chatgpt/prop-coverage-note'
+          git add apex-v2/scout-ui-v5.js tests/research-coverage-copy.test.mjs
+          git rm .github/workflows/coverage-note-check.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Make coverage footnote match real all-game hit rates and N/A states'
+          git push origin HEAD:refs/heads/chatgpt/prop-coverage-note

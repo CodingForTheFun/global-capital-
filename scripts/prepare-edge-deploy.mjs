@@ -16,8 +16,8 @@ applySoccerPublicFeedPatches();
   const file = 'apex-v2/scout-ui-v5.js';
   if (existsSync(file)) {
     const source = readFileSync(file, 'utf8');
-    const from = 'class=\\"asRingMid\\" text-anchor=\\"middle\\" dominant-baseline=\\"central\\"';
-    const to = 'class=\\"asRingMid\\" fill=\\"#f8fafc\\" font-size=\\"15\\" font-weight=\\"800\\" style=\\"fill:#f8fafc!important;opacity:1!important;visibility:visible!important\\" text-anchor=\\"middle\\" dominant-baseline=\\"central\\"';
+    const from = 'class="asRingMid" text-anchor="middle" dominant-baseline="central"';
+    const to = 'class="asRingMid" fill="#f8fafc" font-size="15" font-weight="800" style="fill:#f8fafc!important;opacity:1!important;visibility:visible!important" text-anchor="middle" dominant-baseline="central"';
     if (!source.includes(from)) throw new Error('Auto Scout ring percentage anchor not found.');
     const output = source.replace(from, to);
     if (output !== source) writeFileSync(file, output);

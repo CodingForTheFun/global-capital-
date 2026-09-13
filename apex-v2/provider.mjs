@@ -1,4 +1,5 @@
 import {appendPublicFeeds,publicFeeds} from '../lib/ingestion/public-feeds.mjs';
+import { publicPersistenceConfigured, readPublicProps } from '../lib/ingestion/public-persistence.mjs';
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
@@ -129,9 +130,87 @@ async function fetchBaseBoard(league, { signal, force = false, includeAlternates
   throw Object.assign(new Error('No odds provider is configured.'), { code: 'NO_PROVIDER' });
 }
 
+function emptyPublicBoard(sport) {
+  const now = new Date().toISOString();
+  return {
+    props: [],
+    data: { events: [], players: [], props: [], lines: [] },
+    meta: {
+      provider: 'Public feed database',
+      sport,
+      fetchedAt: now,
+      ingestionTimestamp: now,
+      cacheHit: true,
+      stale: false,
+      sportsbooks: [],
+      sportsbookCount: 0,
+      propCount: 0,
+      lineCount: 0,
+      events: 0,
+      regularLinesOnly: true,
+      includesAlternates: false,
+      publicFirst: true,
+    },
+  };
+}
+
+function mergePersistedPublic(board, rows, sport) {
+  const accepted = (Array.isArray(rows) ? rows : []).filter((row) =>
+    text(row?.sport).toUpperCase() === sport && row?.isAlternate !== true && Number.isFinite(num(row?.line)) && ['OVER','UNDER'].includes(text(row?.side).toUpperCase()));
+  if (!accepted.length) return {...board, meta:{...(board.meta||{}), databasePublicProps:0, publicFirst:true}};
+  const props = [...new Map([...(board.props || []), ...accepted].map((row) => [row.id, row])).values()];
+  const books = [...new Set(props.map((row) => text(row.sportsbookKey).toLowerCase()).filter(Boolean))].sort();
+  const events = new Set(props.map((row) => row.eventId).filter(Boolean)).size;
+  return {
+    ...board,
+    props,
+    meta: {
+      ...(board.meta || {}),
+      provider: board.props?.length ? board.meta?.provider || 'Cached provider + public database' : 'Public feed database',
+      cacheHit: true,
+      publicFirst: true,
+      databasePublicProps: accepted.length,
+      sportsbooks: books,
+      sportsbookCount: books.length,
+      lineCount: props.length,
+      propCount: Math.max(Number(board.meta?.propCount || 0), new Set(props.map((row) => [row.eventId,row.playerId,row.marketId].join('|'))).size),
+      events: Math.max(Number(board.meta?.events || 0), events),
+      regularLinesOnly: true,
+      includesAlternates: false,
+    },
+  };
+}
+
+async function fetchPublicFirstBoard(sport, options) {
+  let persisted = [];
+  try { persisted = await readPublicProps(sport); } catch {}
+
+  let cached = null;
+  try {
+    cached = await fetchBaseBoard(sport, { ...options, force: false, cacheOnly: true });
+  } catch {}
+
+  let board = await appendPublicFeeds(cached || emptyPublicBoard(sport), sport);
+  board = mergePersistedPublic(board, persisted, sport);
+  if (board.props.length || options.cacheOnly || options.allowPaidRefresh !== true) return board;
+
+  // Metered network access is opt-in only in public-first mode. Browser page loads,
+  // health checks and persistence bootstraps never set allowPaidRefresh.
+  const live = await fetchBaseBoard(sport, { ...options, cacheOnly: false });
+  board = await appendPublicFeeds(live, sport);
+  return mergePersistedPublic(board, persisted, sport);
+}
+
 export async function fetchUnifiedBoard(league,options={}) {
   const sport=text(league||'NFL').toUpperCase();
   if(options.refreshPublicFeeds===true&&!options.cacheOnly)await publicFeeds.refresh();
+
+  if (publicPersistenceConfigured() && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false') {
+    return fetchPublicFirstBoard(sport, options);
+  }
+
+  // Legacy behavior remains available for local/test environments without the
+  // secure public store. Production uses the public-first branch above.
   try{return await appendPublicFeeds(await fetchBaseBoard(sport,options),sport);}
   catch(error){const fallback=await appendPublicFeeds({props:[],data:{events:[],players:[],props:[],lines:[]},meta:{provider:'Public platform feeds',stale:true,cacheHit:true,warning:'Primary sportsbook feed is temporarily unavailable.'}},sport);if(fallback.props.length)return fallback;throw error;}
 }
@@ -153,7 +232,8 @@ export function providerHealth() {
     theOddsApiConfigured: oddsProvider?.id === 'the-odds-api' && oddsProvider.isConfigured(),
     sportsGameOddsConfigured: Boolean(text(process.env.SPORTSGAMEODDS_API_KEY)),
     sportsDataIoConfigured: sportsDataIoConfigured(),
-    preferredProvider: oddsProvider?.name || 'SportsDataIO fallback',
+    preferredProvider: publicPersistenceConfigured() ? 'Public feed database' : oddsProvider?.name || 'SportsDataIO fallback',
+    publicFirst: publicPersistenceConfigured() && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false',
     regularLinesOnly: true,
     provider: oddsHealth,
     diagnostics: snapshotDiagnostics(),

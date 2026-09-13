@@ -2,6 +2,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { LoaderCircle, Minus, Plus, Sparkles, X } from "lucide-react";
 import type { Quote } from "@/lib/sports-workspace";
+import MLPrediction from "@/components/MLPrediction";
 type Game = {
   value: number;
   date?: string;
@@ -240,6 +241,7 @@ export default function PropInsight({
           </button>
         ))}
       </div>
+      <MLPrediction target={line === quote.line ? quote : {...quote, eventId: ""}} side={side}/>
       {!research ? (
         <p
           role="status"

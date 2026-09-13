@@ -11,3 +11,5 @@ data/diagnostics/
 .DS_Store
 .frontdoor-clearsports-runtime.mjs
 data/saved-props/
+# Private trained models, evidence and ML prediction snapshots are runtime-only.
+data/ml/

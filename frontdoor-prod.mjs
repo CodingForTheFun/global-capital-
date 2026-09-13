@@ -1,4 +1,6 @@
 import http from 'node:http';
+import {createMLHandler} from './lib/ml/routes.mjs';
+const maybeServeML = createMLHandler();
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
@@ -37,12 +39,13 @@ const PROJECTION_RATE_PER_MINUTE = 12;
 const ASK_RATE_PER_MINUTE = 20;
 const CLIENT_MODULES = new Map([
   'lib/ui/intelligence-studio.mjs', 'lib/autoscout/intelligence.mjs',
-  'lib/ui/prop-board.mjs', 'lib/analytics/research.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
+  'lib/ui/offer-promotion.mjs', 'lib/ml/contract.mjs', 'lib/ui/ml-prediction.mjs', 'lib/ui/prop-board.mjs', 'lib/analytics/research.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
   'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
   'lib/betting/kelly.mjs', 'lib/markets/line-lag.mjs',
   'lib/projections/reprice.mjs', 'lib/projections/baseline.mjs', 'lib/projections/schema.mjs',
 ].map(file => ['/assets/' + file, file]));
 CLIENT_MODULES.set('/assets/autoscout-research.css', 'apex-v2/research-ui.css');
+CLIENT_MODULES.set('/assets/prop-ml.css', 'public/prop-ml.css');
 
 // Accounts live at the frontdoor, not in the legacy Scout server: that server
 // gates every /api/* path behind its own access code, which would lock people
@@ -625,6 +628,7 @@ const server = http.createServer(async (req, res) => {
   if (await maybeServeAccount(req, res)) return;
   if (await maybeServeResearch(req, res)) return;
   if (await maybeServeResearchBatch(req, res)) return;
+  if (await maybeServeML(req, res)) return;
   if (await maybeServeAccuracy(req, res)) return;
   if (await maybeServeProjection(req, res)) return;
   if (await maybeServeAsk(req, res)) return;

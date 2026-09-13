@@ -23,7 +23,7 @@ export async function assertTacoPlacement(page, base, check) {
     if (fixtureMode === 'failure') return route.fulfill({ status: 503, json: { error: 'fixture' } });
     const future = new Date(Date.now() + 60000).toISOString();
     return route.fulfill({ json: { offers: [
-      { id: sport + '-taco', sport, playerName: 'Taco QA ' + sport, market: 'Points', side: 'OVER', line: 15.5, originalLine: 22.5, expiresAt: future },
+      { id: ['taco','qa-event','Points','Taco QA '+sport,'OVER',15.5].join('|'), eventId:'qa-event', marketId:'Points', sport, playerName: 'Taco QA ' + sport, market: 'Points', side: 'OVER', line: 15.5, originalLine: 22.5, expiresAt: future, gameStartTime: future, observedAt: new Date().toISOString(), sportsbookKey:'prizepicks', promotional:true, promotionType:'taco', verified:true },
       { id: 'expired', sport, playerName: 'Expired QA', market: 'Points', side: 'OVER', line: 15.5, originalLine: 22.5, expiresAt: '2000-01-01T00:00:00Z' },
       { id: 'invalid', sport, playerName: 'Invalid QA', market: 'Points', side: 'OVER', line: 15.5, originalLine: 15.5, expiresAt: future },
     ], message: 'Verified fixture promotion data.' } });
@@ -33,6 +33,8 @@ export async function assertTacoPlacement(page, base, check) {
   check(await page.locator('#asTacoPanel article').count() === 1, 'Only unexpired valid Taco props render');
   check(await page.locator('#asTacoPanel del').textContent() === '22.5', 'Original line is retained');
   check(await page.locator('#asTacoPanel strong').textContent() === '15.5', 'Discounted line is retained');
+  check(await page.locator('#asTacoPanel .asTacoLine .asTacoBadge').count() === 1, 'Only the exact Taco line has a Taco badge');
+  check(await page.locator('#asTacoPanel h3 .asTacoBadge').count() === 0, 'Player names never inherit Taco badges');
   await page.screenshot({ path: 'artifacts/tacos-autoscout-mobile.png', fullPage: true });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Taco panel fits mobile');
   // Hold the regular request to prove Taco reads wait for the cache owner.

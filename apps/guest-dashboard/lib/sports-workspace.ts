@@ -4,7 +4,7 @@ export type Quote = {
   market: string; marketId: string; line: number; side: 'OVER' | 'UNDER';
   price: number | null; sportsbookKey: string; sportsbook: string;
   team: string; homeTeam: string; awayTeam: string; gameStartTime: string;
-  live: boolean; entityType: string;
+  live: boolean; entityType: string; promotion?: unknown;
 };
 export type Group = { key: string; player: string; market: string; sport: string; matchup: string; quotes: Quote[] };
 const text = (x: unknown) => typeof x === 'string' ? x : '';
@@ -23,6 +23,8 @@ export function quotesFromPayload(payload: unknown): Quote[] {
     sportsbookKey: text(r.sportsbookKey), sportsbook: text(r.sportsbook) || text(r.sportsbookName) || text(r.sportsbookKey),
     team: text(r.team), homeTeam: text(r.homeTeam), awayTeam: text(r.awayTeam), gameStartTime: text(r.gameStartTime),
     live: r.live === true, entityType: text(r.entityType) || 'player',
+    // No inferred Taco state: keep offer-scoped source evidence for the badge guard.
+    promotion: r.promotion && typeof r.promotion === 'object' ? r.promotion : null,
   }));
 }
 export function groupQuotes(quotes: Quote[]): Group[] {

@@ -1,7 +1,8 @@
 /* Display-only promotions view. Never inject offers into regular prop/scanner state. */
-(() => {
+(async () => {
   'use strict';
   if (!/^\/apex\/?$/.test(location.pathname)) return;
+  const {verifiedTacoChannelOffer} = await import('/assets/lib/ui/offer-promotion.mjs');
   let active = location.hash === '#tacos', currentSport = '', pending = null;
   let version = 0, scheduled = false, expiryTimer = null, waitingForBoard = false;
   let offers = [], message = '', loading = false;
@@ -13,10 +14,7 @@
   };
   const getSport = () => document.querySelector('.as5 #asSports [aria-pressed="true"]')?.dataset.sport || '';
   function usableOffer(o) {
-    return o && typeof o.id === 'string' && typeof o.playerName === 'string' && o.playerName.trim() &&
-      typeof o.market === 'string' && o.market.trim() && ['OVER', 'UNDER'].includes(o.side) &&
-      Number.isFinite(o.line) && Number.isFinite(o.originalLine) && o.line >= 0 && o.originalLine > o.line &&
-      (!o.sport || o.sport === currentSport) && Date.parse(o.expiresAt) > Date.now();
+    return verifiedTacoChannelOffer(o, currentSport);
   }
   function draw() {
     const panel = document.getElementById('asTacoPanel');
@@ -40,7 +38,11 @@
       const line = element('p', undefined, 'asTacoLine');
       const old = element('del', String(offer.originalLine)); old.setAttribute('aria-label', 'Original line');
       const discounted = element('strong', String(offer.line)); discounted.setAttribute('aria-label', 'Taco line');
-      line.append(old, discounted); card.append(line, element('p', `Expires ${new Date(offer.expiresAt).toLocaleString()}`, 'asTacoExpiry'));
+      const badge = element('span', '🌮', 'asTacoBadge');
+      badge.dataset.tacoOffer = offer.id; badge.setAttribute('role', 'img');
+      badge.setAttribute('aria-label', 'Verified PrizePicks Taco offer');
+      badge.title = 'PrizePicks Taco: this exact promotional line only';
+      line.append(old, discounted, badge); card.append(line, element('p', `Expires ${new Date(offer.expiresAt).toLocaleString()}`, 'asTacoExpiry'));
       list.append(card);
     }
     if (!loading && !valid.length) list.append(element('p', 'No verified, unexpired Taco props are available for this sport.', 'asTacoEmpty'));
@@ -48,7 +50,7 @@
     const refresh = element('button', 'Refresh Taco props', 'asBtn'); refresh.type = 'button'; refresh.disabled = loading;
     refresh.onclick = () => load(getSport()); panel.append(refresh);
     if (active && valid.length) {
-      const soonest = Math.min(...valid.map(o => Date.parse(o.expiresAt)));
+      const soonest = Math.min(...valid.map(o => verifiedTacoChannelOffer(o, currentSport)?.validUntil || Date.now()));
       expiryTimer = setTimeout(draw, Math.min(2147483647, Math.max(100, soonest - Date.now() + 50)));
     }
   }

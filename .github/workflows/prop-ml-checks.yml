@@ -1,0 +1,49 @@
+name: Prop ML and Taco verification
+on:
+  pull_request:
+    branches: [production-stable]
+    paths: ['lib/ml/**', 'lib/ui/ml-prediction*', 'lib/ui/offer-promotion*', 'apex-v2/scout-ui-v5.js', 'apps/guest-dashboard/components/MLPrediction.tsx', 'apps/guest-dashboard/components/TacoBadge.tsx', 'scripts/qa-prop-ml.mjs', 'scripts/verify-prop-ml-live.mjs', '.github/workflows/prop-ml-checks.yml']
+  push:
+    branches: [production-stable]
+    paths: ['lib/ml/**', 'lib/ui/ml-prediction*', 'lib/ui/offer-promotion*', 'scripts/verify-prop-ml-live.mjs', '.github/workflows/prop-ml-checks.yml']
+permissions:
+  contents: read
+jobs:
+  fixture-ui:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: node --check scripts/verify-prop-ml-live.mjs
+      - run: node --test tests/prop-ml-integration.test.mjs tests/taco-offer-isolation.test.mjs
+      - run: node scripts/qa-prop-ml.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prop-ml-fixture-ui
+          path: validation-output/ml/
+          retention-days: 5
+  actual-deployed-state:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/production-stable'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/verify-prop-ml-live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prop-ml-live-state
+          path: artifacts/prop-ml-live/
+          retention-days: 5

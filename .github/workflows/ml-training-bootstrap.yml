@@ -34,7 +34,13 @@ jobs:
           git -C upstream fetch --depth=1 origin a7c401297266142563b75104f4ea00d480fde3fb
           git -C upstream checkout -q --detach FETCH_HEAD
           test "$(git -C upstream rev-parse HEAD)" = a7c401297266142563b75104f4ea00d480fde3fb
-          printf '%s\n' 'Isolated original upstream training. No site credentials, paid odds collection, production writes, bypass-withholding, deterministic low-quality training, or gate modifications.' > training-output/scope.txt
+          printf '%s\n' 'Original upstream training; only empty cold-start state initialized. No credentials, paid odds/proxy collection, production writes, withholding bypass, deterministic training, or gate modifications.' > training-output/scope.txt
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pypoetry
+            ~/.cache/pip
+          key: ml-upstream-cpu-${{ runner.os }}-${{ hashFiles('upstream/poetry.lock') }}
       - name: Install locked CPU training environment
         timeout-minutes: 10
         run: |
@@ -47,11 +53,8 @@ jobs:
         run: |
           set -o pipefail
           cd upstream
-          mkdir -p src/sportstradamus/creds
-          test ! -f src/sportstradamus/creds/keys.json
-          printf '{}\n' > src/sportstradamus/creds/keys.json
           set +e
-          timeout --signal=TERM --kill-after=15s 650s poetry run sportstradamus meditate --league NFL --market 'attempts,completions,passing tds,receptions' 2>&1 | tee ../training-output/training.log
+          timeout --signal=TERM --kill-after=15s 650s poetry run python ../scripts/train-upstream-bootstrap.py 2>&1 | tee ../training-output/training.log
           code=${PIPESTATUS[0]}
           printf '%s\n' "$code" > ../training-output/trainer-exit-code.txt
           exit "$code"

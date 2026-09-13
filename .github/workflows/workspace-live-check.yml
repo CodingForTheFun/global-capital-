@@ -1,0 +1,27 @@
+name: Sportsbooks workspace public verification
+on:
+  push:
+    branches: [production-stable]
+    paths: ['apps/guest-dashboard/components/SportsWorkspace.tsx', 'apps/guest-dashboard/app/sportsbooks/**', 'lib/edge/**', 'public/edge-workspace-*', '.github/workflows/workspace-live-check.yml']
+permissions:
+  contents: read
+jobs:
+  public-workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Read-only public deployment checks
+        run: node scripts/verify-workspace-live.mjs
+      - name: Keep public verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-live-verification
+          path: artifacts/workspace-live*
+          retention-days: 7

@@ -2,7 +2,7 @@ name: ObligePay Edge integrated release
 on:
   pull_request:
     branches: [production-stable]
-    paths: ['apps/guest-dashboard/**', 'lib/edge/**', 'scripts/*edge*', 'frontdoor-clearsports.mjs', 'Dockerfile', '.github/workflows/edge-release.yml']
+    paths: ['apps/guest-dashboard/**', 'lib/edge/**', 'public/edge-workspace-*', 'scripts/*edge*', 'scripts/verify-workspace.mjs', 'frontdoor-clearsports.mjs', 'Dockerfile', '.github/workflows/edge-release.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -33,6 +33,8 @@ jobs:
           npm install -g agent-browser
       - name: Test integrated routing, accounts, guest quota and desktop/mobile interactions
         run: node scripts/verify-edge-release.mjs
+      - name: Test Sportsbooks and Auto Scout shared navigation
+        run: node scripts/verify-workspace.mjs
       - name: Retain verification evidence
         if: always()
         uses: actions/upload-artifact@v4

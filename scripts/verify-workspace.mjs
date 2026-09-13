@@ -1,0 +1,51 @@
+// Isolated browser QA. Fixtures never enter production application data.
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { chromium } from 'playwright';
+import { assertWorkspaceHeader } from './assert-workspace-header.mjs';
+const base='http://127.0.0.1:3020';
+const data=await mkdtemp(path.join(tmpdir(),'edge-workspace-ci-'));
+await mkdir('artifacts',{recursive:true});
+const proc=spawn(process.execPath,['frontdoor-clearsports.mjs'],{env:{...process.env,PORT:'3020',NODE_ENV:'production',DATA_DIR:data,
+ ACCOUNT_BETA_OPEN:'true',REQUIRE_ACCOUNT:'true',ACCOUNT_OWNER_EMAIL:'owner@local.invalid',DASHBOARD_SESSION_SECRET:randomBytes(32).toString('hex'),AUTOPROP_MASTER_KEY:randomBytes(32).toString('hex'),
+ AUTO_SCAN_MINUTES:'0',DEMO_MODE:'false',THE_ODDS_API_KEY:'',SPORTSDATAIO_API_KEY:'',CLEARSPORTS_API_KEY:'',ANTHROPIC_API_KEY:'',GEMINI_API_KEY:''},stdio:['ignore','pipe','pipe']});
+let log='',browser,page,passed=0;
+const checks=[],errors=[];
+proc.stdout.on('data',c=>{log+=c});proc.stderr.on('data',c=>{log+=c});
+function check(condition,label){assert.ok(condition,label);passed++;checks.push(label);console.log('WORKSPACE_PASS',label)}
+function fixtureRows(sport){return ['DraftKings','FanDuel','BetMGM','Caesars','Fanatics'].flatMap((book,b)=>Array.from({length:19},(_,i)=>['OVER','UNDER'].map((side,s)=>({
+ id:`${sport}-${book}-${i}-${side}`,sport,eventId:`game-${i}`,playerId:`player-${i}`,playerName:`${sport==='NBA'?'Basketball':'Football'} Sample ${i+1}`,
+ market:i%2?'Receptions':'Receiving Yards',marketId:i%2?'player_receptions':'player_reception_yds',line:i%2?4.5:55.5+b,side,price:b===4?null:-110+s*5,
+ sportsbookKey:book.toLowerCase(),sportsbook:book,homeTeam:'Home QA',awayTeam:'Away QA',live:i===0,entityType:'player',isAlternate:false}))).flat())}
+const nav=()=>page.getByRole('navigation',{name:'Primary workspace navigation'}).filter({visible:true});
+async function tab(label,heading){await nav().getByRole('link',{name:label,exact:true}).click();await page.getByRole('heading',{name:heading,exact:true}).waitFor()}
+try{
+ let ready=false;for(let i=0;i<100;i++){if(proc.exitCode!==null)throw new Error('Integrated service exited');try{if((await fetch(base+'/api/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,500))}
+ check(ready,'Integrated startup health');check((await fetch(base+'/sportsbooks')).ok,'New workspace route');check((await fetch(base+'/api/apex/props?sport=NFL')).status===401,'Guest API gate preserved');
+ browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1600,height:1050}});page=await context.newPage();page.setDefaultTimeout(20000);page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(base+'/sportsbooks',{waitUntil:'networkidle'});await page.getByRole('heading',{name:'One account. Both workspaces.',exact:true}).waitFor();check(true,'Guest conversion state');
+ const labels=await nav().locator('a').allTextContents();check(labels.at(-2)==='Tools'&&labels.at(-1)==='Auto Scout','Auto Scout immediately after Tools');check(await nav().getByRole('link',{name:'Auto Scout',exact:true}).getAttribute('href')==='/apex','Original same-site destination');
+ await page.getByRole('button',{name:'Create free account',exact:true}).click();await page.getByLabel('Email address',{exact:true}).fill('workspace-qa@local.invalid');await page.getByLabel('Password',{exact:true}).fill(randomBytes(18).toString('hex'));
+ await page.route(/\/api\/apex\/props(?:\?|$)/,route=>{const sport=new URL(route.request().url()).searchParams.get('sport')||'NFL';return route.fulfill({json:{ok:true,props:sport==='MLB'?[]:fixtureRows(sport)}})});
+ const registered=page.waitForResponse(r=>r.url().endsWith('/api/account/register')&&r.request().method()==='POST');
+ await page.getByRole('button',{name:'Create Free Account',exact:true}).click();
+ const rr=await registered;
+ check(rr.ok(),'Signup accepted by existing backend');
+ await page.waitForURL(base+'/sportsbooks');
+ const first=page.getByRole('button',{name:'Football Sample 1 OVER 55.5 DraftKings',exact:true});await first.waitFor();
+ const session=await context.request.get(base+'/api/account/me');
+ check(session.ok()&&(await session.json()).authenticated===true,'Real isolated signup session');
+ check(new URL(page.url()).pathname==='/sportsbooks','Signup returns to Sportsbooks');await first.click();check(await first.getAttribute('aria-pressed')==='true','Line toggles into research slip');await page.screenshot({path:'artifacts/workspace-desktop.png',fullPage:true});
+ await page.getByRole('button',{name:'Next page',exact:true}).click();await page.getByText('Football Sample 19',{exact:true}).waitFor();check(true,'Pagination');await page.getByLabel('Book filter',{exact:true}).selectOption('fanatics');await page.getByRole('button',{name:'Football Sample 1 OVER 59.5 Fanatics',exact:true}).waitFor();check(await page.getByText('Line only',{exact:true}).count()>0,'Null prices remain line-only');await page.getByLabel('Book filter',{exact:true}).selectOption('all');
+ await tab('Tools','Research tools');check(await page.getByText('190.91',{exact:true}).isVisible(),'Reference calculator');await tab('Analytics','Coverage analytics');check(true,'Measured coverage view');await tab('My Research','My research snapshots');await page.getByRole('button',{name:'Remove',exact:true}).waitFor();check(await page.getByRole('button',{name:'Remove',exact:true}).count()===1,'Session research view');await page.reload({waitUntil:'networkidle'});await page.getByRole('button',{name:'Remove',exact:true}).waitFor();check(await page.getByRole('button',{name:'Remove',exact:true}).count()===1,'Research snapshots survive reload');
+ await page.setViewportSize({width:390,height:844});await nav().getByRole('link',{name:'Sports',exact:true}).click();await first.waitFor();check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Workspace fits mobile viewport');await page.screenshot({path:'artifacts/workspace-mobile.png',fullPage:true});await page.getByRole('button',{name:'Research (1)',exact:true}).click();await page.getByRole('dialog',{name:'Mobile research slip',exact:true}).waitFor();check(true,'Mobile research drawer');await page.getByRole('button',{name:'Close research slip',exact:true}).click();await page.getByRole('dialog',{name:'Mobile research slip',exact:true}).waitFor({state:'hidden'});
+ await page.getByRole('button',{name:'NBA',exact:true}).click();await page.getByRole('button',{name:'Basketball Sample 1 OVER 55.5 DraftKings',exact:true}).waitFor();check(await first.count()===0,'Sport switch drops stale rows');await page.getByRole('button',{name:'MLB',exact:true}).click();await page.getByRole('heading',{name:'No available props match',exact:true}).waitFor();check(true,'Empty feed remains honest');await page.getByRole('button',{name:'NFL',exact:true}).click();await first.waitFor();
+ await nav().getByRole('link',{name:'Auto Scout',exact:true}).click();await page.waitForURL('**/apex');await page.locator('.as5 .edge-workspace-nav').waitFor();const scoutNav=page.locator('.as5 .edge-workspace-nav');const sl=await scoutNav.locator('a').allTextContents();check(sl.at(-2)==='Tools'&&sl.at(-1)==='Auto Scout','Shared navigation inside actual Auto Scout');check(await scoutNav.getByRole('link',{name:'Auto Scout',exact:true}).getAttribute('aria-current')==='page','Active Auto Scout tab');check((await(await context.request.get(base+'/api/account/me')).json()).authenticated===true,'Login survives workspace switch');
+ const mobileBounds=await assertWorkspaceHeader(page);check(mobileBounds.activeIsClickable,'Mobile header unobstructed');await page.screenshot({path:'artifacts/workspace-autoscout-mobile.png',fullPage:false});await page.setViewportSize({width:1600,height:1050});const desktopBounds=await assertWorkspaceHeader(page);check(desktopBounds.activeIsClickable,'Desktop header unobstructed');await page.screenshot({path:'artifacts/workspace-autoscout-desktop.png',fullPage:false});await scoutNav.getByRole('link',{name:'Sports',exact:true}).click();await page.waitForURL('**/sportsbooks#sports');await first.waitFor();check(true,'Return path preserves working comparison board');check(errors.length===0,`No browser exceptions: ${errors.join('; ')}`);
+ await writeFile('artifacts/workspace-report.json',JSON.stringify({passed,fixtureData:true,productionAccountsCreated:false,paidProviderCalls:0,browserErrors:errors,mobileBounds,desktopBounds,checks},null,2));console.log('WORKSPACE_VERIFIED',passed);
+}catch(error){await writeFile('artifacts/workspace-failure-details.json',JSON.stringify({passed,checks,error:error.message,stack:error.stack,url:page?.url()},null,2));await page?.screenshot({path:'artifacts/workspace-failure.png',fullPage:true}).catch(()=>{});if(page)await writeFile('artifacts/workspace-failure.txt',await page.locator('body').innerText().catch(()=>'Unavailable'));throw error}
+finally{await browser?.close();proc.kill('SIGTERM');await Promise.race([new Promise(r=>proc.once('exit',r)),new Promise(r=>setTimeout(r,5000))]);await writeFile('artifacts/workspace-server.log',log)}

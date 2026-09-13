@@ -1,13 +1,14 @@
+// Compatibility build command: Auto Scout identity only. Never rewrite the v5 app,
+// payment descriptors, account identifiers, storage keys, or research calculations.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-// Only visible product identity and style links change. Do not replace the
-// production files with the older PR #41 versions (they predate live fixes).
-for (const file of ['public/index.html', 'public/checkout.html', 'public/manifest.webmanifest', 'payments/paypal.mjs', 'apex-v2/scout-ui-v5.js']) {
+for (const file of ['public/index.html', 'public/checkout.html']) {
   if (!existsSync(file)) continue;
-  let text = readFileSync(file, 'utf8');
-  text = text.replaceAll('AutoProp Scout Pro', 'ObligePay Edge').replaceAll('<b>AutoProp</b><em>Scout Pro</em>', '<b>ObligePay</b><em>Edge</em>');
-  if (file === 'apex-v2/scout-ui-v5.js') text = text.replaceAll('Auto Scout', 'ObligePay Edge');
-  if (file.endsWith('.html') && !text.includes('/assets/edge-theme.css')) text = text.replace('</head>', '<link rel="stylesheet" href="/assets/edge-theme.css" />\n</head>');
-  if (file.endsWith('.webmanifest')) { const data = JSON.parse(text); data.name = 'ObligePay Edge'; data.short_name = 'ObligePay'; text = JSON.stringify(data, null, 2) + '\n'; }
-  writeFileSync(file, text);
+  const source = readFileSync(file, 'utf8');
+  const output = source.replaceAll('ObligePay Edge', 'Auto Scout')
+    .replaceAll('AutoProp Scout Pro', 'Auto Scout')
+    .replaceAll('<b>AutoProp</b><em>Scout Pro</em>', '<b>Auto</b><em>Scout</em>')
+    .replaceAll('<b>ObligePay</b><em>Edge</em>', '<b>Auto</b><em>Scout</em>')
+    .replace(/<link[^>]+href="\/assets\/edge-theme\.css"[^>]*>/g, '');
+  if (output !== source) writeFileSync(file, output);
 }
-console.log('[edge] production identity prepared without changing account/provider contracts');
+console.log('[autoscout] research identity ready; existing accounts and data retained');

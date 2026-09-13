@@ -1,9 +1,16 @@
 {
-  "name": "AutoProp Scout Pro",
-  "short_name": "AutoProp",
+  "name": "Auto Scout",
+  "short_name": "Auto Scout",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#07101d",
-  "theme_color": "#09111f",
-  "icons": [{"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+  "background_color": "#0a101b",
+  "theme_color": "#0a101b",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }

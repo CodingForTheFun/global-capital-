@@ -5,3 +5,10 @@ node_modules
 data/*
 !data/.gitkeep
 *.zip
+
+# Retired sportsbook/guest frontend retained in Git history only, never in runtime.
+apps/guest-dashboard
+public/edge-workspace-*
+public/edge-theme.css
+artifacts
+test-results

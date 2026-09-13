@@ -1,48 +1,37 @@
-name: ObligePay Edge integrated release
+name: Auto Scout integrated release
 on:
   pull_request:
     branches: [production-stable]
-    paths: ['apps/guest-dashboard/**', 'lib/edge/**', 'lib/projections/**', 'lib/autoscout/providers/**', 'public/edge-workspace-*', 'scripts/*edge*', 'scripts/verify-workspace.mjs', 'scripts/verify-sportsbook.mjs', 'frontdoor-clearsports.mjs', 'Dockerfile', '.github/workflows/edge-release.yml']
+    paths: ['lib/edge/**', 'lib/ui/research-home.mjs', 'public/autoscout-home*', 'scripts/prepare-edge-deploy.mjs', 'scripts/verify-research-home.mjs', 'frontdoor-clearsports.mjs', 'Dockerfile', '.github/workflows/edge-release.yml']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  guest-and-core:
+  research-and-accounts:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install existing app and guest dependencies
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - run: node scripts/prepare-edge-deploy.mjs
+      - run: npx playwright install --with-deps chromium
+      - name: Account, research, saved-prop and legacy-link regression
+        run: node scripts/verify-research-home.mjs
+      - name: Intelligence and ML/Taco regression
         run: |
-          npm ci --no-audit --no-fund
-          npm --prefix apps/guest-dashboard install --include=dev --no-audit --no-fund
-      - name: Preserve production checks
-        run: npm run check
-      - name: Apply branding and build Next.js
-        env:
-          NEXT_TELEMETRY_DISABLED: '1'
-        run: |
-          node scripts/prepare-edge-deploy.mjs
-          npm --prefix apps/guest-dashboard run build
-      - name: Install browser tools
-        run: |
-          npx playwright install --with-deps chromium
-          npm install -g agent-browser
-      - name: Test integrated routing, accounts, guest quota and desktop/mobile interactions
-        run: node scripts/verify-edge-release.mjs
-      - name: Test Sportsbooks and Auto Scout shared navigation
-        run: node scripts/verify-workspace.mjs
-      - name: Test game markets, projected stats and configured Ask
-        run: node scripts/verify-sportsbook.mjs
-      - name: Retain verification evidence
+          node scripts/test-intelligence-browser.mjs
+          node scripts/qa-prop-ml.mjs
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: obligepay-edge-verification
+          name: autoscout-integrated-verification
           path: |
             artifacts/
-            apps/guest-dashboard/package-lock.json
-          retention-days: 7
+            test-results/intelligence/
+          retention-days: 3

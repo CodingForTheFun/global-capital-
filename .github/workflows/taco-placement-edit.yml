@@ -1,0 +1,56 @@
+name: Apply Taco placement correction
+on:
+  push:
+    branches: [chatgpt/tacos-autoscout-only]
+    paths: [.github/workflows/taco-placement-edit.yml]
+permissions:
+  contents: write
+jobs:
+  edit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/tacos-autoscout-only
+      - name: Apply only reviewed UI and regression test edits
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import subprocess
+          file=Path('apps/guest-dashboard/components/SportsWorkspace.tsx')
+          assert subprocess.check_output(['git','hash-object',str(file)],text=True).strip()=='60ffd67ceb8db719f3e3f5344102210e69387ef7'
+          s=file.read_text()
+          edits=[
+            ("import TacoBoard from '@/components/TacoBoard';\n",''),
+            ("useState<'games'|'props'|'tacos'>('games')", "useState<'games'|'props'>('games')"),
+            ("const id = window.location.hash.slice(1); setView", "const id = window.location.hash.slice(1); if(id==='tacos'){window.location.replace('/apex#tacos');return;} setView"),
+            ("if(id==='props'||id==='tacos')setBoardMode(id)", "if(id==='props')setBoardMode(id)"),
+            (",['tacos','🌮 Tacos']", ''),
+            (" : (view==='sports'||view==='live') && boardMode==='tacos' ? <TacoBoard sport={sport}/>", ''),
+          ]
+          for old,new in edits:
+              assert s.count(old)==1, 'Changed source anchor: '+old
+              s=s.replace(old,new,1)
+          file.write_text(s)
+          Path('apps/guest-dashboard/components/TacoBoard.tsx').unlink()
+          test=Path('scripts/verify-sportsbook.mjs')
+          s=test.read_text()
+          anchor="import {sanitizePublicPayload} from '../lib/public-sanitize.mjs';"
+          assert s.count(anchor)==1
+          s=s.replace(anchor,anchor+"\nimport {assertTacoPlacement} from './assert-taco-placement.mjs';",1)
+          lines=s.splitlines()
+          matches=[i for i,line in enumerate(lines) if "name:'🌮 Tacos'" in line]
+          assert len(matches)==1
+          lines[matches[0]]=' await assertTacoPlacement(page,base,check);'
+          test.write_text('\n'.join(lines)+'\n')
+          Path('docs/tacos-autoscout-only.md').write_text('''# Taco placement correction\n\nOwner requested Tacos only in Auto Scout, not the sportsbook.\n\n- Sportsbook board switch contains Game lines and Player props only.\n- Removed the unused Next.js TacoBoard and its render/import path.\n- Legacy /sportsbooks#tacos and /#tacos redirect to /apex#tacos.\n- Auto Scout quick prop controls contain 🌮 Taco-only props, off by default.\n- Display-only isolated panel uses existing /api/apex/taco-offers and current sport.\n- Back to regular props restores the board; no changes to scanner rules, measured stats, Ask, saves, providers, credentials, backend routes or budgets.\n- Only verified feed offers with unexpired discount metadata display; empty, malformed and failed responses remain explicit. No live Taco availability is claimed.\n- Existing release build/QA now checks correct placement, no sportsbook entry, original/discounted lines, expired-offer rejection, mobile layout, sport switching and return navigation. Fixture data is confined to CI.\n\nPreserve parallel Auto Scout intelligence work; this correction only extends the existing public navigation bridge, not scout-ui-v5 state or closures.\n''')
+          PY
+          node --check public/edge-workspace-nav.js
+          node --check scripts/assert-taco-placement.mjs
+          git diff --check
+          git config user.name 'CodingForTheFun'
+          git config user.email '24641357+CodingForTheFun@users.noreply.github.com'
+          git add apps/guest-dashboard/components/SportsWorkspace.tsx apps/guest-dashboard/components/TacoBoard.tsx scripts/verify-sportsbook.mjs docs/tacos-autoscout-only.md
+          git commit -m 'Remove sportsbook Taco option and verify Auto Scout-only placement'
+          git push origin HEAD:chatgpt/tacos-autoscout-only

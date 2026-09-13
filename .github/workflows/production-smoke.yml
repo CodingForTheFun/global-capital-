@@ -35,4 +35,4 @@ jobs:
           AUTOSCOUT_EXPECTED_SHA: ${{ github.sha }}
           AUTOSCOUT_SMOKE_SPORTS: NFL,MLB
           AUTOSCOUT_PUBLIC_URL: https://autoprop-live-production.up.railway.app
-        run: node scripts/public-production-smoke.mjs
+        run: node scripts/public-production-smoke-v2.mjs

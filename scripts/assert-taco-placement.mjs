@@ -35,9 +35,21 @@ export async function assertTacoPlacement(page, base, check) {
   check(await page.locator('#asTacoPanel strong').textContent() === '15.5', 'Discounted line is retained');
   await page.screenshot({ path: 'artifacts/tacos-autoscout-mobile.png', fullPage: true });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Taco panel fits mobile');
+  // Hold the regular request to prove Taco reads wait for the cache owner.
+  let releaseBoard, sawBoard;
+  const boardSeen = new Promise(resolve => { sawBoard = resolve; });
+  const heldBoard = new Promise(resolve => { releaseBoard = resolve; });
+  await page.route('**/api/apex/props?sport=NBA', async route => {
+    sawBoard(); await heldBoard;
+    return route.fulfill({ json: { ok: true, props: [], meta: { sport: 'NBA' } } });
+  }, { times: 1 });
   await page.locator('#asSports').getByRole('button', { name: 'NBA', exact: true }).click();
+  await boardSeen;
+  await page.getByText('Waiting for this sport’s prop board…', { exact: true }).waitFor();
+  check(!requestedSports.includes('NBA') && await page.locator('#asTacoPanel article').count() === 0, 'Cold-cache sport waits for regular board without stale Taco cards');
+  releaseBoard();
   await page.getByRole('heading', { name: 'Taco QA NBA', exact: true }).waitFor();
-  check(requestedSports.at(-1) === 'NBA' && await page.getByRole('heading', { name: 'Taco QA NFL', exact: true }).count() === 0, 'Sport switch clears old Taco cards');
+  check(requestedSports.at(-1) === 'NBA' && await page.getByRole('heading', { name: 'Taco QA NFL', exact: true }).count() === 0, 'Board completion automatically loads the current sport’s Taco props');
   await page.setViewportSize({ width: 1600, height: 1100 });
   await page.screenshot({ path: 'artifacts/tacos-autoscout-desktop.png', fullPage: true });
   fixtureMode = 'failure';

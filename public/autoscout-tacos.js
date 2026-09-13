@@ -3,7 +3,7 @@
   'use strict';
   if (!/^\/apex\/?$/.test(location.pathname)) return;
   let active = location.hash === '#tacos', currentSport = '', pending = null;
-  let version = 0, scheduled = false, expiryTimer = null;
+  let version = 0, scheduled = false, expiryTimer = null, waitingForBoard = false;
   let offers = [], message = '', loading = false;
   const element = (tag, text, className) => {
     const node = document.createElement(tag);
@@ -29,7 +29,7 @@
     const heading = element('h2', '🌮 Taco-only props'); heading.id = 'asTacoHeading'; title.append(heading);
     const back = element('button', 'Back to regular props', 'asBtn'); back.type = 'button'; back.onclick = () => setActive(false);
     head.append(title, back); panel.append(head);
-    const status = element('p', loading ? 'Checking verified Taco props…' : message, 'asTacoStatus');
+    const status = element('p', waitingForBoard ? 'Waiting for this sport’s prop board…' : loading ? 'Checking verified Taco props…' : message, 'asTacoStatus');
     status.setAttribute('role', 'status'); panel.append(status);
     const list = element('div', undefined, 'asTacoCards');
     const seen = new Set();
@@ -75,7 +75,7 @@
   }
   function setActive(value) {
     active = value;
-    if (!active) { version++; pending?.abort(); pending = null; currentSport = ''; offers = []; clearTimeout(expiryTimer); }
+    if (!active) { version++; pending?.abort(); pending = null; currentSport = ''; offers = []; waitingForBoard = false; clearTimeout(expiryTimer); }
     history.replaceState(null, '', location.pathname + location.search + (active ? '#tacos' : ''));
     mount();
   }
@@ -104,14 +104,26 @@
     }
     panel.hidden = !active;
     const sport = getSport();
-    if (active && sport && sport !== currentSport) load(sport);
+    const boardBusy = root.querySelector('#asList')?.getAttribute('aria-busy') === 'true' || root.querySelector('#asRefresh')?.disabled;
+    // The Taco route reads the existing cache. Wait for its owning board request,
+    // rather than starting a second provider refresh or displaying a cold miss.
+    if (active && sport && boardBusy) {
+      if (!waitingForBoard || currentSport !== sport) {
+        version++; pending?.abort(); pending = null; currentSport = sport;
+        offers = []; loading = true; waitingForBoard = true; draw();
+      }
+      return;
+    }
+    if (active && sport && (waitingForBoard || sport !== currentSport)) {
+      waitingForBoard = false; load(sport);
+    }
   }
   // The existing shell rerenders quick controls. Reattach without changing its
   // closures, filter values, research payload, saved props or scan rules.
   const observer = new MutationObserver(() => {
     if (!scheduled) { scheduled = true; requestAnimationFrame(() => { scheduled = false; mount(); }); }
   });
-  const observe = () => observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-pressed'] });
+  const observe = () => observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-pressed', 'aria-busy', 'disabled'] });
   observe();
   document.addEventListener('click', event => {
     if (active && event.target instanceof Element && event.target.closest('.as5 [data-view], .as5 [data-quick]')) setActive(false);

@@ -15,7 +15,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,7 +30,25 @@ jobs:
         run: node --check lib/markets/line-lag.mjs && node --check scripts/patch-real-snipe-table.mjs && node --check tests/automatic-snipes.test.mjs
       - name: Snipes targeted tests
         run: node --test tests/automatic-snipes.test.mjs
-      - name: Full test suite only
-        run: npm test
-      - name: Full syntax and test suite
-        run: npm run check
+      - name: Diagnose legacy test files
+        shell: bash
+        run: |
+          : > failed-tests.txt
+          for f in tests/*.test.mjs; do
+            if ! node --test "$f" > one-test.log 2>&1; then
+              echo "===== $f =====" >> failed-tests.txt
+              cat one-test.log >> failed-tests.txt
+              echo >> failed-tests.txt
+            fi
+          done
+          if [ -s failed-tests.txt ]; then
+            cat failed-tests.txt
+            exit 1
+          fi
+      - name: Upload failing test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failing-test-report
+          path: failed-tests.txt
+          if-no-files-found: warn

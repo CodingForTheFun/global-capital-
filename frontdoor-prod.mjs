@@ -98,7 +98,7 @@ function target(rawUrl = '/') {
     return { port: APEX_NEXT_PORT, path: url.pathname + url.search, injectShell: false };
   }
   if (url.pathname === '/api/apex-next/health') return { port: APEX_NEXT_PORT, path: '/api/health' + url.search, injectShell: false, sanitizeJson: true };
-  if (url.pathname === '/api/apex-next/props') return { port: APEX_NEXT_PORT, path: '/api/props' + url.search, injectShell: false, sanitizeJson: true };
+  if (url.pathname === '/api/apex-next/props') return { port: APEX_PORT, path: '/api/props' + url.search, injectShell: false, sanitizeJson: true };
 
   return { port: SCOUT_PORT, path: rawUrl, injectShell: false };
 }

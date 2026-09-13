@@ -13,3 +13,10 @@ test('Edge extends the current frontdoor without replacing account/provider hand
 test('Edge patch refuses an unknown or already-patched server', () => {
   assert.throws(() => patchEdgeFrontdoor('unknown'), /anchors changed/);
 });
+
+// The retired secondary UI must use the same data core and provider gate.
+test('legacy prop alias cannot launch a second-process Odds API refresh',()=>{
+ const source=readFileSync(new URL('../frontdoor-prod.mjs',import.meta.url),'utf8');
+ const route=source.split('\n').find(line=>line.includes("url.pathname === '/api/apex-next/props'"));
+ assert.match(route,/port: APEX_PORT/);assert.doesNotMatch(route,/port: APEX_NEXT_PORT/);
+});

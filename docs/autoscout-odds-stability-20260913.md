@@ -17,7 +17,9 @@ specific OOM log, so the memory reproduction is evidence, not a claimed kernel d
 Ownership: Railway autoprop-worker uses the old autoprop-friends-v4 branch and
 has no THE_ODDS_API_KEY. The data core inside autoprop-live remains the sole
 scheduled Odds API owner. The frugal scheduler is disabled when ingestion is
-on. No key, environment, billing, volume or worker settings changed.
+on. The legacy `/api/apex-next/props` alias also routes to the same core instead
+of allowing the separate v3 child to refresh independently. No key, environment,
+billing, volume or worker settings changed.
 
 Changes: shared forced/browser refreshes, stale-while-revalidate, persisted 429
 cooldown, Retry-After and bounded backoff, one half-open probe, global limit 2

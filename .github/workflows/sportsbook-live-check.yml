@@ -2,7 +2,7 @@ name: Sportsbook main live verification
 on:
   push:
     branches: [production-stable]
-    paths: ['apps/guest-dashboard/**', 'lib/projections/ask.mjs', 'lib/edge/gateway.mjs', 'scripts/verify-sportsbook-live.mjs', '.github/workflows/sportsbook-live-check.yml']
+    paths: ['apps/guest-dashboard/**', 'lib/projections/**', 'lib/edge/**', 'lib/autoscout/providers/**', 'lib/public-sanitize.mjs', 'lib/auth/gate.mjs', 'frontdoor-prod.mjs', 'frontdoor-clearsports.mjs', 'apex-v2/server-core.mjs', 'apex-v2/scout-ui-v5.js', 'scripts/verify-sportsbook-live.mjs', '.github/workflows/sportsbook-live-check.yml']
 permissions:
   contents: read
 jobs:

@@ -1,6 +1,6 @@
 # Win Predictor evidence checkpoint
 
-The active player-research feed does not supply verified team-win forecasts or complete moneyline snapshots. Win Predictor must remain unavailable until an authorized feed supplies that evidence. The retired game-market route must not be re-enabled as a side effect. This module adds no requests, provider budgets or scheduled work.
+At the initial checkpoint, the active player-research feed did not supply verified team-win forecasts or complete moneyline snapshots. Win Predictor remained unavailable pending a verified evidence connection. The published forecast connection below supersedes that initial availability state. The retired game-market route must not be re-enabled as a side effect. This module adds no requests, provider budgets or scheduled work.
 
 `analyzeWinMarket` accepts canonical, exact-event bookmaker moneyline snapshots. Event, sport, teams, kickoff, period and settlement must match. A provider adapter must verify the event mapping and settlement rules before constructing this contract; neither names alone nor a sport-based assumption is sufficient.
 

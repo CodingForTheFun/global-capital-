@@ -1,0 +1,32 @@
+name: Oblige test diagnostics
+
+on:
+  push:
+    branches:
+      - chatgpt/oblige-props-owner-console-20260913
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run tests and capture output
+        shell: bash
+        run: |
+          set +e
+          npm test > oblige-test-output.txt 2>&1
+          code=$?
+          echo "$code" > oblige-test-exit.txt
+          exit 0
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oblige-test-diagnostics
+          path: |
+            oblige-test-output.txt
+            oblige-test-exit.txt
+          retention-days: 1

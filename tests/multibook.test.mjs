@@ -56,6 +56,8 @@ test('unsafe next-page URLs and malformed snapshots cannot replace the last vali
  await service.refresh();time=2;mode='bad';await service.refresh();assert.equal(calls,2);assert.equal((await service.board('NBA',{props:[]})).props.length,2);
  time=1e9;mode='invalid';await service.refresh();assert.equal((await service.board('NBA',{props:[]})).props.length,2);
 });
-test('DFS excludes partial-game, team-unit, and unsupported fantasy markets',()=>{
- for(const stat of ['1H Points','Team sacks allowed','Fantasy Points']){const payload=pp();payload.data[0].attributes.stat_type=stat;assert.equal(normalizePrizePicks(payload).length,0,stat);}
+test('DFS keeps source player categories while still excluding team-unit props',()=>{
+ const firstHalf=pp();firstHalf.data[0].attributes.stat_type='1H Points';const firstHalfRows=normalizePrizePicks(firstHalf);assert.equal(firstHalfRows.length,1);assert.equal(firstHalfRows[0].period,'h1');
+ const fantasy=pp();fantasy.data[0].attributes.stat_type='Fantasy Points';assert.equal(normalizePrizePicks(fantasy).length,1);
+ const team=pp();team.data[0].attributes.stat_type='Team sacks allowed';assert.equal(normalizePrizePicks(team).length,0);
 });

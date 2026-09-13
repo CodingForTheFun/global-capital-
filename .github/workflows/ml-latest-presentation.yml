@@ -1,0 +1,36 @@
+name: Inspect final presentation integration
+on:
+  push:
+    branches: [chatgpt/prop-ml-integration]
+    paths: [.github/workflows/ml-latest-presentation.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Capture exact presentation conflicts; never update branches
+        run: |
+          mkdir -p /tmp/presentation
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-commit --no-ff fb509ff648d528b9d0a3f6f410e265de140d9e71 > /tmp/presentation/merge.txt 2>&1 || true
+          git diff --name-only --diff-filter=U > /tmp/presentation/conflicts.txt
+          git diff --cc > /tmp/presentation/conflicts.patch
+          python3 <<'PY'
+          import pathlib,subprocess,tarfile
+          with tarfile.open('/tmp/presentation/combined.tar.gz','w:gz') as tar:
+              for name in sorted(set(subprocess.check_output(['git','ls-files','-z']).decode().split('\0'))):
+                  if name and pathlib.Path(name).is_file():tar.add(name,arcname=name,recursive=False)
+          PY
+          cat /tmp/presentation/merge.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ml-final-presentation
+          path: /tmp/presentation/
+          retention-days: 3

@@ -2,7 +2,7 @@ name: Prop ML and Taco verification
 on:
   pull_request:
     branches: [production-stable]
-    paths: ['lib/ml/**', 'lib/ui/ml-prediction*', 'lib/ui/offer-promotion*', 'apex-v2/scout-ui-v5.js', 'apps/guest-dashboard/components/MLPrediction.tsx', 'apps/guest-dashboard/components/TacoBadge.tsx', 'scripts/qa-prop-ml.mjs', 'scripts/verify-prop-ml-live.mjs', '.github/workflows/prop-ml-checks.yml']
+    paths: ['lib/ml/**', 'lib/ui/ml-prediction*', 'lib/ui/offer-promotion*', 'apex-v2/scout-ui-v5.js', 'apps/guest-dashboard/components/MLPrediction.tsx', 'apps/guest-dashboard/components/PropInsight.tsx', 'public/autoscout-tacos.js', 'lib/autoscout/providers/taco-offers.mjs', 'scripts/qa-prop-ml.mjs', 'scripts/verify-prop-ml-live.mjs', '.github/workflows/prop-ml-checks.yml']
   push:
     branches: [production-stable]
     paths: ['lib/ml/**', 'lib/ui/ml-prediction*', 'lib/ui/offer-promotion*', 'scripts/verify-prop-ml-live.mjs', '.github/workflows/prop-ml-checks.yml']
@@ -21,7 +21,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: node --check scripts/verify-prop-ml-live.mjs
-      - run: node --test tests/prop-ml-integration.test.mjs tests/taco-offer-isolation.test.mjs
+      - run: node --test tests/prop-ml-integration.test.mjs tests/taco-offer-isolation.test.mjs tests/taco-concurrent-integration.test.mjs
       - run: node scripts/qa-prop-ml.mjs
       - uses: actions/upload-artifact@v4
         if: always()

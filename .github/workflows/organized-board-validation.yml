@@ -2,7 +2,7 @@ name: Organized player board validation
 on:
   push:
     branches: [chatgpt/organized-player-board]
-    paths: [.github/workflows/organized-board-validation.yml]
+    paths: [.github/workflows/organized-board-validation.yml, scripts/finalize-organized-board.py]
 permissions:
   contents: write
 jobs:

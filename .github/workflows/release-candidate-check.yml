@@ -26,5 +26,9 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Syntax and test suite
+      - name: Snipes changed-file syntax
+        run: node --check lib/markets/line-lag.mjs && node --check lib/ui/snipe-table.mjs && node --check lib/autoscout/research-ui-runtime-patch.mjs && node --check tests/automatic-snipes.test.mjs
+      - name: Snipes targeted tests
+        run: node --test tests/automatic-snipes.test.mjs
+      - name: Full syntax and test suite
         run: npm run check

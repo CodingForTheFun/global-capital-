@@ -91,8 +91,8 @@ try{
   assert.equal(await page.locator('[data-market-key]').count()>0,true);
   assert.equal(await page.locator('.asAnalyticsPage [role="dialog"]').count(),0);
   assert.doesNotMatch(await page.locator('#as5').innerText(),/Game log available|\bGame log\b/i);
-  await page.locator('#asDetailSave').click();assert.equal(await page.locator('#asDetailSave').getAttribute('aria-pressed'),'true');
-  await page.locator('#asDetailSave').click();assert.equal(await page.locator('#asDetailSave').getAttribute('aria-pressed'),'false');
+  await page.locator('#asDetailSave').click();await page.waitForFunction(()=>document.querySelector('#asDetailSave')?.getAttribute('aria-pressed')==='true');
+  await page.locator('#asDetailSave').click();await page.waitForFunction(()=>document.querySelector('#asDetailSave')?.getAttribute('aria-pressed')==='false');
   await page.screenshot({path:path.join(out,`${name}-direct-analytics.png`),fullPage:true});
   await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
   assert.equal(await page.locator('.asAnalyticsPage').evaluate(e=>e.getBoundingClientRect().bottom<=document.querySelector('.asNav').getBoundingClientRect().top),true,'last content clears the bottom bar');

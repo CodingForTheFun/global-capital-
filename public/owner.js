@@ -37,6 +37,7 @@ function activeAccess(userId) {
   return state.access.get(userId) || { plan:'free', planName:'Free', expiresAt:null, source:null };
 }
 function isPro(access) { return access?.plan === 'pro'; }
+function processorManaged(access) { return isPro(access) && Boolean(access?.source) && access.source !== 'owner-console'; }
 function isOnline(member) { return member?.presence === 'ONLINE'; }
 function accessLabel(access) {
   if (!isPro(access)) return 'Free';
@@ -45,7 +46,7 @@ function accessLabel(access) {
 function sourceLabel(source) {
   if (!source) return 'No paid access';
   if (source === 'owner-console') return 'Owner granted';
-  return `Source: ${source}`;
+  return 'Billing managed';
 }
 
 function renderKpis(overview) {
@@ -79,6 +80,7 @@ function renderMembers() {
     const access = activeAccess(m.id);
     const own = m.id === state.me?.id;
     const busy = state.busy.has(m.id);
+    const managed = processorManaged(access);
     const devices = Array.isArray(m.devices) ? m.devices : [];
     const accessAction = isPro(access) ? 'extend' : 'grant';
     const status = m.disabled ? '<span class="pill banned">BANNED</span>'
@@ -94,6 +96,12 @@ function renderMembers() {
         <span>IP ${esc(d.ip || 'Unavailable')}</span>
         <button class="btn small" data-action="revoke-device" data-user="${esc(m.id)}" data-session="${esc(d.id)}" ${busy ? 'disabled' : ''}>Sign out device</button>
       </div>`).join('') : '<div class="device"><b>No active devices</b><span>This account has no live sessions.</span></div>';
+    const accessButtons = managed
+      ? '<span class="pill pro">MANAGED BY BILLING</span>'
+      : `<button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="7" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+7d</button>
+        <button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="30" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+30d</button>
+        <button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="90" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+90d</button>
+        ${isPro(access) ? `<button class="btn small" data-action="revoke-access" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>Remove Pro</button>` : ''}`;
     return `<article class="member" data-user-row="${esc(m.id)}">
       <div class="account">
         <strong>${esc(m.email)}</strong>
@@ -104,10 +112,7 @@ function renderMembers() {
       <div class="metric"><span>Last seen</span><strong>${esc(when(m.lastSeenAt))}</strong></div>
       <div class="metric"><span>Sessions</span><strong>${Number(m.activeSessions || devices.length || 0)}</strong></div>
       <div class="actions">
-        <button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="7" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+7d</button>
-        <button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="30" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+30d</button>
-        <button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="90" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+90d</button>
-        ${isPro(access) ? `<button class="btn small" data-action="revoke-access" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>Remove Pro</button>` : ''}
+        ${accessButtons}
         <button class="btn small ${m.disabled ? 'good' : 'danger'}" data-action="ban" data-user="${esc(m.id)}" data-disabled="${m.disabled ? 'false' : 'true'}" ${busy || own ? 'disabled' : ''}>${m.disabled ? 'Restore' : 'Ban'}</button>
         <button class="btn small" data-action="role" data-user="${esc(m.id)}" data-role="${m.role === 'owner' ? 'member' : 'owner'}" ${busy || own ? 'disabled' : ''}>${m.role === 'owner' ? 'Make member' : 'Make owner'}</button>
       </div>

@@ -1,12 +1,14 @@
-FROM mcr.microsoft.com/playwright:v1.63.0-noble
+FROM node:22-slim AS build
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+COPY frontend/ ./
+RUN npm test && npm run build
+FROM node:22-slim
+ENV NODE_ENV=production PORT=3000
 WORKDIR /app
-ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 NEXT_TELEMETRY_DISABLED=1
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund
-COPY apps/guest-dashboard/package.json ./apps/guest-dashboard/package.json
-RUN npm --prefix apps/guest-dashboard install --include=dev --no-audit --no-fund
-COPY . .
-RUN node scripts/prepare-edge-deploy.mjs && npm --prefix apps/guest-dashboard run build
-ENV NODE_ENV=production PORT=3000 HEADLESS=true
+COPY --from=build --chown=node:node /app/frontend/dist ./frontend/dist
+COPY --chown=node:node server.mjs ./server.mjs
+USER node
 EXPOSE 3000
-CMD ["node","frontdoor-clearsports.mjs"]
+CMD ["node","server.mjs"]

@@ -1,0 +1,39 @@
+name: Independent Edge build and browser verification
+on:
+  push:
+    branches: [standalone/edge-sports-20260912]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  standalone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install standalone dependencies
+        run: npm --prefix frontend install --no-audit --no-fund
+      - name: Verify arithmetic and build
+        run: |
+          npm --prefix frontend test
+          npm --prefix frontend run build
+      - name: Install browser verification tools
+        run: |
+          cd frontend && npx playwright install --with-deps chromium
+          npm install -g agent-browser
+      - name: Verify desktop, mobile, research, history and isolation
+        run: node scripts/verify-browser.mjs
+      - name: Package independent source
+        if: always()
+        run: tar --exclude=node_modules --exclude=dist --exclude=.git --exclude=artifacts -czf /tmp/edge-standalone-source.tar.gz . && mkdir -p artifacts && cp /tmp/edge-standalone-source.tar.gz artifacts/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: edge-standalone-verified
+          path: |
+            artifacts/
+            frontend/package-lock.json
+          retention-days: 14

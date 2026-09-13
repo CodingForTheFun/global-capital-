@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {decimalOdds,americanOdds,quote,summarize} from '../src/lib/domain.ts';
+const s=(eventId,price=-110)=>({id:eventId,eventId,label:'Sample',matchup:'A @ B',market:'Spread',sport:'NBA',price});
+test('American odds conversion preserves sign and return',()=>{assert.equal(decimalOdds(200),3);assert.equal(decimalOdds(-200),1.5);assert.equal(americanOdds(3),200);assert.equal(americanOdds(1.5),-200);});
+test('invalid prices and stakes are rejected',()=>{for(const n of [0,50,-50,NaN,Infinity])assert.throws(()=>decimalOdds(n));for(const n of [0,-1,NaN,Infinity,10001])assert.throws(()=>quote([s('a')],n,'singles'));assert.throws(()=>quote([],10,'singles'));});
+test('singles use a stake per selection and include principal in return',()=>{assert.deepEqual(quote([s('a',100),s('b',200)],10,'singles'),{totalStake:20,payout:50,profit:30});});
+test('cross-game parlay math is independent hypothetical arithmetic',()=>{assert.deepEqual(quote([s('a',100),s('b',200)],10,'parlay'),{totalStake:10,payout:60,profit:50});});
+test('same-game parlay cannot reuse independent price math',()=>{assert.throws(()=>quote([s('a'),s('a')],10,'parlay'),/Same-game/);assert.equal(quote([s('a',100),s('a',100)],10,'singles').payout,40);});
+test('strict over and under count pushes separately',()=>{const over=summarize([14,15,11,13,16],13,'OVER');assert.equal(over.hits,3);assert.equal(over.pushes,1);assert.equal(over.rate,75);assert.equal(summarize([14,15,11,13,16],13,'UNDER').rate,25);});
+test('all pushes and empty samples do not fabricate a hit rate',()=>{assert.equal(summarize([10,10],10,'OVER').rate,null);assert.equal(summarize([],10,'OVER').average,null);});
+test('half-point sample adjustment recomputes the hit rate',()=>{assert.equal(summarize([31,29,24,35,28],26.5,'OVER').rate,80);assert.equal(summarize([31,29,24,35,28],29,'OVER').rate,50);});

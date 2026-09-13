@@ -1,7 +1,5 @@
-node_modules
-.env
 .git
-.gitignore
-data/*
-!data/.gitkeep
-*.zip
+**/node_modules
+**/dist
+**/.env*
+artifacts

@@ -8,7 +8,7 @@ const q=(book,side,line)=>({...group,sportsbookKey:book,sportsbook:book,side,lin
 test('presentation preserves push break-even and does not invent EV from missing forecasts',()=>{
  const html=proToolsHtml(proToolsAnalysis({...group,rows:[q('<img src=x>','OVER',20),q('Other','UNDER',20)]},{now}));
  assert.match(html,/Lowest scenario return<\/dt><dd>0.00%/);
- assert.match(html,/No qualifying positive EV/);
+ assert.doesNotMatch(html,/data-pro-tool="ev"|Unavailable:/);
  assert.match(html,/push<\/td><td>push/);
  assert.match(html,/Execution and matching settlement rules have not been verified/);
  assert.match(html,/&lt;img src=x&gt;/);assert.doesNotMatch(html,/<img/);

@@ -164,7 +164,7 @@ async function verifyBrowser(cookie) {
     // odds strip, so these are the surfaces that carry that data now. The old
     // .asHeaderRow is still in the DOM but is display:none, which makes its
     // innerText empty — assert the badges instead of a hidden element.
-    for (const selector of ['#asSports', '#asSearch', '#asMarket', '#asBook', '#asSide', '#asSort', '#asSummary', '#asList', '.asBadges', '.asOddsStrip', '.asAvatar img', '.asResearchState']) {
+    for (const selector of ['#asSports', '#asSearch', '#asMarket', '#asBooksOpen', '#asSide', '#asSort', '#asSummary', '#asList', '.asBadges', '.asOddsStrip', '.asAvatar img', '.asResearchState']) {
       if (await page.locator(selector).count() < 1) throw new Error(`Auto Scout v5 control or data surface missing in production: ${selector}`);
     }
 

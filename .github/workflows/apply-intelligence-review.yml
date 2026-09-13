@@ -1,0 +1,73 @@
+name: Apply and validate Auto Scout research source
+on:
+  push:
+    branches: [chatgpt/autoscout-intelligence-integration-20260913]
+    paths: ['.review/intelligence-patch-*.txt', '.github/workflows/apply-intelligence-review.yml']
+permissions:
+  contents: write
+concurrency:
+  group: apply-intelligence-source
+  cancel-in-progress: false
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/autoscout-intelligence-integration-20260913
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate transport and apply only reviewed source paths
+        id: apply
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f .review/intelligence-patch-4.txt ]; then echo 'ready=false' >> "$GITHUB_OUTPUT"; exit 0; fi
+          python3 - <<'PY'
+          import base64, gzip, hashlib, pathlib, subprocess
+          parts = [pathlib.Path(f'.review/intelligence-patch-{i}.txt').read_text().strip() for i in range(1,5)]
+          text = ''.join(parts).replace('JyRxS nQAE11', 'JyRXsNQAE11')
+          payload = gzip.decompress(base64.b64decode(text, validate=True))
+          expected = 'd0de739d7e777ad4ff1c1b5d77e069e009a572138bf2a38b3847ca97610b71b9'
+          assert hashlib.sha256(payload).hexdigest() == expected, 'Source transport checksum mismatch'
+          target = pathlib.Path('/tmp/intelligence-reviewed.patch'); target.write_bytes(payload)
+          allowed = {'apex-v2/scout-ui-v5.js','frontdoor-prod.mjs','lib/autoscout/intelligence.mjs','lib/ui/intelligence-studio.mjs','scripts/test-intelligence-browser.mjs','tests/autoscout-intelligence-integration.test.mjs','docs/autoscout-intelligence-integration-20260913.md'}
+          actual = set(line.split('\t')[-1] for line in subprocess.check_output(['git','apply','--numstat',str(target)], text=True).splitlines())
+          assert actual == allowed, f'Unexpected changed paths: {actual}'
+          subprocess.run(['git','apply','--check','--index',str(target)], check=True)
+          subprocess.run(['git','apply','--index',str(target)], check=True)
+          PY
+          node --check lib/autoscout/intelligence.mjs
+          node --check lib/ui/intelligence-studio.mjs
+          node --check apex-v2/scout-ui-v5.js
+          node --test tests/autoscout-intelligence-integration.test.mjs
+          git rm .review/intelligence-patch-*.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Add scoped Auto Scout intelligence studio with verified evidence and tests'
+          git push origin HEAD:chatgpt/autoscout-intelligence-integration-20260913
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
+      - name: Install existing dependencies
+        if: steps.apply.outputs.ready == 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Full existing regression gate
+        if: steps.apply.outputs.ready == 'true'
+        run: npm run check
+      - name: Desktop and mobile research interaction tests
+        if: steps.apply.outputs.ready == 'true'
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/test-intelligence-browser.mjs
+      - name: Export exact resulting source
+        if: ${{ always() && steps.apply.outputs.ready == 'true' }}
+        run: git archive --format=zip --output=/tmp/intelligence-reviewed-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.apply.outputs.ready == 'true' }}
+        with:
+          name: intelligence-reviewed-source-and-browser
+          path: |
+            /tmp/intelligence-reviewed-source.zip
+            test-results/intelligence/
+          retention-days: 3

@@ -1,0 +1,49 @@
+name: Intelligence release review
+on:
+  push:
+    branches: [chatgpt/autoscout-intelligence-release-v2]
+  pull_request:
+    paths:
+      - 'lib/ui/intelligence*'
+      - 'apex-v2/intelligence*'
+      - 'tests/intelligence*'
+      - 'scripts/qa-intelligence*'
+      - '.github/workflows/intelligence-release-review.yml'
+permissions:
+  contents: read
+concurrency:
+  group: intelligence-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: git archive --format=zip --output=/tmp/intelligence-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: intelligence-source
+          path: /tmp/intelligence-source.zip
+          retention-days: 1
+      - name: Release regression
+        if: ${{ hashFiles('tests/intelligence-integration.test.mjs') != '' }}
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+      - name: Browser regression
+        if: ${{ hashFiles('scripts/qa-intelligence.mjs') != '' }}
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/qa-intelligence.mjs
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && hashFiles('scripts/qa-intelligence.mjs') != '' }}
+        with:
+          name: intelligence-browser-evidence
+          path: test-results/intelligence/
+          retention-days: 3

@@ -30,5 +30,7 @@ jobs:
         run: node --check lib/markets/line-lag.mjs && node --check scripts/patch-real-snipe-table.mjs && node --check tests/automatic-snipes.test.mjs
       - name: Snipes targeted tests
         run: node --test tests/automatic-snipes.test.mjs
+      - name: Full test suite only
+        run: npm test
       - name: Full syntax and test suite
         run: npm run check

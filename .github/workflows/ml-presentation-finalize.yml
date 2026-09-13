@@ -1,0 +1,86 @@
+name: Validate final combined prop presentation
+on:
+  push:
+    branches: [chatgpt/prop-ml-integration]
+    paths: [.github/workflows/ml-presentation-finalize.yml]
+permissions:
+  contents: write
+jobs:
+  candidate:
+    if: github.repository == 'CodingForTheFun/global-capital-' && github.ref == 'refs/heads/chatgpt/prop-ml-integration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Retain both independently reviewed presentation additions
+        id: merge
+        run: |
+          mkdir -p validation-output
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-commit --no-ff fb509ff648d528b9d0a3f6f410e265de140d9e71 > validation-output/merge.txt 2>&1 || true
+          python3 <<'PY'
+          from pathlib import Path
+          import hashlib,re,subprocess
+          conflicts=set(subprocess.check_output(['git','diff','--name-only','--diff-filter=U']).decode().splitlines())
+          assert conflicts=={'apex-v2/scout-ui-v5.js','frontdoor-prod.mjs'},conflicts
+          expected={'apex-v2/scout-ui-v5.js':('bc1feccc752d45354f5322beed4671c5b00bd8ec8db019023eaa6b244b9ac1c0','70940f6dc3c45bdd75e2de58dabf18624057271b1eb46f9a4e2078dd952664d1'),'frontdoor-prod.mjs':('c90258b441ed16416c9b5f0efed4b0a757f83c9a8d408e9253eb976a79a23963','f393c18b0ee5da51e34f9c8012546ee6dea323095d42f60b30a1c9a53091c0e2')}
+          for name,(old,new) in expected.items():
+              p=Path(name);s=p.read_text();assert hashlib.sha256(s.encode()).hexdigest()==old,name
+              def resolve(m):
+                  left,right=m.group(1),m.group(2)
+                  if name.startswith('apex'):
+                      assert (left.startswith('var {createMLClient') and right.startswith('// Optional presentation')) or (left.strip()=='hydrateML();' and right.strip().startswith("if(panel==='intelligence'"))
+                      return left+right
+                  assert left.strip().startswith("'lib/ui/offer-promotion.mjs'") and right.strip().startswith("'lib/ui/intelligence-studio.mjs'")
+                  return "  'lib/ui/intelligence-studio.mjs', 'lib/autoscout/intelligence.mjs',\n"+left
+              s,n=re.subn(r'<<<<<<< HEAD\n(.*?)=======\n(.*?)>>>>>>> fb509ff648d528b9d0a3f6f410e265de140d9e71\n',resolve,s,flags=re.S)
+              assert n==(2 if name.startswith('apex') else 1)
+              assert hashlib.sha256(s.encode()).hexdigest()==new,name
+              p.write_text(s)
+          subprocess.run(['git','add','--',*expected],check=True)
+          assert not subprocess.check_output(['git','diff','--name-only','--diff-filter=U']).strip()
+          PY
+      - name: Existing full regression gate
+        id: regression
+        run: |
+          set -o pipefail
+          npm ci --no-audit --no-fund
+          npm run check 2>&1 | tee validation-output/regression.txt
+      - name: Both presentation browser gates
+        id: browsers
+        if: always() && steps.regression.outcome == 'success'
+        run: |
+          set -o pipefail
+          npx playwright install --with-deps chromium
+          node scripts/qa-prop-ml.mjs 2>&1 | tee validation-output/ml-browser.txt
+          node scripts/test-intelligence-browser.mjs 2>&1 | tee validation-output/intelligence-browser.txt
+      - name: Preserve exact candidate
+        if: always() && steps.merge.outcome == 'success'
+        run: |
+          python3 <<'PY'
+          import pathlib,subprocess,tarfile
+          with tarfile.open('validation-output/tested-source.tar.gz','w:gz') as t:
+              for name in sorted(set(subprocess.check_output(['git','ls-files','-z']).decode().split('\0'))):
+                  if name and pathlib.Path(name).is_file():t.add(name,arcname=name,recursive=False)
+          PY
+          cp -R test-results validation-output/ 2>/dev/null || true
+      - name: Publish validated source to isolated feature only
+        if: steps.regression.outcome == 'success' && steps.browsers.outcome == 'success'
+        run: |
+          set -o pipefail
+          test "$(git branch --show-current)" = 'chatgpt/prop-ml-integration'
+          git commit -m 'Preserve Intelligence Studio alongside exact prop ML and Taco presentation'
+          git push origin HEAD:refs/heads/chatgpt/prop-ml-integration 2>&1 | tee validation-output/publish.txt
+          git rev-parse HEAD > validation-output/application-head.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ml-final-presentation-validation
+          path: validation-output/
+          retention-days: 5

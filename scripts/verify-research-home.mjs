@@ -31,6 +31,8 @@ async function ready(){await page.locator('#as5[data-product="autoscout"]').wait
 try{
  let healthy=false;for(let i=0;i<100;i++){try{healthy=(await fetch(base+'/api/health')).ok;if(healthy)break;}catch{}await new Promise(r=>setTimeout(r,400));}
  check(healthy,'Original server starts without a Next.js child process');
+ const accountHealth=await(await fetch(base+'/api/account/health')).json();
+ check(accountHealth.features?.sportsbook===false,'Account health no longer advertises the retired sportsbook');
  const gate=await(await fetch(base)).text();check(gate.includes('asResearchGate')&&gate.includes('id="authForm"'),'Root uses original Auto Scout account form');
  check(!gate.includes('ObligePay')&&!gate.includes('Betslip with Kelly'),'Signed-out branding and features are research-only');
  for(const api of ['/api/apex/props','/api/apex/research','/api/apex/research-batch','/api/apex/line-history','/api/props/ml'])check((await fetch(base+api)).status===401,api+' remains account protected');

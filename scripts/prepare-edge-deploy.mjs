@@ -6,6 +6,7 @@ for (const file of ['public/index.html', 'public/checkout.html']) {
   const source = readFileSync(file, 'utf8');
   const output = source.replaceAll('ObligePay Edge', 'Auto Scout')
     .replaceAll('AutoProp Scout Pro', 'Auto Scout')
+    .replaceAll('AutoProp Scout', 'Auto Scout')
     .replaceAll('<b>AutoProp</b><em>Scout Pro</em>', '<b>Auto</b><em>Scout</em>')
     .replaceAll('<b>ObligePay</b><em>Edge</em>', '<b>Auto</b><em>Scout</em>')
     .replace(/<link[^>]+href="\/assets\/edge-theme\.css"[^>]*>/g, '');

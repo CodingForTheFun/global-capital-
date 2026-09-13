@@ -2,7 +2,7 @@ name: ObligePay Edge integrated release
 on:
   pull_request:
     branches: [production-stable]
-    paths: ['apps/guest-dashboard/**', 'lib/edge/**', 'public/edge-workspace-*', 'scripts/*edge*', 'scripts/verify-workspace.mjs', 'frontdoor-clearsports.mjs', 'Dockerfile', '.github/workflows/edge-release.yml']
+    paths: ['apps/guest-dashboard/**', 'lib/edge/**', 'lib/projections/**', 'lib/autoscout/providers/**', 'public/edge-workspace-*', 'scripts/*edge*', 'scripts/verify-workspace.mjs', 'scripts/verify-sportsbook.mjs', 'frontdoor-clearsports.mjs', 'Dockerfile', '.github/workflows/edge-release.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -35,6 +35,8 @@ jobs:
         run: node scripts/verify-edge-release.mjs
       - name: Test Sportsbooks and Auto Scout shared navigation
         run: node scripts/verify-workspace.mjs
+      - name: Test game markets, projected stats and configured Ask
+        run: node scripts/verify-sportsbook.mjs
       - name: Retain verification evidence
         if: always()
         uses: actions/upload-artifact@v4

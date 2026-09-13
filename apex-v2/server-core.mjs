@@ -1,3 +1,4 @@
+import { fetchGameBoard, fetchTacoBoard } from '../lib/autoscout/providers/the-odds-api.mjs';
 import { startFrugalPersistence } from '../lib/autoscout/persistence-scheduler.mjs';
 import crypto from 'node:crypto';
 import http from 'node:http';
@@ -129,6 +130,14 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   if (req.method === 'GET' && url.pathname === '/api/health') {
     return json(res, 200, { ok: true, service: 'autoscout-apex', startedAt, supportedSports: SUPPORTED_SPORTS, ...providerHealth(), persistence: persistenceHealth() });
+  }
+  if (url.pathname === '/api/game-markets' || url.pathname === '/api/taco-offers') {
+    if(req.method !== 'GET') return json(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'});
+    if(!rateAllowed(req,'game-markets',30,60000)) return json(res,429,{ok:false,code:'RATE_LIMITED'});
+    const sport=String(url.searchParams.get('sport')||'NFL').toUpperCase();
+    if(!SUPPORTED_SPORTS.includes(sport))return json(res,400,{ok:false,code:'UNSUPPORTED_SPORT'});
+    try{return json(res,200,await(url.pathname==='/api/game-markets'?fetchGameBoard(sport):fetchTacoBoard(sport)));}
+    catch{return json(res,503,{ok:false,code:'FEED_UNAVAILABLE',message:'This feed is temporarily unavailable.'});}
   }
   if (req.method === 'GET' && url.pathname === '/api/props') return propsResponse(req, url, res);
   if (req.method === 'GET' && url.pathname === '/api/line-history') return lineHistoryResponse(req, url, res);

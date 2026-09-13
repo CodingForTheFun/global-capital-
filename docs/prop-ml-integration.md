@@ -102,4 +102,18 @@ rather than declaring a ready engine merely because the panel or API exists.
 
 ## Taco badge isolation
 
-Taco badges are only next to an individual quoted line, not a player headshot, category, or sportsbook heading. `lib/ui/offer-promotion.mjs` defines a normalized trusted-adapter contract: `promotion.type=taco`, `source=prizepicks`, `verified=true`, `status=active`, a source record ID, timezone-qualified starts/expires/observed times, and exact offerId/sport/eventId/playerId/marketId/side/line bindings. Source observations expire after 15 minutes or the stated expiry/kickoff, whichever is first. Missing metadata fails closed. These are **our normalized contract fields**, not a claim that The Odds API documents/supplies them. The existing adapter supplies no verified Taco feed; no real current Tacos have been fabricated, fetched or independently verified in this change. Scanner main-line rules are unchanged. The badge guard and distinct-prop examples are verified with synthetic fixtures only.
+Taco badges are only next to an individual quoted line, not a player headshot, category, or sportsbook heading. `lib/ui/offer-promotion.mjs` defines a normalized trusted-adapter contract: `promotion.type=taco`, `source=prizepicks`, `verified=true`, `status=active`, a source record ID, timezone-qualified starts/expires/observed times, and exact offerId/sport/eventId/playerId/marketId/side/line bindings. Source observations expire after 15 minutes or the stated expiry/kickoff, whichever is first. Missing metadata fails closed. These are **our normalized contract fields**, not a claim that The Odds API documents/supplies them. Live Taco availability remains unverified; no real current Tacos have been fabricated, fetched or independently verified in this change. Scanner main-line rules are unchanged. The badge guard and distinct-prop examples are verified with synthetic fixtures only.
+
+
+## Concurrent production integration
+
+Production advanced to cabfa191 during this change. Its main game board,
+recent-form estimate, explicit-click Ask/AI projection, and separate Auto Scout
+Taco-only view are preserved. Sportsbooks itself does not gain a Taco entry or
+badge. The separate Taco endpoint now carries its real normalized event/market
+identifiers and actual observation time; the shared validator requires that
+exact source record, a real explicit Taco designation, future expiry/kickoff and
+fresh observation before a line can have a badge. Its badge sits beside the
+individual discounted line, not the player's name. This is not evidence that a
+live source currently supplies any Taco offers. Fixture QA exercises positive,
+negative and expiry cases separately from production availability.

@@ -37,6 +37,7 @@ try{
     const pages=[];
     for(const path of ['/apex','/sportsbooks']){
       await page.goto(base+path,{waitUntil:'domcontentloaded',timeout:60000});
+      if(path==='/sportsbooks')await page.getByRole('button',{name:'Player props',exact:true}).click();
       await page.waitForSelector('.asML',{timeout:90000});
       await page.waitForFunction(()=>[...document.querySelectorAll('.asML')].length>0&&![...document.querySelectorAll('.asML')].some(e=>e.dataset.mlState==='loading'),null,{timeout:60000});
       const state=await page.locator('.asML').evaluateAll(nodes=>nodes.map(n=>({state:n.dataset.mlState,hasNumericForecast:!!n.querySelector('.asMLGrid'),label:n.innerText.slice(0,300)})));

@@ -1,0 +1,48 @@
+name: Auto Scout intelligence review
+on:
+  push:
+    branches: [chatgpt/autoscout-intelligence-integration-20260913]
+  pull_request:
+    paths:
+      - 'lib/autoscout/intelligence*'
+      - 'apex-v2/intelligence*'
+      - 'tests/autoscout-intelligence*'
+      - 'scripts/test-intelligence*'
+      - '.github/workflows/autoscout-intelligence-review.yml'
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Export exact tracked source for isolated local review
+        run: git archive --format=zip --output=/tmp/autoscout-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: autoscout-source
+          path: /tmp/autoscout-source.zip
+          retention-days: 1
+      - name: Regression tests when implementation exists
+        if: ${{ hashFiles('tests/autoscout-intelligence-integration.test.mjs') != '' }}
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+      - name: Browser tests when implementation exists
+        if: ${{ hashFiles('scripts/test-intelligence-browser.mjs') != '' }}
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/test-intelligence-browser.mjs
+      - name: Attach browser evidence
+        if: ${{ always() && hashFiles('scripts/test-intelligence-browser.mjs') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoscout-intelligence-browser-evidence
+          path: test-results/intelligence/
+          retention-days: 3

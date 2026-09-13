@@ -3,6 +3,8 @@
 var nativeFetch=window.fetch.bind(window);
 var {createMLClient,predictionHtml,predictionKey}=await import('/assets/lib/ui/ml-prediction.mjs');
 var mlClient=createMLClient({fetcher:nativeFetch});
+// Optional presentation enhancement: a failed studio load must not break the board.
+var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(()=>null);
 var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
 var playerChoices=new Map();
 var {tacoBadgeHtml,removeExpiredTacoBadges}=await import('/assets/lib/ui/offer-promotion.mjs');
@@ -115,11 +117,12 @@ function shell(){
  document.getElementById('asSettings').onclick=settingsPanel;
  document.addEventListener('keydown',e=>{if(!drawerState)return;if(e.key==='Escape'){e.preventDefault();closeDrawer();}if(e.key==='Tab'){var items=Array.from(document.querySelectorAll('.asDrawer button,.asDrawer select,.asDrawer input,.asDrawer a')).filter(x=>!x.disabled&&x.getClientRects().length);var first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}});
  document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;applyPreferences();renderAdvanced();renderSlip();
+ intelligence?.mountBoard({root:document.getElementById('as5'),onOpen:g=>{openDrawer(g);drawerState.panel='intelligence';renderDrawer();document.getElementById('asTab-intelligence')?.focus();}});
 }
 function focusToken(element){if(!element)return null;return{id:element.id,data:Object.fromEntries(['open','fav','side','window','filter','gameDetail','sort','cardChoice'].filter(k=>element.dataset?.[k]!=null).map(k=>[k,element.dataset[k]])),value:element.id==='asLineInput'?element.value:null};}
 function focusElement(token){if(!token)return null;if(token.id)return document.getElementById(token.id);var keys=Object.keys(token.data);return keys.length?Array.from(document.querySelectorAll('[data-open],[data-fav],[data-side],[data-window],[data-filter],[data-game-detail],[data-sort],[data-card-choice]')).find(x=>keys.every(k=>x.dataset[k]===token.data[k])):null;}
 function restoreFocus(token){var element=focusElement(token);if(element){if(token.value!=null)element.value=token.value;element.focus({preventScroll:true});}return element;}
-function closeDrawer(){document.getElementById('asDrawerBg')?.classList.remove('on');document.body.style.overflow='';document.querySelectorAll('.asMain,.asTop,.asNav').forEach(x=>x.inert=false);drawerState=null;if(lastFocus?.isConnected)lastFocus.focus();}
+function closeDrawer(){intelligence?.disposeDetails();document.getElementById('asDrawerBg')?.classList.remove('on');document.body.style.overflow='';document.querySelectorAll('.asMain,.asTop,.asNav').forEach(x=>x.inert=false);drawerState=null;if(lastFocus?.isConnected)lastFocus.focus();}
 function renderSports(){if(!document.getElementById('asSports').children.length)document.getElementById('asSports').innerHTML=SPORTS.map(s=>'<button class="asSport '+(s===sport?'on':'')+'" aria-pressed="'+(s===sport)+'" data-sport="'+s+'">'+s+'</button>').join('');document.querySelectorAll('[data-sport]').forEach(b=>{b.classList.toggle('on',b.dataset.sport===sport);b.setAttribute('aria-pressed',String(b.dataset.sport===sport));b.onclick=()=>{if(sport===b.dataset.sport)return;persistFilters();sport=b.dataset.sport;saveState();closeDrawer();restoreFilters();document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;page=1;renderAdvanced();load();};});}
 function viewGroups(){var current=groups().filter(g=>g.sport===sport);if(activeView!=='saved')return current;var merged=new Map(current.filter(g=>favorites.has(g.key)).map(g=>[g.key,g]));savedRecords.forEach(g=>{if(g.sport===sport&&favorites.has(g.key)&&!merged.has(g.key))merged.set(g.key,{...g,archived:true});});return Array.from(merged.values());}
 // Sports come from what the board actually serves. Adding a chip for a league
@@ -941,6 +944,7 @@ function renderListLight(){
  renderBatchControl();
  if(!hydrateFailed)hydrateBoard();
  renderSummary();renderQuick();lastFocus=focusElement(origin)||lastFocus;if(focused&&!drawerState)restoreFocus(focused);
+ intelligence?.updateBoard({groups:a,allGroups:groups(),scope:sport,at:payload.meta?.fetchedAt,stale:payload.meta?.stale});
 }
 // Fisher-Yates. Walks the array from the end, swapping each element with a
 // uniformly chosen one at or before it, so every permutation is equally likely.
@@ -1072,6 +1076,18 @@ function historyChart(series){
  var x=t=>45+(t-t0)/span*510,y=v=>145-(v-low)/(high-low)*120;
  return'<div class="asHistoryChart"><svg viewBox="0 0 600 190" role="img" aria-label="Persisted line observations over time"><line x1="45" y1="155" x2="555" y2="155" stroke="#365578"/><text x="8" y="30">'+esc(dec(high))+'</text><text x="8" y="148">'+esc(dec(low))+'</text>'+rows.map(row=>'<circle cx="'+x(row.observedAt).toFixed(2)+'" cy="'+y(row.line).toFixed(2)+'" r="4" fill="#70aaff"><title>'+esc(new Date(row.created_at).toLocaleString()+' · Line '+row.line+' · Price '+money(row.price))+'</title></circle>').join('')+'<text x="45" y="180">'+esc(when(series.first.created_at))+'</text><text x="555" y="180" text-anchor="end">'+esc(when(series.last.created_at))+'</text></svg><p class="asNotice">Each dot is a stored observation. The table shows observed line or price changes.</p></div>';
 }
+async function intelligenceReadHistory(g,book,side){
+ var pid=propIdForRow(g.rows[0])||g.propId;
+ if(!pid)return{configured:false,rows:[],propId:null};
+ var key=[pid,book,side].join('|'),entry=historyCache.get(key);
+ if(!entry||entry.expires<=Date.now()){
+  var promise=nativeFetch('/api/apex/line-history?'+new URLSearchParams({propId:pid,bookmaker:book,side,limit:1000}),{signal:AbortSignal.timeout(15000)})
+   .then(async response=>{if(!response.ok)throw Error('History unavailable');return response.json();});
+  entry={promise,expires:Date.now()+60000};historyCache.set(key,entry);
+ }
+ try{return{...(await entry.promise),propId:pid};}
+ catch(error){if(historyCache.get(key)===entry)historyCache.delete(key);throw error;}
+}
 async function historyHtml(g,book,side){
  var pid=propIdForRow(g.rows[0])||g.propId;if(!pid)return'<p class="asNotice">Line history is unavailable for this prop.</p>';
  var key=[pid,book,side].join('|'),entry=historyCache.get(key),j;
@@ -1119,7 +1135,7 @@ function renderDrawer(){
  var section=(title,body,sub='')=>'<section class="asSection"><div class="asSectionTitle"><h3>'+title+'</h3><span>'+sub+'</span></div><div class="asSectionBody">'+body+'</div></section>';
  var controls='<div class="asResearchTop"><label>Market<select class="asMarketSelect" id="asMarketSwitch">'+marketOptions(g)+'</select></label><div><label>Research line</label><div class="asLineCtl"><button class="asLineBtn" id="asLineMinus" aria-label="Decrease line">−</button><input class="asLineVal" id="asLineInput" type="number" step="0.5" aria-label="Research line" value="'+(line==null?'':line)+'"><button class="asLineBtn" id="asLinePlus" aria-label="Increase line">+</button></div></div></div><div class="asSideToggle">'+['OVER','UNDER'].map(x=>'<button class="asSideBtn '+x.toLowerCase()+' '+(side===x?'on':'')+'" data-side="'+x+'" aria-pressed="'+(side===x)+'">'+x+'</button>').join('')+'</div><p class="asNotice">Adjusting this line changes your research, not sportsbook offers.</p>';
  var filters='<div class="asFilterRow">'+[['all','All'],['home','Home'],['away','Away'],['h2h','VS '+(r?.matchup?.opponent||'opponent')]].map(([id,label])=>'<button class="asFilterBtn '+(drawerState.filter===id?'on':'')+'" data-filter="'+id+'" aria-pressed="'+(drawerState.filter===id)+'">'+esc(label)+'</button>').join('')+'</div>';
- var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['sandbox','Scenario'],['ask','Ask']];
+ var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['intelligence','Intelligence'],['sandbox','Scenario'],['ask','Ask']];
  var tabBar='<div class="asResearchTabs" role="tablist" aria-label="Player research sections">'+tabs.map(([id,label])=>'<button role="tab" class="asResearchTab" id="asTab-'+id+'" data-research-panel="'+id+'" aria-controls="asPanel-'+id+'" aria-selected="'+(panel===id)+'" tabindex="'+(panel===id?'0':'-1')+'">'+label+'</button>').join('')+'</div>';
  var logContent=filteredGames(r).length?gameTable(r,g):emptyLog(r,g,base);
  var projectionHtml=mlPanel(g,line,side)+projectionCard(g,line);
@@ -1127,8 +1143,10 @@ function renderDrawer(){
  var panels={sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
   ask:section('Ask about this prop',askPanel(g,line,side)),
   overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Game log',logContent),lines:section('Every book',bookMatrix(g))+section('Sportsbook line shop',comparisonRows(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
+ intelligence?.disposeDetails();
+ panels.intelligence='<div id="asIntelligenceDetail">'+(intelligence?'':'<p class="asNotice">Intelligence tools could not load. Reload the page; existing research remains available.</p>')+'</div>';
  document.getElementById('asDrawerBody').innerHTML=(g.archived?'<p class="asAvailability">Saved snapshot from '+esc(when(g.savedAt))+'. Current sportsbook offers are unavailable for this prop.</p>':'')+section('Research controls',controls)+(!base?'<div class="asLoading" role="status">Loading player research…</div>':!base.available?'<p class="asAvailability">'+esc(researchAvailability(base))+'</p><button class="asBtn" id="asRetryResearch">Retry research</button>':'')+tabBar+'<div role="tabpanel" id="asPanel-'+panel+'" aria-labelledby="asTab-'+panel+'" tabindex="0">'+panels[panel]+'</div>';
- document.querySelectorAll('[data-research-panel]').forEach(b=>{b.onclick=()=>{drawerState.panel=b.dataset.researchPanel;renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();var i=tabs.findIndex(t=>t[0]===b.dataset.researchPanel),next=e.key==='Home'?0:e.key==='End'?2:(i+(e.key==='ArrowRight'?1:2))%3;drawerState.panel=tabs[next][0];renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};});
+ document.querySelectorAll('[data-research-panel]').forEach(b=>{b.onclick=()=>{drawerState.panel=b.dataset.researchPanel;renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();var i=tabs.findIndex(t=>t[0]===b.dataset.researchPanel),next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length;drawerState.panel=tabs[next][0];renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};});
  document.querySelectorAll('[data-project]').forEach(b=>b.onclick=()=>runProjection(g,line,side));
  document.querySelectorAll('[data-sandbox]').forEach(b=>b.onclick=()=>{
   var name=b.dataset.sandbox;
@@ -1156,6 +1174,7 @@ function renderDrawer(){
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{drawerState.filter=b.dataset.filter;renderDrawer();});
  document.querySelectorAll('[data-game-detail]').forEach(b=>b.onclick=()=>document.getElementById('asGameDetail').textContent=b.dataset.gameDetail);
  hydrateML();
+ if(panel==='intelligence'&&intelligence)intelligence.renderDetails(document.getElementById('asIntelligenceDetail'),{group:g,base:base||{},line,side,venue:drawerState.filter,getHistory:book=>intelligenceReadHistory(g,book,side)});
  var historyBook=document.getElementById('asHistoryBook');if(historyBook){historyBook.onchange=e=>{drawerState.historyBook=e.target.value;loadHistoryIntoDrawer();};loadHistoryIntoDrawer();}restoreFocus(focused);
 }
 function render(){renderSports();renderControls();renderSummary();var m=payload.meta||{};document.getElementById('asSubtitle').textContent=(m.stale?'Last available board · ':'')+sport+' · '+(m.events||0)+' events · '+(m.sportsbookCount||0)+' sportsbooks'+(m.fetchedAt?' · Updated '+new Date(m.fetchedAt).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):'');document.getElementById('asStatus').textContent=m.stale?'Last available lines':'Main sportsbook lines';if(!document.getElementById('asAdvanced').contains(document.activeElement))renderAdvanced();renderList();}
@@ -1389,6 +1408,7 @@ function authPanel(view,prefill){
  });
 }
 async function afterAuthChange(message){
+ intelligence?.clearSession();
  saveEpoch++;serverSaves=null;profile=null;savedRecords=new Map();favorites=new Set();
  await loadAccount();
  await loadSaved();

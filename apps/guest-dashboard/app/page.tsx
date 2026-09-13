@@ -1,5 +1,2 @@
-import GuestDashboard from '@/components/GuestDashboard';
-
-export default function Page() {
-  return <GuestDashboard />;
-}
+import SportsWorkspace from '@/components/SportsWorkspace';
+export default function Home() { return <SportsWorkspace />; }

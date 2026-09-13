@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 type Health = { password?: { available: boolean }; google?: { available: boolean } };
 // Only existing same-origin application destinations are allowed. No query
 // string or user-controlled URL is accepted as a post-auth redirect.
-const returnDestination = () => window.location.pathname.replace(/\/$/, '') === '/sportsbooks' ? '/sportsbooks' : '/apex';
+const returnDestination = () => { const path = window.location.pathname.replace(/\/$/, ''); return path === '' ? '/' : path === '/sportsbooks' ? '/sportsbooks' : '/apex'; };
 export default function AuthModal({ open, onClose, initialMode = 'register' }: {
   open: boolean; onClose: () => void; initialMode?: 'register' | 'login';
 }) {

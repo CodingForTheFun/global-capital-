@@ -25,7 +25,7 @@ try {
   check(started, 'Integrated readiness includes guest and research core');
   check((await fetch(base + '/api/guest-health')).ok, 'Next.js health');
   const home = await fetch(base); const html = await home.text();
-  check(html.includes('Find the story behind the line.'), 'Guests see the new dashboard');
+  check(html.includes('Game lines. Player props. Auto Scout.'), 'Root serves the sportsbook for guests');
   check(home.headers.get('cache-control').includes('no-store'), 'No shared caching for account-dependent home');
   check((await fetch(base + '/preview')).ok, 'Public preview route');
   check((await fetch(base + '/assets/edge-theme.css')).ok, 'Merged research theme');
@@ -53,7 +53,7 @@ try {
   browser = await chromium.launch({ headless: true });
   page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
-  await page.goto(base, { waitUntil: 'networkidle' });
+  await page.goto(base + '/preview', { waitUntil: 'networkidle' });
   await page.getByRole('heading', { name: 'Jayson Tatum', exact: true }).waitFor();
   check(await page.getByTestId('active-line').textContent() === '26.5', 'Initial line');
   await page.getByRole('button', { name: 'Increase line', exact: true }).click();

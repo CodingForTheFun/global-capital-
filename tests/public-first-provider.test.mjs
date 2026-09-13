@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -70,12 +70,11 @@ test('empty public database still returns a cache-first empty board instead of r
   assert.ok(calls.every((url) => new URL(url).hostname === 'autoscout-fixture.supabase.co'));
 });
 
-process.on('exit', () => {
+after(async () => {
   globalThis.fetch = originalFetch;
   for (const [key, value] of saved) {
     if (value == null) delete process.env[key];
     else process.env[key] = value;
   }
+  await fs.rm(temp, { recursive: true, force: true });
 });
-
-await fs.rm(temp, { recursive: true, force: true });

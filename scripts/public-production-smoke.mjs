@@ -125,7 +125,16 @@ async function verifyApi(cookie) {
     throw new Error('Unavailable research response did not explain why data is unavailable');
   }
 
-  return { results, sample, research };
+  const matchupUrl = new URL(`${BASE}/api/apex/research-matchup`);
+  for (const key of ['sport','eventId','homeTeam','awayTeam','gameStartTime']) matchupUrl.searchParams.set(key,String(sample[key]||''));
+  const matchupResponse = await fetch(matchupUrl,authed);
+  // PR checks run against the previous live release, before this new route exists.
+  const routePending = process.env.GITHUB_EVENT_NAME === 'pull_request' && matchupResponse.status === 404;
+  const matchup = routePending ? {ok:true,available:false,code:'CANDIDATE_ROUTE_NOT_DEPLOYED'} : await matchupResponse.json();
+  if (!routePending && (!matchupResponse.ok || matchup.ok !== true)) throw new Error('Matchup research API failed');
+  if (matchup.available && (matchup.eventId !== sample.eventId || Date.parse(matchup.gameStartTime) !== Date.parse(sample.gameStartTime))) throw new Error('Matchup research returned a different game');
+  if (matchup.prediction?.available && (![matchup.prediction.homePercent,matchup.prediction.awayPercent].every(v=>typeof v==='number'&&v>=0&&v<=100) || !matchup.sourceEventId)) throw new Error('Published prediction has invalid probabilities or missing game evidence');
+  return { results, sample, research, matchup };
 }
 
 async function verifyBrowser(cookie) {
@@ -243,5 +252,6 @@ console.log(JSON.stringify({
     code: api.research.code || null,
     gamesReturned: Number(api.research?.coverage?.gamesReturned || api.research?.gameLog?.length || 0),
   },
+  matchup: {available:api.matchup.available,sourceEventId:api.matchup.sourceEventId||null,predictionAvailable:api.matchup.prediction?.available===true,code:api.matchup.code||api.matchup.prediction?.code||null,injuryRows:api.matchup.teams?.reduce((n,t)=>n+(t.injuries?.rows?.length||0),0)||0,weatherAvailable:api.matchup.weather?.available===true},
   browser,
 }, null, 2));

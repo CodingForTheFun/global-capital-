@@ -3,6 +3,8 @@
 var nativeFetch=window.fetch.bind(window);
 var {createMLClient,predictionHtml,predictionKey}=await import('/assets/lib/ui/ml-prediction.mjs');
 var mlClient=createMLClient({fetcher:nativeFetch});
+var {createMatchupClient,winPredictorHtml,gameContextHtml,researchWithMatchupContext}=await import('/assets/lib/ui/matchup-context.mjs');
+var matchupClient=createMatchupClient({fetcher:nativeFetch});
 // Optional presentation enhancement: a failed studio load must not break the board.
 var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(()=>null);
 var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
@@ -1095,13 +1097,13 @@ function proToolsPanel(g){
   var target={...g,...q,playerName:g.playerName,gameStartTime:g.gameStartTime},prediction=mlClient.peek(target),key=predictionKey(prediction);
   if(key&&prediction?.available)predictions.set(key,prediction);
  });
- return proToolsHtml(proToolsAnalysis(group,{predictions:Array.from(predictions.values())}));
+ return '<button type="button" class="asBtn" data-load-pro-models>Load available model estimates</button><p class="asNotice">Checks the existing model for up to 24 exact book-and-line combinations. Estimates require verified history; EV+ additionally requires validated calibration.</p>'+proToolsHtml(proToolsAnalysis(group,{predictions:Array.from(predictions.values())}));
 }
-function winPredictorPanel(g){
- return '<div class="asWinPredictor"><p class="asNotice">'+esc(g.awayTeam||'Away team')+' at '+esc(g.homeTeam||'Home team')+' · Game outcome research</p>'
-  +'<div class="asProCards"><article class="asProCard" data-win-status="model"><h4>Model prediction</h4><strong>Unavailable</strong><p>No validated team-win model is connected for this game. Player projections and historical prop hit rates do not predict the game winner.</p></article>'
-  +'<article class="asProCard" data-win-status="market"><h4>Market-implied probabilities</h4><strong>Unavailable</strong><p>Complete, fresh game moneylines with verified settlement rules are not available in this research feed.</p></article></div>'
-  +'<details><summary>How game probabilities will be evaluated</summary><p>Market-implied estimates require complete moneylines from at least two sportsbooks. Each book’s implied probabilities are normalized before averaging, so its margin is removed proportionally. These estimates are separate from a trained prediction.</p><p>Regulation and full-game markets stay separate. Three-way markets include the draw. A two-way market that refunds a draw only describes outcomes conditional on a non-draw; it cannot supply a draw probability.</p><p>Quotes must be observed within five minutes and within one minute of each other. Missing, stale or conflicting evidence remains unavailable.</p></details></div>';
+function winPredictorPanel(g){return winPredictorHtml(g.archived?{available:false,message:'Current game context is not available for a saved snapshot.'}:matchupClient.peek(g));}
+async function loadMatchupContext(g,force=false){
+ if(g.archived||!force&&matchupClient.peek(g))return;
+ await matchupClient.lookup(g,{force});
+ if(drawerState?.g.eventId===g.eventId&&['win','context'].includes(drawerState.panel))renderDrawer();
 }
 function matchupOptions(g){return {line:drawerState.line,side:drawerState.side,window:drawerState.window,sport:g.sport,eventStart:g.gameStartTime};}
 function matchupWindowControl(){return '<label class="asSampleWindow">Historical sample<select class="asMarketSelect" id="asMatchWindow">'+[['l5','Last 5'],['l10','Last 10'],['l15','Last 15'],['l20','Last 20'],['season','Current regular season'],['h2h','Direct opponent games']].map(([value,label])=>'<option value="'+value+'" '+(drawerState.window===value?'selected':'')+'>'+label+'</option>').join('')+'</select></label>';}
@@ -1192,19 +1194,19 @@ function emptyLog(r,g,base){
   +'<ul class="asFallbackLog">'+rows+'</ul>';
 }
 function renderDrawer(){
- if(!drawerState)return;var focused=document.getElementById('asDrawerBody').contains(document.activeElement)?focusToken(document.activeElement):null;var {g,line,side}=drawerState,base=drawerState.base||researchFor(g,line,side),r=base?recalcFromGameLog(base,line,side):null;
+ if(!drawerState)return;var focused=document.getElementById('asDrawerBody').contains(document.activeElement)?focusToken(document.activeElement):null;var {g,line,side}=drawerState,base=researchWithMatchupContext(drawerState.base||researchFor(g,line,side),matchupClient.peek(g)),r=base?recalcFromGameLog(base,line,side):null;
  var injury=document.getElementById('asInjuryBadge');injury.hidden=!base?.context?.injuryStatus;injury.textContent=base?.context?.injuryStatus||'';
  var drawerImg=document.getElementById('asDrawerImg');drawerImg.alt=g.playerName;drawerImg.onerror=()=>{drawerImg.hidden=true;};drawerImg.hidden=g.entityType==='team';if(g.entityType!=='team')drawerImg.src=artUrl(g);else drawerImg.removeAttribute('src');document.getElementById('asDrawerTitle').textContent=g.playerName;
  document.getElementById('asDrawerSub').textContent=[displayTeam(g.team||base?.player?.team||base?.context?.team),g.position||base?.context?.position||base?.context?.playerPosition,g.awayTeam+' @ '+g.homeTeam,when(g.gameStartTime)].filter(Boolean).join(' · ');
  var section=(title,body,sub='')=>'<section class="asSection"><div class="asSectionTitle"><h3>'+title+'</h3><span>'+sub+'</span></div><div class="asSectionBody">'+body+'</div></section>';
  var controls='<div class="asResearchTop"><label>Market<select class="asMarketSelect" id="asMarketSwitch">'+marketOptions(g)+'</select></label><div><label>Research line</label><div class="asLineCtl"><button class="asLineBtn" id="asLineMinus" aria-label="Decrease line">−</button><input class="asLineVal" id="asLineInput" type="number" step="0.5" aria-label="Research line" value="'+(line==null?'':line)+'"><button class="asLineBtn" id="asLinePlus" aria-label="Increase line">+</button></div></div></div><div class="asSideToggle">'+['OVER','UNDER'].map(x=>'<button class="asSideBtn '+x.toLowerCase()+' '+(side===x?'on':'')+'" data-side="'+x+'" aria-pressed="'+(side===x)+'">'+x+'</button>').join('')+'</div><p class="asNotice">Adjusting this line changes your research, not sportsbook offers.</p>';
  var filters='<div class="asFilterRow">'+[['all','All'],['home','Home'],['away','Away'],['h2h','VS '+(r?.matchup?.opponent||'opponent')]].map(([id,label])=>'<button class="asFilterBtn '+(drawerState.filter===id?'on':'')+'" data-filter="'+id+'" aria-pressed="'+(drawerState.filter===id)+'">'+esc(label)+'</button>').join('')+'</div>';
- var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['matchup','Matchup'],['similar','Similar games'],['win','Win Predictor'],['intelligence','Intelligence'],['sandbox','Scenario'],['pro','Pro Tools'],['ask','Ask']];
+ var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['matchup','Matchup'],['similar','Similar games'],['win','Win Predictor'],['context','Game context'],['intelligence','Intelligence'],['sandbox','Scenario'],['pro','Pro Tools'],['ask','Ask']];
  var tabBar='<div class="asResearchTabs" role="tablist" aria-label="Player research sections">'+tabs.map(([id,label])=>'<button role="tab" class="asResearchTab" id="asTab-'+id+'" data-research-panel="'+id+'" aria-controls="asPanel-'+id+'" aria-selected="'+(panel===id)+'" tabindex="'+(panel===id?'0':'-1')+'">'+label+'</button>').join('')+'</div>';
  var logContent=filteredGames(r).length?gameTable(r,g):emptyLog(r,g,base);
  var projectionHtml=mlPanel(g,line,side)+projectionCard(g,line);
  var pillsHtml=section('Hit rate',hitPills(r||base));
- var panels={win:section('Win Predictor',winPredictorPanel(g)),pro:panel==='pro'?section('Pro Tools',proToolsPanel(g)):'',matchup:section('Matchup research',matchupPanel(base||{},g)),similar:section('Similar games · same player',similarPanel(base||{},g)),sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
+ var panels={context:section('Game context',gameContextHtml(g.archived?{available:false,message:'Current game context is not available for a saved snapshot.'}:matchupClient.peek(g))),win:section('Win Predictor',winPredictorPanel(g)),pro:panel==='pro'?section('Pro Tools',proToolsPanel(g)):'',matchup:section('Matchup research',matchupPanel(base||{},g)),similar:section('Similar games · same player',similarPanel(base||{},g)),sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
   ask:section('Ask about this prop',askPanel(g,line,side)),
   overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent),lines:section('Best Line Finder',comparisonRows(g))+section('Every book',bookMatrix(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
  intelligence?.disposeDetails();
@@ -1227,6 +1229,15 @@ function renderDrawer(){
   askAbout(g,line,side,question);
  });
  document.getElementById('asRetryResearch')?.addEventListener('click',async e=>{e.target.disabled=true;e.target.textContent='Retrying…';var result=await getResearch(g,line,side,true);if(drawerState?.g.key===g.key){drawerState.base=result;renderDrawer();}});
+ document.querySelector('[data-load-pro-models]')?.addEventListener('click',async e=>{
+  e.target.disabled=true;e.target.textContent='Checking model estimates…';
+  var targets=new Map();
+  proToolsAnalysis({...g,archived:!!g.archived||!!payload.meta?.stale}).quotes.forEach(q=>{var t={...g,...q,playerName:g.playerName,gameStartTime:g.gameStartTime},key=predictionKey(t);if(key)targets.set(key,t);});
+  await Promise.all(Array.from(targets.values()).slice(0,24).map(t=>mlClient.lookup(t)));
+  if(drawerState?.g.key===g.key&&drawerState.panel==='pro')renderDrawer();
+ });
+ if(['win','context'].includes(panel))loadMatchupContext(g);
+ document.querySelectorAll('[data-refresh-matchup]').forEach(b=>b.onclick=async()=>{b.disabled=true;b.textContent='Checking game context…';await loadMatchupContext(g,true);});
  if(panel==='sandbox'&&!sandbox.roster&&!sandbox.loading)loadRoster(g);
  document.getElementById('asMarketSwitch').onchange=e=>{var next=viewGroups().find(x=>x.key===e.target.value);if(next)openDrawer(next);};
  var changeLine=value=>{var n=num(value);if(n==null){toast('Enter a valid research line.');return;}drawerState.line=n;renderDrawer();document.getElementById('asLineInput')?.focus();};

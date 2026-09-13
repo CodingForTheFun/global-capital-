@@ -1,0 +1,95 @@
+name: Train remaining public-sports research ML
+on:
+  push:
+    branches: [chatgpt/activate-ml-20260913]
+    paths:
+      - scripts/collect-public-model-history.mjs
+      - scripts/train-public-research-models.py
+      - .github/workflows/train-public-sports-ml.yml
+permissions:
+  contents: write
+concurrency:
+  group: autoscout-public-sports-training
+  cancel-in-progress: false
+jobs:
+  train:
+    strategy:
+      fail-fast: false
+      matrix:
+        sport: [MLB, NHL, NCAAF, NCAAB, MLS, EPL, UCL]
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install trainer dependencies
+        run: python -m pip install 'numpy==1.26.4' 'pandas==2.2.3' 'scikit-learn==1.7.2'
+      - name: Collect verified historical logs
+        run: |
+          mkdir -p .training-public
+          node scripts/collect-public-model-history.mjs '${{ matrix.sport }}' '.training-public/${{ matrix.sport }}-history.json'
+      - name: Fit chronological models
+        run: python scripts/train-public-research-models.py --input '.training-public/${{ matrix.sport }}-history.json' --output '.training-public/${{ matrix.sport }}-ridge-v1.json'
+      - name: Verify pack contract
+        run: |
+          python - <<'PY'
+          import json,pathlib,os
+          sport=os.environ['SPORT'];p=json.loads(pathlib.Path(f'.training-public/{sport}-ridge-v1.json').read_text())
+          assert p['version']==1 and p['engine']=='Auto Scout ML' and p['sport']==sport
+          for m in p['models']:
+              v=m['validation'];assert v['observations']>=180 and v['events']>=50 and v['rmse']<v['baselineRmse'] and v['mseDelta95'][1]<0
+          print(sport,'validated models',len(p['models']))
+          PY
+        env: {SPORT: '${{ matrix.sport }}'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-sport-ml-${{ matrix.sport }}
+          path: .training-public/
+          retention-days: 14
+  publish:
+    if: always()
+    needs: train
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: chatgpt/activate-ml-20260913}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: public-sport-ml-*
+          path: .artifacts
+          merge-multiple: true
+      - name: Publish only independently passing model packs
+        run: |
+          python - <<'PY'
+          import json,pathlib,shutil
+          src=pathlib.Path('.artifacts');dest=pathlib.Path('data/ml/research');reports=pathlib.Path('docs/ml-training');dest.mkdir(parents=True,exist_ok=True);reports.mkdir(parents=True,exist_ok=True)
+          published=[]
+          for p in src.glob('*-ridge-v1.json'):
+              if p.name.endswith('-report.json'):continue
+              try:data=json.loads(p.read_text())
+              except:continue
+              if data.get('version')!=1 or data.get('engine')!='Auto Scout ML' or not data.get('sport'):continue
+              models=data.get('models') or []
+              for m in models:
+                  v=m.get('validation') or {}
+                  assert v.get('observations',0)>=180 and v.get('events',0)>=50 and v.get('rmse',1e99)<v.get('baselineRmse',-1) and (v.get('mseDelta95') or [0,1])[1]<0
+              if models:
+                  target=dest/f"{data['sport'].lower()}-ridge-v1.json";shutil.copyfile(p,target);published.append(data['sport'])
+              report=p.with_name(p.stem+'-report.json')
+              if report.exists():shutil.copyfile(report,reports/f"{data['sport'].lower()}-training-report.json")
+          (reports/'public-sports-summary.json').write_text(json.dumps({'published':published},indent=2)+'\n')
+          print('published',published)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/ml/research docs/ml-training
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Add chronologically validated public-sports research models'
+          git pull --rebase origin chatgpt/activate-ml-20260913
+          git push origin HEAD:chatgpt/activate-ml-20260913

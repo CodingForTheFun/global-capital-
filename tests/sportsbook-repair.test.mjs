@@ -1,3 +1,4 @@
+import {sanitizePublicPayload} from '../lib/public-sanitize.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,readFile} from 'node:fs/promises';
@@ -37,4 +38,11 @@ test('projected stat is a labeled log-based estimate, distinct from line and obs
  assert.equal(projectedStat({available:false,gameLog:[{value:99}]}),null);assert.equal(projectedStat({available:true,gameLog:[{value:99}]}),null);
  const result=projectedStat({available:true,gameLog:[{value:0},{value:2},{value:4},{value:6}],context:{projection:999}});
  assert.equal(result.modelled,true);assert.equal(result.sampleSize,4);assert.ok(result.value<3);assert.notEqual(result.value,999);assert.match(result.source,/estimate/);
+});
+
+test('public sanitization retains game selection identifiers without admitting secret keys',()=>{
+ const response=sanitizePublicPayload({ok:true,games:normalizeGameMarkets([event],'NFL'),key:'secret-key-must-disappear'});
+ assert.equal(response.key,undefined);
+ const book=response.games[0].books[0];assert.equal(book.sportsbookKey,'book');assert.equal(book.key,undefined);
+ for(const id of ['h2h','spreads','totals']){const market=book.markets.find(row=>row.marketKey===id);assert.ok(market,id);assert.ok(market.outcomes.length);assert.equal(market.key,undefined)}
 });

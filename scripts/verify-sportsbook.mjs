@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {randomBytes} from 'node:crypto';
 import {chromium} from 'playwright';
+import {sanitizePublicPayload} from '../lib/public-sanitize.mjs';
 const base='http://127.0.0.1:3025',data=await mkdtemp(path.join(tmpdir(),'sportsbook-ci-'));
 await mkdir('artifacts',{recursive:true});
 const proc=spawn(process.execPath,['frontdoor-clearsports.mjs'],{env:{...process.env,PORT:'3025',DATA_DIR:data,NODE_ENV:'production',ACCOUNT_BETA_OPEN:'true',REQUIRE_ACCOUNT:'true',ACCOUNT_OWNER_EMAIL:'owner@local.invalid',DASHBOARD_SESSION_SECRET:randomBytes(32).toString('hex'),AUTOPROP_MASTER_KEY:randomBytes(32).toString('hex'),AUTO_SCAN_MINUTES:'0',THE_ODDS_API_KEY:'',SPORTSDATAIO_API_KEY:'',CLEARSPORTS_API_KEY:'',GEMINI_API_KEY:'test-fixture',ANTHROPIC_API_KEY:''},stdio:['ignore','pipe','pipe']});
@@ -19,8 +20,8 @@ try{
  browser=await chromium.launch({headless:true});const ctx=await browser.newContext({viewport:{width:1600,height:1100}});page=await ctx.newPage();page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(20000);
  await ctx.request.post(base+'/api/account/register',{data:{email:'sportsbook-ci@local.invalid',password:randomBytes(18).toString('hex')}});
  const books=['DraftKings','FanDuel','BetMGM','Caesars','Fanatics','BetRivers'];
- const game={id:'qa1',homeTeam:'Chicago QA',awayTeam:'Detroit QA',startTime:'2099-01-01T00:00:00Z',status:'SCHEDULED',books:books.map(name=>({key:name.toLowerCase(),name,markets:[{key:'h2h',updatedAt:'2026-09-12T00:00:00Z',outcomes:[{name:'Detroit QA',price:-110,point:null},{name:'Chicago QA',price:105,point:null}]},{key:'spreads',outcomes:[{name:'Detroit QA',price:-110,point:-2.5},{name:'Chicago QA',price:-110,point:2.5}]},{key:'totals',outcomes:[{name:'Over',price:-110,point:42.5},{name:'Under',price:-110,point:42.5}]}]}))};
- await page.route('**/api/apex/game-markets?*',r=>r.fulfill({json:{ok:true,available:true,games:[game],coverage:{note:'Test fixture only'}}}));
+ const game={id:'qa1',homeTeam:'Chicago QA',awayTeam:'Detroit QA',startTime:'2099-01-01T00:00:00Z',status:'SCHEDULED',books:books.map(name=>({sportsbookKey:name.toLowerCase(),name,markets:[{marketKey:'h2h',updatedAt:'2026-09-12T00:00:00Z',outcomes:[{name:'Detroit QA',price:-110,point:null},{name:'Chicago QA',price:105,point:null}]},{marketKey:'spreads',outcomes:[{name:'Detroit QA',price:-110,point:-2.5},{name:'Chicago QA',price:-110,point:2.5}]},{marketKey:'totals',outcomes:[{name:'Over',price:-110,point:42.5},{name:'Under',price:-110,point:42.5}]}]}))};
+ await page.route('**/api/apex/game-markets?*',r=>r.fulfill({json:sanitizePublicPayload({ok:true,available:true,games:[game],coverage:{note:'Test fixture only'}})}));
  await page.route('**/api/apex/props?*',r=>r.fulfill({json:{props:books.flatMap((book,i)=>['OVER','UNDER'].map(side=>({id:book+side,sport:'NFL',playerName:'Test Receiver',playerId:'qa',eventId:'qa1',market:'Receiving Yards',marketId:'player_reception_yds',line:55.5,side,sportsbook:book,sportsbookKey:book.toLowerCase(),price:-110,team:'DET',homeTeam:'Chicago QA',awayTeam:'Detroit QA'}))),meta:{warning:'Test partial-coverage notice'}}}));
  await page.route('**/api/apex/taco-offers?*',r=>r.fulfill({json:{offers:[],available:false,message:'Verified Taco promotion data is not supplied by the current feed.'}}));
  await page.route('**/api/apex/research?*',r=>r.fulfill({json:{available:true,gameLog:[60,70,40,55,80].map(value=>({value,date:'2026-09-01'})),projectedStat:{value:61.3,sampleSize:5,source:'Recent-form estimate'},windows:{l5:{hitRate:60,average:61,games:5},l10:{hitRate:60,average:61,games:5},l20:{hitRate:60,average:61,games:5}}}}));

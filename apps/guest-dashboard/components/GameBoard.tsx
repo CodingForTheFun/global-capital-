@@ -13,8 +13,8 @@ import { toast } from "sonner";
 import { decimalOdds, displayPrice } from "@/lib/sports-workspace";
 
 type Outcome = { name: string; price: number; point: number | null };
-type Market = { key: string; updatedAt: string | null; outcomes: Outcome[] };
-type Book = { key: string; name: string; markets: Market[] };
+type Market = { marketKey: string; updatedAt: string | null; outcomes: Outcome[] };
+type Book = { sportsbookKey: string; name: string; markets: Market[] };
 type Game = {
   id: string;
   homeTeam: string;
@@ -117,7 +117,7 @@ export default function GameBoard({
     () => [
       ...new Map(
         (board?.games || []).flatMap((g) =>
-          g.books.map((b) => [b.key, b.name] as const),
+          g.books.map((b) => [b.sportsbookKey, b.name] as const),
         ),
       ).entries(),
     ],
@@ -130,24 +130,24 @@ export default function GameBoard({
           .toLowerCase()
           .includes(search.toLowerCase())) &&
       (!liveOnly || g.status === "LIVE") &&
-      (book === "all" || g.books.some((b) => b.key === book)),
+      (book === "all" || g.books.some((b) => b.sportsbookKey === book)),
   );
   function toggle(game: Game, b: Book, m: Market, o: Outcome) {
-    const id = JSON.stringify([game.id, b.key, m.key, o.name, o.point]);
+    const id = JSON.stringify([game.id, b.sportsbookKey, m.marketKey, o.name, o.point]);
     setSelected((rows) =>
       rows.some((r) => r.id === id)
         ? rows.filter((r) => r.id !== id)
         : [
             ...rows.filter(
-              (r) => !(r.gameId === game.id && r.market === m.key),
+              (r) => !(r.gameId === game.id && r.market === m.marketKey),
             ),
             {
               ...o,
               id,
               gameId: game.id,
               book: b.name,
-              bookKey: b.key,
-              market: m.key,
+              bookKey: b.sportsbookKey,
+              market: m.marketKey,
               matchup: `${game.awayTeam} @ ${game.homeTeam}`,
               capturedAt: new Date().toISOString(),
             },
@@ -267,7 +267,7 @@ export default function GameBoard({
               const shown =
                 book === "all"
                   ? game.books
-                  : game.books.filter((b) => b.key === book);
+                  : game.books.filter((b) => b.sportsbookKey === book);
               return (
                 <article key={game.id} className={`${surface} overflow-hidden`}>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
@@ -296,7 +296,7 @@ export default function GameBoard({
                   </div>
                   {shown.map((b, i) => (
                     <details
-                      key={b.key}
+                      key={b.sportsbookKey}
                       open={i === 0 || book !== "all"}
                       className="border-t border-slate-800"
                     >
@@ -306,7 +306,7 @@ export default function GameBoard({
                       </summary>
                       <div className="grid grid-cols-3 gap-2 px-3 pb-4">
                         {["spreads", "h2h", "totals"].map((key) => {
-                          const m = b.markets.find((x) => x.key === key);
+                          const m = b.markets.find((x) => x.marketKey === key);
                           return (
                             <div key={key}>
                               <p className="mb-2 text-center text-[10px] uppercase tracking-wider text-slate-500">
@@ -316,8 +316,8 @@ export default function GameBoard({
                                 {m?.outcomes.map((o) => {
                                   const id = JSON.stringify([
                                       game.id,
-                                      b.key,
-                                      m.key,
+                                      b.sportsbookKey,
+                                      m.marketKey,
                                       o.name,
                                       o.point,
                                     ]),

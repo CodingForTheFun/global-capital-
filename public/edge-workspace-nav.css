@@ -1,9 +1,8 @@
-/* Scoped to the existing Auto Scout header, not its board/drawer styles. */
-.as5 .asBar { min-height: 62px; height: auto; flex-wrap: wrap; }
-.as5 .edge-workspace-nav { display: flex; gap: 3px; align-items: center; min-width: 0; overflow-x: auto; margin: 0 10px; font-size: 12px; scrollbar-width: thin; }
-.as5 .edge-workspace-nav a { flex: 0 0 auto; display: inline-flex; align-items: center; padding: 20px 10px 17px; color: #94a3b8; border-bottom: 3px solid transparent; font-weight: 650; text-decoration: none; transition: color 150ms, border-color 150ms; }
-.as5 .edge-workspace-nav a:hover { color: #f8fafc; }
-.as5 .edge-workspace-nav a[aria-current='page'] { color: #34d399; border-color: #10b981; }
-.as5 .edge-workspace-nav a:focus-visible { outline: 2px solid #34d399; outline-offset: -3px; border-radius: 4px; }
-@media (max-width: 1100px) { .as5 .edge-workspace-nav { order: 5; width: 100%; margin: 0; } .as5 .edge-workspace-nav a { padding-top: 12px; padding-bottom: 10px; } .as5 .asBar { padding-top: 8px; gap: 5px; } }
-@media (prefers-reduced-motion: reduce) { .as5 .edge-workspace-nav a { transition: none; } }
+/* Own flow row: never override the original Auto Scout toolbar or board. */
+.as5 .asTop .edge-workspace-nav { display: flex; gap: 3px; align-items: center; box-sizing: border-box; width: 100%; min-width: 0; max-width: 1560px; min-height: 48px; overflow-x: auto; margin: 0 auto; padding: 0 14px; font-size: 13px; scrollbar-width: thin; }
+.as5 .asTop .edge-workspace-nav a { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 46px; padding: 12px 13px 10px; color: #94a3b8; border-bottom: 3px solid transparent; font-weight: 650; text-decoration: none; white-space: nowrap; transition: color 150ms, border-color 150ms; }
+.as5 .asTop .edge-workspace-nav a:hover { color: #f8fafc; }
+.as5 .asTop .edge-workspace-nav a[aria-current='page'] { color: #34d399; border-color: #10b981; }
+.as5 .asTop .edge-workspace-nav a:focus-visible { outline: 2px solid #34d399; outline-offset: -3px; border-radius: 4px; }
+@media (max-width: 700px) { .as5 .asTop .edge-workspace-nav { padding: 0 8px; font-size: 12px; } .as5 .asTop .edge-workspace-nav a { padding-left: 11px; padding-right: 11px; } }
+@media (prefers-reduced-motion: reduce) { .as5 .asTop .edge-workspace-nav a { transition: none; } }

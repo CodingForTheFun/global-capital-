@@ -1,0 +1,50 @@
+name: Apply reviewed intelligence source
+on:
+  push:
+    branches: [chatgpt/autoscout-intelligence-release-v2]
+    paths: ['.github/workflows/apply-intelligence-reviewed-source.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/chatgpt/autoscout-intelligence-release-v2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/autoscout-intelligence-release-v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify transport checksum and exact source allowlist
+        run: |
+          python3 - <<'PY'
+          import base64,gzip,hashlib,pathlib,subprocess
+          parts=[pathlib.Path(f'.review/intelligence-v2-{i}.txt') for i in range(1,5)]
+          encoded=''.join(''.join(p.read_text().split()) for p in parts)
+          patch=gzip.decompress(base64.b64decode(encoded,validate=True))
+          assert hashlib.sha256(patch).hexdigest()=='8f711b80eb823b02998c22f3c5108d26cef61ba1915fe4a3da8bbc5ee3846479', 'Source checksum mismatch; do not apply'
+          target=pathlib.Path('/tmp/intelligence-reviewed.patch');target.write_bytes(patch)
+          expected={'apex-v2/intelligence.css','apex-v2/scout-ui-v5.js','apps/guest-dashboard/components/GameBoard.tsx','docs/autoscout-intelligence-release-20260913.md','frontdoor-prod.mjs','lib/ui/intelligence-panel.mjs','lib/ui/intelligence.mjs','scripts/intelligence-fixture-server.mjs','scripts/qa-intelligence.mjs','tests/intelligence-integration.test.mjs'}
+          actual={l.split('\t')[-1] for l in subprocess.check_output(['git','apply','--numstat',str(target)],text=True).splitlines()}
+          assert actual==expected,actual
+          subprocess.run(['git','apply','--check','--unidiff-zero',str(target)],check=True)
+          subprocess.run(['git','apply','--unidiff-zero',str(target)],check=True)
+          PY
+      - name: Targeted source regression before publishing
+        run: |
+          node --check apex-v2/scout-ui-v5.js
+          node --check frontdoor-prod.mjs
+          node --check lib/ui/intelligence-panel.mjs
+          node --check scripts/qa-intelligence.mjs
+          node --test tests/intelligence-integration.test.mjs
+          git diff --check
+      - name: Publish normal source and remove temporary transport
+        run: |
+          rm .review/intelligence-v2-{1,2,3,4}.txt
+          git config user.name 'CodingForTheFun'
+          git config user.email '24641357+CodingForTheFun@users.noreply.github.com'
+          git add apex-v2/intelligence.css apex-v2/scout-ui-v5.js apps/guest-dashboard/components/GameBoard.tsx docs/autoscout-intelligence-release-20260913.md frontdoor-prod.mjs lib/ui/intelligence-panel.mjs lib/ui/intelligence.mjs scripts/intelligence-fixture-server.mjs scripts/qa-intelligence.mjs tests/intelligence-integration.test.mjs .review
+          git commit -m 'Integrate eight evidence tools into Auto Scout; preserve sportsbook and account contracts'
+          git push origin HEAD:chatgpt/autoscout-intelligence-release-v2

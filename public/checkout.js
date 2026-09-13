@@ -1,113 +1,124 @@
 const state = document.getElementById('checkoutState');
 const unavailable = document.getElementById('checkoutUnavailable');
 const payArea = document.getElementById('payArea');
-const cardArea = document.getElementById('cardArea');
-const cardSubmit = document.getElementById('cardSubmit');
+const subscribeButton = document.getElementById('subscribeButton');
+const productName = document.getElementById('productName');
+const price = document.getElementById('price');
+const cadence = document.getElementById('billingCadence');
+
+let csrfToken = '';
 
 function message(text, type = '') {
-  state.innerHTML = text ? `<div class="checkout-state ${type}">${String(text).replace(/[&<>'"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[c]))}</div>` : '';
+  state.replaceChildren();
+  if (!text) return;
+  const node = document.createElement('div');
+  node.className = `checkout-state ${type}`.trim();
+  node.textContent = String(text);
+  state.appendChild(node);
 }
 
-async function createOrder() {
-  const response = await fetch('/api/payments/create-order', { method:'POST', credentials:'same-origin' });
-  const data = await response.json();
-  if (!response.ok || !data.id) throw new Error(data.message || 'Could not create PayPal order.');
-  return data.id;
+function cadenceText(config) {
+  const count = Number(config.intervalCount) || 1;
+  const unit = String(config.intervalUnit || '').toLowerCase();
+  if (!unit) return 'Recurring subscription';
+  if (count === 1) return `Billed every ${unit}`;
+  return `Billed every ${count} ${unit}s`;
 }
 
-async function captureOrder(orderId) {
-  const response = await fetch('/api/payments/capture-order', {
-    method:'POST',
-    credentials:'same-origin',
-    headers:{ 'content-type':'application/json' },
-    body:JSON.stringify({ orderId }),
-  });
-  const data = await response.json();
-  if (!response.ok || !data.ok) throw new Error(data.message || 'Payment could not be captured.');
-  message('Payment completed successfully. Your PayPal merchant account received the captured order.', 'success');
+async function account() {
+  const response = await fetch('/api/account/me', { cache: 'no-store', credentials: 'same-origin' });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.authenticated) return null;
+  csrfToken = String(data.csrfToken || '');
   return data;
 }
 
-function loadPayPalSdk(config) {
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-autoprop-paypal]');
-    if (existing) {
-      if (window.paypal) return resolve(window.paypal);
-      existing.addEventListener('load', () => resolve(window.paypal), { once:true });
-      existing.addEventListener('error', () => reject(new Error('PayPal checkout failed to load.')), { once:true });
-      return;
-    }
-    const script = document.createElement('script');
-    const params = new URLSearchParams({
-      'client-id': config.clientId,
-      currency: config.currency,
-      intent: 'capture',
-      components: 'buttons,card-fields',
-      'enable-funding': 'venmo,paylater',
-    });
-    script.src = `https://www.paypal.com/sdk/js?${params.toString()}`;
-    script.async = true;
-    script.dataset.autopropPaypal = 'true';
-    script.onload = () => resolve(window.paypal);
-    script.onerror = () => reject(new Error('PayPal checkout failed to load.'));
-    document.head.appendChild(script);
+async function billingConfig() {
+  const response = await fetch('/api/payments/config', { cache: 'no-store', credentials: 'same-origin' });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || 'Billing configuration is unavailable.');
+  return data;
+}
+
+async function createSubscription() {
+  const response = await fetch('/api/payments/create-subscription', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'x-csrf-token': csrfToken },
   });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.approvalUrl) throw new Error(data.message || 'Could not start the subscription.');
+  return data;
+}
+
+async function confirmSubscription(subscriptionId) {
+  const response = await fetch('/api/payments/confirm-subscription', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': 'application/json', 'x-csrf-token': csrfToken },
+    body: JSON.stringify({ subscriptionId }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.ok) throw new Error(data.message || 'Subscription could not be verified.');
+  return data;
 }
 
 async function boot() {
   try {
-    const response = await fetch('/api/payments/config', { cache:'no-store', credentials:'same-origin' });
-    const config = await response.json();
-    document.getElementById('productName').textContent = config.productName || 'AutoProp Scout Pro Access';
-    document.getElementById('price').textContent = config.price ? `${config.currency || 'USD'} $${config.price}` : 'Not set';
+    const signedIn = await account();
+    if (!signedIn) {
+      unavailable.textContent = 'Sign in to Oblige Props before joining Founding Pro. Billing never starts for an anonymous session.';
+      return;
+    }
+
+    const config = await billingConfig();
+    productName.textContent = config.productName || 'Oblige Props Founding Pro';
+    price.textContent = config.price ? `${config.currency || 'USD'} $${config.price}` : 'Not open';
+    cadence.textContent = config.price ? cadenceText(config) : 'Recurring subscription';
+
+    const query = new URLSearchParams(location.search);
+    if (query.get('billing') === 'cancel') message('Subscription setup was canceled. No access change was made.');
+
+    const returnedSubscription = query.get('subscription_id');
+    if (returnedSubscription) {
+      message('Verifying the active PayPal subscription…');
+      try {
+        const confirmed = await confirmSubscription(returnedSubscription);
+        message('Founding Pro is active. Your access was verified directly with PayPal.', 'success');
+        window.history.replaceState({}, '', '/checkout?billing=success');
+        if (confirmed?.entitlement?.plan === 'pro') unavailable.hidden = true;
+      } catch (error) {
+        message(error.message || 'PayPal has not activated this subscription yet.', 'error');
+      }
+    }
+
     if (!config.enabled) {
-      unavailable.textContent = 'Checkout code is installed, but live charging is disabled until the owner adds a PayPal Business client ID, client secret, and price on the server.';
+      unavailable.hidden = false;
+      unavailable.textContent = config.reason === 'PLAN_UNVERIFIED'
+        ? 'Founding Pro checkout is paused because the recurring PayPal plan could not be verified.'
+        : 'Founding Pro billing is not open yet. No payment can be started from this page.';
       return;
     }
 
     unavailable.hidden = true;
     payArea.hidden = false;
-    const paypal = await loadPayPalSdk(config);
-    if (!paypal) throw new Error('PayPal SDK did not initialize.');
-
-    if (paypal.Buttons) {
-      await paypal.Buttons({
-        style: { layout:'vertical', shape:'rect', label:'paypal' },
-        createOrder,
-        onApprove: async (data) => {
-          try { message('Capturing PayPal payment…'); await captureOrder(data.orderID); }
-          catch (error) { message(error.message || 'Payment capture failed.', 'error'); }
-        },
-        onCancel: () => message('Checkout canceled.'),
-        onError: (error) => message(error?.message || 'PayPal checkout failed.', 'error'),
-      }).render('#paypal-button-container');
+    if (config.environment === 'sandbox') {
+      message('Sandbox billing is configured. Do not treat sandbox activity as live revenue.');
     }
 
-    if (config.cardFieldsRequested && paypal.CardFields) {
-      const cardFields = paypal.CardFields({
-        createOrder,
-        onApprove: async (data) => {
-          try { message('Capturing card payment through PayPal…'); await captureOrder(data.orderID); }
-          catch (error) { message(error.message || 'Card payment capture failed.', 'error'); }
-        },
-        onError: (error) => message(error?.message || 'Card payment failed.', 'error'),
-      });
-      if (cardFields?.isEligible?.()) {
-        cardArea.hidden = false;
-        await cardFields.NameField().render('#card-name-field-container');
-        await cardFields.NumberField().render('#card-number-field-container');
-        await cardFields.ExpiryField().render('#card-expiry-field-container');
-        await cardFields.CVVField().render('#card-cvv-field-container');
-        cardSubmit.addEventListener('click', async () => {
-          cardSubmit.disabled = true;
-          message('Submitting card securely through PayPal…');
-          try { await cardFields.submit(); }
-          catch (error) { message(error?.message || 'Card submission failed.', 'error'); }
-          finally { cardSubmit.disabled = false; }
-        });
+    subscribeButton.addEventListener('click', async () => {
+      subscribeButton.disabled = true;
+      message('Opening secure PayPal subscription approval…');
+      try {
+        const subscription = await createSubscription();
+        location.assign(subscription.approvalUrl);
+      } catch (error) {
+        message(error.message || 'Subscription setup could not start.', 'error');
+        subscribeButton.disabled = false;
       }
-    }
+    });
   } catch (error) {
+    unavailable.hidden = false;
     unavailable.textContent = error.message || 'Checkout could not initialize.';
     message(error.message || 'Checkout could not initialize.', 'error');
   }

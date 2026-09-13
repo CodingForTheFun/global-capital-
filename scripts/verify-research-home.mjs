@@ -52,6 +52,7 @@ try{
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),name+' root has no horizontal overflow');
   check(await page.locator('.asIdentity').getAttribute('href')==='/',name+' brand opens same-domain research home');
   await page.screenshot({path:`${out}/${name}-research.png`,fullPage:true});
+  await page.locator('#asBoardFilterMenu>summary').click();
   await page.locator('#asSearch').fill('No Matching Fixture');await page.waitForFunction(()=>document.querySelectorAll('.asCard').length===0);
   await page.locator('#asSearch').fill('');await page.locator('.asCard').first().waitFor();check(true,name+' existing player filter still works');
   await page.keyboard.press('Control+k');check(await page.locator('#asSearch').evaluate(e=>e===document.activeElement),name+' keyboard search shortcut works');
@@ -61,13 +62,14 @@ try{
   const actual=(await page.locator('#asi-sensitivity tr.active td').nth(1).textContent()).trim();
   check(actual===Math.round(analyzeResearch(research,25.5,'UNDER').windows.l10.hitRate)+'%',name+' line/side changes preserve the shared research math');
   await page.screenshot({path:`${out}/${name}-intelligence.png`,fullPage:false});
-  await page.keyboard.press('Escape');check(await page.locator('.asDrawerBg.on').count()===0,name+' drawer closes normally');
+  await page.keyboard.press('Escape');await page.locator('.asMain').waitFor();check(!await page.locator('#asDrawerBg').isVisible(),name+' analytics closes normally');
   if(name==='desktop'){
    await page.locator('.asSave[data-fav]').first().click();await page.waitForFunction(()=>document.querySelector('.asSave[data-fav]')?.getAttribute('aria-pressed')==='true');
    const saved=await(await ctx.request.get(base+'/api/saved-props')).json();check(saved.saved?.length>0,'Saved props persist through the ORIGINAL authenticated API');
   }else{
    const saved=await(await ctx.request.get(base+'/api/saved-props')).json();check(saved.saved?.length>0,'Existing server-bound saves survive a fresh mobile sign-in');
   }
+  await page.locator('#asProfileMenu>summary').click();
   await page.locator('#asSettings').click();check(await page.locator('#asUtility').evaluate(e=>e.open),name+' original settings open');await page.keyboard.press('Escape');
   await page.goto(base+'/sportsbooks#tacos',{waitUntil:'domcontentloaded'});await page.waitForURL('**/apex#tacos');
   await page.getByRole('heading',{name:'🌮 Taco-only props',exact:true}).waitFor();check(true,name+' old Taco bookmark opens Auto Scout-only promotion view');

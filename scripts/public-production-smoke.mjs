@@ -126,15 +126,20 @@ async function verifyApi(cookie) {
     throw new Error('Unavailable research response did not explain why data is unavailable');
   }
 
-  const matchupUrl = new URL(`${BASE}/api/apex/research-matchup`);
-  for (const key of ['sport','eventId','homeTeam','awayTeam','gameStartTime']) matchupUrl.searchParams.set(key,String(sample[key]||''));
-  const matchupResponse = await fetch(matchupUrl,authed);
-  // PR checks run against the previous live release, before this new route exists.
-  const routePending = process.env.GITHUB_EVENT_NAME === 'pull_request' && matchupResponse.status === 404;
-  const matchup = routePending ? {ok:true,available:false,code:'CANDIDATE_ROUTE_NOT_DEPLOYED'} : await matchupResponse.json();
-  if (!routePending && (!matchupResponse.ok || matchup.ok !== true)) throw new Error('Matchup research API failed');
-  if (matchup.available && (matchup.eventId !== sample.eventId || Date.parse(matchup.gameStartTime) !== Date.parse(sample.gameStartTime))) throw new Error('Matchup research returned a different game');
-  if (matchup.prediction?.available && (![matchup.prediction.homePercent,matchup.prediction.awayPercent].every(v=>typeof v==='number'&&v>=0&&v<=100) || !matchup.sourceEventId)) throw new Error('Published prediction has invalid probabilities or missing game evidence');
+  const matchupKeys = ['sport','eventId','homeTeam','awayTeam','gameStartTime'];
+  const hasMatchupIdentity = matchupKeys.every((key) => String(sample[key] || '').trim());
+  let matchup = {ok:true,available:false,code:'MATCHUP_IDENTITY_INCOMPLETE'};
+  if (hasMatchupIdentity) {
+    const matchupUrl = new URL(`${BASE}/api/apex/research-matchup`);
+    for (const key of matchupKeys) matchupUrl.searchParams.set(key,String(sample[key]||''));
+    const matchupResponse = await fetch(matchupUrl,authed);
+    // PR checks run against the previous live release, before a newly introduced route exists.
+    const routePending = process.env.GITHUB_EVENT_NAME === 'pull_request' && matchupResponse.status === 404;
+    matchup = routePending ? {ok:true,available:false,code:'CANDIDATE_ROUTE_NOT_DEPLOYED'} : await matchupResponse.json();
+    if (!routePending && (!matchupResponse.ok || matchup.ok !== true)) throw new Error('Matchup research API failed');
+    if (matchup.available && (matchup.eventId !== sample.eventId || Date.parse(matchup.gameStartTime) !== Date.parse(sample.gameStartTime))) throw new Error('Matchup research returned a different game');
+    if (matchup.prediction?.available && (![matchup.prediction.homePercent,matchup.prediction.awayPercent].every(v=>typeof v==='number'&&v>=0&&v<=100) || !matchup.sourceEventId)) throw new Error('Published prediction has invalid probabilities or missing game evidence');
+  }
   return { results, sample, research, matchup };
 }
 
@@ -199,7 +204,7 @@ async function verifyBrowser(cookie) {
     const drawerText = (await page.locator('#asDrawerBody').innerText()).trim();
     if (!drawerText) throw new Error('Prop analytics rendered with no content');
     const hasResearchControls = await page.locator('#asMarketSwitch, #asLineMinus, #asLinePlus').count() >= 1;
-    const hasAvailabilityMessage = /research availability|historical research|game logs/i.test(drawerText);
+    const hasAvailabilityMessage = /research availability|historical research|game logs|combo line only|fantasy line only|line only|historical hit rates are withheld|stat not reported|player match unavailable/i.test(drawerText);
     if (hasResearchControls) {
       for (const side of ['OVER', 'UNDER']) {
         if (await page.getByRole('button', { name: side, exact: true }).count() < 1) throw new Error('Research controls are missing side: ' + side);

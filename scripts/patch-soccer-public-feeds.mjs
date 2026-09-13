@@ -43,16 +43,12 @@ export function applySoccerPublicFeedPatches(root = process.cwd()) {
     },
   ]);
 
-  // FanDuel already has a generic player-total parser that understands the key
-  // soccer stat labels. Point it at FanDuel's soccer content page as another
-  // zero-credit source.
   patchFile(root, 'lib/ingestion/fanduel-public.mjs', [{
     label: 'FanDuel soccer page',
     from: "  NCAAF: 'ncaaf', NCAAB: 'ncaab', TENNIS: 'tennis',\n});",
     to: "  NCAAF: 'ncaaf', NCAAB: 'ncaab', TENNIS: 'tennis', SOCCER: 'soccer',\n});",
   }]);
 
-  // Kambi / BetRivers exposes soccer under the top-level soccer list view.
   patchFile(root, 'lib/ingestion/betrivers-public.mjs', [
     {
       label: 'BetRivers soccer path',
@@ -66,8 +62,6 @@ export function applySoccerPublicFeedPatches(root = process.cwd()) {
     },
   ]);
 
-  // Bovada's public coupon endpoint accepts the generic soccer path and its
-  // event parser already enforces two-sided regular O/U lines.
   patchFile(root, 'lib/ingestion/bovada-public.mjs', [
     {
       label: 'Bovada soccer path',
@@ -81,8 +75,6 @@ export function applySoccerPublicFeedPatches(root = process.cwd()) {
     },
   ]);
 
-  // Pinnacle discovers its sport id dynamically, so only the soccer selector
-  // and unit vocabulary need to be added.
   patchFile(root, 'lib/ingestion/pinnacle-public.mjs', [
     {
       label: 'Pinnacle soccer selector',
@@ -101,10 +93,8 @@ export function applySoccerPublicFeedPatches(root = process.cwd()) {
     },
   ]);
 
-  // DraftKings publishes soccer as league-specific feeds. These are the current
-  // public league IDs; each has an env override so a rotation is configuration,
-  // not another code edit. The collector may still fail closed if DK blocks the
-  // anonymous transport in a region.
+  // Current DraftKings collector uses the public v5 event-group feed. EPL, MLS
+  // and UCL stay league-scoped so league-specific historical research remains honest.
   patchFile(root, 'lib/ingestion/draftkings-sportsbook-public.mjs', [
     {
       label: 'DraftKings soccer leagues',
@@ -112,14 +102,9 @@ export function applySoccerPublicFeedPatches(root = process.cwd()) {
       to: "const LEAGUES = Object.freeze({ NFL: 88808, NBA: 42648, MLB: 84240, NHL: 42133, MLS: Number(process.env.AUTOSCOUT_DRAFTKINGS_MLS_LEAGUE_ID || 40252), EPL: Number(process.env.AUTOSCOUT_DRAFTKINGS_EPL_LEAGUE_ID || 40253), UCL: Number(process.env.AUTOSCOUT_DRAFTKINGS_UCL_LEAGUE_ID || 40685) });",
     },
     {
-      label: 'DraftKings soccer market templates',
-      from: "const MARKET_SUFFIXES = Object.freeze({\n  NFL:",
-      to: "const SOCCER_MARKETS = Object.freeze([\n  ['Shots on Target', /\\s+shots?\\s+on\\s+target(?:\\s+o\\/u)?$/i], ['Shots', /\\s+shots?(?:\\s+o\\/u)?$/i],\n  ['Passes Attempted', /\\s+passes?\\s+attempted(?:\\s+o\\/u)?$/i], ['Passes Completed', /\\s+passes?\\s+completed(?:\\s+o\\/u)?$/i],\n  ['Attempted Dribbles', /\\s+attempted\\s+dribbles?(?:\\s+o\\/u)?$/i], ['Clearances', /\\s+clearances?(?:\\s+o\\/u)?$/i],\n  ['Tackles', /\\s+tackles?(?:\\s+o\\/u)?$/i], ['Saves', /\\s+(?:goalie\\s+)?saves?(?:\\s+o\\/u)?$/i],\n  ['Assists', /\\s+assists?(?:\\s+o\\/u)?$/i], ['Goals', /\\s+goals?(?:\\s+o\\/u)?$/i],\n]);\nconst MARKET_SUFFIXES = Object.freeze({\n  MLS: SOCCER_MARKETS, EPL: SOCCER_MARKETS, UCL: SOCCER_MARKETS,\n  NFL:",
-    },
-    {
-      label: 'DraftKings soccer category discovery',
-      from: "    return /player|passing|rushing|receiving|pitcher|batter|goalie|skater|points|rebounds|assists|strikeouts|hits/i.test(name);",
-      to: "    return /player|passing|rushing|receiving|pitcher|batter|goalie|skater|points|rebounds|assists|strikeouts|hits|shots|saves|passes|tackles|clearances|dribbles|goals/i.test(name);",
+      label: 'DraftKings soccer market rules',
+      from: "  NHL: [\n    ['Shots on Goal', /shots?\\s+on\\s+goal/i], ['Blocked Shots', /blocked\\s+shots?/i],\n    ['Goals Against', /goals?\\s+against/i], ['Saves', /\\bsaves?\\b/i],\n    ['Points', /\\bpoints?\\b/i], ['Assists', /\\bassists?\\b/i], ['Goals', /\\bgoals?\\b/i],\n  ],\n});",
+      to: "  NHL: [\n    ['Shots on Goal', /shots?\\s+on\\s+goal/i], ['Blocked Shots', /blocked\\s+shots?/i],\n    ['Goals Against', /goals?\\s+against/i], ['Saves', /\\bsaves?\\b/i],\n    ['Points', /\\bpoints?\\b/i], ['Assists', /\\bassists?\\b/i], ['Goals', /\\bgoals?\\b/i],\n  ],\n  MLS: [\n    ['Shots on Target', /shots?\\s+on\\s+target/i], ['Passes Attempted', /passes?\\s+attempted/i], ['Passes Completed', /passes?\\s+completed/i],\n    ['Attempted Dribbles', /attempted\\s+dribbles?/i], ['Clearances', /clearances?/i], ['Tackles', /\\btackles?\\b/i],\n    ['Saves', /\\b(?:goalie\\s+)?saves?\\b/i], ['Assists', /\\bassists?\\b/i], ['Goals', /\\bgoals?\\b/i], ['Shots', /\\bshots?\\b/i],\n  ],\n  EPL: [\n    ['Shots on Target', /shots?\\s+on\\s+target/i], ['Passes Attempted', /passes?\\s+attempted/i], ['Passes Completed', /passes?\\s+completed/i],\n    ['Attempted Dribbles', /attempted\\s+dribbles?/i], ['Clearances', /clearances?/i], ['Tackles', /\\btackles?\\b/i],\n    ['Saves', /\\b(?:goalie\\s+)?saves?\\b/i], ['Assists', /\\bassists?\\b/i], ['Goals', /\\bgoals?\\b/i], ['Shots', /\\bshots?\\b/i],\n  ],\n  UCL: [\n    ['Shots on Target', /shots?\\s+on\\s+target/i], ['Passes Attempted', /passes?\\s+attempted/i], ['Passes Completed', /passes?\\s+completed/i],\n    ['Attempted Dribbles', /attempted\\s+dribbles?/i], ['Clearances', /clearances?/i], ['Tackles', /\\btackles?\\b/i],\n    ['Saves', /\\b(?:goalie\\s+)?saves?\\b/i], ['Assists', /\\bassists?\\b/i], ['Goals', /\\bgoals?\\b/i], ['Shots', /\\bshots?\\b/i],\n  ],\n});",
     },
   ]);
 

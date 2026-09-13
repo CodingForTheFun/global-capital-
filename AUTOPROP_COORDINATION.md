@@ -1,20 +1,29 @@
-# Auto Scout — production coordination
+# Oblige Props — production coordination
 
 Read this file before changing production. Multiple build conversations share
 this repository; do not assume another conversation sees unpushed local work.
 
 ## Current owner direction — 2026-09-13
 
-The owner explicitly reversed the ObligePay Sportsbook expansion. ObligePay.com
-is the home of Auto Scout again. Remove the sportsbook from the deployed product,
-not the working research engines. Visible product branding: **Auto Scout**.
-Do not bring the sportsbook homepage or shared sportsbook tabs back from an older
-branch. The original v5 research frontend remains the application; reuse only the
-preferred navy/emerald presentation, panel spacing and navigation styling.
+The customer-facing research product is now named **Oblige Props**. This
+supersedes the prior visible **Auto Scout** brand instruction. The rename is a
+presentation change only: preserve existing account IDs, routes, storage keys,
+sessions, saved props, provider integrations and analytics contracts.
 
-Restoration branch: `chatgpt/restore-autoscout-home-20260913`.
-Base inspected: `d77624585961b48169b996b3d9b7a446d0965a0b`.
-See `docs/autoscout-research-home-20260913.md` for exact changes and release gates.
+ObligePay.com remains the home of the player-prop research product. Do not bring
+the retired sportsbook homepage or shared sportsbook tabs back from an older
+branch. The original v5 research frontend remains the application; retain the
+navy/emerald presentation, dense research layout and mobile-first behavior.
+
+The owner also requested a protected web control center. It may show account
+signups, presence, devices, roles, bans and access expiration, and may grant or
+extend complimentary Pro access. Owner-granted access must be identified as an
+owner override and must never be counted as a processor-confirmed sale. The
+control center must not expose API keys, password hashes, payment secrets,
+Railway settings or other deployment credentials.
+
+Owner-console feature branch: `chatgpt/oblige-props-owner-console-20260913`.
+Base: `production-stable` at `34dab730dce943a1358a5a1b9fc6ffa51d6a618b`.
 
 ## Production and preservation rules
 
@@ -24,7 +33,7 @@ See `docs/autoscout-research-home-20260913.md` for exact changes and release gat
 - Work on a feature branch. Test the exact combined candidate; inspect current
   deployed SHA and configuration before promoting it. Preserve newer work.
 - Keep `/` and `/apex` on the native research/account flow. Retired sportsbook
-  pages redirect to Auto Scout. Retired guest/game-only APIs return 410.
+  pages redirect to the research product. Retired guest/game-only APIs return 410.
 - Do not migrate accounts, subscriptions, sessions, saved props or browser
   preference keys. Do not change secrets, Railway settings, volume or worker.
 - Preserve account/billing routes, server-bound saves, player/event/market
@@ -57,6 +66,15 @@ See `docs/autoscout-research-home-20260913.md` for exact changes and release gat
 - Radar is currently visit-local; injury/lineup history and teammate participation
   remain unavailable when the underlying verified evidence has not been supplied.
 
+## Payments rule
+
+Do not call the product payment-ready merely because checkout UI exists. A paid
+launch requires an authenticated checkout route, processor-confirmed server-side
+payment verification, entitlement grant/revoke linkage, cancellation/refund
+handling, pricing/terms/privacy/refund/contact pages, and a production smoke test.
+Manual owner-granted access is not revenue and must stay distinguishable from a
+processor event.
+
 ## Full preserved handoff history
 
 `docs/autoprop-coordination-history-pre-research-home.md` contains the complete,
@@ -65,4 +83,4 @@ provider contracts, history repairs and ML/Taco notes. Historical sportsbook
 expansion instructions in that archive are superseded by the owner reversal above.
 
 No deployment is claimed by this document. Verify CI, Railway source SHA and
-actual rollout state before reporting that the restoration is live.
+actual rollout state before reporting that the restoration or owner console is live.

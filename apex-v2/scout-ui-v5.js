@@ -6,6 +6,10 @@ var mlClient=createMLClient({fetcher:nativeFetch});
 // Optional presentation enhancement: a failed studio load must not break the board.
 var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(()=>null);
 var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
+var {proToolsAnalysis}=await import('/assets/lib/analytics/pro-tools.mjs');
+var {proToolsHtml}=await import('/assets/lib/ui/pro-tools.mjs');
+var {matchupAnalysis,similarGames}=await import('/assets/lib/analytics/matchup.mjs');
+var {compareResearchQuotes}=await import('/assets/lib/ui/line-comparison.mjs');
 var playerChoices=new Map();
 var {tacoBadgeHtml,removeExpiredTacoBadges}=await import('/assets/lib/ui/offer-promotion.mjs');
 var { analyzeResearch, researchTeamMatches, researchOpponentMatches, analyzeLineHistory } = await import('/assets/lib/analytics/research.mjs');
@@ -64,7 +68,7 @@ function groupKey(r){return [r.sport,r.eventId,r.playerId||r.playerName,r.market
 function lineMap(){var m=new Map();((payload.data&&payload.data.lines)||[]).forEach(function(x){m.set(x.id,x);});return m;}
 function propIdForRow(r){var x=lineMap().get(r&&r.id);return x&&x.propId||null;}
 function playerMap(){var m=new Map();((payload.data&&payload.data.players)||[]).forEach(function(x){m.set(x.id,x);});return m;}
-function groups(){var m=new Map(),pm=playerMap();(payload.props||[]).forEach(function(r){if(r.isAlternate)return;var k=groupKey(r);if(!m.has(k)){var p=pm.get(r.playerId)||{};m.set(k,{key:k,sport:r.sport,eventId:r.eventId,playerId:r.playerId,playerName:r.playerName,entityType:r.entityType||p.entityType||'player',providerPlayerId:p.providerPlayerId||'',team:r.team||p.team||'',position:p.position||'',marketId:r.marketId,market:r.market,homeTeam:r.homeTeam,awayTeam:r.awayTeam,gameStartTime:r.gameStartTime,live:!!r.live,rows:[]});}m.get(k).rows.push(r);});return Array.from(m.values()).map(function(g){return {...g,market:propType(g),rows:dedupeOffers(g.rows)};});}
+function groups(){var m=new Map(),pm=playerMap();(payload.props||[]).forEach(function(r){if(r.isAlternate)return;var k=groupKey(r);if(!m.has(k)){var p=pm.get(r.playerId)||{};m.set(k,{key:k,sport:r.sport,eventId:r.eventId,playerId:r.playerId,playerName:r.playerName,entityType:r.entityType||p.entityType||'player',providerPlayerId:p.providerPlayerId||'',team:r.team||p.team||'',position:p.position||'',marketId:r.marketId,market:r.market,homeTeam:r.homeTeam,awayTeam:r.awayTeam,gameStartTime:r.gameStartTime,live:!!r.live,rows:[]});}m.get(k).rows.push(r);});return Array.from(m.values()).map(function(g){return {...g,market:propType(g),comparisonOffers:g.rows,rows:dedupeOffers(g.rows)};});}
 function books(g){return uniq(g.rows.map(function(r){return r.sportsbookKey;}));}
 function sideRows(g,side){return g.rows.filter(function(r){return r.side===side;});}
 function bestLine(g,side){var a=sideRows(g,side).filter(function(r){return num(r.line)!=null;});if(!a.length)return null;return a.slice().sort(function(a,b){return side==='OVER'?num(a.line)-num(b.line):num(b.line)-num(a.line);})[0];}
@@ -89,8 +93,8 @@ function shell(){
  <main class="asMain"><section class="asHero"><div><h1 id="asPageTitle">Prop Research</h1><p id="asSubtitle" aria-live="polite">Loading current markets…</p></div><span class="asHeroBadge">MAIN LINES ONLY</span></section>
  <nav id="asPropTypes" class="asPropTypes" aria-label="Prop types"></nav>
  <section class="asFilters" aria-label="Filter player props"><label class="asSearchLabel"><span class="asSrOnly">Search player, market or team</span><input class="asControl" id="asSearch" placeholder="Search player, market, team…" type="search"></label><label><span class="asSrOnly">Market</span><select class="asControl" id="asMarket"></select></label><label><span class="asSrOnly">Sportsbook</span><select class="asControl" id="asBook"></select></label><label><span class="asSrOnly">Over or Under</span><select class="asControl" id="asSide"><option value="all">Over + Under</option><option value="OVER">Over</option><option value="UNDER">Under</option></select></label><button class="asBtn asFilterTrigger" id="asAdvancedToggle" aria-expanded="false">Filters <span id="asFilterCount"></span></button></section>
- <dialog id="asFilterSheet" class="asFilterSheet" aria-labelledby="asFilterTitle"><div class="asSheetHead"><h2 id="asFilterTitle">Research filters</h2><button class="asBtn" id="asFilterDone">Done</button></div><section id="asAdvanced" class="asAdvanced"></section></dialog><div class="asToolbar"><span id="asResultCount" aria-live="polite"></span><button class="asBtn" id="asRules" role="switch" aria-checked="true">Rules on</button><button class="asBtn" id="asColumns">Columns</button><button class="asBtn" id="asResearchBatch">Load research</button><label>Sort <select class="asControl" id="asSort"><option value="shuffle">Shuffled (no order)</option><option value="research">Research coverage</option><option value="recent">Recent hit rate</option><option value="l5">L5 hit rate</option><option value="l10">L10 hit rate</option><option value="l15">L15 hit rate</option><option value="season">Season hit rate</option><option value="h2h">H2H hit rate</option><option value="projection">Projection difference</option><option value="books">Most books</option><option value="player">Player A–Z</option><option value="time">Game time</option></select></label></div>
- <section class="asQuick" id="asQuick" aria-label="Quick filters"></section><section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">Browse by prop type. Each player appears once; use the card selector to switch props or games. Statistics use verified game logs only. N/A means no verified sample for that split; it is not zero.</p></main>
+ <dialog id="asFilterSheet" class="asFilterSheet" aria-labelledby="asFilterTitle"><div class="asSheetHead"><h2 id="asFilterTitle">Research filters</h2><button class="asBtn" id="asFilterDone">Done</button></div><section id="asAdvanced" class="asAdvanced"></section></dialog><div class="asToolbar"><span id="asResultCount" aria-live="polite"></span><button class="asBtn" id="asRules" role="switch" aria-checked="true">Rules on</button><button class="asBtn" id="asColumns">Columns</button><button class="asBtn" id="asResearchBatch">Load research</button><label>Sort <select class="asControl" id="asSort"><option value="shuffle">Shuffled (no order)</option><option value="research">Research coverage</option><option value="recent">Recent hit rate</option><option value="l5">L5 hit rate</option><option value="l10">L10 hit rate</option><option value="l15">L15 hit rate</option><option value="l20">L20 hit rate</option><option value="season">Season hit rate</option><option value="h2h">H2H hit rate</option><option value="projection">Projection difference</option><option value="books">Most books</option><option value="player">Player A–Z</option><option value="time">Game time</option></select></label></div>
+ <p class="asNotice" id="asViewNote" hidden></p><section class="asQuick" id="asQuick" aria-label="Quick filters"></section><section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">Browse by prop type. Each player appears once; use the card selector to switch props or games. Statistics use verified game logs only. N/A means no verified sample for that split; it is not zero.</p></main>
  <nav class="asNav" aria-label="Main navigation"><button data-view="research" class="on" data-icon="props"><span class="asNavIcon" aria-hidden="true">☲</span><span>Props</span></button><button data-view="players" data-icon="players"><span class="asNavIcon" aria-hidden="true">●</span><span>Players</span></button><button data-view="popular" data-icon="popular"><span class="asNavIcon" aria-hidden="true">▲</span><span>Popular</span></button><button data-view="discrepancies" data-icon="trend"><span class="asNavIcon" aria-hidden="true">↗</span><span>Discrepancies</span></button><button id="asDiscord" data-icon="chat"><span class="asNavIcon" aria-hidden="true">○</span><span>Discord</span></button></nav>
  <div class="asDrawerBg" id="asDrawerBg"><aside class="asDrawer" role="dialog" aria-modal="true" aria-labelledby="asDrawerTitle" tabindex="-1"><div class="asDrawerHead"><div class="asDrawerAvatar"><img id="asDrawerImg" alt=""></div><div><h2 id="asDrawerTitle">Player research</h2><span id="asInjuryBadge" class="asInjuryBadge" hidden></span><p id="asDrawerSub"></p></div><button class="asClose" id="asClose" aria-label="Back to research"><span class="asBackText">Back</span><span aria-hidden="true">×</span></button></div><div class="asDrawerBody" id="asDrawerBody"></div></aside></div>
  <aside class="asSlipDrawer" id="asSlip" aria-label="Betslip"></aside><dialog id="asUtility" class="asUtility" aria-labelledby="asUtilityTitle"></dialog><div id="asToast" class="asToast" role="status" aria-live="polite"></div></div>`);
@@ -280,7 +284,7 @@ function visible(ignoreResearch=false){
  else a.sort((a,b)=>{if(sortBy==='player')return a.playerName.localeCompare(b.playerName);var av=score(a),bv=score(b);return av==null&&bv!=null?1:bv==null&&av!=null?-1:(bv??0)-(av??0)||a.playerName.localeCompare(b.playerName)||a.key.localeCompare(b.key);});
  if(activeView==='players')a.sort((x,y)=>x.playerName.localeCompare(y.playerName)||x.market.localeCompare(y.market));
  if(activeView==='popular')a.sort((x,y)=>books(y).length-books(x).length||x.playerName.localeCompare(y.playerName));
- if(activeView==='discrepancies'){a=a.filter(g=>lineSpread(g)>0);a.sort((x,y)=>lineSpread(y)-lineSpread(x));}
+ if(activeView==='discrepancies'){var spreads=new Map(a.map(g=>[g.key,lineSpread(g)]));a=a.filter(g=>spreads.get(g.key)>0);a.sort((x,y)=>spreads.get(y.key)-spreads.get(x.key));}
  if(quick.stale)a=a.filter(g=>staleFor(g));
  if(quick.side)a=a.filter(g=>sideRows(g,quick.side).length);
  if(quick.highEv)a=a.filter(function(g){var e=projectionFor(g,boardLine(g));return e&&e.available&&num(e.ev)!=null&&num(e.ev)>5;});
@@ -289,7 +293,8 @@ function visible(ignoreResearch=false){
 // A real disagreement between books on the same side, in the units of the
 // market itself. Books that do not quote the side contribute nothing.
 function lineSpread(g){
- var side=defaultSide(g),lines=sideRows(g,side).map(r=>num(r.line)).filter(v=>v!=null);
+ var side=defaultSide(g),comparison=compareResearchQuotes({...g,rows:g.comparisonOffers||g.rows,archived:!!g.archived||!!payload.meta?.stale},{side});
+ var lines=comparison.offers.filter(q=>q.fresh&&q.side===side).map(q=>q.line);
  if(lines.length<2)return 0;
  return Number((Math.max.apply(null,lines)-Math.min.apply(null,lines)).toFixed(2));
 }
@@ -492,31 +497,20 @@ function hitPills(r){
 }
 // Full book matrix. Columns are the books this prop actually has; a book that
 // is not quoting is absent rather than shown with a blank price.
+function quoteComparison(g){return compareResearchQuotes({...g,rows:g.comparisonOffers||g.rows,archived:!!g.archived||!!payload.meta?.stale},{line:drawerState?.line??boardLine(g),side:drawerState?.side||defaultSide(g)});}
+function quotePriceCell(q,comparison){
+ if(!q)return '<td>—</td>';
+ var best=comparison.bestPrices[q.side].some(x=>x.bookKey===q.bookKey&&x.line===q.line&&x.price===q.price);
+ var status=q.at==null?'Time unavailable':!q.fresh?'Not ranked · stale':new Date(q.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+ return '<td class="'+(best?'asBest':'')+'">'+esc(money(q.price))+'<span class="asQuoteTime">'+esc(status)+'</span></td>';
+}
 function bookMatrix(g){
- var map=new Map();
- g.rows.forEach(function(row){
-  var k=row.sportsbookKey||row.sportsbook;
-  if(!map.has(k))map.set(k,{key:k,name:row.sportsbook||k,over:null,under:null});
-  map.get(k)[row.side==='OVER'?'over':'under']=row;
- });
- var books=Array.from(map.values()).sort(function(a,b){return String(a.name).localeCompare(String(b.name));});
- if(!books.length)return '<p class="asNotice">No sportsbook is quoting this prop right now.</p>';
- var bestOver=books.filter(function(b){return b.over&&num(b.over.price)!=null;})
-  .sort(function(a,b){return num(b.over.price)-num(a.over.price);})[0];
- var bestUnder=books.filter(function(b){return b.under&&num(b.under.price)!=null;})
-  .sort(function(a,b){return num(b.under.price)-num(a.under.price);})[0];
- var body=books.map(function(b){
-  var sharp=staleFor(g);
-  var flagged=sharp&&(sharp.retailKey===String(b.key).toLowerCase()||sharp.sharpKey===String(b.key).toLowerCase());
-  return '<tr'+(flagged?' class="asMatrixFlag"':'')+'><th scope="row">'+esc(b.name)+'</th>'
-   +'<td>'+esc(b.over?dec(b.over.line):'—')+'</td>'
-   +'<td class="'+(bestOver&&bestOver.key===b.key?'asBest':'')+'">'+esc(b.over?money(b.over.price):'—')+'</td>'
-   +'<td>'+esc(b.under?dec(b.under.line):'—')+'</td>'
-   +'<td class="'+(bestUnder&&bestUnder.key===b.key?'asBest':'')+'">'+esc(b.under?money(b.under.price):'—')+'</td></tr>';
- }).join('');
- return '<div class="asTableWrap"><table class="asTable asMatrix"><thead><tr><th>Book</th>'
-  +'<th>O line</th><th>O price</th><th>U line</th><th>U price</th></tr></thead><tbody>'+body+'</tbody></table></div>'
-  +'<p class="asNotice">Best price on each side is highlighted. Prices are compared at the line each book is offering.</p>';
+ var comparison=quoteComparison(g);
+ if(!comparison.rows.length)return '<p class="asNotice">No unambiguous regular sportsbook offers are available for this prop.</p>';
+ var sharp=staleFor(g);
+ var body=comparison.rows.map(row=>'<tr'+(sharp&&(sharp.retailKey===row.bookKey||sharp.sharpKey===row.bookKey)?' class="asMatrixFlag"':'')+'><th scope="row">'+esc(row.name)+'</th><td>'+esc(dec(row.line))+'</td>'+quotePriceCell(row.OVER,comparison)+quotePriceCell(row.UNDER,comparison)+'</tr>').join('');
+ return '<div class="asTableWrap"><table class="asTable asMatrix"><thead><tr><th>Book</th><th>Line</th><th>Over price</th><th>Under price</th></tr></thead><tbody>'+body+'</tbody></table></div>'
+  +'<p class="asNotice">Highlights compare two or more books at the same '+esc(dec(comparison.selectedLine))+' line and side. Quotes older than 30 minutes or without a source time are not ranked. '+(comparison.omitted.length?'Conflicting or future-dated quotes were excluded.':'')+'</p>';
 }
 // Scenario sandbox. The team-mate list is the real depth chart; toggling one
 // out re-runs the actual projection with that absence in the payload. There is
@@ -933,6 +927,8 @@ function renderBatchControl(){
 }
 async function prefetch(list){await Promise.all(list.map(async g=>{await getResearch(g,boardLine(g),defaultSide(g),false);if(g.sport===sport)renderListLight();}));}
 function renderListLight(){
+ var viewNote=document.getElementById('asViewNote'),notes={popular:'Sorted by the number of sportsbooks quoting each prop. User pick popularity is unavailable.',discrepancies:'Largest line differences across fresh, verified books on the selected side. Differences are in each market’s own units and are not an EV ranking.'};
+ viewNote.hidden=!notes[activeView];viewNote.textContent=notes[activeView]||'';
  renderPropTypes();
  var list=document.getElementById('asList'),a=cardList(),focused=(list.contains(document.activeElement)||document.querySelector('.asHeaderRow').contains(document.activeElement))?focusToken(document.activeElement):null,origin=focusToken(lastFocus);
  applyColumnHeaders();document.getElementById('asResultCount').textContent=a.length+' players · '+(marketFilter==='all'?'grouped props':marketFilter)+' · '+(activeView==='saved'?(saveLoadError?'Saved props unavailable':serverSaves?'Saved to access profile':'Saved on this device'):'Available board');
@@ -1051,6 +1047,18 @@ function chartHtml(r){
  return'<div class="asChartLegend"><span class="asHit">● Hit</span><span class="asMiss">● Miss</span><span class="asPushText">● Push</span><span>Line '+esc(dec(line))+'</span></div><div class="asChartWrap" tabindex="0" role="region" aria-label="Game performance chart, scroll for more games"><div class="asChart" style="min-width:'+Math.max(0,rows.length*44)+'px">'+(line!=null?'<div class="asThreshold" style="bottom:'+position(line)+'%"><span>LINE '+esc(dec(line))+'</span></div>':'')+'<div class="asZeroLine" style="bottom:'+position(0)+'%"></div>'+rows.map(x=>'<button type="button" class="asBarCol" data-game-detail="'+esc(shortDate(x.date)+' · '+(x.opponent||'Opponent unavailable')+' · '+x.value+' · '+(x.push?'Push':x.hit===true?'Hit':x.hit===false?'Miss':'Result unavailable'))+'" aria-label="'+esc(shortDate(x.date)+' '+(x.opponent||'')+' result '+x.value)+'"><span class="asChartBar '+(x.push?'push':x.hit===false?'miss':x.hit===true?'':'unknown')+'" style="position:absolute;bottom:'+position(Math.min(0,x.value))+'%;height:'+Math.abs(x.value)/span*100+'%"><span class="asBarVal">'+esc(x.value)+'</span></span><span class="asBarLabel">'+esc(shortDate(x.date))+'<br>'+esc(x.opponent||'Unknown')+'</span></button>').join('')+'</div></div><p id="asGameDetail" class="asNotice" aria-live="polite">Tap a bar to inspect a game. Hit rate is hits / all games. Pushes are shown separately and end a hit streak.</p>';
 }
 function secondaryHeaders(s,marketId){if(['NBA','WNBA','NCAAB'].includes(s))return[['MIN','minutes'],['PTS','points'],['REB','rebounds'],['AST','assists'],['3PM','threes'],['STL','steals'],['BLK','blocks']];if(['NFL','NCAAF'].includes(s))return[['PASS YDS','passingYards'],['PASS TD','passingTouchdowns'],['RUSH YDS','rushingYards'],['REC','receptions'],['TARGETS','targets'],['REC YDS','receivingYards']];if(s==='MLB'&&String(marketId||'').startsWith('pitcher_'))return[['HITS ALLOWED','hitsAllowed'],['ER','earnedRuns'],['SO','strikeouts']];if(s==='MLB')return[['HITS','hits'],['TB','totalBases'],['RBI','runsBattedIn'],['RUNS','runs'],['SO','strikeouts']];if(s==='NHL')return[['SOG','shotsOnGoal'],['GOALS','goals'],['AST','assists'],['PTS','points'],['SAVES','saves']];return[];}
+// Use the exact selected chart sample. Missing fields never become zero or
+// borrow observations from another window, venue, player, or market.
+function supportingStats(r,g){
+ var rows=filteredGames(r),metrics=secondaryHeaders(g.sport,g.marketId);
+ if(g.entityType==='team'||!metrics.length)return '<p class="asNotice">Supporting statistics are unavailable for this market.</p>';
+ var tiles=metrics.map(([label,field])=>{
+  var values=rows.map(row=>row[field]).filter(value=>typeof value==='number'&&Number.isFinite(value));
+  var average=values.length?values.reduce((sum,value)=>sum+value,0)/values.length:null;
+  return '<div class="asCtx" data-support-stat="'+esc(field)+'"><small>'+esc(label)+' / game</small><b>'+ (average==null?'Unavailable':esc(dec(average,1)))+'</b><span class="asSupportSample">'+values.length+' of '+rows.length+' games reported</span></div>';
+ }).join('');
+ return '<div class="asContext asSupportingStats">'+tiles+'</div><p class="asNotice">Averages use reported values from the selected window and venue. Missing statistics are excluded; recorded zeros count.</p>';
+}
 function detailedGameTable(r,g){
  var extra=secondaryHeaders(g.sport,g.marketId),rows=filteredGames(r),hasStarts=rows.some(x=>typeof x.started==='boolean');
  return'<div class="asTableWrap"><table class="asTable"><thead><tr><th>Date</th><th>Opp</th><th>H/A</th><th>Game result</th><th>'+esc(r?.marketDisplayName||g.market)+'</th><th>Prop result</th><th>'+(hasStarts?'Starter / date':'Game start')+'</th>'+extra.map(x=>'<th>'+x[0]+'</th>').join('')+'</tr></thead><tbody>'+rows.map(function(x){
@@ -1068,7 +1076,54 @@ function gameTable(r,g){
  return '<tr><td>'+(date?'<time datetime="'+esc(x.date)+'">'+esc(date.toLocaleDateString([],{month:'short',day:'numeric'}))+'<small>'+date.getFullYear()+'</small></time>':'—')+'</td><td>'+esc(x.opponent||'—')+'</td><td>'+esc(x.isHome===true?'H':x.isHome===false?'A':'—')+'</td><td><b>'+esc(x.value)+'</b></td><td>'+esc(line==null?'—':dec(line))+'</td><td><span class="asResultBadge '+cls+'">'+result+'</span></td></tr>';
  }).join('')+'</tbody></table></div><details class="asGameDetails"><summary>Scores, starters &amp; additional stats</summary>'+detailedGameTable(r,g)+'</details>';
 }
-function comparisonRows(g){var line=num(drawerState?.line??boardLine(g)),bo=bestPrice(g,'OVER',line,true),bu=bestPrice(g,'UNDER',line,true),lo=bestLine(g,'OVER'),lu=bestLine(g,'UNDER');var map=new Map();g.rows.forEach(r=>{var k=[r.sportsbookKey,r.line].join('|');if(!map.has(k))map.set(k,{name:r.sportsbook||r.sportsbookKey,line:r.line});map.get(k)[r.side.toLowerCase()]=r;});return'<p class="asNotice">Consensus '+dec(consensus(g))+' · Best price highlights compare the same '+dec(line)+' line.</p><div class="asLineBest"><span>Lowest Over '+dec(lo?.line)+' · '+esc(lo?.sportsbook||'Unavailable')+'</span><span>Highest Under '+dec(lu?.line)+' · '+esc(lu?.sportsbook||'Unavailable')+'</span></div><div class="asTableWrap"><table class="asTable asBookTable"><thead><tr><th>Sportsbook</th><th>Line</th><th>Over price</th><th>Under price</th></tr></thead><tbody>'+Array.from(map.values()).map(x=>'<tr><td>'+esc(x.name)+'</td><td>'+dec(x.line)+'</td><td class="'+(bo&&x.over&&num(x.over.line)===line&&num(x.over.price)===num(bo.price)?'asBest':'')+'">'+money(x.over?.price)+'</td><td class="'+(bu&&x.under&&num(x.under.line)===line&&num(x.under.price)===num(bu.price)?'asBest':'')+'">'+money(x.under?.price)+'</td></tr>').join('')+'</tbody></table></div>';}
+function comparisonRows(g){
+ var comparison=quoteComparison(g);
+ var card=(side,title)=>{
+  var line=comparison.bestLines[side],offers=comparison.offers.filter(q=>q.fresh&&q.side===side&&q.line===line);
+  return '<article class="asLineOpportunity"><small>'+title+'</small><strong>'+(line==null?'Unavailable':esc(dec(line)))+'</strong>'
+   +(offers.length?offers.map(q=>'<button type="button" class="asQuoteChoice" data-use-quote="'+esc(JSON.stringify([q.bookKey,q.side,q.line]))+'" aria-label="Research '+esc(q.sportsbook||q.sportsbookKey)+' '+side+' '+esc(dec(line))+'"><span>'+esc(q.sportsbook||q.sportsbookKey)+'</span><span>'+(q.price==null?'Price unavailable':esc(money(q.price)))+'</span><span class="asQuoteAction">Research this line →</span></button>').join(''):'<p>No fresh, verified offer on this side.</p>')+'</article>';
+ };
+ var winners=comparison.bestPrices[comparison.side]||[];
+ return '<div class="asLineOpportunities">'+card('OVER','Lowest Over line')+card('UNDER','Highest Under line')+'</div>'
+  +'<div class="asMarketSummary"><div><small>'+esc(comparison.side)+' consensus line</small><b>'+(comparison.consensus==null?'Unavailable':esc(dec(comparison.consensus)))+'</b><span>Median across at least two fresh books</span></div><div><small>Best '+esc(comparison.side)+' price at '+esc(dec(comparison.selectedLine))+'</small><b>'+(winners.length?esc(money(winners[0].price)):'Unavailable')+'</b><span>'+esc(winners.length?winners.map(q=>q.sportsbook||q.sportsbookKey).join(' · '):'Needs two fresh prices at this exact line')+'</span></div></div>'
+  +'<p class="asNotice">Research a quoted line to update your chart, side and book history. Sportsbook offers stay unchanged. A lower Over or higher Under line is not by itself better value; price matters too.</p>';
+}
+
+function proToolsPanel(g){
+ var group={...g,archived:!!g.archived||!!payload.meta?.stale},predictions=new Map();
+ (g.comparisonOffers||g.rows||[]).forEach(q=>{
+  var target={...g,...q,playerName:g.playerName,gameStartTime:g.gameStartTime},prediction=mlClient.peek(target),key=predictionKey(prediction);
+  if(key&&prediction?.available)predictions.set(key,prediction);
+ });
+ return proToolsHtml(proToolsAnalysis(group,{predictions:Array.from(predictions.values())}));
+}
+function winPredictorPanel(g){
+ return '<div class="asWinPredictor"><p class="asNotice">'+esc(g.awayTeam||'Away team')+' at '+esc(g.homeTeam||'Home team')+' · Game outcome research</p>'
+  +'<div class="asProCards"><article class="asProCard" data-win-status="model"><h4>Model prediction</h4><strong>Unavailable</strong><p>No validated team-win model is connected for this game. Player projections and historical prop hit rates do not predict the game winner.</p></article>'
+  +'<article class="asProCard" data-win-status="market"><h4>Market-implied probabilities</h4><strong>Unavailable</strong><p>Complete, fresh game moneylines with verified settlement rules are not available in this research feed.</p></article></div>'
+  +'<details><summary>How game probabilities will be evaluated</summary><p>Market-implied estimates require complete moneylines from at least two sportsbooks. Each book’s implied probabilities are normalized before averaging, so its margin is removed proportionally. These estimates are separate from a trained prediction.</p><p>Regulation and full-game markets stay separate. Three-way markets include the draw. A two-way market that refunds a draw only describes outcomes conditional on a non-draw; it cannot supply a draw probability.</p><p>Quotes must be observed within five minutes and within one minute of each other. Missing, stale or conflicting evidence remains unavailable.</p></details></div>';
+}
+function matchupOptions(g){return {line:drawerState.line,side:drawerState.side,window:drawerState.window,sport:g.sport,eventStart:g.gameStartTime};}
+function matchupWindowControl(){return '<label class="asSampleWindow">Historical sample<select class="asMarketSelect" id="asMatchWindow">'+[['l5','Last 5'],['l10','Last 10'],['l15','Last 15'],['l20','Last 20'],['season','Current regular season'],['h2h','Direct opponent games']].map(([value,label])=>'<option value="'+value+'" '+(drawerState.window===value?'selected':'')+'>'+label+'</option>').join('')+'</select></label>';}
+function matchupMetric(label,metric,id){
+ return '<article class="asMatchMetric" data-match-metric="'+id+'"><h4>'+esc(label)+'</h4><strong>'+(metric.hitRate==null?'Unavailable':esc(pct(metric.hitRate)))+'</strong><span>Historical hit rate</span><dl><div><dt>Average</dt><dd>'+(metric.average==null?'Unavailable':esc(dec(metric.average)))+'</dd></div><div><dt>Games</dt><dd>'+metric.games+'</dd></div><div><dt>Pushes</dt><dd>'+(metric.pushes==null?'Unavailable':metric.pushes)+'</dd></div></dl>'+(metric.limited?'<p class="asSmallSample">Small sample · fewer than 5 games</p>':'')+'</article>';
+}
+function matchupPanel(base,g){
+ var result=matchupAnalysis({...base,entityType:g.entityType},matchupOptions(g));
+ return matchupWindowControl()+'<p class="asNotice">Upcoming venue: '+(result.targetVenue?esc(result.targetVenue==='home'?'Home':'Away'):'Unverified')+'. These groups are drawn from the same selected historical sample; they may overlap.</p>'
+  +'<div class="asMatchMetrics">'+matchupMetric('Selected sample',result.baseline,'baseline')+matchupMetric('Home games',result.home,'home')+matchupMetric('Away games',result.away,'away')+matchupMetric(result.opponentKnown?'VS '+(result.opponent||'verified opponent'):'Opponent unverified',result.h2h,'h2h')+'</div>'
+  +'<p class="asNotice">'+(result.partialSeason?'Season coverage is incomplete. ':'')+(result.unknownVenue?result.unknownVenue+' games have no verified venue and are excluded from home/away groups. ':'')+'Hit rates use all matched games, including pushes in the denominator. These are historical results, not a prediction or opponent defensive ranking.</p>';
+}
+function similarPanel(base,g){
+ var state=drawerState.similar||{venue:'matchup',role:'any',minMinutes:'',maxMinutes:''};
+ var result=similarGames({...base,entityType:g.entityType},{...matchupOptions(g),...state});
+ var select=(id,label,choices,value)=>'<label>'+label+'<select class="asMarketSelect" id="'+id+'">'+choices.map(([v,t])=>'<option value="'+v+'" '+(v===value?'selected':'')+'>'+t+'</option>').join('')+'</select></label>';
+ return matchupWindowControl()+'<div class="asSimilarControls">'+select('asSimilarVenue','Historical venue',[['matchup','Match upcoming venue'],['any','Any venue'],['home','Home only'],['away','Away only']],state.venue)+select('asSimilarRole','Recorded starter status',[['any','Any status'],['starter','Starter only'],['bench','Bench only']],state.role)
+  +(result.minutesSupported?'<label>Minimum minutes<input class="asControl" id="asSimilarMin" type="number" min="0" step="0.5" placeholder="Any" value="'+esc(state.minMinutes)+'"></label><label>Maximum minutes<input class="asControl" id="asSimilarMax" type="number" min="0" step="0.5" placeholder="Any" value="'+esc(state.maxMinutes)+'"></label>':'')+'</div>'
+  +'<p class="asNotice" id="asSimilarCount" role="status">'+result.matched+' of '+result.candidates+' games match these conditions.</p>'+(result.reason?'<p class="asAvailability">'+esc(result.reason)+'</p>':'')
+  +'<div class="asMatchMetrics asSimilarSummary">'+matchupMetric('Matched games',result.summary,'similar')+'</div><p class="asNotice">'+esc(result.note)+'</p>'
+  +(result.matched?'<div class="asTableWrap asSimilarGames"><table class="asTable"><thead><tr><th>Date</th><th>Opponent</th><th>Venue</th><th>Starter</th><th>Minutes</th><th>'+esc(g.market)+'</th><th>Prop result</th></tr></thead><tbody>'+result.summary.rows.map(row=>'<tr><td>'+esc(shortDate(row.date))+'</td><td>'+esc(row.opponent||'Unavailable')+'</td><td>'+ (row.isHome===true?'Home':row.isHome===false?'Away':'Unavailable')+'</td><td>'+(row.started===true?'Yes':row.started===false?'No':'Unavailable')+'</td><td>'+(row.minutes==null?'Unavailable':esc(dec(row.minutes)))+'</td><td>'+esc(dec(row.value))+'</td><td>'+ (row.push===true?'Push':row.hit===true?'Hit':row.hit===false?'Miss':'Unavailable')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="asNotice">No matching historical games are available. Broaden the filters to explore the recorded sample.</p>');
+}
 function historyChart(series){
  if(series.building)return'';
  var rows=series.rows,t0=series.first.observedAt,span=series.last.observedAt-t0,low=Math.min(...rows.map(x=>x.line)),high=Math.max(...rows.map(x=>x.line));
@@ -1090,16 +1145,25 @@ async function intelligenceReadHistory(g,book,side){
 }
 async function historyHtml(g,book,side){
  var pid=propIdForRow(g.rows[0])||g.propId;if(!pid)return'<p class="asNotice">Line history is unavailable for this prop.</p>';
- var key=[pid,book,side].join('|'),entry=historyCache.get(key),j;
- try{if(entry&&entry.expires>Date.now())j=await entry.promise;else{var promise=nativeFetch('/api/apex/line-history?'+new URLSearchParams({propId:pid,bookmaker:book,side,limit:1000}),{signal:AbortSignal.timeout(15000)}).then(async response=>{if(!response.ok)throw Error();return response.json();});historyCache.set(key,{promise,expires:Date.now()+60000});j=await promise;}
- var series=analyzeLineHistory(j.rows||[],{bookmaker:book,side}),rows=series.rows;
+ var j;
+ try{j=await intelligenceReadHistory(g,book,side);
+ var series=analyzeLineHistory(j.rows||[],{propId:pid,bookmaker:book,side}),rows=series.rows;
  if(!j.configured||!rows.length)return'<p class="asNotice">Building line history</p>';
  var a=series.first,b=series.last,move=series.lineChange,current=g.archived?null:g.rows.find(x=>x.sportsbookKey===book&&x.side===side);
  return'<div class="asContext"><div class="asCtx"><small>First observed</small><b>'+dec(a.line)+'</b></div><div class="asCtx"><small>Last observed</small><b>'+dec(b.line)+'</b></div><div class="asCtx"><small>Observed line change</small><b>'+(move>0?'+':'')+dec(move)+'</b></div><div class="asCtx"><small>Current offer</small><b>'+dec(current?.line)+'</b></div></div><p class="asNotice">'+(series.building?'Building line history':series.changes.length<2?'No line or price changes observed.':'Observed changes for this sportsbook and side.')+' '+rows.length+' stored observations.'+((j.rows||[]).length===1000?' History limited to the first 1,000 observations; the current offer may be newer.':'')+'</p>'+historyChart(series)+'<div class="asTableWrap"><table class="asTable asHistoryTable"><thead><tr><th>Observed</th><th>Line</th><th>Price</th></tr></thead><tbody>'+series.changes.slice().reverse().map(x=>'<tr><td><time datetime="'+esc(x.created_at)+'">'+esc(new Date(x.created_at).toLocaleDateString())+'<span>'+esc(new Date(x.created_at).toLocaleTimeString())+'</span></time></td><td>'+dec(x.line)+'</td><td>'+money(x.price)+'</td></tr>').join('')+'</tbody></table></div>';
- }catch{return'<p class="asNotice">Line history could not load. Close and reopen the drawer to try again shortly.</p>';}
+ }catch{return'<p class="asNotice">Line history could not load.</p><button type="button" class="asBtn" id="asRetryHistory">Retry history</button>';}
 }
 function openDrawer(g){if(!drawerState)lastFocus=document.activeElement;if(sandbox.key!==g.key)sandbox={key:g.key,out:new Set(),roster:null,loading:false};drawerState={g,line:boardLine(g),side:defaultSide(g),window:'l10',filter:'all',base:null,historyBook:bookFilter!=='all'?bookFilter:books(g)[0]};document.getElementById('asDrawerBg').classList.add('on');document.body.style.overflow='hidden';document.querySelector('.asMain').inert=true;document.querySelector('.asTop').inert=true;document.querySelector('.asNav').inert=true;renderDrawer();document.getElementById('asClose').focus();getResearch(g,drawerState.line,drawerState.side,false).then(r=>{if(!drawerState||drawerState.g.key!==g.key)return;drawerState.base=r;renderDrawer();});}
-function loadHistoryIntoDrawer(){if(!drawerState)return;var {g,historyBook,side}=drawerState;historyHtml(g,historyBook,side).then(html=>{if(drawerState?.g.key!==g.key||drawerState?.historyBook!==historyBook||drawerState?.side!==side)return;var el=document.getElementById('asHistory');if(el)el.innerHTML=html;});}
+function loadHistoryIntoDrawer(){
+ if(!drawerState)return;var {g,historyBook,side}=drawerState;
+ var host=document.getElementById('asHistory');if(host)host.innerHTML='<p class="asNotice" role="status">Loading observed history…</p>';
+ historyHtml(g,historyBook,side).then(html=>{
+  if(drawerState?.g.key!==g.key||drawerState?.historyBook!==historyBook||drawerState?.side!==side)return;
+  var el=document.getElementById('asHistory');if(!el)return;el.innerHTML=html;
+  document.getElementById('asRetryHistory')?.addEventListener('click',()=>loadHistoryIntoDrawer());
+ });
+}
+
 function researchAvailability(base){if(base?.message)return base.message;var c=String(base?.code||'');if(/UNMAPPED/.test(c))return 'This market does not yet have a supported historical statistic. Current sportsbook lines remain available.';if(/SEASON_ONLY|NO_GAME_LOG/.test(c)||base?.sections?.seasonTotal)return 'Season or player context is available, but completed game logs were not returned. Hit rates require individual game results.';if(/PLAYER.*MATCH|AMBIGUOUS/.test(c))return 'This player could not be uniquely matched to historical statistics. Current sportsbook lines remain available.';return 'Historical research could not be loaded for this player and market. Any supplied player context and sportsbook lines remain available.';}
 // An empty filtered log is usually the head-to-head view on a player who has
 // not faced this opponent. Say that in plain language and show the recent form
@@ -1135,14 +1199,14 @@ function renderDrawer(){
  var section=(title,body,sub='')=>'<section class="asSection"><div class="asSectionTitle"><h3>'+title+'</h3><span>'+sub+'</span></div><div class="asSectionBody">'+body+'</div></section>';
  var controls='<div class="asResearchTop"><label>Market<select class="asMarketSelect" id="asMarketSwitch">'+marketOptions(g)+'</select></label><div><label>Research line</label><div class="asLineCtl"><button class="asLineBtn" id="asLineMinus" aria-label="Decrease line">−</button><input class="asLineVal" id="asLineInput" type="number" step="0.5" aria-label="Research line" value="'+(line==null?'':line)+'"><button class="asLineBtn" id="asLinePlus" aria-label="Increase line">+</button></div></div></div><div class="asSideToggle">'+['OVER','UNDER'].map(x=>'<button class="asSideBtn '+x.toLowerCase()+' '+(side===x?'on':'')+'" data-side="'+x+'" aria-pressed="'+(side===x)+'">'+x+'</button>').join('')+'</div><p class="asNotice">Adjusting this line changes your research, not sportsbook offers.</p>';
  var filters='<div class="asFilterRow">'+[['all','All'],['home','Home'],['away','Away'],['h2h','VS '+(r?.matchup?.opponent||'opponent')]].map(([id,label])=>'<button class="asFilterBtn '+(drawerState.filter===id?'on':'')+'" data-filter="'+id+'" aria-pressed="'+(drawerState.filter===id)+'">'+esc(label)+'</button>').join('')+'</div>';
- var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['intelligence','Intelligence'],['sandbox','Scenario'],['ask','Ask']];
+ var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['matchup','Matchup'],['similar','Similar games'],['win','Win Predictor'],['intelligence','Intelligence'],['sandbox','Scenario'],['pro','Pro Tools'],['ask','Ask']];
  var tabBar='<div class="asResearchTabs" role="tablist" aria-label="Player research sections">'+tabs.map(([id,label])=>'<button role="tab" class="asResearchTab" id="asTab-'+id+'" data-research-panel="'+id+'" aria-controls="asPanel-'+id+'" aria-selected="'+(panel===id)+'" tabindex="'+(panel===id?'0':'-1')+'">'+label+'</button>').join('')+'</div>';
  var logContent=filteredGames(r).length?gameTable(r,g):emptyLog(r,g,base);
  var projectionHtml=mlPanel(g,line,side)+projectionCard(g,line);
  var pillsHtml=section('Hit rate',hitPills(r||base));
- var panels={sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
+ var panels={win:section('Win Predictor',winPredictorPanel(g)),pro:panel==='pro'?section('Pro Tools',proToolsPanel(g)):'',matchup:section('Matchup research',matchupPanel(base||{},g)),similar:section('Similar games · same player',similarPanel(base||{},g)),sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
   ask:section('Ask about this prop',askPanel(g,line,side)),
-  overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Game log',logContent),lines:section('Every book',bookMatrix(g))+section('Sportsbook line shop',comparisonRows(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
+  overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent),lines:section('Best Line Finder',comparisonRows(g))+section('Every book',bookMatrix(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
  intelligence?.disposeDetails();
  panels.intelligence='<div id="asIntelligenceDetail">'+(intelligence?'':'<p class="asNotice">Intelligence tools could not load. Reload the page; existing research remains available.</p>')+'</div>';
  document.getElementById('asDrawerBody').innerHTML=(g.archived?'<p class="asAvailability">Saved snapshot from '+esc(when(g.savedAt))+'. Current sportsbook offers are unavailable for this prop.</p>':'')+section('Research controls',controls)+(!base?'<div class="asLoading" role="status">Loading player research…</div>':!base.available?'<p class="asAvailability">'+esc(researchAvailability(base))+'</p><button class="asBtn" id="asRetryResearch">Retry research</button>':'')+tabBar+'<div role="tabpanel" id="asPanel-'+panel+'" aria-labelledby="asTab-'+panel+'" tabindex="0">'+panels[panel]+'</div>';
@@ -1169,8 +1233,19 @@ function renderDrawer(){
  document.getElementById('asLineMinus').onclick=()=>changeLine(Number(((num(line)??0)-.5).toFixed(2)));
  document.getElementById('asLinePlus').onclick=()=>changeLine(Number(((num(line)??0)+.5).toFixed(2)));
  document.getElementById('asLineInput').onchange=e=>changeLine(e.target.value);
+ document.querySelectorAll('[data-use-quote]').forEach(b=>b.onclick=()=>{
+  var [book,offerSide,offerLine]=JSON.parse(b.dataset.useQuote);
+  var offer=quoteComparison(g).offers.find(q=>q.fresh&&q.bookKey===book&&q.side===offerSide&&q.line===offerLine);
+  if(!offer){toast('This quote is no longer current. Refresh the board.');return;}
+  drawerState.line=offer.line;drawerState.side=offer.side;drawerState.historyBook=offer.sportsbookKey||offer.sportsbook;
+  renderDrawer();document.getElementById('asLineInput')?.focus();
+ });
  document.querySelectorAll('[data-side]').forEach(b=>b.onclick=()=>{drawerState.side=b.dataset.side;renderDrawer();});
  document.querySelectorAll('[data-window]').forEach(b=>b.onclick=()=>{drawerState.window=b.dataset.window;renderDrawer();});
+ document.getElementById('asMatchWindow')?.addEventListener('change',e=>{drawerState.window=e.target.value;renderDrawer();});
+ [['asSimilarVenue','venue'],['asSimilarRole','role'],['asSimilarMin','minMinutes'],['asSimilarMax','maxMinutes']].forEach(([id,key])=>{
+  document.getElementById(id)?.addEventListener('change',e=>{drawerState.similar={venue:'matchup',role:'any',minMinutes:'',maxMinutes:'',...drawerState.similar,[key]:e.target.value};renderDrawer();});
+ });
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{drawerState.filter=b.dataset.filter;renderDrawer();});
  document.querySelectorAll('[data-game-detail]').forEach(b=>b.onclick=()=>document.getElementById('asGameDetail').textContent=b.dataset.gameDetail);
  hydrateML();
@@ -1194,7 +1269,7 @@ function toast(message){var el=document.getElementById('asToast');el.textContent
 function applyPreferences(){document.getElementById('as5')?.classList.toggle('asCompact',prefs.compact);document.getElementById('as5')?.classList.toggle('asShowBooks',prefs.books);document.getElementById('as5')?.classList.toggle('asReduceMotion',prefs.reduceMotion);}
 function utility(title,html){var dialog=document.getElementById('asUtility');dialog.innerHTML='<div class="asUtilityHead"><h2 id="asUtilityTitle">'+esc(title)+'</h2><button class="asClose" id="asUtilityClose" aria-label="Close '+esc(title)+'">×</button></div>'+html;document.getElementById('asUtilityClose').onclick=()=>dialog.close();if(!dialog.open)dialog.showModal();return dialog;}
 function storeLocal(key,value){try{localStorage.setItem(key,JSON.stringify(value));}catch{}}
-function restoreFilters(){var f=readStored('autoscout-filters-'+sport,{});if(!f||typeof f!=='object')f={};query=typeof f.query==='string'?f.query:'';marketFilter=typeof f.market==='string'?f.market:'all';bookFilter=typeof f.book==='string'?f.book:'all';sideFilter=['all','OVER','UNDER'].includes(f.side)?f.side:'all';sortBy=['shuffle','research','recent','l5','l10','l15','season','h2h','projection','books','player','time'].includes(f.sort)?f.sort:'shuffle';advanced=f.advanced&&typeof f.advanced==='object'&&!Array.isArray(f.advanced)?f.advanced:{};rulesEnabled=f.rulesEnabled!==false;}
+function restoreFilters(){var f=readStored('autoscout-filters-'+sport,{});if(!f||typeof f!=='object')f={};query=typeof f.query==='string'?f.query:'';marketFilter=typeof f.market==='string'?f.market:'all';bookFilter=typeof f.book==='string'?f.book:'all';sideFilter=['all','OVER','UNDER'].includes(f.side)?f.side:'all';sortBy=['shuffle','research','recent','l5','l10','l15','l20','season','h2h','projection','books','player','time'].includes(f.sort)?f.sort:'shuffle';advanced=f.advanced&&typeof f.advanced==='object'&&!Array.isArray(f.advanced)?f.advanced:{};rulesEnabled=f.rulesEnabled!==false;}
 function persistFilters(){storeLocal('autoscout-filters-'+sport,{query,market:marketFilter,book:bookFilter,side:sideFilter,sort:sortBy,advanced,rulesEnabled});}
 function dayBoundary(day,end=false){if(!/^\d{4}-\d{2}-\d{2}$/.test(day||''))return null;var d=new Date(day+'T00:00:00');if(end)d.setDate(d.getDate()+1);return Number.isFinite(d.getTime())?new Date(d.getTime()-(end?1:0)).toISOString():null;}
 function activeFilterCount(){return Number(!!query)+Number(marketFilter!=='all')+Number(bookFilter!=='all')+Number(sideFilter!=='all')+['team','opponent','game','before','day','today'].filter(k=>!!advanced[k]).length+Number(!!advanced.availability&&advanced.availability!=='ALL')+(rulesEnabled?Object.values(advanced.thresholds||{}).filter(v=>num(v)!=null).length+Number(num(advanced.delta)!=null):0);}
@@ -1206,7 +1281,7 @@ function settingsPanel(){utility('Display settings','<div class="asSettings">'+[
 function renderAdvanced(){
  var gs=viewGroups(),options=(items,selected)=>'<option value="">All</option>'+uniq([...items,selected]).sort().map(x=>'<option value="'+esc(x)+'" '+(selected===x?'selected':'')+'>'+esc(x)+'</option>').join('');
  var html='<label>Date<input class="asControl" type="date" data-advanced="day" value="'+esc(advanced.day||'')+'"></label><label>Team<select class="asControl" data-advanced="team">'+options(gs.map(g=>g.team||researchFor(g)?.player?.team),advanced.team)+'</select></label><label>Opponent<select class="asControl" data-advanced="opponent">'+options(gs.map(g=>researchFor(g)?.matchup?.opponent),advanced.opponent)+'</select></label><label>Game<select class="asControl" data-advanced="game"><option value="">All games</option>'+Array.from(new Map(gs.map(g=>[g.eventId,g])).values()).map(g=>'<option value="'+esc(g.eventId)+'" '+(advanced.game===g.eventId?'selected':'')+'>'+esc(g.awayTeam+' @ '+g.homeTeam)+'</option>').join('')+'</select></label><label>Research<select class="asControl" data-advanced="availability">'+[['ALL','All coverage'],['AVAILABLE','Game log available'],['UNAVAILABLE','Game log unavailable'],['PENDING','Not loaded']].map(([value,label])=>'<option value="'+value+'" '+((advanced.availability||'ALL')===value?'selected':'')+'>'+label+'</option>').join('')+'</select></label>';
- html+=['l5','l10','l15','season','h2h'].map(k=>'<label>'+k.toUpperCase()+' minimum %<input class="asControl" type="number" min="0" max="100" step="1" data-threshold="'+k+'" '+(!rulesEnabled?'disabled':'')+' value="'+esc(advanced.thresholds?.[k]??'')+'" placeholder="Any"></label>').join('');
+ html+=['l5','l10','l15','l20','season','h2h'].map(k=>'<label>'+k.toUpperCase()+' minimum %<input class="asControl" type="number" min="0" max="100" step="1" data-threshold="'+k+'" '+(!rulesEnabled?'disabled':'')+' value="'+esc(advanced.thresholds?.[k]??'')+'" placeholder="Any"></label>').join('');
  html+='<label>Projection difference<input class="asControl" type="number" step="0.5" data-advanced="delta" '+(!rulesEnabled?'disabled':'')+' value="'+esc(advanced.delta??'')+'" placeholder="Any"></label><label>Starts before<input class="asControl" type="datetime-local" data-advanced="before" value="'+esc(advanced.before||'')+'"></label><label class="asCheckbox"><input type="checkbox" id="asToday" '+(advanced.today?'checked':'')+'> Today only</label><button class="asBtn" id="asClear">Clear filters</button><p class="asNotice">Rules control only hit-rate and projection thresholds. Missing values never qualify. Regular lines are always required.</p>';
  document.getElementById('asAdvanced').innerHTML=html;
  var update=()=>{page=1;updateFilterStatus();renderList();};

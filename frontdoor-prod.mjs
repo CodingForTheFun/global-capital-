@@ -39,7 +39,7 @@ const PROJECTION_RATE_PER_MINUTE = 12;
 const ASK_RATE_PER_MINUTE = 20;
 const CLIENT_MODULES = new Map([
   'lib/ui/intelligence-studio.mjs', 'lib/autoscout/intelligence.mjs',
-  'lib/ui/offer-promotion.mjs', 'lib/ml/contract.mjs', 'lib/ui/ml-prediction.mjs', 'lib/ui/prop-board.mjs', 'lib/analytics/research.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
+  'lib/ui/offer-promotion.mjs', 'lib/ml/contract.mjs', 'lib/ui/ml-prediction.mjs', 'lib/ui/prop-board.mjs', 'lib/ui/line-comparison.mjs', 'lib/analytics/research.mjs', 'lib/analytics/matchup.mjs', 'lib/analytics/pro-tools.mjs', 'lib/ui/pro-tools.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
   'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
   'lib/betting/kelly.mjs', 'lib/markets/line-lag.mjs',
   'lib/projections/reprice.mjs', 'lib/projections/baseline.mjs', 'lib/projections/schema.mjs',

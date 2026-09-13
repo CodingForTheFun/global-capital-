@@ -464,3 +464,38 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asHistoryGap{border-top:1px solid #29384e;padding:14px 16px;display:grid;gap:5px;font-size:12px;color:#9fb0c8}.asHistoryGap b{color:#dfc58e}.asHistoryGap span{line-height:1.5}.asAvatar img[hidden]{display:none}.asCardId{min-width:0}
 
 .asProjectedStat{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.18);border-radius:10px;margin:10px 0;font-size:12px}.asProjectedStat b{font-size:20px;color:#34d399;font-variant-numeric:tabular-nums}.asProjectedStat small{color:#94a3b8}
+
+/* Selected-sample supporting statistics in player research. */
+.asSupportingStats .asSupportSample{display:block;margin-top:6px;font-size:.75rem;line-height:1.5;color:#94a3b8;overflow-wrap:anywhere}
+
+.asQuoteTime{display:block;margin-top:4px;font-size:.75rem;font-weight:400;color:#94a3b8;white-space:normal}
+
+/* Market-intelligence controls reuse the verified quote comparison. */
+.asLineOpportunities,.asMarketSummary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.asLineOpportunity{min-width:0;background:#0b1120;border:1px solid #2a3b51;border-radius:12px;padding:16px}
+.asLineOpportunity>small,.asMarketSummary small{display:block;font-size:.875rem;color:#aabbd0}
+.asLineOpportunity>strong{display:block;font-size:1.75rem;margin:8px 0 14px;color:#e5f5ee;font-variant-numeric:tabular-nums}
+.asLineOpportunity p{font-size:.875rem;color:#aabbd0;line-height:1.5}
+.asQuoteChoice{width:100%;min-height:44px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;text-align:left;padding:12px;margin-top:8px;border:1px solid #36566a;border-radius:8px;background:#102831;color:#e2eee9;font:inherit;font-size:.875rem}
+.asQuoteChoice span{overflow-wrap:anywhere}.asQuoteChoice:hover{background:#173c44}.asQuoteChoice:focus-visible{outline:2px solid #5ee5b5;outline-offset:3px}
+.asQuoteChoice .asQuoteAction{grid-column:1/-1;color:#80dbbc;font-size:.75rem}
+.asMarketSummary{margin-top:14px}.asMarketSummary>div{min-width:0;padding:12px;border-left:2px solid #3a635c}
+.asMarketSummary b{display:block;font-size:1.125rem;margin:8px 0}.asMarketSummary span{display:block;font-size:.75rem;line-height:1.5;color:#aabbd0;overflow-wrap:anywhere}
+@media(max-width:480px){.asLineOpportunities,.asMarketSummary{grid-template-columns:1fr}.asLineOpportunity{padding:14px}}
+
+.asSampleWindow{display:block;max-width:340px;margin-bottom:16px}
+.asMatchMetrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.asMatchMetric{min-width:0;border:1px solid #2a3b51;background:#0b1120;border-radius:12px;padding:16px}
+.asMatchMetric h4{font-size:.875rem;margin:0 0 12px;color:#d7e9e1;overflow-wrap:anywhere}
+.asMatchMetric>strong{display:block;font-size:1.5rem;color:#88e4bf;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.asMatchMetric>span{font-size:.75rem;color:#94a3b8}.asMatchMetric dl{margin:14px 0 0;font-size:.875rem}
+.asMatchMetric dl>div{display:flex;justify-content:space-between;gap:12px;margin-top:7px}.asMatchMetric dd{margin:0;text-align:right;overflow-wrap:anywhere}.asMatchMetric dt{color:#aabbd0}
+.asSmallSample{color:#e8c782;font-size:.75rem;line-height:1.5;margin:12px 0 0}
+.asSimilarControls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.asSimilarControls input{display:block;width:100%;margin-top:7px}
+.asSimilarSummary{grid-template-columns:minmax(0,1fr)}.asSimilarGames{max-height:380px}
+@media(max-width:430px){.asMatchMetrics,.asSimilarControls{grid-template-columns:1fr}}
+
+/* Read-only mathematical research tools. */
+.asProTools{display:grid;gap:20px;min-width:0}.asProSection{min-width:0}.asProSection>h3{margin:0 0 12px}.asProCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}.asProCard{min-width:0;padding:16px;border:1px solid var(--border,#29445c);border-radius:12px;background:var(--panel,#102234);overflow-wrap:anywhere}.asProCard h4{margin:0 0 10px}.asProCard p{font-size:13px;line-height:1.6}.asProCard dl{display:grid;gap:10px}.asProCard dl div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}.asProCard dt{font-size:12px}.asProCard dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums}.asProTools summary{cursor:pointer;padding:12px 0;font-size:13px}.asProTools summary:focus-visible{outline:2px solid #70aaff;outline-offset:3px}.asProTools caption{text-align:left;padding:8px 0}.asProTools details{min-width:0}
+
+.asWinPredictor{display:grid;gap:16px;min-width:0}.asWinPredictor summary{padding:12px 0;cursor:pointer}.asWinPredictor details p{font-size:13px;line-height:1.6}.asWinPredictor summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}

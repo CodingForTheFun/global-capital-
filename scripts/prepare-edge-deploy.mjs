@@ -1,12 +1,14 @@
-// Compatibility build command: Auto Scout identity plus targeted presentation fixes.
+// Compatibility build command: Oblige Props identity plus targeted presentation fixes.
 // Never rewrite payment descriptors, account identifiers, storage keys, or research calculations.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { applySoccerPublicFeedPatches } from './patch-soccer-public-feeds.mjs';
 
 // Public soccer expansion is applied at image-build time so it composes cleanly
-// with parallel Auto Scout work on the underlying adapters. The patch is guarded
-// by exact anchors and fails closed if an adapter shape changes.
-applySoccerPublicFeedPatches();
+// with parallel work on the underlying adapters. A real application checkout
+// always includes package.json; tiny isolated test fixtures intentionally do not.
+// This keeps production fail-closed if required adapter files disappear while
+// allowing checkout-only branding tests to exercise this script in isolation.
+if (existsSync('package.json')) applySoccerPublicFeedPatches();
 
 // iOS/WebKit can render the donut strokes while the SVG <text> inherits an
 // unreadable fill when the external research stylesheet is late or unavailable.
@@ -18,8 +20,8 @@ applySoccerPublicFeedPatches();
     const source = readFileSync(file, 'utf8');
     const from = 'class="asRingMid" text-anchor="middle" dominant-baseline="central"';
     const to = 'class="asRingMid" fill="#f8fafc" font-size="15" font-weight="800" style="fill:#f8fafc!important;opacity:1!important;visibility:visible!important" text-anchor="middle" dominant-baseline="central"';
-    if (!source.includes(from)) throw new Error('Auto Scout ring percentage anchor not found.');
-    const output = source.replace(from, to);
+    if (!source.includes(from) && !source.includes(to)) throw new Error('Oblige Props ring percentage anchor not found.');
+    const output = source.includes(to) ? source : source.replace(from, to);
     if (output !== source) writeFileSync(file, output);
   }
 }
@@ -27,12 +29,14 @@ applySoccerPublicFeedPatches();
 for (const file of ['public/index.html', 'public/checkout.html']) {
   if (!existsSync(file)) continue;
   const source = readFileSync(file, 'utf8');
-  const output = source.replaceAll('ObligePay Edge', 'Auto Scout')
-    .replaceAll('AutoProp Scout Pro', 'Auto Scout')
-    .replaceAll('AutoProp Scout', 'Auto Scout')
-    .replaceAll('<b>AutoProp</b><em>Scout Pro</em>', '<b>Auto</b><em>Scout</em>')
-    .replaceAll('<b>ObligePay</b><em>Edge</em>', '<b>Auto</b><em>Scout</em>')
+  const output = source.replaceAll('ObligePay Edge', 'Oblige Props')
+    .replaceAll('AutoProp Scout Pro', 'Oblige Props')
+    .replaceAll('AutoProp Scout', 'Oblige Props')
+    .replaceAll('Auto Scout', 'Oblige Props')
+    .replaceAll('<b>AutoProp</b><em>Scout Pro</em>', '<b>Oblige</b><em>Props</em>')
+    .replaceAll('<b>Auto</b><em>Scout</em>', '<b>Oblige</b><em>Props</em>')
+    .replaceAll('<b>ObligePay</b><em>Edge</em>', '<b>Oblige</b><em>Props</em>')
     .replace(/<link[^>]+href="\/assets\/edge-theme\.css"[^>]*>/g, '');
   if (output !== source) writeFileSync(file, output);
 }
-console.log('[autoscout] research identity ready; ring percentages forced visible; existing accounts and data retained');
+console.log('[oblige-props] research identity ready; ring percentages forced visible; existing accounts and data retained');

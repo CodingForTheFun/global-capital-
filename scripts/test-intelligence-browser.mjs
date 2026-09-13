@@ -34,11 +34,12 @@ const server=http.createServer(async(req,res)=>{
   if(p==='/api/apex/research'){researchRequests++;return send(analyzeResearch(base,Number(url.searchParams.get('line')),url.searchParams.get('side')));}
   if(p==='/api/apex/research-batch'){let raw='';for await(const chunk of req)raw+=chunk;const request=JSON.parse(raw);return send({ok:true,results:Object.fromEntries(request.props.map(r=>[r.key,analyzeResearch(base,r.line,r.side)]))});}
   if(p==='/api/apex/line-history'){historyRequests++;const book=url.searchParams.get('bookmaker'),side=url.searchParams.get('side');if(historyFailurePending&&book==='Book B'&&side==='UNDER'){historyFailurePending=false;return send({error:'Temporary fixture history failure'},503);}return send({configured:true,rows:[{prop_id:'qa-prop',bookmaker_key:book,side,line:22.5,created_at:new Date(now-3600000).toISOString()},{prop_id:'qa-prop',bookmaker_key:book,side,line:24.5,created_at:new Date(now-1800000).toISOString()}]});}
+  if(p==='/api/props/teammates'){assert.equal(url.searchParams.get('team'),'BOS');return send({available:true,injuryReport:false,teammates:Array.from({length:15},(_,i)=>({playerId:'mate-'+i,playerName:'Roster teammate '+i,position:'G',injuryStatus:null}))});}
   if(p==='/api/account/me')return send({authenticated:true,user:{id:'local-qa',email:'qa@example.invalid'}});
   if(p==='/api/saved-props')return send({saved:[],profile:{kind:'account',id:'local-qa'}});
   if(p==='/api/account/health')return send({ok:true,password:{available:true}});
   if(p==='/api/apex/player-artwork')return send('',404);
-  if(p.includes('predict')||p.includes('ask')){paidRequests++;return send({available:false});}
+  if(p.includes('predict')||p.includes('project')||p.includes('ask')){paidRequests++;return send({available:false});}
   if(p.startsWith('/api/'))return send({ok:true});
   console.error('FIXTURE_NOT_FOUND',p);return send({error:'Not found'},404);
  }catch(error){console.error('FIXTURE_ERROR',p,error.message);return send({error:'Fixture handler error'},500);}
@@ -207,6 +208,11 @@ try{
   await page.locator('.asWinPredictor summary').click();
   assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   await page.screenshot({path:path.join(out,`${name}-win-predictor.png`),fullPage:false});
+  await page.locator('#asTab-sandbox').click();await page.waitForSelector('[data-sandbox]');
+  assert.equal(await page.locator('[data-sandbox]').count(),15,'all returned active teammates are reachable');
+  const beforeScenarioPaid=paidRequests;await page.locator('[data-sandbox]').first().click();assert.equal(await page.locator('[data-sandbox]').first().getAttribute('aria-pressed'),'true');assert.equal(paidRequests,beforeScenarioPaid,'roster selection does not automatically invoke a model');
+  assert.doesNotMatch(await page.locator('#asPanel-sandbox').innerText(),/AUTOSCOUT_INJURY_FEED|API key|feed is not enabled/);
+  await page.screenshot({path:path.join(out,`${name}-roster.png`),fullPage:false});
   await page.locator('#asTab-pro').click();
   assert.equal(await page.locator('[data-pro-tool="ev"]').count(),0,'empty EV+ feature is omitted');
   assert.ok(await page.locator('[data-pro-tool="arbitrage"] .asProCard').count()>0);

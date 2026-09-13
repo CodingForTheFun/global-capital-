@@ -23,6 +23,7 @@ var { repriceProjection } = await import('/assets/lib/projections/reprice.mjs');
 function displayTeam(value){return String(value||'').replace(/^(?:nfl|nba|wnba|mlb|nhl|ncaaf|ncaab)_([a-z0-9]{2,5})$/i,(_,code)=>code.toUpperCase());}
 function readStored(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}}
 var activeView='research', advanced={}, loadGeneration=0, loadController=null, lastFocus=null;
+var savedRouteReady=false;
 var savedRecords=new Map(), serverSaves=null, saveLoadError=false, profile=null, historyCache=new Map(), researchQueue=[], activeResearch=0;
 var prefs=readStored('autoscout-preferences',{compact:false,books:false,reduceMotion:false});
 if(!prefs||typeof prefs!=='object'||Array.isArray(prefs))prefs={};
@@ -146,7 +147,9 @@ function syncPropRoute(){
  var route=propRoute();if(!route){closeDrawer(false);return;}
  if(route.sport!==sport){persistFilters();sport=route.sport;saveState();restoreFilters();closeDrawer(false);load();return;}
  if(loading)return;
- var g=groups().find(x=>x.key===route.key)||savedRecords.get(route.key);
+ var current=groups().find(x=>x.key===route.key),saved=savedRecords.get(route.key);
+ var g=current||(saved?{...saved,archived:true}:null);
+ if(!g&&!savedRouteReady)return;
  if(g){if(drawerState?.g.key!==g.key)openDrawer(g,{fromRoute:true});}
  else {closeDrawer(false);toast('This prop is no longer on the current board. Browse the available lines.');history.replaceState(null,'',location.pathname+location.search);}
 }
@@ -1558,5 +1561,5 @@ function reportSigninRedirect(){
 setInterval(hydrateML,30000);
 setInterval(()=>removeExpiredTacoBadges(document),1000);
 document.addEventListener('visibilitychange',()=>removeExpiredTacoBadges(document));
-if(propRoute()){sport=propRoute().sport;restoreFilters();}shell();reportSigninRedirect();loadAccount();loadSaved().then(()=>{if(!loading)renderListLight();});load();setInterval(function(){if(!document.hidden&&!drawerState&&!loading)load();},90000);
+if(propRoute()){sport=propRoute().sport;restoreFilters();}shell();reportSigninRedirect();loadAccount();loadSaved().then(()=>{savedRouteReady=true;if(!loading){renderListLight();syncPropRoute();}});load();setInterval(function(){if(!document.hidden&&!drawerState&&!loading)load();},90000);
 })().catch(function(){var root=document.getElementById('as5')||document.querySelector('main')||document.body;root.replaceChildren();var message=document.createElement('p');message.textContent='Auto Scout could not load. Please refresh to try again.';message.setAttribute('role','alert');root.appendChild(message);var retry=document.createElement('button');retry.textContent='Refresh';retry.onclick=function(){location.reload();};root.appendChild(retry);});

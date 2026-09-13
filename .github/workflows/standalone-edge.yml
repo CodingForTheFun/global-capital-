@@ -9,7 +9,7 @@ permissions:
 jobs:
   standalone:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,27 +43,4 @@ jobs:
           path: |
             artifacts/
             frontend/package-lock.json
-          retention-days: 14
-      - name: Prepare one-time encrypted deployment recipient
-        run: node scripts/deploy-recipient.mjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: edge-deploy-recipient
-          path: deploy-public/recipient.json
-          retention-days: 1
-      - name: Deploy only to the independent Netlify site
-        env:
-          READ_TOKEN: ${{ github.token }}
-        run: node scripts/deploy-netlify.mjs
-      - name: Verify published standalone site in browser
-        env:
-          LIVE_URL: https://edge-standalone-ty.netlify.app
-        run: node scripts/verify-browser.mjs
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: edge-standalone-deployment-result
-          path: |
-            artifacts/netlify-deployment.txt
-            artifacts/live/
           retention-days: 14

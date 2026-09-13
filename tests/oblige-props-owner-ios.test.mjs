@@ -19,12 +19,14 @@ function request(pathname) {
   return { url: pathname, method: 'GET', headers: {}, socket: { remoteAddress: '127.0.0.1' } };
 }
 
-test('owner console is absent from customer and owner navigation', () => {
-  for (const role of ['member', 'owner']) {
-    const nav = navFor(role);
-    assert.equal(nav.some((item) => String(item.href || '').startsWith('/owner')), false);
-    assert.equal(nav.some((item) => /owner console/i.test(String(item.label || ''))), false);
-  }
+test('owner console is absent from customer navigation', () => {
+  const memberNav = navFor('member');
+  assert.equal(memberNav.some((item) => item.ownerOnly), false);
+  assert.equal(memberNav.some((item) => String(item.href || '').startsWith('/owner')), false);
+  assert.equal(memberNav.some((item) => /owner|members|who’s online|providers/i.test(String(item.label || ''))), false);
+
+  const ownerNav = navFor('owner');
+  assert.ok(ownerNav.some((item) => item.ownerOnly && String(item.href || '').startsWith('/owner')));
 });
 
 test('owner console files return ordinary 404 to non-owners', async () => {

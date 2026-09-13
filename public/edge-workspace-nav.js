@@ -9,7 +9,8 @@
   let scheduled = false;
   const mount = () => {
     const bar = document.querySelector('.as5 .asBar');
-    if (!bar || bar.querySelector('.edge-workspace-nav')) return;
+    const header = bar?.closest('.asTop');
+    if (!bar || !header || header.querySelector('.edge-workspace-nav')) return;
     const nav = document.createElement('nav');
     nav.className = 'edge-workspace-nav';
     nav.setAttribute('aria-label', 'Primary workspace navigation');
@@ -19,7 +20,10 @@
       if (label === 'Auto Scout') { link.setAttribute('aria-current', 'page'); link.dataset.testid = 'autoscout-nav'; }
       nav.appendChild(link);
     }
-    bar.insertBefore(nav, bar.querySelector('.asGrow'));
+    // Give navigation its own flow row. The original account toolbar has
+    // fixed-height responsive styles; nesting here would clip it on phones.
+    bar.insertAdjacentElement('afterend', nav);
+    requestAnimationFrame(() => { nav.scrollLeft = nav.scrollWidth - nav.clientWidth; });
   };
   const observer = new MutationObserver(() => {
     if (scheduled) return;

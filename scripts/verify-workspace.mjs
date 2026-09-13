@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { chromium } from 'playwright';
+import { assertWorkspaceHeader } from './assert-workspace-header.mjs';
 const base = 'http://127.0.0.1:3020';
 const data = await mkdtemp(path.join(tmpdir(), 'edge-workspace-ci-'));
 await mkdir('artifacts', { recursive: true });
@@ -76,6 +77,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   nav = page.getByRole('navigation', { name: 'Primary workspace navigation' }).filter({ visible: true });
   await nav.getByRole('link', { name: 'Sports', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('nav[aria-label="Primary workspace navigation"] a[aria-current="page"]')?.textContent === 'Sports');
   await page.screenshot({ path: 'artifacts/workspace-mobile.png', fullPage: true });
   check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'Mobile has no page-wide overflow');
   await page.getByRole('button', { name: 'Research (1)', exact: true }).click();
@@ -99,13 +101,19 @@ try {
   check(await scoutNav.getByRole('link', { name: 'Auto Scout', exact: true }).getAttribute('aria-current') === 'page', 'Active Auto Scout tab');
   const me = await context.request.get(base + '/api/account/me');
   check((await me.json()).authenticated === true, 'Same login survives switching workspaces');
-  await page.screenshot({ path: 'artifacts/workspace-autoscout-mobile.png', fullPage: true });
+  const mobileBounds = await assertWorkspaceHeader(page);
+  check(mobileBounds.activeIsClickable, 'Mobile shared navigation has no overlap or blocked hit target');
+  await page.screenshot({ path: 'artifacts/workspace-autoscout-mobile.png', fullPage: false });
+  await page.setViewportSize({ width: 1600, height: 1050 });
+  const desktopBounds = await assertWorkspaceHeader(page);
+  check(desktopBounds.activeIsClickable, 'Desktop shared navigation remains unobstructed');
+  await page.screenshot({ path: 'artifacts/workspace-autoscout-desktop.png', fullPage: false });
   await scoutNav.getByRole('link', { name: 'Sports', exact: true }).click();
   await page.waitForURL('**/sportsbooks#sports');
   await page.getByRole('heading', { name: 'Smarter research. One workspace.', exact: true }).waitFor();
   check(await page.getByRole('heading', { name: 'Smarter research. One workspace.', exact: true }).isVisible(), 'Return to sportsbook-style workspace');
   check(errors.length === 0, `No browser exceptions: ${errors.join('; ')}`);
-  await writeFile('artifacts/workspace-report.json', JSON.stringify({ passed, fixtureData: true, productionAccountsCreated: false, paidProviderCalls: 0, browserErrors: errors }, null, 2));
+  await writeFile('artifacts/workspace-report.json', JSON.stringify({ passed, fixtureData: true, productionAccountsCreated: false, paidProviderCalls: 0, browserErrors: errors, mobileBounds, desktopBounds }, null, 2));
   console.log('WORKSPACE_VERIFIED', passed);
 } catch (error) {
   await page?.screenshot({ path: 'artifacts/workspace-failure.png', fullPage: true }).catch(() => {});

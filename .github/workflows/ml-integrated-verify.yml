@@ -38,6 +38,9 @@ jobs:
           for e in plan:
               p=root/e['path'];assert p.resolve().is_relative_to(root) and not p.is_symlink()
               old=p.read_bytes() if p.exists() else b''
+              if e['path']=='.github/workflows/prop-ml-checks.yml':
+                  assert hashlib.sha256(old).hexdigest()==e['new'],'Workflow must already be committed by its authorized editor'
+                  continue
               assert hashlib.sha256(old).hexdigest()==e['old'],e['path']
               lines=old.decode().splitlines(keepends=True)
               for a,b,s in reversed(e['edits']):
@@ -107,10 +110,11 @@ jobs:
       - name: Publish validated integration to feature only
         if: steps.regression.outcome == 'success' && steps.ml_browser.outcome == 'success' && steps.workspace.outcome == 'success'
         run: |
+          set -o pipefail
           test "$(git branch --show-current)" = 'chatgpt/prop-ml-integration'
-          git rm scripts/prop-ml-integration-resolution.txt .github/workflows/ml-integration-snapshot.yml .github/workflows/ml-integrated-verify.yml
+          git rm scripts/prop-ml-integration-resolution.txt
           git commit -m 'Preserve newest game and Ask workspace; bind Taco badges to exact promotional lines and separate trained ML status'
-          git push origin HEAD:refs/heads/chatgpt/prop-ml-integration
+          git push origin HEAD:refs/heads/chatgpt/prop-ml-integration 2>&1 | tee validation-output/publish.txt
           git rev-parse HEAD > validation-output/application-head.txt
       - uses: actions/upload-artifact@v4
         if: always()

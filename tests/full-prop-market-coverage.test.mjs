@@ -57,7 +57,7 @@ test('MLB pitches, batters faced and innings pitched use measured source fields'
   assert.deepEqual(innings.fields, ['InningsPitched']);
   assert.equal(statValue({ pitches:96 }, pitches), 96);
   assert.equal(statValue({ battersFaced:24 }, batters), 24);
-  assert.equal(statValue({ innings:'5.2' }, innings), 5.67);
+  assert.equal(statValue({ innings:'5.2' }, innings), 5.667);
 });
 
 test('tennis market catalog covers the major live research categories without guessing missing values', () => {

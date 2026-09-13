@@ -12,19 +12,37 @@ function response(body, status = 200) {
   };
 }
 
-test('DraftKings sportscontent collector keeps one verified two-sided regular line', async () => {
+function v5Payload({ eventId, eventName, start, category, subcategory, offer }) {
+  return {
+    eventGroup: {
+      events: [{ id: eventId, eventId, name: eventName, startEventDate: start }],
+      offerCategories: [{
+        id: 1000,
+        name: category,
+        offerSubcategoryDescriptors: [{
+          name: subcategory,
+          offerSubcategory: { offers: [[offer]] },
+        }],
+      }],
+    },
+  };
+}
+
+test('DraftKings v5 collector keeps one verified two-sided regular line', async () => {
   const start = new Date(Date.now() + 86_400_000).toISOString();
   const fetcher = async (url) => {
     const path = new URL(String(url)).pathname;
-    if (path.endsWith('/leagues/88808')) return response({ categories: [{ id: 1000, name: 'Passing Props' }] });
-    if (path.endsWith('/leagues/88808/categories/1000')) return response({
-      events: [{ id: 'e1', name: 'Kansas City Chiefs @ Buffalo Bills', startEventDate: start }],
-      markets: [{ id: 'm1', eventId: 'e1', name: 'Patrick Mahomes Passing Yards O/U' }],
-      selections: [
-        { marketId: 'm1', label: 'Over 275.5', points: 275.5, displayOdds: { american: '-110' } },
-        { marketId: 'm1', label: 'Under 275.5', points: 275.5, displayOdds: { american: '-110' } },
-      ],
-    });
+    if (path.includes('/eventgroups/88808')) return response(v5Payload({
+      eventId: 'e1', eventName: 'Kansas City Chiefs @ Buffalo Bills', start,
+      category: 'Player Props', subcategory: 'Passing Props',
+      offer: {
+        id: 'o1', eventId: 'e1', label: 'Patrick Mahomes Passing Yards', status: 'open',
+        outcomes: [
+          { label: 'Over 275.5', points: 275.5, displayOdds: { american: '-110' } },
+          { label: 'Under 275.5', points: 275.5, displayOdds: { american: '-110' } },
+        ],
+      },
+    }));
     return response({}, 404);
   };
   const result = await fetchDraftKingsSportsbookPublic('NFL', { fetcher, force: true });
@@ -39,21 +57,23 @@ test('DraftKings sportscontent collector keeps one verified two-sided regular li
   assert.deepEqual(row.sides, ['OVER', 'UNDER']);
 });
 
-test('DraftKings sportscontent collector fails closed on an alternate ladder', async () => {
+test('DraftKings v5 collector fails closed on an alternate ladder', async () => {
   const start = new Date(Date.now() + 86_400_000).toISOString();
   const fetcher = async (url) => {
     const path = new URL(String(url)).pathname;
-    if (path.endsWith('/leagues/84240')) return response({ categories: [{ id: 743, name: 'Batter Props' }] });
-    if (path.endsWith('/leagues/84240/categories/743')) return response({
-      events: [{ id: 'e2', name: 'New York Yankees @ Boston Red Sox', startEventDate: start }],
-      markets: [{ id: 'm2', eventId: 'e2', name: 'Aaron Judge Hits O/U' }],
-      selections: [
-        { marketId: 'm2', label: 'Over 0.5', points: 0.5, displayOdds: { american: '-180' } },
-        { marketId: 'm2', label: 'Under 0.5', points: 0.5, displayOdds: { american: '+145' } },
-        { marketId: 'm2', label: 'Over 1.5', points: 1.5, displayOdds: { american: '+165' } },
-        { marketId: 'm2', label: 'Under 1.5', points: 1.5, displayOdds: { american: '-205' } },
-      ],
-    });
+    if (path.includes('/eventgroups/84240')) return response(v5Payload({
+      eventId: 'e2', eventName: 'New York Yankees @ Boston Red Sox', start,
+      category: 'Player Props', subcategory: 'Batter Props',
+      offer: {
+        id: 'o2', eventId: 'e2', label: 'Aaron Judge Hits', status: 'open',
+        outcomes: [
+          { label: 'Over 0.5', points: 0.5, displayOdds: { american: '-180' } },
+          { label: 'Under 0.5', points: 0.5, displayOdds: { american: '+145' } },
+          { label: 'Over 1.5', points: 1.5, displayOdds: { american: '+165' } },
+          { label: 'Under 1.5', points: 1.5, displayOdds: { american: '-205' } },
+        ],
+      },
+    }));
     return response({}, 404);
   };
   const result = await fetchDraftKingsSportsbookPublic('MLB', { fetcher, force: true });

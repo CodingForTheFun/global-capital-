@@ -3,6 +3,9 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 
 type Health = { password?: { available: boolean }; google?: { available: boolean } };
+// Only existing same-origin application destinations are allowed. No query
+// string or user-controlled URL is accepted as a post-auth redirect.
+const returnDestination = () => window.location.pathname.replace(/\/$/, '') === '/sportsbooks' ? '/sportsbooks' : '/apex';
 export default function AuthModal({ open, onClose, initialMode = 'register' }: {
   open: boolean; onClose: () => void; initialMode?: 'register' | 'login';
 }) {
@@ -44,13 +47,12 @@ export default function AuthModal({ open, onClose, initialMode = 'register' }: {
         setMode('verify'); setMessage(result.message || 'Check your email for your verification code.');
       } else {
         if (mode === 'verify') await send('login', { email, password });
-        window.location.assign('/apex');
+        window.location.assign(returnDestination());
       }
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to connect. Please try again.'); }
     finally { setBusy(false); }
   }
 
-  // React owns dialog state so an old native close event cannot close a new modal.
   return <dialog ref={dialog} onCancel={e => { e.preventDefault(); onClose(); }} aria-labelledby="auth-title"
     className="m-auto w-[calc(100%_-_2rem)] max-w-md rounded-3xl border border-slate-700 bg-[#0b111d] p-6 text-slate-100 shadow-2xl backdrop:bg-black/75 backdrop:backdrop-blur-sm">
     <div className="flex items-start justify-between gap-3">
@@ -58,10 +60,10 @@ export default function AuthModal({ open, onClose, initialMode = 'register' }: {
         <h2 id="auth-title" className="mt-2 text-2xl font-bold">{mode === 'login' ? 'Welcome back' : mode === 'verify' ? 'Verify your email' : 'Create a Free Account'}</h2></div>
       <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg border border-slate-700 px-3 py-1.5 hover:bg-slate-800">×</button>
     </div>
-    <p className="my-4 text-sm leading-6 text-slate-400">Go from the sample preview to the real research board. Features and availability depend on your access level and data coverage.</p>
+    <p className="my-4 text-sm leading-6 text-slate-400">Sign in to your research workspace. Features and availability depend on your access level and data coverage.</p>
     {mode !== 'verify' && <>
       <button type="button" disabled={!health?.google?.available || busy}
-        onClick={() => window.location.assign('/api/account/google/start?next=%2Fapex')}
+        onClick={() => window.location.assign(`/api/account/google/start?next=${encodeURIComponent(returnDestination())}`)}
         className="w-full rounded-xl bg-white px-4 py-3 font-semibold text-slate-950 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40">Continue with Google</button>
       {health && !health.google?.available && <p className="mt-2 text-center text-xs text-slate-500">Google sign-in is not enabled yet. Use email below.</p>}
       <div className="my-4 flex items-center gap-3 text-xs text-slate-500"><span className="h-px flex-1 bg-slate-800"/>OR<span className="h-px flex-1 bg-slate-800"/></div>

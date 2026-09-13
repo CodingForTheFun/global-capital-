@@ -184,8 +184,10 @@ async function verifyBrowser(cookie) {
     }
     if (artworkResponses < 1) throw new Error('Player artwork endpoint did not return a usable image response');
 
-    await page.locator('.asRow').first().click();
-    await page.waitForSelector('#asDrawerBg.on', { timeout: 10_000 });
+    await page.locator('.asRow').first().locator('.asPlayer').click();
+    await page.waitForSelector('#asDrawerBg:not([hidden]) .asAnalyticsPage', { timeout: 10_000 });
+    if (!page.url().includes('#prop/')) throw new Error('Prop click did not enter the analytics route');
+    if (!(await page.locator('.asNav').isVisible())) throw new Error('Global navigation is missing from prop analytics');
     await page.waitForSelector('#asDrawerBody', { timeout: 10_000 });
     await page.waitForFunction(() => {
       const body = document.querySelector('#asDrawerBody');
@@ -194,7 +196,7 @@ async function verifyBrowser(cookie) {
     }, null, { timeout: 30_000 });
 
     const drawerText = (await page.locator('#asDrawerBody').innerText()).trim();
-    if (!drawerText) throw new Error('Research drawer rendered with no content');
+    if (!drawerText) throw new Error('Prop analytics rendered with no content');
     const hasResearchControls = await page.locator('#asMarketSwitch, #asLineMinus, #asLinePlus').count() >= 1;
     const hasAvailabilityMessage = /research availability|historical research|game logs/i.test(drawerText);
     if (hasResearchControls) {
@@ -202,7 +204,7 @@ async function verifyBrowser(cookie) {
         if (await page.getByRole('button', { name: side, exact: true }).count() < 1) throw new Error('Research controls are missing side: ' + side);
       }
     }
-    if (!hasResearchControls && !hasAvailabilityMessage) throw new Error('Research drawer exposes neither research controls nor an honest availability state');
+    if (!hasResearchControls && !hasAvailabilityMessage) throw new Error('Prop analytics exposes neither research controls nor an honest availability state');
 
     if (networkUrls.some((url) => /apiKey=|THE_ODDS_API_KEY|CLEARSPORTS_API_KEY|SPORTSDATAIO_API_KEY/i.test(url))) {
       throw new Error('Provider credential appeared in browser network URLs');
@@ -211,7 +213,7 @@ async function verifyBrowser(cookie) {
     return {
       cardCount,
       firstCardPreview: firstCard.split('\n').slice(0, 14).join(' | '),
-      researchDrawerVerified: true,
+      researchPageVerified: true,
       researchControlsAvailable: hasResearchControls,
       avatarResponsesVerified: artworkResponses,
     };

@@ -57,7 +57,8 @@ try{
   await page.locator('#asSearch').fill('');await page.locator('.asCard').first().waitFor();check(true,name+' existing player filter still works');
   await page.keyboard.press('Control+k');check(await page.locator('#asSearch').evaluate(e=>e===document.activeElement),name+' keyboard search shortcut works');
   await page.locator('#asi-open').click();await page.locator('#asi-sensitivity').waitFor();
-  check(await page.locator('#asIntelligenceDetail details').count()===8,name+' retains all eight Intelligence tools');
+  check(await page.locator('#asIntelligenceDetail details').count()===7,name+' retains the seven tools supported by this fixture');
+  check(await page.locator('#asi-dependencies').count()===0,name+' does not invent teammate dependencies without participation data');
   await page.locator('#asLinePlus').click();await page.locator('#asLinePlus').click();await page.locator('[data-side="UNDER"]').click();
   const actual=(await page.locator('#asi-sensitivity tr.active td').nth(1).textContent()).trim();
   check(actual===Math.round(analyzeResearch(research,25.5,'UNDER').windows.l10.hitRate)+'%',name+' line/side changes preserve the shared research math');

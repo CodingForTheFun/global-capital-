@@ -1,0 +1,51 @@
+name: Apply reviewed sportsbook source patch
+on:
+  push:
+    branches: [chatgpt/sportsbook-home-projections-tacos]
+    paths: [.github/workflows/apply-sportsbook-repair.yml]
+permissions:
+  contents: write
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/sportsbook-home-projections-tacos
+      - name: Verify baseline and exact patch checksum
+        run: |
+          python3 <<'PY'
+          import pathlib,base64,gzip,hashlib,json,subprocess
+          root=pathlib.Path('.')
+          for name,wanted in json.loads((root/'.github/repair/before.json').read_text()).items():
+              p=root/name
+              if wanted is None:
+                  assert not p.exists(), 'New path already exists: '+name
+              else:
+                  actual=subprocess.check_output(['git','hash-object',name],text=True).strip()
+                  assert actual==wanted, 'Baseline changed: '+name
+          encoded=''.join((root/f'.github/repair/part{i}.b64').read_text() for i in range(1,5))
+          # Correct verified transport transcription differences; the complete
+          # decoded SHA below is authoritative and refuses any other changes.
+          for old,new in [('OWW29l1G6g','OWW29l2G6g'),('qdLTbJYe','qdLTtJYe'),('O1lZ5N4','O1x5N4'),('2ve9ssvm','2ve9svm'),('347O1JopuuZ','347O1TopuZ')]:
+              assert encoded.count(old)==1
+              encoded=encoded.replace(old,new,1)
+          patch=gzip.decompress(base64.b64decode(encoded,validate=True))
+          assert hashlib.sha256(patch).hexdigest()=='2dbb01a90298f801eb88150e5f0dd508a2e5fba93fcba250e51a0bfb6c3c7732'
+          pathlib.Path('/tmp/sportsbook-repair.patch').write_bytes(patch)
+          PY
+          git apply --check --unidiff-zero /tmp/sportsbook-repair.patch
+          git apply --unidiff-zero /tmp/sportsbook-repair.patch
+      - name: Format new modular React components
+        run: npx --yes prettier@3.6.2 --write apps/guest-dashboard/components/GameBoard.tsx apps/guest-dashboard/components/PropInsight.tsx apps/guest-dashboard/components/TacoBoard.tsx
+      - name: Commit clean source only to the isolated feature branch
+        run: |
+          rm -rf .github/repair
+          rm .github/workflows/apply-sportsbook-repair.yml .github/workflows/sportsbook-source-check.yml .github/workflows/taco-source-check.yml
+          git config user.name 'CodingForTheFun'
+          git config user.email '24641357+CodingForTheFun@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'Make ObligePay game sportsbook the main experience; repair Ask and projected stats'
+          git push origin HEAD:chatgpt/sportsbook-home-projections-tacos

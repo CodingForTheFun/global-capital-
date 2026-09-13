@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#071321" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Owner Control Center · Oblige Props</title>
+  <link rel="stylesheet" href="/owner.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <a class="brand" href="/apex" aria-label="Oblige Props home">
+        <span class="logo">OP</span>
+        <span><strong>OBLIGE PROPS</strong><small>Owner Control Center</small></span>
+      </a>
+      <div class="top-actions">
+        <span id="ownerIdentity" class="owner-id">Checking owner…</span>
+        <button id="refreshBtn" class="btn" type="button">Refresh</button>
+        <a class="btn primary" href="/apex">Open product</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="eyebrow">OWNER ONLY</p>
+          <h1>Run Oblige Props from one screen.</h1>
+          <p class="hero-copy">See signups and live sessions, ban or restore accounts, extend Pro access, promote trusted owners, and verify the product is healthy without exposing secrets.</p>
+        </div>
+        <div id="systemBadge" class="system-badge"><i></i><span>Checking system</span></div>
+      </section>
+
+      <div id="notice" class="notice hidden" role="status"></div>
+      <section id="accessDenied" class="access-denied hidden">
+        <h2>Owner access required</h2>
+        <p>This control center only opens for an account with the owner role.</p>
+        <a class="btn primary" href="/?next=/owner.html">Sign in</a>
+      </section>
+
+      <div id="dashboard" class="hidden">
+        <section class="kpis" aria-label="Account overview">
+          <article><span>Total signups</span><strong id="kpiTotal">—</strong><small>all accounts</small></article>
+          <article><span>Online now</span><strong id="kpiOnline">—</strong><small>active devices</small></article>
+          <article><span>Pro access</span><strong id="kpiPro">—</strong><small>active entitlements</small></article>
+          <article><span>Banned</span><strong id="kpiBanned">—</strong><small>disabled accounts</small></article>
+        </section>
+
+        <section class="panel system-panel">
+          <div class="panel-head">
+            <div><p class="eyebrow">SITE CONTROL</p><h2>Production status</h2></div>
+            <span id="lastRefresh" class="muted">—</span>
+          </div>
+          <div class="system-grid">
+            <div><span>Application</span><b id="healthApp">Checking</b></div>
+            <div><span>Accounts</span><b id="healthAccounts">Checking</b></div>
+            <div><span>Ask</span><b id="healthAsk">—</b></div>
+            <div><span>Projections</span><b id="healthProjections">—</b></div>
+          </div>
+        </section>
+
+        <section class="panel members-panel">
+          <div class="panel-head member-head">
+            <div><p class="eyebrow">MEMBERS</p><h2>Users & access</h2></div>
+            <div class="filters">
+              <input id="searchInput" type="search" placeholder="Search email…" autocomplete="off" />
+              <select id="statusFilter" aria-label="Filter accounts">
+                <option value="all">All accounts</option>
+                <option value="online">Online</option>
+                <option value="pro">Pro</option>
+                <option value="banned">Banned</option>
+                <option value="owner">Owners</option>
+              </select>
+            </div>
+          </div>
+          <div id="members" class="members"><div class="loading">Loading accounts…</div></div>
+        </section>
+
+        <section class="panel safety-panel">
+          <p class="eyebrow">SAFETY</p>
+          <h2>What this console intentionally cannot do</h2>
+          <p>API keys, passwords, payment secrets, Railway settings and raw authentication hashes are never displayed here. Deployment and secret changes stay outside the customer admin surface.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="/owner.js"></script>
+</body>
+</html>

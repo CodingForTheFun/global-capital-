@@ -1,0 +1,37 @@
+name: Inspect concurrent ML integration
+on:
+  push:
+    branches: [chatgpt/prop-ml-integration]
+    paths: [.github/workflows/ml-integration-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Preserve newer production and inspect conflicts only
+        run: |
+          mkdir -p /tmp/ml-integration
+          git archive --format=tar.gz cabfa191ee492cd0b59a0d850ad5759a14e1dccf > /tmp/ml-integration/production.tar.gz
+          git diff --binary e91bb5a732e6c992fba2ebdc2f3fb2fe2cb1038d cabfa191ee492cd0b59a0d850ad5759a14e1dccf > /tmp/ml-integration/new-production.patch
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-commit --no-ff cabfa191ee492cd0b59a0d850ad5759a14e1dccf > /tmp/ml-integration/merge.txt 2>&1 || true
+          git diff --name-only --diff-filter=U > /tmp/ml-integration/conflicts.txt
+          python3 <<'PY'
+          import pathlib,subprocess,tarfile
+          with tarfile.open('/tmp/ml-integration/combined.tar.gz','w:gz') as tar:
+              for name in sorted(set(subprocess.check_output(['git','ls-files','-z']).decode().split('\0'))):
+                  if name and pathlib.Path(name).is_file():tar.add(name,arcname=name,recursive=False)
+          PY
+          cat /tmp/ml-integration/merge.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ml-concurrent-integration
+          path: /tmp/ml-integration/
+          retention-days: 3

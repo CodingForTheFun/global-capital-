@@ -85,7 +85,8 @@ test('the gate covers the board but never the routes needed to get in', () => {
 
 test('the landing page carries the hero, the features and a working form', () => {
   const html = landingPage({ passwordSignup: true, googleSignup: true, beta: true });
-  assert.match(html, /Institutional-grade prop intelligence/i);
+  assert.match(html, /Know the player\./i);
+  assert.match(html, /Compare the line\./i);
   assert.match(html, /line discrepancies/i);
   assert.match(html, /free during beta/i);
   assert.match(html, /Stale line alerts/);

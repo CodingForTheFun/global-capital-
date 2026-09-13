@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { landingPage } from '../lib/auth/landing.mjs';
 import { analyzeResearch } from '../lib/analytics/research.mjs';
 const now=Date.now();let revision=0,historyRequests=0,paidRequests=0,boardRequests=0,researchRequests=0,historyFailurePending=false,matchupRequests=0,matchupFailurePending=true;
 const quoteTime=()=>new Date(now-60000+revision*1000).toISOString();
@@ -16,6 +17,7 @@ const server=http.createServer(async(req,res)=>{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
  const send=(value,status=200,type='application/json')=>{res.writeHead(status,{'content-type':type+'; charset=utf-8'});res.end(typeof value==='string'||Buffer.isBuffer(value)?value:JSON.stringify(value));};
  try {
+  if(p==='/welcome')return send(landingPage({passwordSignup:true,beta:true}),200,'text/html');
   if(p==='/')return send('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Auto Scout local QA fixture</title></head><body><script src="/ui.js"></script></body></html>',200,'text/html');
   const file=p==='/ui.js'?'apex-v2/scout-ui-v5.js':p==='/assets/autoscout-research.css'?'apex-v2/research-ui.css':p.startsWith('/assets/lib/')?p.slice(8):null;
   if(file && !file.includes('..') && fs.existsSync(file))return send(fs.readFileSync(file),200,file.endsWith('.css')?'text/css':'application/javascript');
@@ -55,9 +57,18 @@ try{
   page.on('console',m=>{if(m.type()==='error')console.error('BROWSER_CONSOLE',name,m.text());});
   page.on('requestfailed',r=>{failures.push({url:r.url(),error:r.failure()?.errorText});console.error('BROWSER_REQUEST_FAILED',r.url(),r.failure()?.errorText);});
   page.on('response',r=>{if(r.status()>=400)console.error('BROWSER_HTTP',r.status(),r.url());});
+  await page.goto(origin+'/welcome');
+  assert.equal(await page.getByRole('heading',{name:'Know the player. Compare the line.'}).count(),1);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'welcome page fits viewport');
+  await page.screenshot({path:path.join(out,`${name}-welcome.png`),fullPage:true});
   await page.goto(origin);console.log('BROWSER_LOADED',name);await page.waitForSelector('.asCard');console.log('BROWSER_CARDS',name);await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');
   assert.equal(await page.locator('#asi-open').isEnabled(),true);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  if(viewport.width<=430){
+   for(const id of ['asRefresh','asSettings','asAccount']){
+    assert.equal(await page.locator('#'+id).evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;}),true,'header action fits mobile viewport');
+   }
+  }
   await page.screenshot({path:path.join(out,`${name}-board.png`),fullPage:true});
   await page.locator('#asSort').selectOption('l20');
   await page.locator('#asAdvancedToggle').click();

@@ -13,6 +13,7 @@ var {proToolsHtml}=await import('/assets/lib/ui/pro-tools.mjs');
 var {matchupAnalysis,similarGames}=await import('/assets/lib/analytics/matchup.mjs');
 var {compareResearchQuotes}=await import('/assets/lib/ui/line-comparison.mjs');
 var {filterPropResearch,propFiltersHtml}=await import('/assets/lib/ui/prop-filters.mjs');
+var {researchRate,formatResearchRate,researchSideRates}=await import('/assets/lib/ui/research-percentages.mjs');
 var playerChoices=new Map();
 var {tacoBadgeHtml,removeExpiredTacoBadges}=await import('/assets/lib/ui/offer-promotion.mjs');
 var { analyzeResearch, researchTeamMatches, researchOpponentMatches, analyzeLineHistory } = await import('/assets/lib/analytics/research.mjs');
@@ -356,17 +357,15 @@ function rateTone(v){var x=num(v);return x==null?'':x>=60?'hot':x<=40?'cold':'';
 function headlineWindow(r){
  if(!r||!r.available||!r.windows)return null;
  var ids=['season','l20','l15','l10','l5'];
- for(var i=0;i<ids.length;i++){var w=r.windows[ids[i]];if(w&&num(w.hitRate)!=null)return{id:ids[i],w:w};}
+ for(var i=0;i<ids.length;i++){var w=r.windows[ids[i]];if(w&&researchRate(w)!=null)return{id:ids[i],w:w};}
  return null;
 }
 // Hits / all eligible games. Pushes occupy their own neutral share; the
 // opposite side is NOT 100 minus the active rate when a line can push.
 function gaugeRates(r,side){
  var h=headlineWindow(r);if(!h)return null;
- var n=num(h.w.games),hits=num(h.w.hits),misses=num(h.w.misses);
- if(!n||hits==null||misses==null)return null;
- return {over:100*(side==='UNDER'?misses:hits)/n,under:100*(side==='UNDER'?hits:misses)/n,
-  basis:(h.id==='season'?'SZN '+(r.season||''):h.w.label||h.id.toUpperCase())+(h.w.partial?' · partial':''),games:n};
+ var rates=researchSideRates(h.w,r.side||side);if(!rates)return null;
+ return {...rates,basis:(h.id==='season'?'SZN '+(r.season||''):h.w.label||h.id.toUpperCase())+(h.w.partial?' · partial':'')};
 }
 function researchState(r){
  if(!r)return hydrateFailed?'Research needs retry':'Loading historical results';
@@ -386,23 +385,23 @@ function ringGauge(rates,r){
   +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#f43f5e" stroke-width="7" stroke-dasharray="'+u.toFixed(2)+' '+(c-u).toFixed(2)+'" stroke-dashoffset="'+(-arc).toFixed(2)+'" transform="rotate(-90 32 32)"></circle>'
   +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#10b981" stroke-width="7" stroke-dasharray="'+arc.toFixed(2)+' '+(c-arc).toFixed(2)+'" transform="rotate(-90 32 32)"></circle>'
   +'<text x="32" y="32" class="asRingMid" text-anchor="middle" dominant-baseline="central">'+Math.round(over)+'%</text>'
-  +'</svg><div class="asRingText"><b class="asOverPct">O '+over.toFixed(1)+'%</b><span class="asUnderPct">U '+under.toFixed(1)+'%</span>'
-  +'<em>'+esc(rates.basis)+' · '+rates.games+'g</em></div></div>';
+  +'</svg><div class="asRingText"><b class="asOverPct">O '+formatResearchRate(over)+'</b><span class="asUnderPct">U '+formatResearchRate(under)+'</span>'
+  +'<em>'+esc(rates.basis)+' · '+rates.games+'g'+(rates.push>0?' · Push '+formatResearchRate(rates.push):'')+'</em></div></div>';
 }
 function badge(id,label,value,tone,sub){
  return '<div class="asBadge '+tone+'"'+(id?' data-column="'+esc(id)+'"':'')+'><small>'+esc(label)+'</small><b>'+esc(value)+'</b><em>'+esc(sub||'')+'</em></div>';
 }
 function windowBadge(r,id,label,column){
- var w=r&&r.available&&r.windows?r.windows[id]:null,rate=w?num(w.hitRate):null;
+ var w=r&&r.available&&r.windows?r.windows[id]:null,rate=researchRate(w);
  var note=w&&num(w.games)?w.games+'g':'';
  if(id==='season'&&r?.season)note+=(note?' · ':'')+r.season+(w?.partial?' partial':'');
- return badge(column||id,label,rate==null?'N/A':Math.round(rate)+'%',rateTone(rate),note);
+ return badge(column||id,label,formatResearchRate(rate),rateTone(rate),note);
 }
 function h2hBadge(r){
  if(!r||!r.available)return badge('h2h','H2H','N/A','','');
- var games=num(r.coverage?.h2hGames),h=r.h2h||{},hits=num(h.hits),rate=num(h.hitRate);
+ var games=num(r.coverage?.h2hGames),h=r.h2h||{},hits=num(h.hits),rate=researchRate(h);
  if(!games)return badge('h2h','H2H','N/A','','no meetings');
- return badge('h2h','H2H',rate==null?'N/A':Math.round(rate)+'%',rateTone(rate),hits==null?games+'g':hits+'/'+games);
+ return badge('h2h','H2H',formatResearchRate(rate),rateTone(rate),hits==null?games+'g':hits+'/'+games);
 }
 function streakBadge(r,side){
  var count=r&&r.available?num(r.streak?.count):null;
@@ -512,11 +511,11 @@ function projectionMetric(label,value,tone,sub){
 // rather than rendering a 0% bar, which reads as "never hits".
 function hitPills(r){
  var rows=[['l5','L5'],['l10','L10'],['season','Season']].map(function(w){
-  var win=r&&r.available&&r.windows?r.windows[w[0]]:null,rate=win?num(win.hitRate):null;
+  var win=r&&r.available&&r.windows?r.windows[w[0]]:null,rate=researchRate(win);
   var tone=rate==null?'':rate>=60?'hot':rate<=40?'cold':'';
   return '<div class="asPill '+tone+'"><div class="asPillHead"><small>'+w[1]+'</small>'
-   +'<b>'+(rate==null?'—':Math.round(rate)+'%')+'</b></div>'
-   +'<div class="asPillTrack"><span style="width:'+(rate==null?0:Math.max(2,Math.min(100,rate)))+'%"></span></div>'
+   +'<b>'+(formatResearchRate(rate,'—'))+'</b></div>'
+   +'<div class="asPillTrack"><span style="width:'+(rate==null?0:Math.max(0,Math.min(100,rate)))+'%"></span></div>'
    +'<em>'+esc(win&&num(win.games)?win.games+' games':'no sample')+'</em></div>';
  }).join('');
  return '<div class="asPills">'+rows+'</div>';
@@ -1063,7 +1062,7 @@ function contextGrid(r,line,g){
 function windowCards(r,selected){return'<div class="asWindows">'+['l5','l10','l15','l20','season','h2h'].map(k=>{
  var w=k==='h2h'?r?.h2h:r?.windows?.[k],emptyH2h=k==='h2h'&&w?.games===0&&r?.matchup?.opponent;
  var label=k==='season'?'SZN':k.toUpperCase(),title=k==='season'?'Season '+(r?.season||''):k==='h2h'?'Games vs '+(r?.matchup?.opponent||'opponent'):label;
- return'<button class="asWindow '+(k===selected?'on':'')+'" data-window="'+k+'" aria-pressed="'+(k===selected)+'" title="'+esc(title)+'"><small>'+label+'</small><b>'+esc(w?.hitRate==null?'N/A':w.hitRate+'%')+'</b><em>'+esc(emptyH2h?'0 games vs '+r.matchup.opponent:w?.average==null?'No eligible games':'avg '+dec(w.average))+'</em><span>'+esc(w?.games==null?'N/A':w.games+'g'+(w.partial?' · partial':''))+(k==='season'&&r?.season?' · '+esc(r.season):'')+'</span></button>';
+ return'<button class="asWindow '+(k===selected?'on':'')+'" data-window="'+k+'" aria-pressed="'+(k===selected)+'" title="'+esc(title)+'"><small>'+label+'</small><b>'+esc(formatResearchRate(researchRate(w)))+'</b><em>'+esc(emptyH2h?'0 games vs '+r.matchup.opponent:w?.average==null?'No eligible games':'avg '+dec(w.average))+'</em><span>'+esc(w?.games==null?'N/A':w.games+'g'+(w.partial?' · partial':''))+(k==='season'&&r?.season?' · '+esc(r.season):'')+'</span></button>';
  }).join('')+'</div>';}
 function filteredGames(r){var rows=r?.gameLog||[],w=drawerState?.window||'l10';if(w==='h2h')rows=rows.filter(x=>researchOpponentMatches(x,r?.matchup));if(w==='season'){if(r?.season==null)return[];rows=rows.filter(x=>String(x.season)===String(r.season)&&(x.seasonType==null||Number(x.seasonType)===2));}return /^l[0-9]+$/.test(w)?rows.slice(0,Number(w.slice(1))):rows;}
 function chartHtml(r){

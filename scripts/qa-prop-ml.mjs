@@ -13,8 +13,8 @@ tq.promotion={type:'taco',source:'prizepicks',verified:true,status:'active',sour
 const requests=[];let failure=false;
 const server=http.createServer(async(req,res)=>{
  const u=new URL(req.url,'http://localhost'),p=u.pathname;
- const send=(data,status=200,type='application/json')=>{res.writeHead(status,{'content-type':type});res.end(type.startsWith('application/json')?JSON.stringify(data):data);};
- if(p==='/')return send('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><script src="/ui.js"></script></body></html>',200,'text/html');
+ const send=(data,status=200,type='application/json')=>{res.writeHead(status,{'content-type':type+'; charset=utf-8'});res.end(type.startsWith('application/json')?JSON.stringify(data):data);};
+ if(p==='/')return send('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><script src="/ui.js"></script></body></html>',200,'text/html');
  const file=p==='/ui.js'?'apex-v2/scout-ui-v5.js':p==='/assets/prop-ml.css'?'public/prop-ml.css':p==='/assets/autoscout-research.css'?'apex-v2/research-ui.css':p.startsWith('/assets/lib/')?p.slice(8):null;
  if(file&&fs.existsSync(file))return send(fs.readFileSync(file),200,file.endsWith('.css')?'text/css':'application/javascript');
  if(p==='/api/props/ml'){
@@ -49,6 +49,8 @@ try{
   assert.equal(await page.locator('.asCard .asCardHead .asTacoBadge').count(),0);
   assert.equal(await page.locator('.asCard .asOddsStrip .o .asTacoBadge').count(),1);
   assert.equal(await page.locator('.asCard .asOddsStrip .u .asTacoBadge').count(),0);
+  assert.equal(await page.locator('.asCard .asTacoBadge').innerText(),'🌮');
+  await page.screenshot({path:`validation-output/ml/${label}-ready-fixture.png`,fullPage:true});
   const a=page.locator('.asCard').filter({has:page.locator('.asPlayer',{hasText:'QA Model Fixture'})});
   assert.ok((await a.locator('.asML').innerText()).includes('231.4'));assert.ok((await a.locator('.asML').innerText()).includes('64.0%'));
   assert.equal(await page.locator('.asCard [data-ml-state="MODEL_NOT_READY"]').count(),1);
@@ -66,7 +68,7 @@ try{
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);
   assert.ok(!requests.includes('FORBIDDEN_PAID_LLM'));assert.ok(requests.every(r=>r.length<=24));
   await page.screenshot({path:`validation-output/ml/${label}-untrained-fixture.png`,fullPage:true});
-  report.checks.push({viewport:label,cardCount:2,noRepeats:true,exactLine:true,sideSwitch:true,marketSwitch:true,absentModelNoNumbers:true,noAutomaticLLM:true,pageErrors:errors});
+  report.checks.push({viewport:label,cardCount:2,noRepeats:true,exactLine:true,sideSwitch:true,marketSwitch:true,tacoOfferOnly:true,absentModelNoNumbers:true,noAutomaticLLM:true,pageErrors:errors});
   await context.close();
  }
  failure=true;const c=await browser.newContext();const p=await c.newPage();await p.goto(base);await p.waitForSelector('.asCard [data-ml-state="MODEL_FEED_UNAVAILABLE"]');await c.close();

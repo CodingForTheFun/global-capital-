@@ -8,18 +8,28 @@ import { applySoccerPublicFeedPatches } from './patch-soccer-public-feeds.mjs';
 // by exact anchors and fails closed if an adapter shape changes.
 applySoccerPublicFeedPatches();
 
-// iOS/WebKit can render the donut strokes while the SVG <text> inherits an
-// unreadable fill when the external research stylesheet is late or unavailable.
-// Put the percentage's critical paint properties directly on the SVG text so the
-// real computed hit rate is always visible in the center of every donut.
+// Safari/iOS has continued to paint the donut circles while dropping the SVG
+// <text> node. Do not rely on SVG text for the percentage. Wrap the SVG in a
+// positioned HTML element and render the real computed percentage as an HTML
+// overlay. This keeps the number visible even if SVG text styling/rendering fails.
 {
   const file = 'apex-v2/scout-ui-v5.js';
   if (existsSync(file)) {
     const source = readFileSync(file, 'utf8');
-    const from = 'class="asRingMid" text-anchor="middle" dominant-baseline="central"';
-    const to = 'class="asRingMid" fill="#f8fafc" font-size="15" font-weight="800" style="fill:#f8fafc!important;opacity:1!important;visibility:visible!important" text-anchor="middle" dominant-baseline="central"';
-    if (!source.includes(from)) throw new Error('Auto Scout ring percentage anchor not found.');
-    const output = source.replace(from, to);
+    const ringStart = '<div class="asRing" title="Historical hit rates, not a win prediction"><svg class="asRingSvg"';
+    const ringStartReplacement = '<div class="asRing" title="Historical hit rates, not a win prediction"><span class="asRingGraphic" style="position:relative;display:inline-grid;place-items:center;flex:none"><svg class="asRingSvg"';
+    const svgText = '<text x="32" y="32" class="asRingMid" text-anchor="middle" dominant-baseline="central">\'+Math.round(over)+\'%</text>';
+    const ringEnd = '</svg><div class="asRingText">';
+    const ringEndReplacement = '</svg><span class="asRingCenter" aria-hidden="true" style="position:absolute;inset:0;display:grid;place-items:center;color:#f8fafc;font:800 15px/1 Inter,system-ui,sans-serif;z-index:2;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.35)">\'+Math.round(over)+\'%</span></span><div class="asRingText">';
+
+    if (!source.includes(ringStart)) throw new Error('Auto Scout ring start anchor not found.');
+    if (!source.includes(svgText)) throw new Error('Auto Scout SVG percentage anchor not found.');
+    if (!source.includes(ringEnd)) throw new Error('Auto Scout ring end anchor not found.');
+
+    const output = source
+      .replace(ringStart, ringStartReplacement)
+      .replace(svgText, '')
+      .replace(ringEnd, ringEndReplacement);
     if (output !== source) writeFileSync(file, output);
   }
 }
@@ -35,4 +45,4 @@ for (const file of ['public/index.html', 'public/checkout.html']) {
     .replace(/<link[^>]+href="\/assets\/edge-theme\.css"[^>]*>/g, '');
   if (output !== source) writeFileSync(file, output);
 }
-console.log('[autoscout] research identity ready; ring percentages forced visible; existing accounts and data retained');
+console.log('[autoscout] research identity ready; donut percentage rendered as HTML overlay; existing accounts and data retained');

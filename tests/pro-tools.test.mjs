@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {decimalOdds,expectedReturn,proToolsAnalysis,outcomeDomain} from '../lib/analytics/pro-tools.mjs';
+import {proToolsHtml} from '../lib/ui/pro-tools.mjs';
 const now=Date.parse('2026-09-13T12:00:00Z');
 const group={sport:'NBA',eventId:'g',playerId:'p',playerName:'Fixture Player',marketId:'player_points',gameStartTime:new Date(now+3600000).toISOString(),entityType:'player',live:false,isAlternate:false};
 const quote=(book,side,line,price,extra={})=>({...group,sportsbookKey:book,sportsbook:book,side,line,price,providerUpdatedAt:new Date(now-10000).toISOString(),...extra});
@@ -101,4 +102,14 @@ test('partial-game and pick-em entry payouts cannot borrow full-game standalone 
  assert.equal(run([q],{predictions:[p]},{period:'first_half'}).quotes.length,0);
  for(const key of ['prizepicks','underdog','underdog_fantasy'])assert.equal(run([{...q,sportsbookKey:key}]).quotes.length,0);
  for(const extra of [{requiresParlay:true},{payoutType:'entry'}])assert.equal(run([{...q,...extra}]).quotes.length,0);
+});
+
+
+test('customer view omits missing forecasts but retains qualifying EV and exploratory estimates',()=>{
+ const q=quote('a','OVER',20.5,110);
+ assert.doesNotMatch(proToolsHtml(run([q])),/data-pro-tool="ev"|data-pro-tool="model-ev"|Unavailable:/);
+ assert.match(proToolsHtml(run([q],{predictions:[prediction(q)]})),/data-pro-tool="ev"/);
+ const exploratory=proToolsHtml(run([q],{predictions:[prediction(q,{sourceKind:'verified-history-adaptive-model',validation:{method:'rolling-player-history',observations:10,events:10}})]}));
+ assert.doesNotMatch(exploratory,/data-pro-tool="ev"/);
+ assert.match(exploratory,/data-pro-tool="model-ev"/);
 });

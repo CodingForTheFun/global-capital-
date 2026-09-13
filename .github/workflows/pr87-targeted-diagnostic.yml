@@ -1,0 +1,31 @@
+name: PR87 targeted diagnostic
+
+on:
+  push:
+    branches:
+      - chatgpt/full-prop-market-coverage-20260913
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  targeted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Changed-file syntax
+        run: |
+          node --check lib/ingestion/normalize.mjs
+          node --check lib/data-sources/sportsdataio/markets.mjs
+          node --check lib/data-sources/espn/stat-contract.mjs
+          node --check lib/ui/prop-board.mjs
+          node --check lib/ingestion/public-worker.mjs
+      - name: Targeted regression tests
+        run: node --test tests/full-prop-market-coverage.test.mjs tests/multibook.test.mjs tests/public-ingestion-credit-save.test.mjs

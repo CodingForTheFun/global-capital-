@@ -5,15 +5,19 @@ import { createFastUnderdogRunner } from '../lib/ingestion/fast-underdog-worker.
 const payload = {
   over_under_lines: [{
     id: 'line-1',
-    appearance_stat: { id: 'as-1', stat: 'Passing Yards' },
-    over_under: { id: 'ou-1', title: 'Test Quarterback Passing Yards' },
+    over_under: {
+      id: 'ou-1',
+      status: 'active',
+      appearance_stat: { appearance_id: 'a1', display_stat: 'Passing Yards' },
+    },
     stat_value: 249.5,
     status: 'active',
     options: [{ choice: 'higher', payout_multiplier: 1 }, { choice: 'lower', payout_multiplier: 1 }],
   }],
-  appearances: [{ id: 'as-1', player_id: 'p1', match_id: 'g1' }],
-  players: [{ id: 'p1', first_name: 'Test', last_name: 'Quarterback', team_id: 'DAL', position_id: 'QB' }],
+  appearances: [{ id: 'a1', player_id: 'p1', match_id: 'g1', team_id: 'DAL', position_id: 'QB' }],
+  players: [{ id: 'p1', first_name: 'Test', last_name: 'Quarterback', sport_id: 'NFL', team: 'DAL' }],
   games: [{ id: 'g1', scheduled_at: '2030-09-14T00:20:00Z', home_team_id: 'DAL', away_team_id: 'NYG', sport_id: 'NFL' }],
+  teams: [{ id: 'DAL', abbr: 'DAL' }, { id: 'NYG', abbr: 'NYG' }],
 };
 
 test('fast Underdog worker persists only its fresh regular rows at zero credit cost', async () => {

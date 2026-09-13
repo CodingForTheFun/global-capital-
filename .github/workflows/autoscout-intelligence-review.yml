@@ -5,9 +5,13 @@ on:
   pull_request:
     paths:
       - 'lib/autoscout/intelligence*'
+      - 'lib/ui/intelligence-studio.mjs'
+      - 'apex-v2/scout-ui-v5.js'
       - 'apex-v2/intelligence*'
       - 'tests/autoscout-intelligence*'
       - 'scripts/test-intelligence*'
+      - 'scripts/assert-game-controls.mjs'
+      - 'apps/guest-dashboard/components/GameBoard.tsx'
       - '.github/workflows/autoscout-intelligence-review.yml'
 permissions:
   contents: read

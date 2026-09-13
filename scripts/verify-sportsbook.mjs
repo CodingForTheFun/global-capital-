@@ -8,6 +8,7 @@ import {randomBytes} from 'node:crypto';
 import {chromium} from 'playwright';
 import {sanitizePublicPayload} from '../lib/public-sanitize.mjs';
 import {assertTacoPlacement} from './assert-taco-placement.mjs';
+import {assertGameControls} from './assert-game-controls.mjs';
 const base='http://127.0.0.1:3025',data=await mkdtemp(path.join(tmpdir(),'sportsbook-ci-'));
 await mkdir('artifacts',{recursive:true});
 const proc=spawn(process.execPath,['frontdoor-clearsports.mjs'],{env:{...process.env,PORT:'3025',DATA_DIR:data,NODE_ENV:'production',ACCOUNT_BETA_OPEN:'true',REQUIRE_ACCOUNT:'true',ACCOUNT_OWNER_EMAIL:'owner@local.invalid',DASHBOARD_SESSION_SECRET:randomBytes(32).toString('hex'),AUTOPROP_MASTER_KEY:randomBytes(32).toString('hex'),AUTO_SCAN_MINUTES:'0',THE_ODDS_API_KEY:'',SPORTSDATAIO_API_KEY:'',CLEARSPORTS_API_KEY:'',GEMINI_API_KEY:'test-fixture',ANTHROPIC_API_KEY:''},stdio:['ignore','pipe','pipe']});
@@ -29,6 +30,7 @@ try{
  await page.route('**/api/props/ask',async r=>{const body=r.request().postDataJSON();check(body.prop.side==='OVER'&&body.prop.line===55.5&&body.prop.gameLog.length===5,'Ask sends active measured context');return r.fulfill({json:{available:true,answer:'Three of these five results exceeded 55.5.'}})});
  await page.route('**/api/props/project',r=>r.fulfill({json:{available:true,projection:63.4}}));
  await page.goto(base,{waitUntil:'networkidle'});await page.getByRole('heading',{name:'NFL · Game lines',exact:true}).waitFor();check(true,'Signed-in root opens game markets');
+ await assertGameControls(page,check);
  const ml=page.getByRole('button',{name:'Detroit QA DraftKings Moneyline Detroit QA',exact:true});await ml.click();check(await ml.getAttribute('aria-pressed')==='true','Moneyline selection');check(await page.getByTestId('game-return').textContent()==='19.09','Betslip return calculation');
  await page.getByRole('button',{name:'Detroit QA DraftKings Spread Detroit QA',exact:true}).click();await page.getByRole('button',{name:'parlay',exact:true}).click();check(await page.getByTestId('game-return').textContent()==='Unavailable','Same-game parlay has no invented payout');
  await page.getByRole('button',{name:'single',exact:true}).click();await page.getByRole('button',{name:'Review selections',exact:true}).click();await page.getByText('No wager submitted',{exact:true}).waitFor();check(true,'Review does not simulate a wager');

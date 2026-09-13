@@ -26,8 +26,6 @@ jobs:
                   actual=subprocess.check_output(['git','hash-object',name],text=True).strip()
                   assert actual==wanted, 'Baseline changed: '+name
           encoded=''.join((root/f'.github/repair/part{i}.b64').read_text() for i in range(1,5))
-          # Correct verified transport transcription differences; the complete
-          # decoded SHA below is authoritative and refuses any other changes.
           for old,new in [('OWW29l1G6g','OWW29l2G6g'),('qdLTbJYe','qdLTtJYe'),('O1lZ5N4','O1x5N4'),('2ve9ssvm','2ve9svm'),('347O1JopuuZ','347O1TopuZ')]:
               assert encoded.count(old)==1
               encoded=encoded.replace(old,new,1)
@@ -39,10 +37,10 @@ jobs:
           git apply --unidiff-zero /tmp/sportsbook-repair.patch
       - name: Format new modular React components
         run: npx --yes prettier@3.6.2 --write apps/guest-dashboard/components/GameBoard.tsx apps/guest-dashboard/components/PropInsight.tsx apps/guest-dashboard/components/TacoBoard.tsx
-      - name: Commit clean source only to the isolated feature branch
+      - name: Commit source only within token permissions
         run: |
           rm -rf .github/repair
-          rm .github/workflows/apply-sportsbook-repair.yml .github/workflows/sportsbook-source-check.yml .github/workflows/taco-source-check.yml
+          git restore --source=HEAD --staged --worktree .github/workflows
           git config user.name 'CodingForTheFun'
           git config user.email '24641357+CodingForTheFun@users.noreply.github.com'
           git add -A

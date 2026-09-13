@@ -136,3 +136,37 @@ test('database lease denial prevents every upstream public request', async () =>
   assert.equal(result.claimed, false);
   assert.equal(refreshes, 0);
 });
+
+test('DraftKings public worker uses state-specific browser request context and follows redirects', async () => {
+  const requests = [];
+  const persisted = [];
+  const statuses = [];
+  const runner = createPublicIngestionRunner({
+    now: () => clock,
+    feeds: { async refreshFeed(source) { return { status: 'unavailable', partial: false, fetchedAt: null, records: [], source }; } },
+    fetcher: async (url, options) => {
+      requests.push({ url: String(url), options });
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        body: null,
+        json: async () => dkPayload([24.5]),
+      };
+    },
+    claim: async () => ({ claimed: true, owner: 'fixture-owner' }),
+    release: async () => {},
+    persistSnapshot: async (source, rows, at) => { persisted.push({ source, rows, at }); return { written: rows.length }; },
+    recordStatus: async (source, state) => { statuses.push({ source, state }); },
+  });
+  const result = await runner.cycle();
+  assert.equal(result.claimed, true);
+  assert.equal(requests.length, 3);
+  assert.ok(requests.every((row) => row.url.includes('/sites/US-VA-SB/api/v5/eventgroups/')));
+  assert.ok(requests.every((row) => row.options.redirect === 'follow'));
+  assert.ok(requests.every((row) => row.options.headers.origin === 'https://sportsbook.draftkings.com'));
+  assert.ok(requests.every((row) => row.options.headers['sec-fetch-mode'] === 'cors'));
+  assert.equal(persisted.length, 3);
+  assert.ok(persisted.every((row) => row.source.startsWith('draftkings:')));
+  assert.ok(statuses.filter((row) => row.source.startsWith('draftkings:')).every((row) => row.state.httpStatus === 200));
+});

@@ -1,0 +1,51 @@
+name: Auto Scout research home review
+on:
+  push:
+    branches: [chatgpt/restore-autoscout-home-20260913]
+  pull_request:
+    paths:
+      - 'lib/edge/**'
+      - 'lib/ui/research-home*'
+      - 'public/autoscout-home*'
+      - 'scripts/verify-research-home.mjs'
+      - 'tests/research-home*'
+      - '.github/workflows/autoscout-home-review.yml'
+permissions:
+  contents: read
+concurrency:
+  group: research-home-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact source snapshot
+        run: git archive --format=zip --output=/tmp/research-home-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: research-home-source
+          path: /tmp/research-home-source.zip
+          retention-days: 1
+      - name: Research release checks
+        if: ${{ hashFiles('scripts/verify-research-home.mjs') != '' }}
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run check
+          npx playwright install --with-deps chromium
+          node scripts/test-intelligence-browser.mjs
+          node scripts/verify-research-home.mjs
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && hashFiles('scripts/verify-research-home.mjs') != '' }}
+        with:
+          name: research-home-browser-evidence
+          path: |
+            artifacts/research-home/
+            test-results/intelligence/
+          retention-days: 3

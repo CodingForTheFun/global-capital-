@@ -8,18 +8,34 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Run tests and capture output
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Capture npm test
         shell: bash
         run: |
           set +e
           npm test > oblige-test-output.txt 2>&1
-          code=$?
-          echo "$code" > oblige-test-exit.txt
+          echo "$?" > oblige-test-exit.txt
+          exit 0
+      - name: Capture npm run check
+        shell: bash
+        run: |
+          set +e
+          npm run check > oblige-check-output.txt 2>&1
+          echo "$?" > oblige-check-exit.txt
+          exit 0
+      - name: Capture edge preparation
+        shell: bash
+        run: |
+          set +e
+          node scripts/prepare-edge-deploy.mjs > oblige-edge-output.txt 2>&1
+          echo "$?" > oblige-edge-exit.txt
           exit 0
       - name: Upload diagnostics
         if: always()
@@ -29,4 +45,8 @@ jobs:
           path: |
             oblige-test-output.txt
             oblige-test-exit.txt
+            oblige-check-output.txt
+            oblige-check-exit.txt
+            oblige-edge-output.txt
+            oblige-edge-exit.txt
           retention-days: 1

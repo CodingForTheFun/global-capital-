@@ -36,6 +36,7 @@ const PROJECTION_RATE_PER_MINUTE = 12;
 // Chat turns are cheaper than a projection but easier to spam.
 const ASK_RATE_PER_MINUTE = 20;
 const CLIENT_MODULES = new Map([
+  'lib/ui/intelligence-studio.mjs', 'lib/autoscout/intelligence.mjs',
   'lib/ui/prop-board.mjs', 'lib/analytics/research.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
   'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
   'lib/betting/kelly.mjs', 'lib/markets/line-lag.mjs',

@@ -16,13 +16,13 @@ test('ATP and WTA normalize into the shared TENNIS sport without widening automa
 
 test('common tennis player props have canonical player-stat contracts', () => {
   assert.deepEqual(marketContract({ sport: 'ATP', market: 'Aces' }), {
-    fields: ['Aces'], entityType: 'player', category: null, sport: 'TENNIS', requiredSackKind: false,
+    fields: ['Aces'], entityType: 'player', category: null, sport: 'TENNIS', requiredSackKind: null,
   });
   assert.deepEqual(marketContract({ sport: 'WTA', market: 'Double Faults' }), {
-    fields: ['DoubleFaults'], entityType: 'player', category: null, sport: 'TENNIS', requiredSackKind: false,
+    fields: ['DoubleFaults'], entityType: 'player', category: null, sport: 'TENNIS', requiredSackKind: null,
   });
   assert.deepEqual(marketContract({ sport: 'TENNIS', market: 'Games Won' }), {
-    fields: ['GamesWon'], entityType: 'player', category: null, sport: 'TENNIS', requiredSackKind: false,
+    fields: ['GamesWon'], entityType: 'player', category: null, sport: 'TENNIS', requiredSackKind: null,
   });
 });
 

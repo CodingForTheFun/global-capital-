@@ -65,20 +65,41 @@ try{
   assert.equal(await page.locator('#asi-open').isEnabled(),true);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   if(viewport.width<=430){
-   for(const id of ['asRefresh','asProfileMenu','asSportSelect']){
+   for(const id of ['asRefresh','asSportSelect']){
     assert.equal(await page.locator('#'+id).evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;}),true,'header action fits mobile viewport');
    }
   }
   await page.screenshot({path:path.join(out,`${name}-board.png`),fullPage:true});
+  await page.locator('#asBoardFilterMenu>summary').click();
   await page.locator('#asProfileMenu summary').click();
   assert.equal(await page.locator('#asAccount').isVisible(),true);
   assert.equal(await page.locator('.asProfileDropdown').evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;}),true);
   await page.locator('#asProfileMenu summary').click();
-  await page.locator('#asBoardFilterMenu>summary').click();
   await page.locator('#asSort').selectOption('l20');
   await page.locator('#asAdvancedToggle').click();
   assert.equal(await page.locator('[data-threshold="l20"]').count(),1);
   await page.locator('#asFilterDone').click();
+  assert.equal(await page.locator('.asTop #asProfileMenu').count(),0,'circular account control removed from Props header');
+  assert.equal(await page.locator('.asCardGauge').first().isVisible(),true,'historical gauge remains visible on mobile');
+  assert.equal(await page.locator('.asLeagueBadge').first().textContent(),'NBA');
+  assert.equal(await page.locator('.asNav').evaluate(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return Math.abs(r.bottom-innerHeight)<1&&Math.abs(r.left)<1&&Math.abs(r.right-innerWidth)<1&&s.borderRadius==='0px';}),true,'navigation is flush with viewport bottom');
+  await page.locator('.asPlayer').first().click();await page.waitForSelector('.asAnalyticsPage .asChart');
+  const detailUrl=page.url();assert.ok(detailUrl.includes('#prop/NBA/'));
+  assert.equal(await page.locator('.asMain').isVisible(),false);assert.equal(await page.locator('.asNav').isVisible(),true);
+  assert.equal(await page.getByText('Research controls',{exact:true}).count(),0);
+  assert.equal(await page.locator('.asDetailBooks .asOddsChip').count()>0,true);
+  assert.equal(await page.locator('[data-market-key]').count()>0,true);
+  assert.equal(await page.locator('.asAnalyticsPage [role="dialog"]').count(),0);
+  assert.doesNotMatch(await page.locator('#as5').innerText(),/Game log available|\bGame log\b/i);
+  await page.locator('#asDetailSave').click();assert.equal(await page.locator('#asDetailSave').getAttribute('aria-pressed'),'true');
+  await page.locator('#asDetailSave').click();assert.equal(await page.locator('#asDetailSave').getAttribute('aria-pressed'),'false');
+  await page.screenshot({path:path.join(out,`${name}-direct-analytics.png`),fullPage:true});
+  await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
+  assert.equal(await page.locator('.asAnalyticsPage').evaluate(e=>e.getBoundingClientRect().bottom<=document.querySelector('.asNav').getBoundingClientRect().top),true,'last content clears the bottom bar');
+  await page.reload();await page.waitForSelector('.asAnalyticsPage .asChart');assert.equal(page.url(),detailUrl,'prop route survives reload');
+  await page.goBack();await page.waitForSelector('.asMain');assert.equal(await page.locator('#asDrawerBg').isVisible(),false);
+  await page.goForward();await page.waitForSelector('.asAnalyticsPage .asChart');
+  await page.locator('#asClose').click();await page.waitForSelector('.asMain');
   await page.locator('#asi-open').click();await page.waitForSelector('#asi-sensitivity');console.log('BROWSER_STUDIO',name);
   assert.equal(await page.locator('#asIntelligenceDetail details').count(),8);
   assert.equal(await page.locator('#asi-sensitivity tbody tr').count(),7);
@@ -104,6 +125,7 @@ try{
   await page.screenshot({path:path.join(out,`${name}-studio.png`),fullPage:false});
   await page.locator('#asTab-intelligence').focus();await page.keyboard.press('End');assert.equal(await page.locator('[role="tab"][aria-selected="true"]').getAttribute('id'),'asTab-ask');await page.keyboard.press('Home');assert.equal(await page.locator('[role="tab"][aria-selected="true"]').getAttribute('id'),'asTab-overview');
   const filterResearchCount=researchRequests;
+  await page.locator('.asMorePropFilters>summary').click();
   await page.locator('#asPropFilter-minMinutes').selectOption('35');
   assert.match(await page.locator('.asChartEmpty').textContent(),/Historical game data/);
   await page.locator('#asClearPropFilters').click();
@@ -198,7 +220,7 @@ try{
   assert.match(await page.locator('[data-pro-tool="arbitrage"]').textContent(),/Execution and matching settlement rules have not been verified/);
   assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   await page.screenshot({path:path.join(out,`${name}-pro-tools.png`),fullPage:false});
-  await page.keyboard.press('Escape');assert.equal(await page.locator('.asDrawerBg.on').count(),0);
+  await page.keyboard.press('Escape');await page.waitForSelector('.asMain');assert.equal(await page.locator('#asDrawerBg').isVisible(),false);
   revision++;await page.locator('#asRefresh').click();await page.waitForFunction(()=>document.querySelector('#asi-radar-count')?.textContent.includes('observed changes'));
   await page.locator('.asi-radar summary').click();assert.ok(await page.locator('[data-radar-key]').count()>0);
   const unavailableTools=await page.evaluate(async()=>{

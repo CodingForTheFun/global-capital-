@@ -56,7 +56,7 @@ try{
   const a=page.locator('.asCard').filter({has:page.locator('.asPlayer',{hasText:'QA Model Fixture'})});
   assert.ok((await a.locator('.asML').innerText()).includes('231.4'));assert.ok((await a.locator('.asML').innerText()).includes('64.0%'));
   assert.equal(await page.locator('.asCard [data-ml-state="MODEL_NOT_READY"]').count(),1);
-  await a.locator('.asPlayer').click();await page.waitForSelector('#asDrawerBody [data-ml-state="READY"]');
+  await a.locator('.asPlayer').click();await page.locator('.asDetailModels > summary').click();await page.waitForSelector('#asDrawerBody [data-ml-state="READY"]');
   await page.locator('[data-side="UNDER"]').click();assert.ok((await page.locator('#asDrawerBody .asMLSelected').innerText()).includes('Under'));
   await page.locator('#asLinePlus').click();await page.waitForSelector('#asDrawerBody [data-ml-state="TARGET_UNVERIFIED"]');
   assert.ok(!(await page.locator('#asDrawerBody .asML').innerText()).includes('231.4'),'No forecast borrowed for an unscored line');

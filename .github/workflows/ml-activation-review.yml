@@ -1,0 +1,28 @@
+name: Review research ML activation
+on:
+  push:
+    branches: [chatgpt/activate-ml-20260913]
+    paths:
+      - lib/ml/**
+      - lib/ui/ml-prediction.mjs
+      - data/ml/research/**
+      - tests/research-ml-activation.test.mjs
+      - .github/workflows/ml-activation-review.yml
+permissions:
+  contents: read
+concurrency:
+  group: autoscout-ml-activation-review
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci --no-audit --no-fund
+      - name: Targeted ML tests
+        run: node --test tests/research-ml-activation.test.mjs
+      - name: Full regression suite
+        run: npm run check

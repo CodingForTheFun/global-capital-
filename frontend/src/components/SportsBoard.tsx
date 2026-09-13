@@ -1,13 +1,13 @@
 import {useState} from 'react';
 import {useNavigate,useLocation,useSearchParams} from 'react-router-dom';
-import {Activity,Trophy,Dribbble,Target,CalendarDays,ChevronDown,Search,Star,ArrowRight,ChartNoAxesColumnIncreasing,SlidersHorizontal,Baseball,Goal} from 'lucide-react';
+import {Activity,Trophy,Dribbble,Target,CalendarDays,ChevronDown,Search,Star,ArrowRight,ChartNoAxesColumnIncreasing,SlidersHorizontal,CircleDot,Goal} from 'lucide-react';
 import {games,props,selectionFor,propSelection,type Game,type PlayerProp,type Market} from '../data/samples';
 import {toggle,useAppDispatch,useAppSelector} from '../store';
 import {formatOdds} from '../lib/domain';
 import {cn} from '../lib/utils';
 import {TeamMark,Empty} from './UI';
 import {toast} from 'sonner';
-const sports=[['NBA',Dribbble],['NFL',Trophy],['MLB',Baseball],['NHL',Goal],['WNBA',Dribbble],['NCAAF',Trophy],['NCAAB',Target],['Soccer',Activity]] as const;
+const sports=[['NBA',Dribbble],['NFL',Trophy],['MLB',CircleDot],['NHL',Goal],['WNBA',Dribbble],['NCAAF',Trophy],['NCAAB',Target],['Soccer',Activity]] as const;
 export default function SportsBoard({onResearch}:{onResearch:(p:PlayerProp)=>void}){
  const navigate=useNavigate();const loc=useLocation();const [params]=useSearchParams();const sport=loc.pathname==='/nfl'?'NFL':loc.pathname==='/nba'?'NBA':params.get('sport')||'NBA';
  const [query,setQuery]=useState('');const [group,setGroup]=useState('All games');const [book,setBook]=useState('ALL');const [stat,setStat]=useState('Popular');

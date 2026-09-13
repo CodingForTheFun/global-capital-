@@ -8,6 +8,8 @@ import {
   Search,
   Ticket,
   Trash2,
+  Star,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { decimalOdds, displayPrice } from "@/lib/sports-workspace";
@@ -65,6 +67,25 @@ export default function GameBoard({
     [search, setSearch] = useState(""),
     [book, setBook] = useState("all"),
     [selected, setSelected] = useState<Selection[]>([]);
+  const [oddsFormat, setOddsFormat] = useState<"american" | "decimal">("american");
+  const [favoriteGames, setFavoriteGames] = useState<string[]>([]);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  useEffect(() => {
+    try { if (localStorage.getItem("oblige-odds-format") === "decimal") setOddsFormat("decimal"); } catch {}
+  }, []);
+  useEffect(() => {
+    setFavoritesOnly(false);
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(`oblige-game-favorites:${accountId}`) || "[]");
+      setFavoriteGames(Array.isArray(stored) ? stored.filter((x): x is string => typeof x === "string").slice(0,200) : []);
+    } catch { setFavoriteGames([]); }
+  }, [accountId]);
+  const showPrice = (price: number) => oddsFormat === "decimal" ? decimalOdds(price)?.toFixed(2) ?? "Unavailable" : displayPrice(price);
+  function favorite(id: string) {
+    const next = favoriteGames.includes(id) ? favoriteGames.filter(x => x !== id) : [...favoriteGames, id].slice(-200);
+    setFavoriteGames(next);
+    try { sessionStorage.setItem(`oblige-game-favorites:${accountId}`, JSON.stringify(next)); } catch {}
+  }
   const [amount, setAmount] = useState("10"),
     [mode, setMode] = useState<"single" | "parlay">("single");
   useEffect(() => {
@@ -130,8 +151,25 @@ export default function GameBoard({
           .toLowerCase()
           .includes(search.toLowerCase())) &&
       (!liveOnly || g.status === "LIVE") &&
+      (!favoritesOnly || favoriteGames.includes(g.id)) &&
       (book === "all" || g.books.some((b) => b.sportsbookKey === book)),
   );
+  function exportGameQuotes() {
+    const cells: (string | number | null)[][] = [["Event", "Scheduled start", "Book", "Market", "Selection", "Line", "American odds", "Book updated at"]];
+    for (const game of games) for (const source of game.books) {
+      if (book !== "all" && source.sportsbookKey !== book) continue;
+      for (const market of source.markets) for (const outcome of market.outcomes)
+        cells.push([`${game.awayTeam} @ ${game.homeTeam}`, game.startTime, source.name, labels[market.marketKey] || market.marketKey, outcome.name, outcome.point, outcome.price, market.updatedAt]);
+    }
+    const csv = cells.map(row => row.map(value => {
+      let text = value === null ? "" : String(value);
+      if (typeof value === "string" && /^[\s]*[=+@-]/.test(text)) text = `'${text}`;
+      return `"${text.replaceAll('"', '""')}"`;
+    }).join(",")).join("\r\n");
+    const href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = href; link.download = `obligepay-${sport.toLowerCase()}-game-quotes.csv`; link.click();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+  }
   function toggle(game: Game, b: Book, m: Market, o: Outcome) {
     const id = JSON.stringify([game.id, b.sportsbookKey, m.marketKey, o.name, o.point]);
     setSelected((rows) =>
@@ -180,8 +218,8 @@ export default function GameBoard({
       className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_300px]"
     >
       <div className="min-w-0">
-        <div className="mb-4 grid grid-cols-[minmax(0,1fr)_150px_44px] gap-2">
-          <label className="relative">
+        <div className="mb-4 grid grid-cols-[minmax(0,1fr)_44px] gap-2 sm:grid-cols-[minmax(0,1fr)_170px_44px]">
+          <label className="relative col-span-2 sm:col-span-1">
             <Search
               size={16}
               className="absolute left-3 top-3.5 text-slate-500"
@@ -215,6 +253,15 @@ export default function GameBoard({
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
+        </div>
+        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-slate-800 bg-[#0d1922] p-2">
+          <div role="group" aria-label="Odds display format" className="flex rounded-lg border border-slate-700 p-1">
+            {(["american", "decimal"] as const).map(format => <button key={format} type="button" aria-pressed={oddsFormat === format}
+              onClick={() => { setOddsFormat(format); try { localStorage.setItem("oblige-odds-format", format); } catch {} }}
+              className={`rounded-md px-3 py-2 text-xs font-semibold capitalize ${oddsFormat === format ? "bg-emerald-500/15 text-emerald-300" : "text-slate-400"}`}>{format}</button>)}
+          </div>
+          <button type="button" aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly(value => !value)} className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2.5 text-xs ${favoritesOnly ? "border-emerald-500 text-emerald-300" : "border-slate-700 text-slate-300"}`}><Star size={14} aria-hidden="true"/>Favorites</button>
+          <button type="button" onClick={exportGameQuotes} disabled={!games.length || loading} className="ml-auto inline-flex items-center gap-2 rounded-lg border border-slate-700 px-3 py-2.5 text-xs text-slate-300 disabled:opacity-40"><Download size={14} aria-hidden="true"/>Export quotes</button>
         </div>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold">
@@ -272,7 +319,7 @@ export default function GameBoard({
                 <article key={game.id} className={`${surface} overflow-hidden`}>
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
-                      {game.status === "SCHEDULED"
+                      {game.status === "LIVE" ? "Confirmed live" : game.status === "SCHEDULED"
                         ? "Upcoming"
                         : "Status unconfirmed"}
                     </span>
@@ -287,12 +334,13 @@ export default function GameBoard({
                       })}
                     </time>
                   </div>
-                  <div className="p-4">
-                    <p className="text-sm font-semibold">{game.awayTeam}</p>
+                  <div className="flex items-start justify-between gap-3 p-4">
+                    <div><p className="text-sm font-semibold">{game.awayTeam}</p>
                     <p className="mt-2 text-sm font-semibold">
                       <span className="mr-2 text-slate-600">@</span>
                       {game.homeTeam}
-                    </p>
+                    </p></div>
+                    <button type="button" aria-label={`Favorite ${game.awayTeam} at ${game.homeTeam}`} aria-pressed={favoriteGames.includes(game.id)} onClick={() => favorite(game.id)} className="rounded-lg border border-slate-700 p-2.5 text-emerald-300 hover:border-emerald-500"><Star size={16} fill={favoriteGames.includes(game.id) ? "currentColor" : "none"}/></button>
                   </div>
                   {shown.map((b, i) => (
                     <details
@@ -335,12 +383,12 @@ export default function GameBoard({
                                       </span>
                                       <b className="mt-1 block text-xs text-white">
                                         {key === "h2h"
-                                          ? displayPrice(o.price)
+                                          ? showPrice(o.price)
                                           : `${key === "totals" ? (o.name === "Over" ? "O" : "U") : o.point! >= 0 ? "+" : ""}${o.point}`}
                                       </b>
                                       {key !== "h2h" && (
                                         <span className="mt-0.5 block text-[11px] text-emerald-400">
-                                          {displayPrice(o.price)}
+                                          {showPrice(o.price)}
                                         </span>
                                       )}
                                     </button>
@@ -437,7 +485,7 @@ export default function GameBoard({
                         {labels[s.market]} {s.point ?? ""}
                       </span>
                       <b className="text-emerald-400">
-                        {displayPrice(s.price)}
+                        {showPrice(s.price)}
                       </b>
                     </div>
                     <p className="mt-2 text-[10px] text-slate-600">

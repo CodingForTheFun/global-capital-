@@ -1,0 +1,87 @@
+/** Browser acceptance checks against explicit synthetic localhost-only fixtures. */
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { chromium } from 'playwright';
+import { startIntelligenceFixture } from './intelligence-fixture-server.mjs';
+const directory='test-results/intelligence';await mkdir(directory,{recursive:true});
+const fixture=await startIntelligenceFixture(), checks=[],errors=[];
+const check=(ok,name)=>{assert.ok(ok,name);checks.push(name);console.log('INTELLIGENCE_PASS',name);};
+let browser,page;
+try {
+ browser=await chromium.launch({headless:true});
+ const context=await browser.newContext({viewport:{width:1440,height:1000}});
+ await context.addInitScript(()=>localStorage.setItem('autoscout-sport','NBA'));
+ page=await context.newPage();page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(fixture.origin+'/apex');
+ await page.locator('.asCard').first().waitFor();
+ await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent.includes('Visible research loaded'));
+ check(await page.locator('.asCard').count()===3,'Existing research board retains all fixture players');
+ check(await page.locator('#asIntelligenceRadar').count()===1,'Radar attached to Auto Scout only');
+ check(await page.locator('#asIntelligenceRadar').innerText().then(t=>t.includes('Snapshot comparison')),'Initial differences explicitly labeled comparisons, not movements');
+ await page.screenshot({path:directory+'/autoscout-desktop-qa.png',fullPage:true});
+ await page.locator('.asCard').filter({hasText:'QA Fixture Guard'}).click();
+ await page.locator('#asTab-intelligence').click();
+ await page.locator('[data-ai-action="brief"]').click();
+ check(await page.locator('.aiReport').innerText().then(t=>t.includes('[L10]')&&t.includes('[EVIDENCE]')),'Brief links to actual loaded evidence');
+ await page.locator('[data-ai-tab="sensitivity"]').click();
+ check(await page.locator('.aiSensitivityCell').count()===9,'Nine shared-engine line thresholds');
+ const before=await page.locator('#asLineInput').inputValue();
+ await page.locator('.aiSensitivityCell').last().click();
+ check(Number(await page.locator('#asLineInput').inputValue())===Number(before)+4,'Sensitivity selection updates existing line control');
+ await page.locator('.asSideBtn[data-side="UNDER"]').click();
+ check((await page.locator('.aiContext').innerText()).includes('UNDER'),'Side changes reprice the intelligence view');
+ await page.locator('.asSideBtn[data-side="OVER"]').click();
+ await page.locator('[data-ai-tab="evidence"]').click();
+ check(await page.locator('.aiCheck').count()===6,'Six transparent evidence checks');
+ check((await page.locator('#asIntelligence').innerText()).includes('not a probability'),'Evidence is not presented as win probability');
+ await page.locator('[data-ai-tab="market"]').click();
+ check(await page.locator('.aiBookMap article').count()===3,'Duplicate over/under quotes not double-counted');
+ await page.locator('[data-ai-tab="timeline"]').click();
+ const initialHistory=fixture.requests.filter(x=>x==='/api/apex/line-history').length;
+ await page.locator('[data-ai-action="history"]').click();
+ await page.waitForFunction(()=>document.querySelectorAll('.aiTimeline li').length>=3);
+ check((await page.locator('.aiTimeline').innerText()).includes('Persisted observation'),'Stored history is displayed with honest timing');
+ check(fixture.requests.filter(x=>x==='/api/apex/line-history').length===initialHistory+1,'Only explicit history action loads a series');
+ await page.locator('[data-ai-action="history"]').click();await page.waitForTimeout(100);
+ check(fixture.requests.filter(x=>x==='/api/apex/line-history').length===initialHistory+1,'Repeated history action reuses existing shared cache');
+ await page.screenshot({path:directory+'/timeline-desktop-qa.png',fullPage:false});
+ await page.locator('[data-ai-tab="scenario"]').click();
+ await page.locator('#aiAdjustment').fill('20');
+ check((await page.locator('#aiAdjustmentLabel').innerText()).includes('+20'),'Scenario adjustment is explicit');
+ await page.locator('#aiMinutes').fill('0');
+ check((await page.locator('#aiScenarioOutput').innerText())==='0','Zero-minute scenario remains zero');
+ await page.locator('[data-ai-action="reset-scenario"]').click();
+ check((await page.locator('#aiAdjustment').inputValue())==='0','Scenario reset restores baseline assumptions');
+ await page.locator('[data-ai-tab="dependencies"]').click();
+ check(await page.locator('.aiDependencyNode').count()===1,'Dependency graph uses verified fixture participation');
+ check((await page.locator('#asIntelligence').innerText()).includes('Missing data is not absence'),'Dependency limitations visible');
+ await page.locator('[data-ai-tab="dependencies"]').press('Home');
+ check((await page.locator('[data-ai-tab="brief"]').getAttribute('aria-pressed'))==='true','Intelligence keyboard Home selects first tool');
+ await page.locator('#asTab-intelligence').press('End');
+ check((await page.locator('#asTab-ask').getAttribute('aria-selected'))==='true','Parent research tabs support complete keyboard navigation');
+ await page.locator('#asTab-intelligence').click();await page.locator('[data-ai-tab="sensitivity"]').click();
+ for(const width of [390,320]) {
+  await page.setViewportSize({width,height:844});
+  check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`No document overflow at ${width}px`);
+  await page.screenshot({path:`${directory}/intelligence-${width}px-qa.png`,fullPage:false});
+ }
+ await page.keyboard.press('Escape');
+ await page.locator('.asCard').filter({hasText:'QA No History'}).click();
+ await page.locator('#asTab-intelligence').click();await page.locator('[data-ai-tab="dependencies"]').click();
+ check((await page.locator('#asIntelligence').innerText()).includes('Verified participation history is missing'),'Missing participation not fabricated');
+ await page.locator('[data-ai-tab="scenario"]').click();
+ check((await page.locator('#asIntelligence').innerText()).includes('A baseline is required'),'Missing projection not replaced by line');
+ await page.keyboard.press('Escape');
+ await context.request.get(fixture.origin+'/__qa/advance');await page.locator('#asRefresh').click();
+ await page.waitForFunction(()=>document.querySelector('#asIntelligenceRadar')?.textContent.includes('Line move'));
+ check(true,'Radar detects changes on the existing refresh lifecycle');
+ check(fixture.requests.filter(x=>x==='/api/apex/props').length===2,'No new automatic board polling');
+ check(errors.length===0,`No JavaScript exceptions: ${errors.join('; ')}`);
+ await page.screenshot({path:directory+'/autoscout-mobile-qa.png',fullPage:true});
+} catch(error) {
+ await page?.screenshot({path:directory+'/failure-qa.png',fullPage:true}).catch(()=>{});
+ await writeFile(directory+'/failure.json',JSON.stringify({error:error.message,body:await page?.locator('body').innerText().catch(()=>''),checks,errors},null,2));throw error;
+} finally {
+ await writeFile(directory+'/report.json',JSON.stringify({passed:checks.length,checks,errors,fixtureData:true,paidProviderCalls:0,realMoneyOperations:0,requests:fixture.requests},null,2));
+ await browser?.close();fixture.server.close();
+}

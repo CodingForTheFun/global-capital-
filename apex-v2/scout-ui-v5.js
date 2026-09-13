@@ -6,6 +6,7 @@ var mlClient=createMLClient({fetcher:nativeFetch});
 // Optional presentation enhancement: a failed studio load must not break the board.
 var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(()=>null);
 var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
+var {matchupAnalysis,similarGames}=await import('/assets/lib/analytics/matchup.mjs');
 var {compareResearchQuotes}=await import('/assets/lib/ui/line-comparison.mjs');
 var playerChoices=new Map();
 var {tacoBadgeHtml,removeExpiredTacoBadges}=await import('/assets/lib/ui/offer-promotion.mjs');
@@ -1083,6 +1084,27 @@ function comparisonRows(g){
   +'<p class="asNotice">Research a quoted line to update your chart, side and book history. Sportsbook offers stay unchanged. A lower Over or higher Under line is not by itself better value; price matters too.</p>';
 }
 
+function matchupOptions(g){return {line:drawerState.line,side:drawerState.side,window:drawerState.window,sport:g.sport,eventStart:g.gameStartTime};}
+function matchupWindowControl(){return '<label class="asSampleWindow">Historical sample<select class="asMarketSelect" id="asMatchWindow">'+[['l5','Last 5'],['l10','Last 10'],['l15','Last 15'],['l20','Last 20'],['season','Current regular season'],['h2h','Direct opponent games']].map(([value,label])=>'<option value="'+value+'" '+(drawerState.window===value?'selected':'')+'>'+label+'</option>').join('')+'</select></label>';}
+function matchupMetric(label,metric,id){
+ return '<article class="asMatchMetric" data-match-metric="'+id+'"><h4>'+esc(label)+'</h4><strong>'+(metric.hitRate==null?'Unavailable':esc(pct(metric.hitRate)))+'</strong><span>Historical hit rate</span><dl><div><dt>Average</dt><dd>'+(metric.average==null?'Unavailable':esc(dec(metric.average)))+'</dd></div><div><dt>Games</dt><dd>'+metric.games+'</dd></div><div><dt>Pushes</dt><dd>'+(metric.pushes==null?'Unavailable':metric.pushes)+'</dd></div></dl>'+(metric.limited?'<p class="asSmallSample">Small sample · fewer than 5 games</p>':'')+'</article>';
+}
+function matchupPanel(base,g){
+ var result=matchupAnalysis({...base,entityType:g.entityType},matchupOptions(g));
+ return matchupWindowControl()+'<p class="asNotice">Upcoming venue: '+(result.targetVenue?esc(result.targetVenue==='home'?'Home':'Away'):'Unverified')+'. These groups are drawn from the same selected historical sample; they may overlap.</p>'
+  +'<div class="asMatchMetrics">'+matchupMetric('Selected sample',result.baseline,'baseline')+matchupMetric('Home games',result.home,'home')+matchupMetric('Away games',result.away,'away')+matchupMetric(result.opponentKnown?'VS '+(result.opponent||'verified opponent'):'Opponent unverified',result.h2h,'h2h')+'</div>'
+  +'<p class="asNotice">'+(result.partialSeason?'Season coverage is incomplete. ':'')+(result.unknownVenue?result.unknownVenue+' games have no verified venue and are excluded from home/away groups. ':'')+'Hit rates use all matched games, including pushes in the denominator. These are historical results, not a prediction or opponent defensive ranking.</p>';
+}
+function similarPanel(base,g){
+ var state=drawerState.similar||{venue:'matchup',role:'any',minMinutes:'',maxMinutes:''};
+ var result=similarGames({...base,entityType:g.entityType},{...matchupOptions(g),...state});
+ var select=(id,label,choices,value)=>'<label>'+label+'<select class="asMarketSelect" id="'+id+'">'+choices.map(([v,t])=>'<option value="'+v+'" '+(v===value?'selected':'')+'>'+t+'</option>').join('')+'</select></label>';
+ return matchupWindowControl()+'<div class="asSimilarControls">'+select('asSimilarVenue','Historical venue',[['matchup','Match upcoming venue'],['any','Any venue'],['home','Home only'],['away','Away only']],state.venue)+select('asSimilarRole','Recorded starter status',[['any','Any status'],['starter','Starter only'],['bench','Bench only']],state.role)
+  +(result.minutesSupported?'<label>Minimum minutes<input class="asControl" id="asSimilarMin" type="number" min="0" step="0.5" placeholder="Any" value="'+esc(state.minMinutes)+'"></label><label>Maximum minutes<input class="asControl" id="asSimilarMax" type="number" min="0" step="0.5" placeholder="Any" value="'+esc(state.maxMinutes)+'"></label>':'')+'</div>'
+  +'<p class="asNotice" id="asSimilarCount" role="status">'+result.matched+' of '+result.candidates+' games match these conditions.</p>'+(result.reason?'<p class="asAvailability">'+esc(result.reason)+'</p>':'')
+  +'<div class="asMatchMetrics asSimilarSummary">'+matchupMetric('Matched games',result.summary,'similar')+'</div><p class="asNotice">'+esc(result.note)+'</p>'
+  +(result.matched?'<div class="asTableWrap asSimilarGames"><table class="asTable"><thead><tr><th>Date</th><th>Opponent</th><th>Venue</th><th>Starter</th><th>Minutes</th><th>'+esc(g.market)+'</th><th>Prop result</th></tr></thead><tbody>'+result.summary.rows.map(row=>'<tr><td>'+esc(shortDate(row.date))+'</td><td>'+esc(row.opponent||'Unavailable')+'</td><td>'+ (row.isHome===true?'Home':row.isHome===false?'Away':'Unavailable')+'</td><td>'+(row.started===true?'Yes':row.started===false?'No':'Unavailable')+'</td><td>'+(row.minutes==null?'Unavailable':esc(dec(row.minutes)))+'</td><td>'+esc(dec(row.value))+'</td><td>'+ (row.push===true?'Push':row.hit===true?'Hit':row.hit===false?'Miss':'Unavailable')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="asNotice">No matching historical games are available. Broaden the filters to explore the recorded sample.</p>');
+}
 function historyChart(series){
  if(series.building)return'';
  var rows=series.rows,t0=series.first.observedAt,span=series.last.observedAt-t0,low=Math.min(...rows.map(x=>x.line)),high=Math.max(...rows.map(x=>x.line));
@@ -1158,12 +1180,12 @@ function renderDrawer(){
  var section=(title,body,sub='')=>'<section class="asSection"><div class="asSectionTitle"><h3>'+title+'</h3><span>'+sub+'</span></div><div class="asSectionBody">'+body+'</div></section>';
  var controls='<div class="asResearchTop"><label>Market<select class="asMarketSelect" id="asMarketSwitch">'+marketOptions(g)+'</select></label><div><label>Research line</label><div class="asLineCtl"><button class="asLineBtn" id="asLineMinus" aria-label="Decrease line">−</button><input class="asLineVal" id="asLineInput" type="number" step="0.5" aria-label="Research line" value="'+(line==null?'':line)+'"><button class="asLineBtn" id="asLinePlus" aria-label="Increase line">+</button></div></div></div><div class="asSideToggle">'+['OVER','UNDER'].map(x=>'<button class="asSideBtn '+x.toLowerCase()+' '+(side===x?'on':'')+'" data-side="'+x+'" aria-pressed="'+(side===x)+'">'+x+'</button>').join('')+'</div><p class="asNotice">Adjusting this line changes your research, not sportsbook offers.</p>';
  var filters='<div class="asFilterRow">'+[['all','All'],['home','Home'],['away','Away'],['h2h','VS '+(r?.matchup?.opponent||'opponent')]].map(([id,label])=>'<button class="asFilterBtn '+(drawerState.filter===id?'on':'')+'" data-filter="'+id+'" aria-pressed="'+(drawerState.filter===id)+'">'+esc(label)+'</button>').join('')+'</div>';
- var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['intelligence','Intelligence'],['sandbox','Scenario'],['ask','Ask']];
+ var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['matchup','Matchup'],['similar','Similar games'],['intelligence','Intelligence'],['sandbox','Scenario'],['ask','Ask']];
  var tabBar='<div class="asResearchTabs" role="tablist" aria-label="Player research sections">'+tabs.map(([id,label])=>'<button role="tab" class="asResearchTab" id="asTab-'+id+'" data-research-panel="'+id+'" aria-controls="asPanel-'+id+'" aria-selected="'+(panel===id)+'" tabindex="'+(panel===id?'0':'-1')+'">'+label+'</button>').join('')+'</div>';
  var logContent=filteredGames(r).length?gameTable(r,g):emptyLog(r,g,base);
  var projectionHtml=mlPanel(g,line,side)+projectionCard(g,line);
  var pillsHtml=section('Hit rate',hitPills(r||base));
- var panels={sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
+ var panels={matchup:section('Matchup research',matchupPanel(base||{},g)),similar:section('Similar games · same player',similarPanel(base||{},g)),sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
   ask:section('Ask about this prop',askPanel(g,line,side)),
   overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent),lines:section('Best Line Finder',comparisonRows(g))+section('Every book',bookMatrix(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
  intelligence?.disposeDetails();
@@ -1201,6 +1223,10 @@ function renderDrawer(){
  });
  document.querySelectorAll('[data-side]').forEach(b=>b.onclick=()=>{drawerState.side=b.dataset.side;renderDrawer();});
  document.querySelectorAll('[data-window]').forEach(b=>b.onclick=()=>{drawerState.window=b.dataset.window;renderDrawer();});
+ document.getElementById('asMatchWindow')?.addEventListener('change',e=>{drawerState.window=e.target.value;renderDrawer();});
+ [['asSimilarVenue','venue'],['asSimilarRole','role'],['asSimilarMin','minMinutes'],['asSimilarMax','maxMinutes']].forEach(([id,key])=>{
+  document.getElementById(id)?.addEventListener('change',e=>{drawerState.similar={venue:'matchup',role:'any',minMinutes:'',maxMinutes:'',...drawerState.similar,[key]:e.target.value};renderDrawer();});
+ });
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{drawerState.filter=b.dataset.filter;renderDrawer();});
  document.querySelectorAll('[data-game-detail]').forEach(b=>b.onclick=()=>document.getElementById('asGameDetail').textContent=b.dataset.gameDetail);
  hydrateML();

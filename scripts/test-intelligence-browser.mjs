@@ -9,7 +9,7 @@ const now=Date.now();let revision=0,historyRequests=0,paidRequests=0,boardReques
 const quoteTime=()=>new Date(now-60000+revision*1000).toISOString();
 const athlete='Local QA Athlete',eventId='qa-event',playerId='qa-player';
 const games=Array.from({length:12},(_,i)=>({gameId:`qa-g${i}`,date:new Date(now-(i+1)*86400000).toISOString(),value:20+i,minutes:30,assists:i===1?null:i,season:2026,completed:true,isHome:i%2===0,opponent:'NY',teammateParticipation:[{playerId:'qa-t',name:'Fixture teammate',played:i<6,verified:true,source:'Local test participation fixture'}]}));
-const base={available:true,ok:true,sport:'NBA',player:{id:playerId,playerName:athlete,team:'BOS'},gameLog:games,season:2026,matchup:{opponent:'NY'},coverage:{seasonComplete:false},source:'Local test fixture'};
+const base={available:true,ok:true,sport:'NBA',player:{id:playerId,playerName:athlete,team:'BOS'},gameLog:games,season:2026,matchup:{opponent:'NY',isHome:true},coverage:{seasonComplete:false},source:'Local test fixture'};
 const props=()=>['Book A','Book B','Book C'].flatMap((book,j)=>['OVER','UNDER'].map(side=>({id:`p-${j}-${side}`,eventId,playerId,playerName:athlete,team:'BOS',sport:'NBA',marketId:'player_points',market:'Points',side,line:24.5+(j===1?1:0)+revision,price:j===1?150:j===2?-115:-110,sportsbookKey:book,sportsbook:book,providerUpdatedAt:quoteTime(),gameStartTime:new Date(now+86400000).toISOString(),awayTeam:'New York Knicks',homeTeam:'Boston Celtics',isAlternate:false})));
 const source=process.cwd(),out=path.join(source,'test-results/intelligence');fs.mkdirSync(out,{recursive:true});
 const server=http.createServer(async(req,res)=>{
@@ -112,11 +112,34 @@ try{
   assert.equal(researchRequests,researchBefore,'quote selection reuses loaded research');
   assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   await page.screenshot({path:path.join(out,`${name}-best-line-finder.png`),fullPage:false});
+  const beforeMatchupResearch=researchRequests;
+  await page.locator('#asTab-matchup').click();
+  await page.locator('#asMatchWindow').selectOption('l5');
+  assert.equal(await page.locator('[data-match-metric="baseline"] dd').nth(1).textContent(),'5');
+  assert.equal(await page.locator('[data-match-metric="home"] dd').nth(1).textContent(),'3');
+  assert.equal(await page.locator('[data-match-metric="away"] dd').nth(1).textContent(),'2');
+  await page.locator('#asTab-similar').click();
+  assert.match(await page.locator('#asSimilarCount').textContent(),/3 of 5/);
+  await page.locator('#asSimilarVenue').selectOption('any');
+  assert.match(await page.locator('#asSimilarCount').textContent(),/5 of 5/);
+  await page.locator('#asSimilarRole').selectOption('starter');
+  assert.match(await page.locator('#asSimilarCount').textContent(),/0 of 5/);
+  await page.locator('#asSimilarRole').selectOption('any');
+  await page.locator('#asSimilarMin').fill('31');await page.locator('#asSimilarMin').press('Tab');
+  assert.match(await page.locator('#asSimilarCount').textContent(),/0 of 5/);
+  await page.locator('#asSimilarMin').fill('');await page.locator('#asSimilarMin').press('Tab');
+  assert.match(await page.locator('#asSimilarCount').textContent(),/5 of 5/);
+  const selectedDates=await page.locator('.asSimilarGames tbody tr td:first-child').allTextContents();
+  await page.locator('[data-side="UNDER"]').click();
+  assert.deepEqual(await page.locator('.asSimilarGames tbody tr td:first-child').allTextContents(),selectedDates);
+  assert.equal(researchRequests,beforeMatchupResearch,'matchup filters reuse loaded history');
+  assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
+  await page.screenshot({path:path.join(out,`${name}-similar-games.png`),fullPage:false});
   await page.keyboard.press('Escape');assert.equal(await page.locator('.asDrawerBg.on').count(),0);
   revision++;await page.locator('#asRefresh').click();await page.waitForFunction(()=>document.querySelector('#asi-radar-count')?.textContent.includes('observed changes'));
   await page.locator('.asi-radar summary').click();assert.ok(await page.locator('[data-radar-key]').count()>0);
   assert.deepEqual(errors,[]);
-  report.checks.push({viewport:name,selectedSampleStats:true,l20Controls:true,exactLinePriceComparison:true,quoteResearchSelection:true,historyFailureRetry:true,eightTools:true,sharedSensitivityReactivity:true,zeroMinuteScenario:true,dependencyGraph:true,historyCache:true,citedBrief:true,textDownload:true,radar:true,keyboardTabs:true,noOverflow:true,pageErrors:errors});
+  report.checks.push({viewport:name,selectedSampleStats:true,l20Controls:true,exactLinePriceComparison:true,quoteResearchSelection:true,historyFailureRetry:true,matchupSamples:true,similarGameFilters:true,eightTools:true,sharedSensitivityReactivity:true,zeroMinuteScenario:true,dependencyGraph:true,historyCache:true,citedBrief:true,textDownload:true,radar:true,keyboardTabs:true,noOverflow:true,pageErrors:errors});
   await context.close();
  }
  assert.equal(paidRequests,0);report.requests={historyRequests,paidRequests,boardRequests};

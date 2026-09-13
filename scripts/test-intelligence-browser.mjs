@@ -34,11 +34,12 @@ const server=http.createServer(async(req,res)=>{
   if(p==='/api/apex/research'){researchRequests++;return send(analyzeResearch(base,Number(url.searchParams.get('line')),url.searchParams.get('side')));}
   if(p==='/api/apex/research-batch'){let raw='';for await(const chunk of req)raw+=chunk;const request=JSON.parse(raw);return send({ok:true,results:Object.fromEntries(request.props.map(r=>[r.key,analyzeResearch(base,r.line,r.side)]))});}
   if(p==='/api/apex/line-history'){historyRequests++;const book=url.searchParams.get('bookmaker'),side=url.searchParams.get('side');if(historyFailurePending&&book==='Book B'&&side==='UNDER'){historyFailurePending=false;return send({error:'Temporary fixture history failure'},503);}return send({configured:true,rows:[{prop_id:'qa-prop',bookmaker_key:book,side,line:22.5,created_at:new Date(now-3600000).toISOString()},{prop_id:'qa-prop',bookmaker_key:book,side,line:24.5,created_at:new Date(now-1800000).toISOString()}]});}
+  if(p==='/api/props/teammates'){assert.equal(url.searchParams.get('team'),'BOS');return send({available:true,injuryReport:false,teammates:Array.from({length:15},(_,i)=>({playerId:'mate-'+i,playerName:'Roster teammate '+i,position:'G',injuryStatus:null}))});}
   if(p==='/api/account/me')return send({authenticated:true,user:{id:'local-qa',email:'qa@example.invalid'}});
   if(p==='/api/saved-props')return send({saved:[],profile:{kind:'account',id:'local-qa'}});
   if(p==='/api/account/health')return send({ok:true,password:{available:true}});
   if(p==='/api/apex/player-artwork')return send('',404);
-  if(p.includes('predict')||p.includes('ask')){paidRequests++;return send({available:false});}
+  if(p.includes('predict')||p.includes('project')||p.includes('ask')){paidRequests++;return send({available:false});}
   if(p.startsWith('/api/'))return send({ok:true});
   console.error('FIXTURE_NOT_FOUND',p);return send({error:'Not found'},404);
  }catch(error){console.error('FIXTURE_ERROR',p,error.message);return send({error:'Fixture handler error'},500);}
@@ -65,20 +66,41 @@ try{
   assert.equal(await page.locator('#asi-open').isEnabled(),true);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   if(viewport.width<=430){
-   for(const id of ['asRefresh','asProfileMenu','asSportSelect']){
+   for(const id of ['asRefresh','asSportSelect']){
     assert.equal(await page.locator('#'+id).evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;}),true,'header action fits mobile viewport');
    }
   }
   await page.screenshot({path:path.join(out,`${name}-board.png`),fullPage:true});
+  await page.locator('#asBoardFilterMenu>summary').click();
   await page.locator('#asProfileMenu summary').click();
   assert.equal(await page.locator('#asAccount').isVisible(),true);
   assert.equal(await page.locator('.asProfileDropdown').evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;}),true);
   await page.locator('#asProfileMenu summary').click();
-  await page.locator('#asBoardFilterMenu>summary').click();
   await page.locator('#asSort').selectOption('l20');
   await page.locator('#asAdvancedToggle').click();
   assert.equal(await page.locator('[data-threshold="l20"]').count(),1);
   await page.locator('#asFilterDone').click();
+  assert.equal(await page.locator('.asTop #asProfileMenu').count(),0,'circular account control removed from Props header');
+  assert.equal(await page.locator('.asCardGauge').first().isVisible(),true,'historical gauge remains visible on mobile');
+  assert.equal(await page.locator('.asLeagueBadge').first().textContent(),'NBA');
+  assert.equal(await page.locator('.asNav').evaluate(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return Math.abs(r.bottom-innerHeight)<1&&Math.abs(r.left)<1&&Math.abs(r.right-innerWidth)<1&&s.borderRadius==='0px';}),true,'navigation is flush with viewport bottom');
+  await page.locator('.asPlayer').first().click();await page.waitForSelector('.asAnalyticsPage .asChart');
+  const detailUrl=page.url();assert.ok(detailUrl.includes('#prop/NBA/'));
+  assert.equal(await page.locator('.asMain').isVisible(),false);assert.equal(await page.locator('.asNav').isVisible(),true);
+  assert.equal(await page.getByText('Research controls',{exact:true}).count(),0);
+  assert.equal(await page.locator('.asDetailBooks .asOddsChip').count()>0,true);
+  assert.equal(await page.locator('[data-market-key]').count()>0,true);
+  assert.equal(await page.locator('.asAnalyticsPage [role="dialog"]').count(),0);
+  assert.doesNotMatch(await page.locator('#as5').innerText(),/Game log available|\bGame log\b/i);
+  await page.locator('#asDetailSave').click();await page.waitForFunction(()=>document.querySelector('#asDetailSave')?.getAttribute('aria-pressed')==='true');
+  await page.locator('#asDetailSave').click();await page.waitForFunction(()=>document.querySelector('#asDetailSave')?.getAttribute('aria-pressed')==='false');
+  await page.screenshot({path:path.join(out,`${name}-direct-analytics.png`),fullPage:true});
+  await page.evaluate(()=>scrollTo(0,document.documentElement.scrollHeight));
+  assert.equal(await page.locator('.asAnalyticsPage').evaluate(e=>e.getBoundingClientRect().bottom<=document.querySelector('.asNav').getBoundingClientRect().top),true,'last content clears the bottom bar');
+  await page.reload();await page.waitForSelector('.asAnalyticsPage .asChart');assert.equal(page.url(),detailUrl,'prop route survives reload');
+  await page.goBack();await page.waitForSelector('.asMain');assert.equal(await page.locator('#asDrawerBg').isVisible(),false);
+  await page.goForward();await page.waitForSelector('.asAnalyticsPage .asChart');
+  await page.locator('#asClose').click();await page.waitForSelector('.asMain');
   await page.locator('#asi-open').click();await page.waitForSelector('#asi-sensitivity');console.log('BROWSER_STUDIO',name);
   assert.equal(await page.locator('#asIntelligenceDetail details').count(),8);
   assert.equal(await page.locator('#asi-sensitivity tbody tr').count(),7);
@@ -104,6 +126,7 @@ try{
   await page.screenshot({path:path.join(out,`${name}-studio.png`),fullPage:false});
   await page.locator('#asTab-intelligence').focus();await page.keyboard.press('End');assert.equal(await page.locator('[role="tab"][aria-selected="true"]').getAttribute('id'),'asTab-ask');await page.keyboard.press('Home');assert.equal(await page.locator('[role="tab"][aria-selected="true"]').getAttribute('id'),'asTab-overview');
   const filterResearchCount=researchRequests;
+  await page.locator('.asMorePropFilters>summary').click();
   await page.locator('#asPropFilter-minMinutes').selectOption('35');
   assert.match(await page.locator('.asChartEmpty').textContent(),/Historical game data/);
   await page.locator('#asClearPropFilters').click();
@@ -185,6 +208,11 @@ try{
   await page.locator('.asWinPredictor summary').click();
   assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   await page.screenshot({path:path.join(out,`${name}-win-predictor.png`),fullPage:false});
+  await page.locator('#asTab-sandbox').click();await page.waitForSelector('[data-sandbox]');
+  assert.equal(await page.locator('[data-sandbox]').count(),15,'all returned active teammates are reachable');
+  const beforeScenarioPaid=paidRequests;await page.locator('[data-sandbox]').first().click();assert.equal(await page.locator('[data-sandbox]').first().getAttribute('aria-pressed'),'true');assert.equal(paidRequests,beforeScenarioPaid,'roster selection does not automatically invoke a model');
+  assert.doesNotMatch(await page.locator('#asPanel-sandbox').innerText(),/AUTOSCOUT_INJURY_FEED|API key|feed is not enabled/);
+  await page.screenshot({path:path.join(out,`${name}-roster.png`),fullPage:false});
   await page.locator('#asTab-pro').click();
   assert.equal(await page.locator('[data-pro-tool="ev"]').count(),0,'empty EV+ feature is omitted');
   assert.ok(await page.locator('[data-pro-tool="arbitrage"] .asProCard').count()>0);
@@ -198,7 +226,7 @@ try{
   assert.match(await page.locator('[data-pro-tool="arbitrage"]').textContent(),/Execution and matching settlement rules have not been verified/);
   assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   await page.screenshot({path:path.join(out,`${name}-pro-tools.png`),fullPage:false});
-  await page.keyboard.press('Escape');assert.equal(await page.locator('.asDrawerBg.on').count(),0);
+  await page.keyboard.press('Escape');await page.waitForSelector('.asMain');assert.equal(await page.locator('#asDrawerBg').isVisible(),false);
   revision++;await page.locator('#asRefresh').click();await page.waitForFunction(()=>document.querySelector('#asi-radar-count')?.textContent.includes('observed changes'));
   await page.locator('.asi-radar summary').click();assert.ok(await page.locator('[data-radar-key]').count()>0);
   const unavailableTools=await page.evaluate(async()=>{

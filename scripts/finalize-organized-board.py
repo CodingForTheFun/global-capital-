@@ -6,9 +6,9 @@ s=s.replace(old,old+"\n if(loading){batch.disabled=true;batch.textContent='Loadi
 old=" document.getElementById('asStatus').textContent=keepBoard?'Refreshing lines…':'Loading lines…';"
 assert s.count(old)==1
 s=s.replace(old,old+'\n renderBatchControl();')
-old="+'<em>'+first+'–'+last+' of '+total+' props</em>'"
+old="+'<em>'+first+'–'+last+' of '+total+' props</em></span>'"
 assert s.count(old)==1
-s=s.replace(old,"+'<em>'+first+'–'+last+' of '+total+' players</em>'")
+s=s.replace(old,"+'<em>'+first+'–'+last+' of '+total+' players</em></span>'")
 p.write_text(s)
 p=Path('scripts/qa-multisport-browser.mjs');s=p.read_text()
 old="await page.locator('[data-sport=\"NBA\"]').click();await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');"

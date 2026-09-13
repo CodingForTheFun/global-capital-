@@ -16,6 +16,15 @@ test('global concurrency applies across leagues and pending requests',async()=>{
  await Promise.all(Array.from({length:12},(_,i)=>gate.run('sport-'+i,async()=>{peak=Math.max(peak,++active);await new Promise(r=>setTimeout(r,3));active--;return i;})));
  assert.equal(peak,2);assert.equal(gate.state().active,0);
 });
+test('hard hourly request budget stops accidental paid loops and resets after one hour',async()=>{
+ let clock=0,calls=0;const gate=createOddsRequestGate({spacingMs:0,now:()=>clock,maxLaunchesPerHour:2});
+ assert.equal(await gate.run('a',async()=>++calls),1);
+ assert.equal(await gate.run('b',async()=>++calls),2);
+ await assert.rejects(gate.run('c',async()=>++calls),{code:'ODDS_HOURLY_BUDGET'});
+ assert.equal(calls,2);assert.equal(gate.state().launchesLastHour,2);assert.equal(gate.state().maxLaunchesPerHour,2);
+ clock=3600_001;
+ assert.equal(await gate.run('c',async()=>++calls),3);
+});
 test('429 respects Retry-After, blocks queued calls, and admits only one recovery probe',async()=>{
  let clock=1000,calls=0;const states=[];const gate=createOddsRequestGate({concurrency:1,spacingMs:0,now:()=>clock,onState:s=>states.push(s)});
  const first=gate.run('a',async()=>{calls++;throw Object.assign(new Error('limited'),{status:429,retryAfter:'60'});});

@@ -77,6 +77,8 @@ function target(rawUrl = '/') {
     return { port: APEX_PORT, path: '/api/diagnostics' + url.search, injectShell: false };
   }
   if (url.pathname === '/api/apex/health') return { port: APEX_PORT, path: '/api/health' + url.search, injectShell: false, sanitizeJson: true };
+  if (url.pathname === '/api/apex/game-markets') return { port: APEX_PORT, path: '/api/game-markets' + url.search, injectShell: false, sanitizeJson: true };
+  if (url.pathname === '/api/apex/taco-offers') return { port: APEX_PORT, path: '/api/taco-offers' + url.search, injectShell: false, sanitizeJson: true };
   if (url.pathname === '/api/apex/props') return { port: APEX_PORT, path: '/api/props' + url.search, injectShell: false, sanitizeJson: true };
   if (url.pathname === '/api/apex/line-history') return { port: APEX_PORT, path: '/api/line-history' + url.search, injectShell: false };
 
@@ -572,6 +574,7 @@ async function maybeServeAccount(req, res) {
       google: { available: google.available },
       gate: { active: gate.active, beta: gate.beta },
       mailDelivery: mail.configured,
+      features: { ask: askConfigured(), projections: projectionsConfigured(), sportsbook: true },
     });
     return true;
   }
@@ -614,6 +617,10 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (await maybeServeGate(req, res)) return;
+  if (['/api/apex/game-markets','/api/apex/taco-offers'].includes(new URL(req.url || '/', 'http://localhost').pathname)) {
+    const { user } = await currentAccount(req, accountSessions).catch(() => ({user:null}));
+    if (!user) { directJson(res,401,{ok:false,code:'AUTH_REQUIRED',message:'Sign in to view these markets.'}); return; }
+  }
   if (await maybeServeAccount(req, res)) return;
   if (await maybeServeResearch(req, res)) return;
   if (await maybeServeResearchBatch(req, res)) return;

@@ -269,7 +269,7 @@ function visible(ignoreResearch=false){
      teams:advanced.team?[advanced.team]:[],opponents:advanced.opponent?[advanced.opponent]:[],games:advanced.game?[advanced.game]:[],
      timeWindow:advanced.today?'TODAY':'ALL',minProjectionDelta:ignoreResearch||!rulesEnabled?null:advanced.delta??null,startsAfter:dayBoundary(advanced.day),startsBefore:advanced.before||dayBoundary(advanced.day,true)}).matchesFilters);
  });
- function score(g){var r=researchFor(g),c=r?.context||{};if(sortBy==='books')return books(g).length;if(sortBy==='time')return Number.isFinite(Date.parse(g.gameStartTime))?-Date.parse(g.gameStartTime):null;if(sortBy==='projection')return num(c.projection)==null?null:(defaultSide(g)==='UNDER'?-1:1)*(num(c.projection)-boardLine(g));if(sortBy==='research')return r?.available?2:r?.sections?.context?1:0;if(sortBy==='recent')return num(r?.windows?.l5?.hitRate);return num(sortBy==='h2h'?r?.h2h?.hitRate:r?.windows?.[sortBy]?.hitRate);}
+ function score(g){var r=researchFor(g),c=r?.context||{};if(sortBy==='books')return books(g).length;if(sortBy==='time')return Number.isFinite(Date.parse(g.gameStartTime))?-Date.parse(g.gameStartTime):null;if(sortBy==='projection'){var mp=projectionFor(g,boardLine(g)),pv=mp?.available?num(mp.projection):num(r?.projectedStat?.value??c.projection);return pv==null?null:(defaultSide(g)==='UNDER'?-1:1)*(pv-boardLine(g));}if(sortBy==='research')return r?.available?2:r?.sections?.context?1:0;if(sortBy==='recent')return num(r?.windows?.l5?.hitRate);return num(sortBy==='h2h'?r?.h2h?.hitRate:r?.windows?.[sortBy]?.hitRate);}
  if(sortBy==='shuffle')a.sort((x,y)=>shuffleRank(x)-shuffleRank(y));
  else a.sort((a,b)=>{if(sortBy==='player')return a.playerName.localeCompare(b.playerName);var av=score(a),bv=score(b);return av==null&&bv!=null?1:bv==null&&av!=null?-1:(bv??0)-(av??0)||a.playerName.localeCompare(b.playerName)||a.key.localeCompare(b.key);});
  if(activeView==='players')a.sort((x,y)=>x.playerName.localeCompare(y.playerName)||x.market.localeCompare(y.market));
@@ -736,20 +736,26 @@ function headerVerdict(g,line){
    +'<span><small>Edge</small><b>'+esc(signed(entry.edge,1))+'</b></span>'
   +'</div></div>';
 }
+function projectedStatStrip(g,line){
+ var model=projectionFor(g,line),r=researchFor(g,line),estimate=r?.projectedStat;
+ var value=model?.available?num(model.projection):num(estimate?.value);
+ if(value==null)return '<div class="asProjectedStat"><span>Projected stat</span><b>Unavailable</b><small>Needs verified game history</small></div>';
+ return '<div class="asProjectedStat"><span>Projected stat</span><b>'+esc(dec(value,1))+'</b><small>'+esc(model?.available?'AI model estimate':(estimate.sampleSize+' games · recent-form estimate'))+'</small></div>';
+}
 function predictionStrip(g,line){
  var key=projectionKey(g,line), entry=projectionFor(g,line);
  if(projectionPending.has(key)){
   return '<div class="asPredict asPredictBusy" role="status">Generating prediction…</div>';
  }
  if(!entry){
-  return '<div class="asPredict"><button class="asBtn asPrimary asPredictBtn" data-predict="'+esc(g.key)+'">Generate AI Prediction</button></div>';
+  return projectedStatStrip(g,line)+'<div class="asPredict"><button class="asBtn asPrimary asPredictBtn" data-predict="'+esc(g.key)+'">Generate AI Prediction</button></div>';
  }
  if(!entry.available){
-  return '<div class="asPredict"><span class="asPredictNote">'+esc(entry.message||'Prediction unavailable.')+'</span>'
+  return projectedStatStrip(g,line)+'<div class="asPredict"><span class="asPredictNote">'+esc(entry.message||'Prediction unavailable.')+'</span>'
    +'<button class="asBtn asPredictBtn" data-predict="'+esc(g.key)+'">Retry</button></div>';
  }
  var evTone=num(entry.ev)==null?'':num(entry.ev)>0?'good':'bad';
- return '<div class="asPredict asPredictDone">'
+ return projectedStatStrip(g,line)+'<div class="asPredict asPredictDone">'
   +'<div class="asPredictTop">'
    +'<span class="asPickBadge '+pickTone(entry.pick)+'">'+esc(entry.pick||'PASS')+'</span>'
    +'<span class="asPredictFig"><small>Edge</small><b>'+esc(signed(entry.edge,1))+'</b></span>'

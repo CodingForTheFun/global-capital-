@@ -217,14 +217,19 @@ export function providerDiagnostics() {
 export function providerHealth() {
   const oddsProvider = primaryOddsProvider();
   const oddsHealth = oddsProvider?.health?.() || null;
+  const publicFirst = publicPersistenceConfigured() && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false';
   return {
     theOddsApiConfigured: oddsProvider?.id === 'the-odds-api' && oddsProvider.isConfigured(),
     sportsGameOddsConfigured: Boolean(text(process.env.SPORTSGAMEODDS_API_KEY)),
     sportsDataIoConfigured: sportsDataIoConfigured(),
-    preferredProvider: publicPersistenceConfigured() ? 'Public feed database' : oddsProvider?.name || 'SportsDataIO fallback',
-    publicFirst: publicPersistenceConfigured() && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false',
+    preferredProvider: publicFirst ? 'Public feed database' : oddsProvider?.name || 'SportsDataIO fallback',
+    publicFirst,
     regularLinesOnly: true,
-    provider: oddsHealth,
+    // `provider` describes the provider actually serving page requests. In
+    // public-first production the metered provider is intentionally paused, so
+    // reporting it as the active provider makes healthy zero-credit deploys
+    // look unconfigured to health checks.
+    provider: publicFirst ? { id: 'public-feed-database', configured: true } : oddsHealth,
     diagnostics: snapshotDiagnostics(),
     time: new Date().toISOString(),
   };

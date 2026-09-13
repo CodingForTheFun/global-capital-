@@ -674,7 +674,7 @@ async function askAbout(g,line,side,question){
  askThreads.set(g.key,thread);askPending.add(g.key);renderDrawer();
  var r=researchFor(g,line,side)||null;
  var body={question:question,history:thread.slice(0,-1),
-  prop:{sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:num(line),
+  prop:{sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:num(line),side:side,
    team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',
    overPrice:(bestPrice(g,'OVER',line,true)||{}).price??null,
    underPrice:(bestPrice(g,'UNDER',line,true)||{}).price??null,

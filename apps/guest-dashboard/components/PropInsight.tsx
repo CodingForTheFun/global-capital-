@@ -104,6 +104,7 @@ export default function PropInsight({
       homeTeam: quote.homeTeam,
       awayTeam: quote.awayTeam,
       gameStartTime: quote.gameStartTime,
+      side,
       opponent: research?.matchup?.opponent || "",
       gameLog: research?.gameLog || [],
       windows: research?.windows || {},

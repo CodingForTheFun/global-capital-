@@ -33,6 +33,8 @@ begin
     v_source in ('prizepicks','underdog')
     or (split_part(v_source,':',1)='draftkings' and split_part(v_source,':',2) in ('NFL','NBA','WNBA','MLB','NHL','NCAAF','NCAAB','TENNIS'))
     or (split_part(v_source,':',1) in ('fanduel','pinnacle') and split_part(v_source,':',2) in ('NFL','NBA','WNBA','MLB','NHL','NCAAF','NCAAB','TENNIS'))
+    or (split_part(v_source,':',1)='betrivers' and split_part(v_source,':',2) in ('NFL','NBA','MLB','NHL'))
+    or (split_part(v_source,':',1)='bvda' and split_part(v_source,':',2) in ('NFL','NBA','MLB','NHL','NCAAF','NCAAB'))
   ) then raise exception 'Invalid source';end if;
   insert into private.autoscout_public_state(id,state) values(v_source,p_payload->'state') on conflict(id) do update set state=excluded.state;
  elsif p_action='props' then
@@ -41,6 +43,8 @@ begin
     v_source in ('prizepicks','underdog')
     or (split_part(v_source,':',1)='draftkings' and split_part(v_source,':',2) in ('NFL','NBA','WNBA','MLB','NHL','NCAAF','NCAAB','TENNIS'))
     or (split_part(v_source,':',1) in ('fanduel','pinnacle') and split_part(v_source,':',2) in ('NFL','NBA','WNBA','MLB','NHL','NCAAF','NCAAB','TENNIS'))
+    or (split_part(v_source,':',1)='betrivers' and split_part(v_source,':',2) in ('NFL','NBA','MLB','NHL'))
+    or (split_part(v_source,':',1)='bvda' and split_part(v_source,':',2) in ('NFL','NBA','MLB','NHL','NCAAF','NCAAB'))
   ) or v_observed is null
    or v_observed>now()+interval '1 minute' or v_observed<now()-interval '5 minutes' then raise exception 'Invalid snapshot';end if;
   if jsonb_typeof(p_payload->'rows')<>'array' then raise exception 'Invalid rows';end if;

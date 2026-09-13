@@ -1,0 +1,10 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {evaluateHeldout} from '../lib/ml/evaluate.mjs';
+const [source,destination]=process.argv.slice(2);
+if(!source||!destination)throw Error('Usage: node scripts/evaluate-prop-ml.mjs heldout-records.json model-validation.json');
+const raw=await readFile(source);if(raw.length>64_000_000)throw Error('Evidence file too large.');
+const report=evaluateHeldout(JSON.parse(raw),{dataSha256:createHash('sha256').update(raw).digest('hex')});
+await writeFile(destination,JSON.stringify(report,null,2)+'\n',{flag:'wx'});
+console.log(JSON.stringify({model:report.id,passed:report.validation.passed,records:report.validation.observations,events:report.validation.events}));
+if(!report.validation.passed)process.exitCode=2;

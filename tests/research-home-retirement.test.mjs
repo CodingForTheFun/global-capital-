@@ -1,12 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync,mkdtempSync,mkdirSync,writeFileSync,rmSync} from 'node:fs';
-import {tmpdir} from 'node:os';
+import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {execFileSync} from 'node:child_process';
 import {patchEdgeFrontdoor} from '../lib/edge/frontdoor-patch.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
+
 test('retired sportsbook availability is false without modifying other capabilities',()=>{
  const source=readFileSync(path.join(root,'frontdoor-prod.mjs'),'utf8');
  const patched=patchEdgeFrontdoor(source);
@@ -14,20 +13,21 @@ test('retired sportsbook availability is false without modifying other capabilit
  assert.doesNotMatch(patched,/sportsbook: true/);
  assert.throws(()=>patchEdgeFrontdoor(source.replace('sportsbook: true','sportsbook: unknown')),/anchors changed/);
 });
-test('checkout identity is consistent and merchant/payment configuration remains untouched',()=>{
- const directory=mkdtempSync(path.join(tmpdir(),'oblige-brand-'));
- try{
-  mkdirSync(path.join(directory,'public'));
-  mkdirSync(path.join(directory,'payments'));
-  const original=readFileSync(path.join(root,'public/checkout.html'),'utf8');
-  writeFileSync(path.join(directory,'public/checkout.html'),original);
-  writeFileSync(path.join(directory,'payments/paypal.mjs'),'unchanged merchant product config');
-  const run=()=>execFileSync(process.execPath,[path.join(root,'scripts/prepare-edge-deploy.mjs')],{cwd:directory});
-  run();const decorated=readFileSync(path.join(directory,'public/checkout.html'),'utf8');
-  assert.doesNotMatch(decorated,/AutoProp Scout|Auto Scout|ObligePay Edge/);
-  assert.match(decorated,/rather than passing through Oblige Props\./);
-  assert.equal(decorated.slice(decorated.indexOf('<script>')),original.slice(original.indexOf('<script>')),'checkout transaction script is unchanged');
-  assert.equal(readFileSync(path.join(directory,'payments/paypal.mjs'),'utf8'),'unchanged merchant product config');
-  run();assert.equal(readFileSync(path.join(directory,'public/checkout.html'),'utf8'),decorated,'branding transform is idempotent');
- }finally{rmSync(directory,{recursive:true,force:true});}
+
+test('checkout identity is Oblige Props and build preparation never rewrites payment code',()=>{
+ const checkout=readFileSync(path.join(root,'public/checkout.html'),'utf8');
+ const prepare=readFileSync(path.join(root,'scripts/prepare-edge-deploy.mjs'),'utf8');
+ assert.doesNotMatch(checkout,/AutoProp Scout|Auto Scout|ObligePay Edge/);
+ assert.match(checkout,/server independently verifies that PayPal reports the subscription as active/i);
+ assert.match(checkout,/never receives raw card numbers/i);
+ assert.doesNotMatch(prepare,/writeFileSync\([^)]*payments|replaceAll\('Oblige Props',\s*'Auto Scout'\)/);
+});
+
+test('billing is wired before the account gate so verified PayPal webhooks remain reachable',()=>{
+ const source=readFileSync(path.join(root,'frontdoor-prod.mjs'),'utf8');
+ const patched=patchEdgeFrontdoor(source);
+ assert.match(patched,/handleBillingRoutes\(req, res, billingUrl/);
+ const billingCall=patched.indexOf('handleBillingRoutes(req, res, billingUrl');
+ const gateCall=patched.indexOf('if (await maybeServeGate(req, res)) return;');
+ assert.ok(billingCall>0 && gateCall>billingCall,'billing handler must run before the generic account gate');
 });

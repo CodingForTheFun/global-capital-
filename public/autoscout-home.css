@@ -1,0 +1,76 @@
+/* One scoped product theme, replacing the retired Edge styles and navigation. */
+body.asResearchHome{background:#0a101b}
+#as5{--bg:#0a101b;--panel:#101b2b;--panel2:#152238;--line:#27384d;--text:#eef4fc;--muted:#9daec4;--blue:#59dcb2;--green:#59dcb2;min-height:100vh;background:radial-gradient(ellipse at 85% 0,rgba(36,102,91,.09),transparent 700px),#0a101b;color:var(--text);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+#as5 .asTop{background:rgba(10,16,27,.97);border-color:#223247;box-shadow:0 8px 26px #0002}
+#as5 .asBar{max-width:1720px;padding:0 24px;gap:10px;height:72px}
+#as5 .asLogo{background:#6ce4b8;color:#092b23;border-radius:11px;box-shadow:none;font-size:22px}
+#as5 .asBrand{font-size:21px;letter-spacing:-.6px}#as5 .asBrand i{color:#79e5bf}
+#as5 .asDesktopLabel{font-size:10px;letter-spacing:.13em;color:#90a4bd;border-color:#304157}
+#as5 .asStatus{color:#9cacc1;font-size:11px}
+#as5 .asSports{max-width:1720px;padding:0 24px 12px;gap:6px;scrollbar-width:thin}
+#as5 .asSport{border-radius:8px;color:#99adc5;font-size:12px}
+#as5 .asSport.on{background:#16392f;border-color:#34795f;color:#a6f0d5}
+#as5 .asMain{max-width:1660px;padding:30px 26px 40px}
+#as5 .asHero{padding:0 0 4px;margin-bottom:22px;gap:14px}
+#as5 .asHomeEyebrow{font-size:10px;letter-spacing:.17em;color:#7adfbd;margin:0 0 8px;font-weight:700}
+#as5 .asHero h1{font-size:clamp(24px,2.5vw,34px);font-weight:730;letter-spacing:-1px}
+#as5 .asHero p:not(.asHomeEyebrow){font-size:12px;color:#9db1c8;line-height:1.6}
+#as5 .asHeroBadge{color:#a3edd0;background:#113129;border-color:#2a5947;border-radius:8px;white-space:nowrap}
+#as5 .asBtn{background:#152235;border-color:#30445d;color:#dce8f7;border-radius:9px;box-shadow:none;font-size:12px;min-height:40px;height:auto}
+#as5 .asBtn:hover{background:#1a3041;border-color:#3a775f}
+#as5 .asFilterTrigger,#as5 .asPrimary{background:#68e2b6;border-color:#68e2b6;color:#072b20}
+#as5 .asControl{background:#0e1929;border-color:#2b405b;border-radius:10px;color:#dceafa;font-size:13px}
+#as5 :is(button,a,input,select,summary,[tabindex]):focus-visible{outline:2px solid #81edc6;outline-offset:3px}
+#as5 .asFilters{background:#111c2b;border:1px solid #27394e;border-radius:14px;padding:13px;gap:9px;grid-template-columns:minmax(200px,1.6fr) repeat(3,minmax(110px,1fr)) auto}
+#as5 .asToolbar{flex-wrap:wrap;gap:8px;font-size:11px;padding:10px 0 16px}
+#as5 .asToolbar label{margin-left:auto}#as5 .asToolbar select{width:180px}
+#as5 .asSummaryItem{background:#111e2d;border-color:#283c52;box-shadow:none;border-radius:11px}
+#as5 .asSummaryItem b{color:#e6f0fa;font-variant-numeric:tabular-nums}
+#as5 .asPropTypes button{border-radius:8px}
+#as5 .asTableViewport{border-radius:14px}
+#as5 :is(.asCard,.asRow){background:linear-gradient(110deg,#121f30,#0f1928);border:1px solid #2a3c53;box-shadow:none;border-radius:13px}
+#as5 :is(.asCard,.asRow):hover{border-color:#407663;transform:none}
+#as5 .asHeaderRow{color:#9cacc0;font-size:10px}
+#as5 .asSave.on{color:#a4efd3;border-color:#3c8067;background:#14362c}
+#as5 .asPlayer{letter-spacing:-.25px}
+#as5 .asRowActions{border-color:#25374b;background:#0c162344;flex-wrap:wrap}
+#as5 :is(.asQuick button,.asPropType).on{background:#153b30;color:#aceed5;border-color:#35785f}
+#as5 .asNav{background:#111d2dee;border:1px solid #30445a;box-shadow:0 10px 35px #0004;backdrop-filter:blur(18px)}
+#as5 .asNav :is(button,a){color:#aabbd0}
+#as5 .asNav :is(button,a).on{background:#1b4537;color:#aeefd5}
+#as5 .asNav :is(button,a):hover{background:#1c3041}
+#as5 :is(.asDrawer,.asUtility,.asFilterSheet){background:#0d1827;border-color:#314760}
+#as5 .asResearchTab.on{background:#1b4537;color:#acedd6;border-color:#3a715d}
+#as5 .asDrawer .asResearchTabs{max-width:100%;overflow-x:auto;scrollbar-width:thin}
+#as5 .asDrawer .asResearchTab{flex:0 0 auto;white-space:nowrap}
+#as5 :is(.asUtility,.asFilterSheet)::backdrop{background:#020713bb}
+#as5 .asi-studio{box-shadow:none;margin-bottom:22px}
+#as5 .asCoverageNote{max-width:800px;margin:24px auto;font-size:11px;line-height:1.7;color:#90a5bd}
+@media(min-width:1280px){
+ #as5{padding-bottom:0}#as5 .asMain{margin-left:208px;margin-right:0;max-width:none}
+ #as5 .asNav{left:20px;top:150px;bottom:auto;transform:none;width:172px;padding:12px;display:flex;flex-direction:column;align-items:stretch;gap:7px;border-radius:13px}
+ #as5 .asNav:before{content:"WORKSPACE";font-size:9px;font-weight:700;letter-spacing:.15em;color:#8298b4;padding:8px 10px 12px}
+ #as5 .asNav :is(button,a){display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:12px 10px;width:100%;min-width:0;height:45px;font-size:11px;white-space:nowrap}
+ #as5 .asNav .asNavIcon{font-size:16px;min-width:19px;text-align:center}
+}
+@media(max-width:1050px){#as5 .asDesktopLabel{display:none}#as5 .asFilters{grid-template-columns:repeat(4,minmax(0,1fr))}#as5 .asSearchLabel{grid-column:1/-1}#as5 .asMain{padding:22px 16px}}
+@media(max-width:650px){
+ #as5 .asBar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));height:auto;min-height:96px;padding:12px 12px 8px;gap:8px}
+ #as5 .asIdentity{grid-column:1/4}#as5 .asBar .asGrow,#as5 .asBar .asStatus{display:none}#as5 .asBar .asBtn{padding:6px;font-size:11px;min-height:36px}
+ #as5 .asBrand{font-size:20px}#as5 .asSports{padding:4px 12px 10px}#as5 .asSport{padding:0 12px;min-height:36px}
+ #as5 .asMain{padding:20px 12px 100px}#as5 .asHero{align-items:start}#as5 .asHeroBadge{font-size:8px;padding:7px}
+ #as5 .asFilters{padding:10px;grid-template-columns:1fr 1fr;gap:8px}#as5 .asFilters .asSearchLabel{grid-column:1/-1}#as5 .asFilterTrigger{min-height:44px}
+ #as5 .asControl{font-size:16px}#as5 .asToolbar .asControl{font-size:12px}#as5 .asToolbar label{width:100%;justify-content:space-between;margin-left:0}
+ #as5 .asToolbar label select{flex:1;max-width:250px}#as5 .asHero h1{font-size:25px}#as5 .asHero p:not(.asHomeEyebrow){font-size:11px}
+ #as5 .asNav{left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));transform:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:6px;gap:3px;max-width:none;width:auto;border-radius:13px}
+ #as5 .asNav :is(button,a){min-width:0;width:100%;height:48px;padding:4px 1px;gap:3px;font-size:9px;letter-spacing:-.15px;overflow:hidden}
+ #as5 .asNav .asNavIcon{font-size:17px}
+ #as5 .asDrawer .asResearchTab{min-height:42px}#as5 .asCoverageNote{text-align:left}#as5 .asi-head>.asi-button{min-height:44px}
+}
+@media(prefers-reduced-motion:reduce){#as5 *{scroll-behavior:auto!important}#as5 :is(.asRow,.asCard){transition:none}}
+/* The unchanged native account form, with the same product palette. */
+body.asResearchGate{--bg:#0a101b;--panel:#111e30;--line:#2b3d53;--blue:#4ccca0;--green:#8ce8c6;background:#0a101b}
+.asResearchGate .logo{background:#72e6ba;color:#09291f;box-shadow:none}
+.asResearchGate .primary,.asResearchGate .tabs button[aria-selected=true]{background:#72e6ba;color:#09291f}
+.asResearchGate .primary:hover{background:#8eeecd}.asResearchGate .card{box-shadow:0 25px 70px #0004;border-color:#30445c}
+.asResearchGate .teaser{opacity:.14}.asResearchGate h1{letter-spacing:-.04em}.asResearchGate .mark{color:#91e9c8}

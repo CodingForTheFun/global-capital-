@@ -499,3 +499,41 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asProTools{display:grid;gap:20px;min-width:0}.asProSection{min-width:0}.asProSection>h3{margin:0 0 12px}.asProCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}.asProCard{min-width:0;padding:16px;border:1px solid var(--border,#29445c);border-radius:12px;background:var(--panel,#102234);overflow-wrap:anywhere}.asProCard h4{margin:0 0 10px}.asProCard p{font-size:13px;line-height:1.6}.asProCard dl{display:grid;gap:10px}.asProCard dl div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}.asProCard dt{font-size:12px}.asProCard dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums}.asProTools summary{cursor:pointer;padding:12px 0;font-size:13px}.asProTools summary:focus-visible{outline:2px solid #70aaff;outline-offset:3px}.asProTools caption{text-align:left;padding:8px 0}.asProTools details{min-width:0}
 
 .asWinPredictor{display:grid;gap:16px;min-width:0}.asWinPredictor summary{padding:12px 0;cursor:pointer}.asWinPredictor details p{font-size:13px;line-height:1.6}.asWinPredictor summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+
+/* Visual refinement: quieter surfaces and a clearer research hierarchy. */
+.as5{background:radial-gradient(ellipse at 75% -10%,#183b4b55,transparent 650px),#091522}
+.asMain{padding-top:24px}.asHero h1{font-weight:750;letter-spacing:-.035em}
+.asTop{box-shadow:none;border-bottom-color:#2a4057}.asLogo{background:#74dfbc;color:#092b24;box-shadow:none;border-radius:10px}
+.asBrand i{color:#91e9cb}.asSport.on{background:#183a35;border-color:#376c5d;color:#a9f3d9}
+.asBtn{border-color:#30475e;background:#122438}.asBtn:hover{background:#1c354a}
+.asPrimary,.asFilterTrigger{background:#74dfbc;border-color:#74dfbc;color:#092b24}
+.asPrimary:hover,.asFilterTrigger:hover{background:#a0edcf}
+.asHeroBadge{background:#102c27;border-color:#315b4d;color:#a2e6c8}
+.asFilters{padding:12px;border:1px solid #2a4056;border-radius:14px;background:#0e1e30}
+.asControl{background:#0a1828;border-color:#30465c}.asControl:focus{border-color:#78d9bd}
+.asToolbar{padding:0 0 8px;margin:12px 0;gap:10px}.asToolbar #asResultCount{color:#c8d8e8;font-weight:600}
+.asSummary{border-color:#2b4055;background:#0f2031;border-radius:12px}.asSummaryItem small{color:#acbdd0;font-size:11px}.asSummaryItem b{font-size:24px;color:#edf6fc}
+.asList{gap:16px;align-items:start}.asCard{background:linear-gradient(145deg,#13273b,#0e1d2e);border-color:#2e475e;box-shadow:0 5px 18px #00000012;border-radius:16px}
+.asCardHead{padding:18px 16px 14px;align-items:start}.asCardName .asPlayer{font-size:18px;letter-spacing:-.025em}.asCardMatch{color:#adbed2;font-size:12px;line-height:1.5}.asCardMarket{font-size:14px}.asCardPrice{color:#b3c5d9;font-size:12px}
+.asBadge{padding:10px 4px;background:#0f2032}.asBadge small{color:#b0c2d8;font-size:10px}.asBadge b{font-size:15px;font-weight:700}.asBadge em{color:#9eb3cd;font-size:10px}
+.asBadge.hot{background:#11372e}.asBadge.hot b,.asBadge.hot small{color:#8ee8bf}.asBadge.hot em{color:#93cfb3}
+.asBadge.cold{background:#352332}.asBadge.cold b,.asBadge.cold small{color:#ffb0bd}.asBadge.cold em{color:#d7a9b6}
+.asCard .asRowActions{padding:10px 14px;gap:10px;flex-wrap:wrap;background:#0c1b2a}.asSave{min-height:36px;font-size:12px;border-radius:8px}
+.asDrawer{background:#0a1827}.asDrawerBody{padding:16px}.asSection{border-color:#2b4258;border-radius:14px;background:#0f2032}.asSectionTitle{background:#12263a;border-color:#294156;padding:14px 16px}.asSectionTitle h3{color:#c4d5e7;letter-spacing:.07em}.asSectionBody{padding:16px}
+.asResearchTab[aria-selected=true]{background:#183c33;border-color:#559780;color:#b2f0d8}.asWindow.on{background:#14382d;border-color:#73c6a5}
+.asNav{background:#102131f5;border-color:#365369;box-shadow:0 12px 36px #0005;backdrop-filter:blur(16px)}.asNav button.on{background:#193b32;color:#a1efd0}
+#as5 .asi-studio{padding:18px 20px;border-radius:14px;background:#102335;box-shadow:none;border-color:#2b465c}
+#as5 .asi-studio h2{font-size:21px}#as5 .asi-tags{margin-top:12px}#as5 .asi-tag{background:#102f2b;color:#b0e6d3;border-color:#2a5549}
+@media(min-width:1100px){#as5 .asi-head{gap:24px}#as5 .asi-studio .asi-lede{max-width:720px}.asCard .asRingText em{font-size:10px}.asDrawer{width:min(900px,100%)}}
+@media(max-width:700px){
+ .asTop .asBar{height:auto;min-height:60px;display:flex;flex-wrap:wrap;overflow:visible;padding:12px;gap:8px}
+ .asTop .asIdentity{flex:1 0 calc(100% - 100px)}.asTop .asGrow,.asTop .asStatus{display:none}
+ .asTop #asRefresh{order:0}.asTop .asBar>button:not(#asRefresh){flex:1;min-height:38px;font-size:12px}
+ .asSports{padding:0 12px 10px}.asSport{min-height:38px;padding:0 13px}
+ .asMain{padding:20px 12px}.asHero{margin-bottom:16px}.asFilters{padding:10px;gap:8px}.asFilters .asFilterTrigger{min-height:44px}
+ .asToolbar{gap:8px}.asSummaryItem{padding:12px}.asSummaryItem b{font-size:21px}
+ .asCardHead{padding:14px 12px 12px;gap:9px}.asCardName .asPlayer{font-size:16px}.asCard .asAvatar{width:42px;height:42px}.asCardGauge{max-width:116px}
+ .asBadge{padding:9px 3px}.asBadge b{font-size:14px}.asBadge em{font-size:10px}.asCard .asRowActions{padding:10px 12px}
+ .asDrawerBody{padding:10px}.asSectionBody{padding:12px}.asSectionTitle{padding:12px}.asNav button{min-height:44px}.asNav button span:last-child{font-size:10px}
+ #as5 .asi-studio{padding:16px}#as5 .asi-studio h2{font-size:20px}#as5 .asi-head{gap:12px}#as5 .asi-head>.asi-button{width:auto;align-self:stretch}#as5 .asi-lede{font-size:13px}
+}

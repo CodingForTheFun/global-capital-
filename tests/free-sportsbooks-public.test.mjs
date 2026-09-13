@@ -53,7 +53,7 @@ test('Pinnacle guest collector maps explicit special totals only', async () => {
     const parsed = new URL(String(url));
     if (parsed.pathname.endsWith('/sports')) return response([{ id: 4, name: 'Basketball', matchupCount: 20 }]);
     if (parsed.pathname.endsWith('/sports/4/matchups')) return response([{
-      id: 300, startTime: start, hasMarkets: true, isLive: false, league: { name: 'NBA' },
+      id: 300, type: 'matchup', startTime: start, hasMarkets: true, isLive: false, league: { name: 'NBA' },
       participants: [{ name: 'Los Angeles Lakers', alignment: 'home' }, { name: 'Golden State Warriors', alignment: 'away' }],
     }]);
     if (parsed.pathname.endsWith('/matchups/300/related')) return response([{

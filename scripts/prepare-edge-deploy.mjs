@@ -32,7 +32,7 @@ for (const file of ['public/index.html', 'public/checkout.html']) {
     .replaceAll('AutoProp Scout', 'Auto Scout')
     .replaceAll('<b>AutoProp</b><em>Scout Pro</em>', '<b>Auto</b><em>Scout</em>')
     .replaceAll('<b>ObligePay</b><em>Edge</em>', '<b>Auto</b><em>Scout</em>')
-    .replace(/<link[^>]+href=\"\\/assets\\/edge-theme\\.css\"[^>]*>/g, '');
+    .replace(/<link[^>]+href="\/assets\/edge-theme\.css"[^>]*>/g, '');
   if (output !== source) writeFileSync(file, output);
 }
 console.log('[autoscout] research identity ready; ring percentages forced visible; existing accounts and data retained');

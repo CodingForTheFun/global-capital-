@@ -1,6 +1,8 @@
 (async function(){
 'use strict';
 var nativeFetch=window.fetch.bind(window);
+var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
+var playerChoices=new Map();
 var { analyzeResearch, researchTeamMatches, researchOpponentMatches, analyzeLineHistory } = await import('/assets/lib/analytics/research.mjs');
 var { evaluatePropAgainstFilters } = await import('/assets/lib/filters/index.mjs');
 var { kellyStake, sizeSlip, DEFAULT_KELLY_FRACTION } = await import('/assets/lib/betting/kelly.mjs');
@@ -52,12 +54,12 @@ function shortDate(v){if(!v)return'—';var d=new Date(v);if(Number.isNaN(d.getT
 function uniq(a){return Array.from(new Set(a.filter(Boolean)));}
 function median(a){var x=a.map(num).filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});if(!x.length)return null;var m=Math.floor(x.length/2);return x.length%2?x[m]:(x[m-1]+x[m])/2;}
 function initials(name){return String(name||'AS').split(/\s+/).filter(Boolean).slice(0,2).map(function(x){return x[0]||'';}).join('').toUpperCase();}
-function artUrl(g){return '/api/apex/player-artwork?sport='+encodeURIComponent(g.sport)+'&name='+encodeURIComponent(g.playerName);}
+function artUrl(g){return '/api/apex/player-artwork?'+new URLSearchParams({v:'2',sport:g.sport,name:g.playerName,team:g.team||'',providerPlayerId:g.providerPlayerId||''});}
 function groupKey(r){return [r.sport,r.eventId,r.playerId||r.playerName,r.marketId||r.market].join('|');}
 function lineMap(){var m=new Map();((payload.data&&payload.data.lines)||[]).forEach(function(x){m.set(x.id,x);});return m;}
 function propIdForRow(r){var x=lineMap().get(r&&r.id);return x&&x.propId||null;}
 function playerMap(){var m=new Map();((payload.data&&payload.data.players)||[]).forEach(function(x){m.set(x.id,x);});return m;}
-function groups(){var m=new Map(),pm=playerMap();(payload.props||[]).forEach(function(r){if(r.isAlternate)return;var k=groupKey(r);if(!m.has(k)){var p=pm.get(r.playerId)||{};m.set(k,{key:k,sport:r.sport,eventId:r.eventId,playerId:r.playerId,playerName:r.playerName,entityType:r.entityType||p.entityType||'player',providerPlayerId:p.providerPlayerId||'',team:r.team||p.team||'',position:p.position||'',marketId:r.marketId,market:r.market,homeTeam:r.homeTeam,awayTeam:r.awayTeam,gameStartTime:r.gameStartTime,live:!!r.live,rows:[]});}m.get(k).rows.push(r);});return Array.from(m.values());}
+function groups(){var m=new Map(),pm=playerMap();(payload.props||[]).forEach(function(r){if(r.isAlternate)return;var k=groupKey(r);if(!m.has(k)){var p=pm.get(r.playerId)||{};m.set(k,{key:k,sport:r.sport,eventId:r.eventId,playerId:r.playerId,playerName:r.playerName,entityType:r.entityType||p.entityType||'player',providerPlayerId:p.providerPlayerId||'',team:r.team||p.team||'',position:p.position||'',marketId:r.marketId,market:r.market,homeTeam:r.homeTeam,awayTeam:r.awayTeam,gameStartTime:r.gameStartTime,live:!!r.live,rows:[]});}m.get(k).rows.push(r);});return Array.from(m.values()).map(function(g){return {...g,market:propType(g),rows:dedupeOffers(g.rows)};});}
 function books(g){return uniq(g.rows.map(function(r){return r.sportsbookKey;}));}
 function sideRows(g,side){return g.rows.filter(function(r){return r.side===side;});}
 function bestLine(g,side){var a=sideRows(g,side).filter(function(r){return num(r.line)!=null;});if(!a.length)return null;return a.slice().sort(function(a,b){return side==='OVER'?num(a.line)-num(b.line):num(b.line)-num(a.line);})[0];}
@@ -80,9 +82,10 @@ function shell(){
  document.body.insertAdjacentHTML('beforeend',styles()+`<link rel="stylesheet" href="/assets/autoscout-research.css"><div class="as5" id="as5">
  <header class="asTop"><div class="asBar"><a class="asIdentity" href="/apex" aria-label="Auto Scout Research"><div class="asLogo">A</div><span class="asBrand">AUTO<i>SCOUT</i></span></a><span class="asDesktopLabel">RESEARCH WORKSPACE</span><span class="asGrow"></span><span class="asStatus" id="asStatus">Current sportsbook lines</span><button class="asBtn" id="asRefresh">Refresh</button><button class="asBtn" data-view="saved">Saved</button><button class="asBtn" id="asSettings">Settings</button><button class="asBtn" id="asAccount">Account</button></div><div class="asSports" id="asSports" aria-label="Sports"></div></header>
  <main class="asMain"><section class="asHero"><div><h1 id="asPageTitle">Prop Research</h1><p id="asSubtitle" aria-live="polite">Loading current markets…</p></div><span class="asHeroBadge">MAIN LINES ONLY</span></section>
+ <nav id="asPropTypes" class="asPropTypes" aria-label="Prop types"></nav>
  <section class="asFilters" aria-label="Filter player props"><label class="asSearchLabel"><span class="asSrOnly">Search player, market or team</span><input class="asControl" id="asSearch" placeholder="Search player, market, team…" type="search"></label><label><span class="asSrOnly">Market</span><select class="asControl" id="asMarket"></select></label><label><span class="asSrOnly">Sportsbook</span><select class="asControl" id="asBook"></select></label><label><span class="asSrOnly">Over or Under</span><select class="asControl" id="asSide"><option value="all">Over + Under</option><option value="OVER">Over</option><option value="UNDER">Under</option></select></label><button class="asBtn asFilterTrigger" id="asAdvancedToggle" aria-expanded="false">Filters <span id="asFilterCount"></span></button></section>
  <dialog id="asFilterSheet" class="asFilterSheet" aria-labelledby="asFilterTitle"><div class="asSheetHead"><h2 id="asFilterTitle">Research filters</h2><button class="asBtn" id="asFilterDone">Done</button></div><section id="asAdvanced" class="asAdvanced"></section></dialog><div class="asToolbar"><span id="asResultCount" aria-live="polite"></span><button class="asBtn" id="asRules" role="switch" aria-checked="true">Rules on</button><button class="asBtn" id="asColumns">Columns</button><button class="asBtn" id="asResearchBatch">Load research</button><label>Sort <select class="asControl" id="asSort"><option value="shuffle">Shuffled (no order)</option><option value="research">Research coverage</option><option value="recent">Recent hit rate</option><option value="l5">L5 hit rate</option><option value="l10">L10 hit rate</option><option value="l15">L15 hit rate</option><option value="season">Season hit rate</option><option value="h2h">H2H hit rate</option><option value="projection">Projection difference</option><option value="books">Most books</option><option value="player">Player A–Z</option><option value="time">Game time</option></select></label></div>
- <section class="asQuick" id="asQuick" aria-label="Quick filters"></section><section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">— means the connected feeds returned no usable value. 0G means no previous meeting with this opponent. Pushes are excluded from hit rates.</p></main>
+ <section class="asQuick" id="asQuick" aria-label="Quick filters"></section><section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">Browse by prop type. Each player appears once; use the card selector to switch props or games. Statistics use verified game logs only. N/A means no verified sample for that split; it is not zero.</p></main>
  <nav class="asNav" aria-label="Main navigation"><button data-view="research" class="on" data-icon="props"><span class="asNavIcon" aria-hidden="true">☲</span><span>Props</span></button><button data-view="players" data-icon="players"><span class="asNavIcon" aria-hidden="true">●</span><span>Players</span></button><button data-view="popular" data-icon="popular"><span class="asNavIcon" aria-hidden="true">▲</span><span>Popular</span></button><button data-view="discrepancies" data-icon="trend"><span class="asNavIcon" aria-hidden="true">↗</span><span>Discrepancies</span></button><button id="asDiscord" data-icon="chat"><span class="asNavIcon" aria-hidden="true">○</span><span>Discord</span></button></nav>
  <div class="asDrawerBg" id="asDrawerBg"><aside class="asDrawer" role="dialog" aria-modal="true" aria-labelledby="asDrawerTitle" tabindex="-1"><div class="asDrawerHead"><div class="asDrawerAvatar"><img id="asDrawerImg" alt=""></div><div><h2 id="asDrawerTitle">Player research</h2><span id="asInjuryBadge" class="asInjuryBadge" hidden></span><p id="asDrawerSub"></p></div><button class="asClose" id="asClose" aria-label="Back to research"><span class="asBackText">Back</span><span aria-hidden="true">×</span></button></div><div class="asDrawerBody" id="asDrawerBody"></div></aside></div>
  <aside class="asSlipDrawer" id="asSlip" aria-label="Betslip"></aside><dialog id="asUtility" class="asUtility" aria-labelledby="asUtilityTitle"></dialog><div id="asToast" class="asToast" role="status" aria-live="polite"></div></div>`);
@@ -110,8 +113,8 @@ function shell(){
  document.addEventListener('keydown',e=>{if(!drawerState)return;if(e.key==='Escape'){e.preventDefault();closeDrawer();}if(e.key==='Tab'){var items=Array.from(document.querySelectorAll('.asDrawer button,.asDrawer select,.asDrawer input,.asDrawer a')).filter(x=>!x.disabled&&x.getClientRects().length);var first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}});
  document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;applyPreferences();renderAdvanced();renderSlip();
 }
-function focusToken(element){if(!element)return null;return{id:element.id,data:Object.fromEntries(['open','fav','side','window','filter','gameDetail','sort'].filter(k=>element.dataset?.[k]!=null).map(k=>[k,element.dataset[k]])),value:element.id==='asLineInput'?element.value:null};}
-function focusElement(token){if(!token)return null;if(token.id)return document.getElementById(token.id);var keys=Object.keys(token.data);return keys.length?Array.from(document.querySelectorAll('[data-open],[data-fav],[data-side],[data-window],[data-filter],[data-game-detail],[data-sort]')).find(x=>keys.every(k=>x.dataset[k]===token.data[k])):null;}
+function focusToken(element){if(!element)return null;return{id:element.id,data:Object.fromEntries(['open','fav','side','window','filter','gameDetail','sort','cardChoice'].filter(k=>element.dataset?.[k]!=null).map(k=>[k,element.dataset[k]])),value:element.id==='asLineInput'?element.value:null};}
+function focusElement(token){if(!token)return null;if(token.id)return document.getElementById(token.id);var keys=Object.keys(token.data);return keys.length?Array.from(document.querySelectorAll('[data-open],[data-fav],[data-side],[data-window],[data-filter],[data-game-detail],[data-sort],[data-card-choice]')).find(x=>keys.every(k=>x.dataset[k]===token.data[k])):null;}
 function restoreFocus(token){var element=focusElement(token);if(element){if(token.value!=null)element.value=token.value;element.focus({preventScroll:true});}return element;}
 function closeDrawer(){document.getElementById('asDrawerBg')?.classList.remove('on');document.body.style.overflow='';document.querySelectorAll('.asMain,.asTop,.asNav').forEach(x=>x.inert=false);drawerState=null;if(lastFocus?.isConnected)lastFocus.focus();}
 function renderSports(){if(!document.getElementById('asSports').children.length)document.getElementById('asSports').innerHTML=SPORTS.map(s=>'<button class="asSport '+(s===sport?'on':'')+'" aria-pressed="'+(s===sport)+'" data-sport="'+s+'">'+s+'</button>').join('');document.querySelectorAll('[data-sport]').forEach(b=>{b.classList.toggle('on',b.dataset.sport===sport);b.setAttribute('aria-pressed',String(b.dataset.sport===sport));b.onclick=()=>{if(sport===b.dataset.sport)return;persistFilters();sport=b.dataset.sport;saveState();closeDrawer();restoreFilters();document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;page=1;renderAdvanced();load();};});}
@@ -239,7 +242,18 @@ function renderQuick(){
   };
  });
 }
-function renderControls(){var gs=viewGroups(),markets=uniq([...gs.map(function(g){return g.market;}),marketFilter==='all'?null:marketFilter]).sort(),booksList=uniq([...gs.flatMap(function(g){return g.rows.map(function(r){return r.sportsbookKey;});}),bookFilter==='all'?null:bookFilter]).sort();document.getElementById('asMarket').innerHTML='<option value="all">All markets</option>'+markets.map(function(x){return'<option value="'+esc(x)+'" '+(x===marketFilter?'selected':'')+'>'+esc(x)+'</option>';}).join('');document.getElementById('asBook').innerHTML='<option value="all">All books</option>'+booksList.map(function(x){return'<option value="'+esc(x)+'" '+(x===bookFilter?'selected':'')+'>'+esc(gs.flatMap(g=>g.rows).find(r=>r.sportsbookKey===x)?.sportsbook||x)+'</option>';}).join('');}
+function renderControls(){var gs=viewGroups(),markets=uniq([...gs.map(function(g){return g.market;}),marketFilter==='all'?null:marketFilter]).sort(),booksList=uniq([...gs.flatMap(function(g){return g.rows.map(function(r){return r.sportsbookKey;});}),bookFilter==='all'?null:bookFilter]).sort();document.getElementById('asMarket').innerHTML='<option value="all">All players · grouped props</option>'+markets.map(function(x){return'<option value="'+esc(x)+'" '+(x===marketFilter?'selected':'')+'>'+esc(x)+'</option>';}).join('');document.getElementById('asBook').innerHTML='<option value="all">All books</option>'+booksList.map(function(x){return'<option value="'+esc(x)+'" '+(x===bookFilter?'selected':'')+'>'+esc(gs.flatMap(g=>g.rows).find(r=>r.sportsbookKey===x)?.sportsbook||x)+'</option>';}).join('');}
+function cardList(ignoreResearch=false){return uniquePlayerCards(visible(ignoreResearch),playerChoices);}
+function renderPropTypes(){
+ var host=document.getElementById('asPropTypes');if(!host)return;
+ var options=categoryOptions(viewGroups(),sport);
+ host.innerHTML='<button class="asTypeChip '+(marketFilter==='all'?'on':'')+'" data-prop-type="all" aria-pressed="'+(marketFilter==='all')+'">All players <small>grouped</small></button>'+options.map(function(c){return '<button class="asTypeChip '+(marketFilter===c.label?'on':'')+'" data-prop-type="'+esc(c.label)+'" aria-pressed="'+(marketFilter===c.label)+'">'+esc(c.label)+' <small>'+c.count+'</small></button>';}).join('');
+ host.querySelectorAll('[data-prop-type]').forEach(function(b){b.onclick=function(){marketFilter=b.dataset.propType;page=1;renderControls();renderList();};});
+}
+function playerChoiceControl(g){
+ var choices=g.playerChoices||[];if(choices.length<2)return '';
+ return '<label class="asPlayerChoice">'+(marketFilter==='all'?'Prop / game':'Game')+'<select data-card-choice="'+esc(playerCardKey(g))+'" aria-label="Select prop or game for '+esc(g.playerName)+'">'+choices.map(function(c){return '<option value="'+esc(c.key)+'" '+(c.key===g.key?'selected':'')+'>'+esc(c.market+' · '+when(c.gameStartTime)+' · '+c.awayTeam+' @ '+c.homeTeam)+'</option>';}).join('')+'</select><small>'+choices.length+' selections · one player card</small></label>';
+}
 function visible(ignoreResearch=false){
  var a=viewGroups();
  a=a.filter(g=>{
@@ -370,6 +384,7 @@ function diffBadge(r,side){
 function badgeStrip(g,r,side){
  if(!r&&!hydrateFailed)return '<div class="asBadges" aria-busy="true" aria-label="Loading historical statistics">'
   +['L5','L10','L15','H2H','STRK','AVG','DIFF','SZN'].map(function(label){return '<div class="asBadge"><small>'+label+'</small><span class="asStatSkeleton" aria-hidden="true"></span></div>';}).join('')+'</div>';
+ if((r&&!r.available)||(!r&&hydrateFailed))return '<div class="asHistoryGap" role="status"><b>'+esc(researchState(r))+'</b><span>'+esc(r?.message||'This exact statistic has no verified history. The listed lines are still available.')+'</span></div>';
  return '<div class="asBadges" title="'+esc(r?.available?'Hit rates = hits / eligible games. Pushes are not hits and end the streak. Season excludes playoffs and prior seasons.':r?.message||researchState(r))+'">'
   +windowBadge(r,'l5','L5')+windowBadge(r,'l10','L10')+windowBadge(r,'l15','L15')+h2hBadge(r)+streakBadge(r,side)+averageBadge(r)+diffBadge(r,side)+windowBadge(r,'season','SZN','season')+'</div>';
 }
@@ -765,12 +780,12 @@ function rowHtml(g){
  var marketLabel=(line==null?'':'O/U '+dec(line)+' ')+(r?.marketDisplayName||g.market);
  return '<article class="asRow asCard" data-open="'+esc(g.key)+'" tabindex="0" aria-label="Research '+esc(g.playerName+' '+g.market)+'">'
   +'<div class="asCardHead">'
-   +'<div class="asAvatar"><div class="asAvatarFallback">'+esc(initials(g.playerName))+'</div>'+(g.entityType==='team'?'':'<img loading="lazy" src="'+esc(artUrl(g))+'" alt="">')+'</div>'
+   +'<div class="asAvatar"><div class="asAvatarFallback">'+esc(initials(g.playerName))+'</div>'+(g.entityType==='team'?'':'<img loading="lazy" decoding="async" data-player-photo src="'+esc(artUrl(g))+'" alt="'+esc(g.playerName)+'"> ')+'</div>'
    +'<div class="asCardId"><div class="asCardName"><span class="asPlayer">'+esc(r?.entityType==='team'?r.player?.playerName||g.playerName:g.playerName)+'</span>'
     +(displayTeam(team)?'<span class="asTeamBadge">'+esc(displayTeam(team))+'</span>':'')
     +(position?'<span class="asPos">'+esc(position)+'</span>':'')+'</div>'
     +'<div class="asCardMatch"><span>'+esc(displayTeam(g.awayTeam)+' @ '+displayTeam(g.homeTeam))+'</span><span class="asCardTime">'+esc(when(g.gameStartTime))+'</span></div>'
-    +'<div class="asCardMarket">'+esc(marketLabel)+(quote&&num(quote.price)!=null?'<span class="asCardPrice">'+esc(side+' '+money(quote.price))+(quote.sportsbook?' · '+esc(quote.sportsbook):'')+'</span>':'')+'</div>'
+    +playerChoiceControl(g)+'<div class="asCardMarket">'+esc(marketLabel)+(quote&&num(quote.price)!=null?'<span class="asCardPrice">'+esc(side+' '+money(quote.price))+(quote.sportsbook?' · '+esc(quote.sportsbook):'')+'</span>':'')+'</div>'
    +'</div>'
    +'<div class="asCardGauge">'+headerVerdict(g,line,side)+ringGauge(gaugeRates(r,side),r)+'</div>'
   +'</div>'
@@ -798,7 +813,7 @@ function renderPagination(total){
  host.innerHTML='<nav class="asPager" aria-label="Board pages">'
   +'<button class="asBtn" id="asPrev" '+(page<=1?'disabled':'')+'>Previous</button>'
   +'<span class="asPagerState" aria-live="polite">Page '+page+' of '+pages
-   +'<em>'+first+'–'+last+' of '+total+' props</em></span>'
+   +'<em>'+first+'–'+last+' of '+total+' players</em></span>'
   +'<button class="asBtn" id="asNext" '+(page>=pages?'disabled':'')+'>Next</button>'
   +'</nav>';
  var go=function(next){
@@ -812,6 +827,8 @@ function renderPagination(total){
 function renderSummary(){var gs=groups(),events=uniq(gs.map(function(g){return g.eventId;})).length,booksAll=uniq(gs.flatMap(function(g){return books(g);})).length,ready=gs.filter(function(g){var r=researchFor(g);return r&&r.available;}).length;document.getElementById('asSummary').innerHTML=[['Markets',gs.length],['Events',events],['Sportsbooks',booksAll],['Research ready',ready],['Live lines',(payload.props||[]).length]].map(function(x){return'<div class="asSummaryItem"><small>'+esc(x[0])+'</small><b>'+esc(x[1])+'</b></div>';}).join('');}
 function renderList(){persistFilters();updateFilterStatus();renderListLight();}
 function bindRows(){
+ document.querySelectorAll('[data-player-photo]').forEach(img=>{img.onerror=()=>{img.hidden=true;img.parentElement.title='Photo unavailable for '+img.alt;};});
+ document.querySelectorAll('[data-card-choice]').forEach(select=>{select.onclick=e=>e.stopPropagation();select.onkeydown=e=>e.stopPropagation();select.onchange=e=>{e.stopPropagation();playerChoices.set(select.dataset.cardChoice,select.value);renderListLight();};});
  document.querySelectorAll('[data-slip]').forEach(b=>b.onclick=e=>{e.stopPropagation();toggleSlip(b.dataset.slip);});
  document.querySelectorAll('[data-predict]').forEach(b=>b.onclick=e=>{
   e.stopPropagation();
@@ -825,10 +842,10 @@ function hydrateKeyFor(g){return researchKey(g,boardLine(g),defaultSide(g));}
 function hydrateTargets(){
  // Hydrate the page the reader is actually viewing, not the first forty rows
  // of the entire sport. Four per response allows visible progress.
- var shown=visible(),candidates=shown.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+ var shown=cardList(),candidates=shown.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
  var needsResearch=(advanced.availability&&advanced.availability!=='ALL')||(rulesEnabled&&Object.values(advanced.thresholds||{}).some(v=>num(v)!=null));
- if(needsResearch)candidates=candidates.concat(visible(true));
- else if(!shown.length)candidates=visible(true).slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+ if(needsResearch)candidates=candidates.concat(cardList(true));
+ else if(!shown.length)candidates=cardList(true).slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
  candidates=Array.from(new Map(candidates.map(g=>[g.key,g])).values());
  return candidates.filter(function(g){
   var key=hydrateKeyFor(g);
@@ -838,6 +855,7 @@ function hydrateTargets(){
 async function hydrateBoard(){
  if(hydrating||loading)return;
  var targets=hydrateTargets();if(!targets.length)return;
+ var jobs=targets.map(g=>({g,key:hydrateKeyFor(g),line:boardLine(g),side:defaultSide(g)}));
  var generation=loadGeneration,selected=sport,controller=new AbortController();
  hydrateController=controller;hydrating=true;
  targets.forEach(function(g){var key=hydrateKeyFor(g);hydrated.add(key);hydratePending.add(key);});
@@ -845,15 +863,15 @@ async function hydrateBoard(){
  var timer=setTimeout(function(){controller.abort();},40000);
  try{
   var response=await nativeFetch('/api/apex/research-batch',{method:'POST',signal:controller.signal,headers:{'content-type':'application/json'},
-   body:JSON.stringify({props:targets.map(function(g,index){var line=boardLine(g),side=defaultSide(g);
+   body:JSON.stringify({props:jobs.map(function(job,index){var {g,line,side}=job;
     // A short opaque batch key cannot be silently truncated by the API.
     return {key:String(index),sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',
      providerPlayerId:g.providerPlayerId||'',line:line,side:side,team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',games:40};})})});
   var body=await response.json();
   if(generation!==loadGeneration||selected!==sport)return;
   if(!response.ok||!body?.results)throw Error('batch');
-  targets.forEach(function(g,index){
-   var key=hydrateKeyFor(g),out=body.results[String(index)]||{available:false,code:'RESEARCH_PROVIDER_ERROR',retryable:true,message:'This lookup did not complete. Retry research.'};
+  jobs.forEach(function(job,index){
+   var g=job.g,key=job.key,out=body.results[String(index)]||{available:false,code:'RESEARCH_PROVIDER_ERROR',retryable:true,message:'This lookup did not complete. Retry research.'};
    var entry={value:out,expires:Date.now()+(out.retryable?1:out.available?15:5)*60000};
    researchCache.set(key,entry);researchCache.set('base|'+g.key,entry);
   });
@@ -862,7 +880,7 @@ async function hydrateBoard(){
   clearTimeout(timer);
   if(hydrateController===controller){
    hydrateController=null;hydrating=false;
-   targets.forEach(function(g){hydratePending.delete(hydrateKeyFor(g));});
+   jobs.forEach(function(job){hydratePending.delete(job.key);});
    if(generation===loadGeneration&&selected===sport)renderListLight();
   }
  }
@@ -874,15 +892,17 @@ function retryResearch(){
 }
 function renderBatchControl(){
  var batch=document.getElementById('asResearchBatch');if(!batch)return;
- var pending=hydrateTargets().length,retry=hydrateFailed||visible().some(function(g){return researchFor(g)?.retryable;});
+ if(loading){batch.disabled=true;batch.textContent='Loading board…';return;}
+ var pending=hydrateTargets().length,retry=hydrateFailed||cardList().some(function(g){return researchFor(g)?.retryable;});
  batch.disabled=hydrating;
  batch.textContent=hydrating?'Loading game logs…':retry?'Retry research':pending?'Load visible research':'Visible research loaded';
  batch.onclick=retry?retryResearch:hydrateBoard;
 }
 async function prefetch(list){await Promise.all(list.map(async g=>{await getResearch(g,boardLine(g),defaultSide(g),false);if(g.sport===sport)renderListLight();}));}
 function renderListLight(){
- var list=document.getElementById('asList'),a=visible(),focused=(list.contains(document.activeElement)||document.querySelector('.asHeaderRow').contains(document.activeElement))?focusToken(document.activeElement):null,origin=focusToken(lastFocus);
- applyColumnHeaders();document.getElementById('asResultCount').textContent=a.length+' markets · '+(activeView==='saved'?(saveLoadError?'Saved props unavailable':serverSaves?'Saved to access profile':'Saved on this device'):'Available board');
+ renderPropTypes();
+ var list=document.getElementById('asList'),a=cardList(),focused=(list.contains(document.activeElement)||document.querySelector('.asHeaderRow').contains(document.activeElement))?focusToken(document.activeElement):null,origin=focusToken(lastFocus);
+ applyColumnHeaders();document.getElementById('asResultCount').textContent=a.length+' players · '+(marketFilter==='all'?'grouped props':marketFilter)+' · '+(activeView==='saved'?(saveLoadError?'Saved props unavailable':serverSaves?'Saved to access profile':'Saved on this device'):'Available board');
  if(!a.length){list.innerHTML='<div class="asEmpty"><b>'+esc(activeView==='saved'?'No saved props in this view.':payload.meta?.warning?'Props could not load.':(payload.props||[]).length?'No props match your filters.':'No live props available for '+sport+'.')+'</b><p>'+esc(activeView==='saved'?'Save a prop to return to it here.':(payload.props||[]).length?'Clear filters or try another market.':'Try another sport or refresh shortly.')+'</p><button class="asBtn" id="asResetEmpty">'+((payload.props||[]).length?'Clear filters':'Refresh')+'</button></div>';document.getElementById('asResetEmpty').onclick=()=>{query='';marketFilter=bookFilter=sideFilter='all';advanced={};document.getElementById('asSearch').value='';document.getElementById('asSide').value='all';renderAdvanced();renderControls();(payload.props||[]).length?renderList():load();};}
  else{var pages=Math.max(1,Math.ceil(a.length/PAGE_SIZE));if(page>pages)page=pages;if(page<1)page=1;
   list.innerHTML=a.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE).map(rowHtml).join('');bindRows();}
@@ -1063,7 +1083,7 @@ function emptyLog(r,g,base){
 function renderDrawer(){
  if(!drawerState)return;var focused=document.getElementById('asDrawerBody').contains(document.activeElement)?focusToken(document.activeElement):null;var {g,line,side}=drawerState,base=drawerState.base||researchFor(g,line,side),r=base?recalcFromGameLog(base,line,side):null;
  var injury=document.getElementById('asInjuryBadge');injury.hidden=!base?.context?.injuryStatus;injury.textContent=base?.context?.injuryStatus||'';
- var drawerImg=document.getElementById('asDrawerImg');drawerImg.hidden=g.entityType==='team';if(g.entityType!=='team')drawerImg.src=artUrl(g);else drawerImg.removeAttribute('src');document.getElementById('asDrawerTitle').textContent=g.playerName;
+ var drawerImg=document.getElementById('asDrawerImg');drawerImg.alt=g.playerName;drawerImg.onerror=()=>{drawerImg.hidden=true;};drawerImg.hidden=g.entityType==='team';if(g.entityType!=='team')drawerImg.src=artUrl(g);else drawerImg.removeAttribute('src');document.getElementById('asDrawerTitle').textContent=g.playerName;
  document.getElementById('asDrawerSub').textContent=[displayTeam(g.team||base?.player?.team||base?.context?.team),g.position||base?.context?.position||base?.context?.playerPosition,g.awayTeam+' @ '+g.homeTeam,when(g.gameStartTime)].filter(Boolean).join(' · ');
  var section=(title,body,sub='')=>'<section class="asSection"><div class="asSectionTitle"><h3>'+title+'</h3><span>'+sub+'</span></div><div class="asSectionBody">'+body+'</div></section>';
  var controls='<div class="asResearchTop"><label>Market<select class="asMarketSelect" id="asMarketSwitch">'+marketOptions(g)+'</select></label><div><label>Research line</label><div class="asLineCtl"><button class="asLineBtn" id="asLineMinus" aria-label="Decrease line">−</button><input class="asLineVal" id="asLineInput" type="number" step="0.5" aria-label="Research line" value="'+(line==null?'':line)+'"><button class="asLineBtn" id="asLinePlus" aria-label="Increase line">+</button></div></div></div><div class="asSideToggle">'+['OVER','UNDER'].map(x=>'<button class="asSideBtn '+x.toLowerCase()+' '+(side===x?'on':'')+'" data-side="'+x+'" aria-pressed="'+(side===x)+'">'+x+'</button>').join('')+'</div><p class="asNotice">Adjusting this line changes your research, not sportsbook offers.</p>';
@@ -1110,13 +1130,14 @@ function render(){renderSports();renderControls();renderSummary();var m=payload.
 async function load(){
  hydrateController?.abort();hydrateController=null;hydrating=false;hydratePending.clear();hydrated.clear();hydrateFailed=false;staleCache.clear();var generation=++loadGeneration,selected=sport,keepBoard=payloadSport===selected&&(payload.props||[]).length>0;loadController?.abort();loadController=new AbortController();loading=true;renderSports();document.getElementById('asRefresh').disabled=true;
  document.getElementById('asStatus').textContent=keepBoard?'Refreshing lines…':'Loading lines…';
+ renderBatchControl();
  if(!keepBoard){document.getElementById('asSubtitle').textContent='Loading '+selected+' markets…';document.getElementById('asList').innerHTML=Array.from({length:5},()=>'<div class="asSkeleton" aria-hidden="true"></div>').join('');}
  document.getElementById('asList').setAttribute('aria-busy','true');
  var requestController=loadController,timeout=setTimeout(()=>requestController.abort(),20000);
  try{var response=await nativeFetch('/api/apex/props?sport='+encodeURIComponent(selected),{signal:loadController.signal}),j=await response.json();if(!response.ok||!Array.isArray(j?.props))throw Error();if(generation!==loadGeneration)return;payload=j;payloadSport=selected;}
  catch(e){if(generation!==loadGeneration)return;if(keepBoard){payload={...payload,meta:{...payload.meta,stale:true,warning:'Refresh failed. Showing the last available lines.'}};toast('Refresh failed. Showing the last available lines.');}else{payload={props:[],data:{},meta:{warning:'Props are temporarily unavailable.'}};payloadSport=selected;}}
  finally{clearTimeout(timeout);}
- if(generation!==loadGeneration)return;loading=false;reshuffleBoard();page=1;document.getElementById('asRefresh').disabled=false;document.getElementById('asList').setAttribute('aria-busy','false');render();
+ if(generation!==loadGeneration)return;loading=false;var availableTypes=categoryOptions(groups(),sport);if(marketFilter!=='all'&&!availableTypes.some(c=>c.label===marketFilter))marketFilter='all';if(marketFilter==='all'&&!readStored('autoscout-categories-v2-'+sport,false)&&availableTypes.length){marketFilter=availableTypes[0].label;storeLocal('autoscout-categories-v2-'+sport,true);}reshuffleBoard();page=1;document.getElementById('asRefresh').disabled=false;document.getElementById('asList').setAttribute('aria-busy','false');render();
 }
 function toast(message){var el=document.getElementById('asToast');el.textContent=message;el.classList.add('on');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('on'),3500);}
 function applyPreferences(){document.getElementById('as5')?.classList.toggle('asCompact',prefs.compact);document.getElementById('as5')?.classList.toggle('asShowBooks',prefs.books);document.getElementById('as5')?.classList.toggle('asReduceMotion',prefs.reduceMotion);}

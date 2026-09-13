@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { playerArtworkResponse } from './lib/autoscout/providers/thesportsdb-artwork.mjs';
+import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
 import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
 import { projectPlayerProp, projectionsConfigured } from './lib/projections/service.mjs';
@@ -36,7 +36,7 @@ const PROJECTION_RATE_PER_MINUTE = 12;
 // Chat turns are cheaper than a projection but easier to spam.
 const ASK_RATE_PER_MINUTE = 20;
 const CLIENT_MODULES = new Map([
-  'lib/analytics/research.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
+  'lib/ui/prop-board.mjs', 'lib/analytics/research.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
   'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
   'lib/betting/kelly.mjs', 'lib/markets/line-lag.mjs',
   'lib/projections/reprice.mjs', 'lib/projections/baseline.mjs', 'lib/projections/schema.mjs',
@@ -494,17 +494,18 @@ async function maybeServeArtwork(req, res) {
   }
   const sport = String(url.searchParams.get('sport') || '').toUpperCase();
   const name = String(url.searchParams.get('name') || '').trim().slice(0, 90);
-  if (!ARTWORK_SPORTS.has(sport) || !name) {
+  if (!RESEARCH_SPORTS.has(sport) || !name) {
     res.writeHead(400, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
     res.end(JSON.stringify({ ok: false, message: 'Valid sport and player name are required.' }));
     return true;
   }
   try {
-    const image = await playerArtworkResponse(sport, name);
+    const image = await playerArtworkResponse(sport, name, {team:String(url.searchParams.get('team')||'').slice(0,90),providerPlayerId:String(url.searchParams.get('providerPlayerId')||'').slice(0,48)});
     res.writeHead(image.status || 200, {
       'content-type': image.contentType || 'image/svg+xml',
       'content-length': Buffer.byteLength(image.body),
-      'cache-control': 'public, max-age=86400, stale-while-revalidate=604800',
+      'cache-control': image.cacheControl || 'public, max-age=30',
+      'x-artwork-status': image.verified ? 'verified' : 'unavailable',
       'x-content-type-options': 'nosniff',
       'cross-origin-resource-policy': 'same-origin',
     });

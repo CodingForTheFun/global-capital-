@@ -455,3 +455,10 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 @keyframes asStatShimmer{to{background-position:-200% 0}}
 @media(prefers-reduced-motion:reduce){.asStatSkeleton{animation:none}}
 .asReduceMotion .asStatSkeleton{animation:none}
+
+/* Prop categories and one-card-per-player presentation. */
+.asPropTypes{display:flex;gap:8px;overflow-x:auto;padding:4px 0 14px;scrollbar-width:thin;max-width:100%}
+.asTypeChip{flex-shrink:0;border:1px solid var(--line,#25334c);border-radius:9px;padding:10px 13px;background:#101a29;color:#c8d6eb;cursor:pointer;font:inherit;font-size:12px;min-height:42px;white-space:nowrap}
+.asTypeChip.on{background:#13392e;border-color:#33e49b;color:#b8ffe0}.asTypeChip small{opacity:.72;margin-left:6px}.asTypeChip:focus-visible,.asPlayerChoice select:focus-visible{outline:2px solid #5ea1ff;outline-offset:2px}
+.asPlayerChoice{display:grid;gap:4px;margin:9px 0;color:#9cb0c9;font-size:11px;max-width:100%;min-width:0}.asPlayerChoice select{width:100%;max-width:100%;min-width:0;background:#0c1624;border:1px solid #354962;color:#e9f2ff;border-radius:7px;min-height:38px;padding:5px;font:inherit}.asPlayerChoice small{font-size:10px;opacity:.8}
+.asHistoryGap{border-top:1px solid #29384e;padding:14px 16px;display:grid;gap:5px;font-size:12px;color:#9fb0c8}.asHistoryGap b{color:#dfc58e}.asHistoryGap span{line-height:1.5}.asAvatar img[hidden]{display:none}.asCardId{min-width:0}

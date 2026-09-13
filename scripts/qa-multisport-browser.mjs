@@ -32,6 +32,12 @@ const nba=JSON.parse(fs.readFileSync('./tests/fixtures/espn-nba-gamelog.json'));
 const NBAprops=[{id:'nba1',eventId:'nbaevent',playerId:'tatum',playerName:'Jayson Tatum',sport:'NBA',team:'BOS',marketId:'player_points',market:'Points',homeTeam:'Boston Celtics',awayTeam:'New York Knicks',gameStartTime:'2026-09-13T20:25:00Z',sportsbookKey:'prizepicks',sportsbook:'PrizePicks',line:26.5,price:-137,side:'OVER'}];
 research['Jayson Tatum|player_points']=finalizeResearch({gameLog:normalizePublicGameLog(nba,{sport:'NBA',providerMarketKey:'player_points'}),sport:'NBA',player:{playerName:'Jayson Tatum',sport:'NBA'},line:26.5,side:'OVER',season:'2026',coverage:{seasonComplete:false}});
 
+// Additional local-only identities exercise unique-player pagination.
+for(let n=1;n<=22;n++)for(const marketId of ['player_pass_yds','player_pass_attempts']){
+ const name='QA Fixture Athlete '+n,source=props.find(p=>p.playerName==='Jordan Love'&&p.marketId===marketId);
+ props.push({...source,id:'fixture-'+n+'-'+marketId,playerId:name,playerName:name});
+ research[name+'|'+marketId]={...research['Jordan Love|'+marketId]};
+}
 const DATA={boards:{NFL:{props,data:{players:[],lines:[]},meta:{}},NBA:{props:NBAprops,data:{players:[],lines:[]},meta:{}}},research};
 const calls=[];let failNext=false;
 const server=http.createServer(async(req,res)=>{
@@ -62,50 +68,60 @@ const browser=await chromium.launch({headless:true});
 const report={kind:'fixture browser QA, not a production login or actual sportsbook quotes',checks:[]};
 await fs.promises.mkdir('validation-output',{recursive:true});
 try{
- for(const [label,viewport] of [['desktop',{width:1440,height:900}],['mobile',{width:390,height:844}]]){
+ for(const [label,viewport] of [['desktop',{width:1440,height:900}],['mobile',{width:390,height:844}]] ){
   const context=await browser.newContext({viewport});const page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto(origin);await page.waitForSelector('.asCard');
   const skeletons=await page.locator('.asStatSkeleton').count();assert.ok(skeletons>=8);
   await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');
-  const ready=await page.locator('.asResearchState.ready').count();assert.ok(ready>=18);
-  assert.equal(await page.locator('.asCard').count(),20);assert.ok(calls.every(c=>c.props.length<=4));
-  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no horizontal overflow');
+  assert.equal(await page.locator('#asMarket').inputValue(),'Passing yards');
+  const unique=async()=>{const names=await page.locator('.asCard .asPlayer').allTextContents();assert.equal(new Set(names).size,names.length);return names;};
+  const firstPage=await unique();assert.equal(firstPage.length,20);
+  assert.ok(calls.every(c=>c.props.length<=4));
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await page.screenshot({path:`validation-output/${label}.png`,fullPage:true});
-  await page.locator('#asSearch').fill('Jordan Love');await page.waitForTimeout(350);
-  // Filtering can reveal the one group initially on page two; it must hydrate
-  // without clicking the optional retry button.
-  await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');
-  const card=page.locator('.asCard').filter({hasText:'Sacks taken'}).first();await card.click();
-  await page.waitForSelector('#asLinePlus');
+  await page.locator('#asNext').click();await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');
+  const secondPage=await unique();assert.equal(secondPage.length,4);assert.equal(new Set([...firstPage,...secondPage]).size,24);
+  await page.locator('[data-prop-type="all"]').click();
+  await page.locator('#asSearch').fill('Jordan Love');await page.waitForTimeout(400);
+  assert.equal(await page.locator('.asCard').count(),1,'all props still has one player card');
+  const selector=page.locator('[data-card-choice]');
+  assert.equal(await selector.locator('option').count(),10);
+  const sacksKey=await selector.locator('option').evaluateAll(options=>options.find(o=>o.textContent.startsWith('Sacks ·')).value);
+  await selector.selectOption(sacksKey);await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');
+  assert.equal(await page.locator('.asDrawerBg.on').count(),0,'selecting a prop must not open drawer');
+  assert.ok((await page.locator('.asCardMarket').textContent()).includes('Sacks taken'));
+  await page.locator('.asCard .asPlayer').click();await page.waitForSelector('#asLinePlus');
   const before=await page.locator('[data-window="l5"] b').textContent();
   for(let i=0;i<6;i++)await page.locator('#asLinePlus').click();
   const high=await page.locator('[data-window="l5"] b').textContent();
   await page.locator('[data-side="UNDER"]').click();
   const under=await page.locator('[data-window="l5"] b').textContent();assert.notEqual(high,under);
   assert.equal(await page.locator('[data-window="season"] b').textContent(),'N/A');
-  assert.ok(!(await page.locator('#asDrawerBody').textContent()).includes('Pushes are excluded'));
-  await page.keyboard.press('Escape');await page.locator('#asSearch').fill('No Logs Test Fixture');await page.waitForTimeout(1200);
-  const noLogs=await page.locator('.asCard .asBadges').textContent();assert.ok(noLogs.includes('N/A'));assert.ok(!noLogs.includes('—'));
-  await page.locator('#asSearch').fill('');await page.waitForTimeout(350);
-  await page.locator('#asNext').click();await page.waitForTimeout(1000);assert.equal(await page.locator('.asCard').count(),1);
-  await page.reload();await page.waitForSelector('.asCard');await page.locator('[data-sport="NBA"]').click();
+  await page.keyboard.press('Escape');
+  await page.locator('[data-prop-type="Rushing yards"]').click();
   await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');
+  assert.equal(await page.locator('.asCard').count(),1);assert.ok((await page.locator('.asCardMarket').textContent()).includes('Rushing yards'));
+  await page.locator('[data-prop-type="all"]').click();
+  await page.locator('#asSearch').fill('No Logs Test Fixture');await page.waitForTimeout(1200);
+  assert.equal(await page.locator('.asCard').count(),1);
+  assert.ok((await page.locator('.asHistoryGap').textContent()).includes('No logs available'));
+  assert.equal(await page.locator('.asCard .asBadges').count(),0,'do not repeat eight N/A boxes');
+  assert.equal(await page.locator('.asCard img[hidden]').count(),1,'failed photo uses fallback without broken icon');
+  await page.locator('[data-sport="NBA"]').click();await page.waitForFunction(()=>document.querySelector('#asSubtitle')?.textContent.startsWith('NBA ·')&&document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');
   assert.ok((await page.locator('#asList').textContent()).includes('Jayson Tatum'));
   assert.ok(!(await page.locator('#asList').textContent()).includes('Jordan Love'));
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.deepEqual(errors,[]);
-  report.checks.push({viewport:label,skeletons,readyCards:ready,batchMax:4,automaticHydration:true,lineBefore:before,lineIncreased:high,underToggled:under,noOverflow:true,noLogsNA:true,seasonNA:true,pagination:true,sportSwitchRace:true,pageErrors:errors});
+  report.checks.push({viewport:label,uniquePlayers:true,categories:true,allTenPlayerPropsSelectable:true,batchMax:4,skeletons,firstPage:firstPage.length,secondPage:secondPage.length,lineBefore:before,lineIncreased:high,underToggled:under,honestNoLogStatus:true,brokenImagesHidden:true,noOverflow:true,pageErrors:errors});
   await context.close();
  }
- // A failed batch must stop animating and permit an explicit retry.
- const page=await browser.newPage();failNext=true;await page.goto(origin);await page.waitForSelector('.asCard');
+ const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage();
+ failNext=true;await page.goto(origin);await page.waitForSelector('.asCard');
  await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Retry research');
- assert.equal(await page.locator('.asStatSkeleton').count(),0);await page.locator('#asResearchBatch').click();
- await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');
- report.failedBatchRetry=true;console.log(JSON.stringify(report,null,2));
- await fs.promises.writeFile('validation-output/browser.json',JSON.stringify(report,null,2));
-}catch(error){
- await fs.promises.writeFile('validation-output/browser-failure.txt',String(error.stack));
- for(const context of browser.contexts())for(const page of context.pages())await page.screenshot({path:'validation-output/browser-failure.png',fullPage:true}).catch(()=>{});
- throw error;
-}finally{await browser.close();await new Promise(resolve=>server.close(resolve));}
+ assert.equal(await page.locator('.asStatSkeleton').count(),0);assert.ok(await page.locator('.asHistoryGap').count()>0);
+ await page.locator('#asResearchBatch').click();await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');
+ assert.ok(await page.locator('.asResearchState.ready').count()>0);report.checks.push({failedBatchRetry:true});
+ await context.close();
+ await fs.promises.writeFile('validation-output/browser.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+}finally{await browser.close();server.close();}

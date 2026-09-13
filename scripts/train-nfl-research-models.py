@@ -50,6 +50,9 @@ def prepare_games(stats: pd.DataFrame, schedule: pd.DataFrame) -> pd.DataFrame:
     position = 'position' if 'position' in stats else 'position_group'
     statcols = ['player_id', 'player_display_name', position, 'season', 'week', 'season_type', 'team',
                 'attempts', 'completions', 'passing_tds', 'receptions']
+    source_game = 'game_id' in stats
+    if source_game:
+        statcols.append('game_id')
     missing = set(statcols) - set(stats)
     if missing:
         raise ValueError('Missing true player-stat columns: ' + ', '.join(sorted(missing)))
@@ -68,9 +71,15 @@ def prepare_games(stats: pd.DataFrame, schedule: pd.DataFrame) -> pd.DataFrame:
     games.team = games.team.replace(TEAM_ALIASES)
     if games.duplicated(['season', 'week', 'team']).any():
         raise ValueError('Ambiguous season/week/team schedule identity')
-    stats = stats.loc[stats.season_type.eq('REG'), statcols].rename(columns={position: 'position'})
+    # Exclude unsupported position groups, not by the realised target value.
+    stats = stats.loc[stats.season_type.eq('REG') & stats[position].isin(['QB', 'WR', 'RB', 'TE']), statcols].rename(columns={position: 'position', 'game_id': 'sourceGameId'})
+    invalid_identity_rows = int(stats.player_id.isna().sum())
+    stats = stats.loc[stats.player_id.notna()].copy()
     stats.team = stats.team.replace(TEAM_ALIASES)
     result = stats.merge(games, on=['season', 'week', 'team'], how='inner', validate='many_to_one')
+    if source_game and (result.sourceGameId.notna() & result.sourceGameId.ne(result.game_id)).any():
+        raise ValueError('Source game ID contradicts the exact schedule join')
+    print(json.dumps({'eligiblePlayerRows': len(stats), 'matchedPlayerGameRows': len(result), 'missingIdentityRowsExcluded': invalid_identity_rows}), flush=True)
     if result.empty or result[['player_id', 'game_id', 'gameDate', 'position']].isna().any().any():
         raise ValueError('No complete player/game identities')
     if result.duplicated(['player_id', 'game_id']).any():
@@ -224,6 +233,7 @@ def main() -> None:
         'rawPlayerRows': len(stats), 'rawScheduleRows': len(schedules),
         'playerColumns': list(stats.columns), 'scheduleColumns': list(schedules.columns)})
     games = prepare_games(stats, schedules)
+    games.to_csv(data / 'canonical-games.csv', index=False)
     report['canonicalGameRows'] = len(games)
     report['canonicalEvents'] = int(games.game_id.nunique())
     for market, (column, positions) in MARKETS.items():

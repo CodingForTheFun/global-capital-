@@ -2,7 +2,10 @@ name: Train real-history NFL research candidates
 on:
   push:
     branches: [chatgpt/ml-training-20260913]
-    paths: [.github/workflows/ml-nfl-research-training.yml]
+    paths:
+      - .github/workflows/ml-nfl-research-training.yml
+      - scripts/train-nfl-research-models.py
+      - tests/test_nfl_training_features.py
 permissions:
   contents: read
 concurrency:

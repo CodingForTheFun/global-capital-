@@ -44,7 +44,7 @@ try{
   page.on('pageerror',e=>errors.push(e.message));
   await page.goto(base);await page.waitForSelector('.asCard [data-ml-state="READY"]',{state:'attached'});
   for(const summary of await page.locator('.asCardModels > summary').all())await summary.click();
-  assert.equal(await page.locator('#asDrawer').isVisible(),false,'Expanding model estimates must not open player research');
+  assert.equal(await page.locator('#asDrawerBg').isVisible(),false,'Expanding model estimates must not open player research');
   assert.equal(await page.locator('.asCard').count(),2);
   assert.equal(await page.locator('.asCard .asML').count(),2);
   assert.equal(await page.locator('.asCard .asTacoBadge').count(),1);

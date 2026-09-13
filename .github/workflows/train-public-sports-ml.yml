@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sport: [MLB, NHL, NCAAF, NCAAB, MLS, EPL, UCL]
+        sport: [NBA, WNBA, MLB, NHL, NCAAF, NCAAB, MLS, EPL, UCL]
     runs-on: ubuntu-latest
     timeout-minutes: 28
     steps:
@@ -63,28 +63,29 @@ jobs:
         with:
           pattern: public-sport-ml-*
           path: .artifacts
-          merge-multiple: true
       - name: Publish only independently passing model packs
         run: |
           python - <<'PY'
           import json,pathlib,shutil
           src=pathlib.Path('.artifacts');dest=pathlib.Path('data/ml/research');reports=pathlib.Path('docs/ml-training');dest.mkdir(parents=True,exist_ok=True);reports.mkdir(parents=True,exist_ok=True)
-          published=[]
-          for p in src.glob('*-ridge-v1.json'):
+          published=[];withheld=[]
+          for p in src.rglob('*-ridge-v1.json'):
               if p.name.endswith('-report.json'):continue
               try:data=json.loads(p.read_text())
-              except:continue
+              except Exception:continue
               if data.get('version')!=1 or data.get('engine')!='Auto Scout ML' or not data.get('sport'):continue
               models=data.get('models') or []
               for m in models:
                   v=m.get('validation') or {}
                   assert v.get('observations',0)>=180 and v.get('events',0)>=50 and v.get('rmse',1e99)<v.get('baselineRmse',-1) and (v.get('mseDelta95') or [0,1])[1]<0
+              sport=data['sport']
               if models:
-                  target=dest/f"{data['sport'].lower()}-ridge-v1.json";shutil.copyfile(p,target);published.append(data['sport'])
-              report=p.with_name(p.stem+'-report.json')
-              if report.exists():shutil.copyfile(report,reports/f"{data['sport'].lower()}-training-report.json")
-          (reports/'public-sports-summary.json').write_text(json.dumps({'published':published},indent=2)+'\n')
-          print('published',published)
+                  shutil.copyfile(p,dest/f"{sport.lower()}-ridge-v1.json");published.append(sport)
+              else:withheld.append(sport)
+              report=next(iter(p.parent.glob('*-ridge-v1-report.json')),None)
+              if report:shutil.copyfile(report,reports/f"{sport.lower()}-training-report.json")
+          (reports/'public-sports-summary.json').write_text(json.dumps({'published':sorted(set(published)),'withheld':sorted(set(withheld))},indent=2)+'\n')
+          print('published',sorted(set(published)),'withheld',sorted(set(withheld)))
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'

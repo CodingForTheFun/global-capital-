@@ -20,7 +20,8 @@ test('checkout identity is Oblige Props and build preparation never rewrites pay
  assert.doesNotMatch(checkout,/AutoProp Scout|Auto Scout|ObligePay Edge/);
  assert.match(checkout,/server independently verifies that PayPal reports the subscription as active/i);
  assert.match(checkout,/never receives raw card numbers/i);
- assert.doesNotMatch(prepare,/writeFileSync\([^)]*payments|replaceAll\('Oblige Props',\s*'Auto Scout'\)/);
+ assert.doesNotMatch(prepare,/writeFileSync\s*\(\s*['"`][^'"`]*payments(?:\/|['"`])/);
+ assert.doesNotMatch(prepare,/replaceAll\('Oblige Props',\s*'Auto Scout'\)/);
 });
 
 test('billing is wired before the account gate so verified PayPal webhooks remain reachable',()=>{

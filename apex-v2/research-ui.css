@@ -464,3 +464,8 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asHistoryGap{border-top:1px solid #29384e;padding:14px 16px;display:grid;gap:5px;font-size:12px;color:#9fb0c8}.asHistoryGap b{color:#dfc58e}.asHistoryGap span{line-height:1.5}.asAvatar img[hidden]{display:none}.asCardId{min-width:0}
 
 .asProjectedStat{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.18);border-radius:10px;margin:10px 0;font-size:12px}.asProjectedStat b{font-size:20px;color:#34d399;font-variant-numeric:tabular-nums}.asProjectedStat small{color:#94a3b8}
+
+/* Selected-sample supporting statistics in player research. */
+.asSupportingStats .asSupportSample{display:block;margin-top:6px;font-size:.75rem;line-height:1.5;color:#94a3b8;overflow-wrap:anywhere}
+
+.asQuoteTime{display:block;margin-top:4px;font-size:.75rem;font-weight:400;color:#94a3b8;white-space:normal}

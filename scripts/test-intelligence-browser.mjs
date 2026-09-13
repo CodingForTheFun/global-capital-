@@ -14,9 +14,9 @@ const props=()=>['Book A','Book B'].flatMap((book,j)=>['OVER','UNDER'].map(side=
 const source=process.cwd(),out=path.join(source,'test-results/intelligence');fs.mkdirSync(out,{recursive:true});
 const server=http.createServer(async(req,res)=>{
  const url=new URL(req.url,'http://localhost'),p=url.pathname;
- const send=(value,status=200,type='application/json')=>{res.writeHead(status,{'content-type':type});res.end(typeof value==='string'||Buffer.isBuffer(value)?value:JSON.stringify(value));};
+ const send=(value,status=200,type='application/json')=>{res.writeHead(status,{'content-type':type+'; charset=utf-8'});res.end(typeof value==='string'||Buffer.isBuffer(value)?value:JSON.stringify(value));};
  try {
-  if(p==='/')return send('<!doctype html><html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Auto Scout local QA fixture</title></head><body><script src="/ui.js"></script></body></html>',200,'text/html');
+  if(p==='/')return send('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Auto Scout local QA fixture</title></head><body><script src="/ui.js"></script></body></html>',200,'text/html');
   const file=p==='/ui.js'?'apex-v2/scout-ui-v5.js':p==='/assets/autoscout-research.css'?'apex-v2/research-ui.css':p.startsWith('/assets/lib/')?p.slice(8):null;
   if(file && !file.includes('..') && fs.existsSync(file))return send(fs.readFileSync(file),200,file.endsWith('.css')?'text/css':'application/javascript');
   if(p==='/api/apex/props'){boardRequests++;return send({props:props(),data:{lines:props().map(r=>({id:r.id,propId:'qa-prop'})),players:[{id:playerId,team:'BOS'}]},meta:{fetchedAt:quoteTime(),events:1,sportsbookCount:2}});}
@@ -53,9 +53,14 @@ try{
   await page.locator('#asi-open').click();await page.waitForSelector('#asi-sensitivity');console.log('BROWSER_STUDIO',name);
   assert.equal(await page.locator('#asIntelligenceDetail details').count(),8);
   assert.equal(await page.locator('#asi-sensitivity tbody tr').count(),7);
-  const original=await page.locator('#asi-sensitivity tr.active td').nth(1).textContent();
-  await page.locator('#asLinePlus').click();await page.locator('[data-side="UNDER"]').click();
-  const revised=await page.locator('#asi-sensitivity tr.active td').nth(1).textContent();assert.notEqual(original,revised);
+  const initialLine=24.5+revision;
+  const activeRate=()=>page.locator('#asi-sensitivity tr.active td').nth(1).textContent();
+  assert.equal((await activeRate()).trim(),Math.round(analyzeResearch(base,initialLine,'OVER').windows.l10.hitRate)+'%');
+  // A single step plus a side flip can legitimately preserve a hit rate (pushes).
+  // Verify exact thresholds and shared-engine results, not an assumed inequality.
+  await page.locator('#asLinePlus').click();await page.locator('#asLinePlus').click();await page.locator('[data-side="UNDER"]').click();
+  assert.match(await page.locator('#asi-sensitivity tr.active td').first().textContent(),new RegExp(String(initialLine+1).replace('.', '\\.')));
+  assert.equal((await activeRate()).trim(),Math.round(analyzeResearch(base,initialLine+1,'UNDER').windows.l10.hitRate)+'%');
   assert.ok((await page.locator('#asi-quality').textContent()).includes('not predictive confidence'));
   await page.locator('[data-asi-section="scenario"]').click();await page.locator('#asi-minutes').fill('0');await page.locator('#asi-scenario-form button').click();
   assert.equal(await page.locator('#asi-scenario-result .asi-big').first().textContent(),'0');

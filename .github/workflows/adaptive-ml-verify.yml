@@ -1,0 +1,58 @@
+name: Verify adaptive all-sport ML
+on:
+  push:
+    branches: [chatgpt/adaptive-ml-release-20260913]
+    paths:
+      - lib/ml/adaptive.mjs
+      - lib/ml/snapshot-store.mjs
+      - lib/ml/routes.mjs
+      - lib/ui/ml-prediction.mjs
+      - tests/adaptive-ml.test.mjs
+      - .github/workflows/adaptive-ml-verify.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install and run full regression suite
+        run: |
+          npm ci --no-audit --no-fund
+          npm run check
+      - name: Verify model fitting on real public histories without live-line claims
+        timeout-minutes: 4
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {researchPlayerProp} from './lib/autoscout/research-service-v2.mjs';
+          import {adaptivePrediction} from './lib/ml/adaptive.mjs';
+          const now=Date.now(), future=new Date(now+86400000).toISOString();
+          const samples=[
+            ['NFL','Jordan Love','player_pass_attempts',30.5],
+            ['NBA','Jayson Tatum','player_points',25.5],
+            ['WNBA','Caitlin Clark','player_assists',8.5],
+            ['MLB','Shohei Ohtani','batter_total_bases',1.5],
+            ['NHL','Connor McDavid','player_shots_on_goal',3.5],
+            ['NCAAF','Arch Manning','player_pass_yds',250.5],
+            ['NCAAB','Cayden Boozer','player_points',15.5],
+            ['MLS','Lionel Messi','player_shots_on_target',1.5],
+            ['EPL','Erling Haaland','player_shots',3.5],
+            ['UCL','Erling Haaland','player_shots',3.5],
+          ];
+          const report=[];
+          for(const [sport,playerName,marketId,line] of samples){
+            const history=await researchPlayerProp({sport,playerName,market:marketId,providerMarketKey:marketId,line,side:'OVER',games:30});
+            const target={sport,eventId:'validation-'+sport,playerId:'validation-player',playerName,marketId,sportsbookKey:'validation-only',gameStartTime:future,line,entityType:'player',live:false,isAlternate:false};
+            const model=adaptivePrediction({research:history,target,now});
+            report.push({sport,historyAvailable:history.available,historyGames:history.gameLog?.length||0,modelAvailable:model.available,code:model.code,projection:model.available?Number(model.projection.toFixed(3)):null,checks:model.validation?.observations||0,strategy:model.validation?.selectedStrategy||null});
+            if(model.available){assert.ok(model.projection>=0);assert.ok(Math.abs(model.probabilityOver+model.probabilityUnder+model.probabilityPush-1)<1e-6);assert.ok(['trained-adjustment','recent-mean-fallback'].includes(model.validation.selectedStrategy));}
+            else assert.ok(['MODEL_NOT_READY','NO_GAME_LOG_DATA','STAT_NOT_AVAILABLE','RESEARCH_PROVIDER_ERROR'].includes(model.code),`${sport}: ${model.code}`);
+          }
+          console.log(JSON.stringify({scope:'real historical model smoke; thresholds are test inputs, not current sportsbook lines or betting recommendations',report},null,2));
+          assert.ok(report.filter(r=>r.modelAvailable).length>=7,'Expected broad real-history model coverage');
+          JS

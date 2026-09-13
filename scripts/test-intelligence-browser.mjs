@@ -83,9 +83,16 @@ try{
   assert.equal(await page.locator('.asTop #asProfileMenu').count(),0,'circular account control removed from Props header');
   assert.equal(await page.locator('.asCardGauge').first().isVisible(),true,'historical gauge remains visible on mobile');
   assert.equal(await page.locator('.asLeagueBadge').first().textContent(),'NBA');
+  const expectedSeason=analyzeResearch(base,24.5+revision,'OVER').windows.season;
+  const expectedPct=Number((100*expectedSeason.hits/expectedSeason.games).toFixed(1))+'%';
+  assert.equal(await page.locator('.asCard .asOverPct').first().textContent(),'O '+expectedPct);
+  assert.equal(await page.locator('.asCard [data-column="season"] b').first().textContent(),expectedPct);
+
   assert.equal(await page.locator('.asNav').evaluate(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return Math.abs(r.bottom-innerHeight)<1&&Math.abs(r.left)<1&&Math.abs(r.right-innerWidth)<1&&s.borderRadius==='0px';}),true,'navigation is flush with viewport bottom');
   await page.locator('.asPlayer').first().click();await page.waitForSelector('.asAnalyticsPage .asChart');
   const detailUrl=page.url();assert.ok(detailUrl.includes('#prop/NBA/'));
+  assert.equal(await page.locator('.asWindow[data-window="season"] b').textContent(),expectedPct);
+
   assert.equal(await page.locator('.asMain').isVisible(),false);assert.equal(await page.locator('.asNav').isVisible(),true);
   assert.equal(await page.getByText('Research controls',{exact:true}).count(),0);
   assert.equal(await page.locator('.asDetailBooks .asOddsChip').count()>0,true);

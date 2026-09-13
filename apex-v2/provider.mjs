@@ -1,3 +1,4 @@
+import {appendPublicFeeds,publicFeeds} from '../lib/ingestion/public-feeds.mjs';
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
@@ -91,7 +92,7 @@ async function fetchPrimaryCoalesced(provider, selected, options) {
   }
 }
 
-export async function fetchUnifiedBoard(league, { signal, force = false, includeAlternates = false, cacheOnly = false, respectFresh = false } = {}) {
+async function fetchBaseBoard(league, { signal, force = false, includeAlternates = false, cacheOnly = false, respectFresh = false } = {}) {
   const selected = text(league || 'NFL').toUpperCase();
   const oddsProvider = primaryOddsProvider();
   let oddsError = null;
@@ -104,6 +105,7 @@ export async function fetchUnifiedBoard(league, { signal, force = false, include
     }
   }
 
+  if(cacheOnly)throw oddsError||Object.assign(new Error('No cached provider board.'),{code:'NO_CACHED_BOARD'});
   if (sportsDataIoConfigured()) {
     try {
       const fallback = await fetchSportsDataIo(selected, { force });
@@ -127,10 +129,18 @@ export async function fetchUnifiedBoard(league, { signal, force = false, include
   throw Object.assign(new Error('No odds provider is configured.'), { code: 'NO_PROVIDER' });
 }
 
+export async function fetchUnifiedBoard(league,options={}) {
+  const sport=text(league||'NFL').toUpperCase();
+  if(options.refreshPublicFeeds===true&&!options.cacheOnly)await publicFeeds.refresh();
+  try{return await appendPublicFeeds(await fetchBaseBoard(sport,options),sport);}
+  catch(error){const fallback=await appendPublicFeeds({props:[],data:{events:[],players:[],props:[],lines:[]},meta:{provider:'Public platform feeds',stale:true,cacheHit:true,warning:'Primary sportsbook feed is temporarily unavailable.'}},sport);if(fallback.props.length)return fallback;throw error;}
+}
+
 export function providerDiagnostics() {
   return {
     checkedAt: new Date().toISOString(),
     catalog: providerCatalog(),
+    publicFeeds: publicFeeds.health(),
     runtime: snapshotDiagnostics(),
     inflightRefreshes: [...inflight.keys()].map((key) => key.replace(/^[^|]+\|/, '')),
   };

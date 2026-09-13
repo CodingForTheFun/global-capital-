@@ -40,7 +40,7 @@ const PROJECTION_RATE_PER_MINUTE = 12;
 const ASK_RATE_PER_MINUTE = 20;
 const CLIENT_MODULES = new Map([
   'lib/ui/intelligence-studio.mjs', 'lib/autoscout/intelligence.mjs',
-  'lib/ui/offer-promotion.mjs', 'lib/ml/contract.mjs', 'lib/ui/ml-prediction.mjs', 'lib/ui/prop-board.mjs', 'lib/ui/line-comparison.mjs', 'lib/analytics/research.mjs', 'lib/analytics/matchup.mjs', 'lib/analytics/pro-tools.mjs', 'lib/ui/pro-tools.mjs', 'lib/ui/matchup-context.mjs', 'lib/ui/prop-filters.mjs', 'lib/ui/research-percentages.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
+  'lib/ui/offer-promotion.mjs', 'lib/ml/contract.mjs', 'lib/ui/ml-prediction.mjs', 'lib/ui/prop-board.mjs', 'lib/ui/line-comparison.mjs', 'lib/analytics/research.mjs', 'lib/analytics/matchup.mjs', 'lib/analytics/pro-tools.mjs', 'lib/ui/pro-tools.mjs', 'lib/ui/matchup-context.mjs', 'lib/ui/prop-filters.mjs', 'lib/ui/research-percentages.mjs', 'lib/constants/books.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
   'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
   'lib/betting/kelly.mjs', 'lib/markets/line-lag.mjs',
   'lib/projections/reprice.mjs', 'lib/projections/baseline.mjs', 'lib/projections/schema.mjs',
@@ -84,6 +84,7 @@ function target(rawUrl = '/') {
   if (url.pathname === '/api/apex/health') return { port: APEX_PORT, path: '/api/health' + url.search, injectShell: false, sanitizeJson: true };
   if (url.pathname === '/api/apex/game-markets') return { port: APEX_PORT, path: '/api/game-markets' + url.search, injectShell: false, sanitizeJson: true };
   if (url.pathname === '/api/apex/taco-offers') return { port: APEX_PORT, path: '/api/taco-offers' + url.search, injectShell: false, sanitizeJson: true };
+  if (url.pathname === '/api/apex/active-props') return { port: APEX_PORT, path: '/api/active-props' + url.search, injectShell: false, sanitizeJson: true };
   if (url.pathname === '/api/apex/props') return { port: APEX_PORT, path: '/api/props' + url.search, injectShell: false, sanitizeJson: true };
   if (url.pathname === '/api/apex/line-history') return { port: APEX_PORT, path: '/api/line-history' + url.search, injectShell: false };
 

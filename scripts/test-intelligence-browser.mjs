@@ -77,6 +77,25 @@ try{
   }
   await page.screenshot({path:path.join(out,`${name}-board.png`),fullPage:true});
   await page.locator('#asBoardFilterMenu>summary').click();
+  await page.locator('#asBooksOpen').click();
+  assert.equal(await page.locator('[data-book-only]').count(),28,'25 registered platforms plus three fixture books');
+  await page.locator('[data-book-only="book b"]').click();
+  await page.locator('#asBooksDone').click();
+  assert.equal(await page.locator('.asCard .asOddsChip').count(),1,'only selected book is shown');
+  await page.locator('.asNav [data-view="discrepancies"]').click();assert.equal(await page.locator('.asCard').count(),0,'one book cannot manufacture a discrepancy');
+  await page.locator('.asNav [data-view="research"]').click();
+  await page.locator('.asPlayer').first().click();await page.waitForSelector('.asAnalyticsPage .asChart');
+  assert.equal(await page.locator('.asLineVal').inputValue(),String(25.5+revision),'selected book changes the research target');
+  await page.locator('.asNav [data-view="research"]').click();
+  await page.reload();await page.waitForSelector('.asCard');
+  await page.locator('#asBoardFilterMenu>summary').click();
+  await page.locator('#asBooksOpen').click();
+  assert.deepEqual(await page.locator('[data-book-check]:checked').evaluateAll(es=>es.map(e=>e.dataset.bookCheck)),['book b'],'selection survives reload');
+  await page.locator('#asBooksAll').check();await page.locator('#asBooksAll').uncheck();
+  await page.locator('#asBooksDone').click();assert.equal(await page.locator('.asCard').count(),0,'deselect all does not fall back to every book');
+  await page.locator('#asBooksOpen').click();await page.locator('#asBooksAll').check();await page.locator('#asBooksDone').click();
+  await page.waitForSelector('.asCard');await page.waitForFunction(()=>document.querySelector('#asResearchBatch')?.textContent==='Visible research loaded');
+
   await page.locator('#asProfileMenu summary').click();
   assert.equal(await page.locator('#asAccount').isVisible(),true);
   assert.equal(await page.locator('.asProfileDropdown').evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;}),true);

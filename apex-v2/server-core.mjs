@@ -1,3 +1,5 @@
+import {activePropsFromBoard} from '../lib/ingestion/normalize.mjs';
+import {bookEnabled,bookSelection} from '../lib/constants/books.mjs';
 import {writePublicBoard} from '../lib/autoscout/public-board-response.mjs';
 import { fetchGameBoard, fetchTacoBoard } from '../lib/autoscout/providers/the-odds-api.mjs';
 import { startFrugalPersistence } from '../lib/autoscout/persistence-scheduler.mjs';
@@ -142,6 +144,17 @@ const server = http.createServer(async (req, res) => {
     catch{return json(res,503,{ok:false,code:'FEED_UNAVAILABLE',message:'This feed is temporarily unavailable.'});}
   }
   if (req.method === 'GET' && url.pathname === '/api/props') return propsResponse(req, url, res);
+  if(req.method==='GET'&&url.pathname==='/api/active-props'){
+    const sport=String(url.searchParams.get('sport')||'NFL').toUpperCase();
+    if(!SUPPORTED_SPORTS.includes(sport))return json(res,400,{code:'UNSUPPORTED_SPORT'});
+    if(!rateAllowed(req,'active-props',60,60000))return json(res,429,{code:'RATE_LIMITED'});
+    try{const board=await fetchUnifiedBoard(sport,{cacheOnly:true});
+      const selection=url.searchParams.has('books')?bookSelection(url.searchParams.get('books').split(',').filter(Boolean)):null;
+      const rows=activePropsFromBoard({props:board.props.filter(r=>bookEnabled(r,selection))});
+      const offset=Math.max(0,Math.min(100000,Number.parseInt(url.searchParams.get('offset')||'0',10)||0)),limit=Math.max(1,Math.min(500,Number.parseInt(url.searchParams.get('limit')||'100',10)||100));
+      return json(res,200,{active_props:rows.slice(offset,offset+limit),total:rows.length,nextOffset:offset+limit<rows.length?offset+limit:null,cacheOnly:true});
+    }catch{return json(res,503,{code:'CACHED_PROPS_UNAVAILABLE',active_props:[]});}
+  }
   if (req.method === 'GET' && url.pathname === '/api/line-history') return lineHistoryResponse(req, url, res);
 
   if (req.method === 'GET' && (url.pathname === '/api/diagnostics' || url.pathname === '/api/diagnostics/e2e' || url.pathname === '/diagnostics' || url.pathname === '/apex-v2/diagnostics')) {
@@ -181,7 +194,7 @@ setTimeout(() => void warmSports(), 1800).unref();
 // higher provider cost. Run one or the other, never both.
 startIngestWorker({
   sports: AUTOMATIC_SPORTS,
-  fetchBoard: (sport, options) => fetchUnifiedBoard(sport, options),
+  fetchBoard: (sport, options) => fetchUnifiedBoard(sport, {...options,refreshPublicFeeds:true}),
   decorate: decorateBoardWithScoutAudit,
   persist: persistNormalizedBoard,
   persistenceConfigured,

@@ -8,7 +8,7 @@ declare
   v_matches integer;
 begin
   v_def := pg_get_functiondef('public.autoscout_public_store(text,text,jsonb)'::regprocedure);
-  if position("='betmgm'" in v_def) > 0 then
+  if position($$='betmgm'$$ in v_def) > 0 then
     return;
   end if;
   v_matches := (length(v_def) - length(replace(v_def, v_old, ''))) / length(v_old);

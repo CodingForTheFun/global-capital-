@@ -35,10 +35,6 @@ body.asResearchHome{background:#0a101b}
 #as5 .asPlayer{letter-spacing:-.25px}
 #as5 .asRowActions{border-color:#25374b;background:#0c162344;flex-wrap:wrap}
 #as5 :is(.asQuick button,.asPropType).on{background:#153b30;color:#aceed5;border-color:#35785f}
-#as5 .asNav{background:#111d2dee;border:1px solid #30445a;box-shadow:0 10px 35px #0004;backdrop-filter:blur(18px)}
-#as5 .asNav :is(button,a){color:#aabbd0}
-#as5 .asNav :is(button,a).on{background:#1b4537;color:#aeefd5}
-#as5 .asNav :is(button,a):hover{background:#1c3041}
 #as5 :is(.asDrawer,.asUtility,.asFilterSheet){background:#0d1827;border-color:#314760}
 #as5 .asResearchTab.on{background:#1b4537;color:#acedd6;border-color:#3a715d}
 #as5 .asDrawer .asResearchTabs{max-width:100%;overflow-x:auto;scrollbar-width:thin}
@@ -46,13 +42,6 @@ body.asResearchHome{background:#0a101b}
 #as5 :is(.asUtility,.asFilterSheet)::backdrop{background:#020713bb}
 #as5 .asi-studio{box-shadow:none;margin-bottom:22px}
 #as5 .asCoverageNote{max-width:800px;margin:24px auto;font-size:11px;line-height:1.7;color:#90a5bd}
-@media(min-width:1280px){
- #as5{padding-bottom:0}#as5 .asMain{margin-left:208px;margin-right:0;max-width:none}
- #as5 .asNav{left:20px;top:150px;bottom:auto;transform:none;width:172px;padding:12px;display:flex;flex-direction:column;align-items:stretch;gap:7px;border-radius:13px}
- #as5 .asNav:before{content:"WORKSPACE";font-size:9px;font-weight:700;letter-spacing:.15em;color:#8298b4;padding:8px 10px 12px}
- #as5 .asNav :is(button,a){display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:12px 10px;width:100%;min-width:0;height:45px;font-size:11px;white-space:nowrap}
- #as5 .asNav .asNavIcon{font-size:16px;min-width:19px;text-align:center}
-}
 @media(max-width:1050px){#as5 .asDesktopLabel{display:none}#as5 .asFilters{grid-template-columns:repeat(4,minmax(0,1fr))}#as5 .asSearchLabel{grid-column:1/-1}#as5 .asMain{padding:22px 16px}}
 @media(max-width:650px){
  #as5 .asBar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));height:auto;min-height:96px;padding:12px 12px 8px;gap:8px}
@@ -62,9 +51,6 @@ body.asResearchHome{background:#0a101b}
  #as5 .asFilters{padding:10px;grid-template-columns:1fr 1fr;gap:8px}#as5 .asFilters .asSearchLabel{grid-column:1/-1}#as5 .asFilterTrigger{min-height:44px}
  #as5 .asControl{font-size:16px}#as5 .asToolbar .asControl{font-size:12px}#as5 .asToolbar label{width:100%;justify-content:space-between;margin-left:0}
  #as5 .asToolbar label select{flex:1;max-width:250px}#as5 .asHero h1{font-size:25px}#as5 .asHero p:not(.asHomeEyebrow){font-size:11px}
- #as5 .asNav{left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom));transform:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:6px;gap:3px;max-width:none;width:auto;border-radius:13px}
- #as5 .asNav :is(button,a){min-width:0;width:100%;height:48px;padding:4px 1px;gap:3px;font-size:9px;letter-spacing:-.15px;overflow:hidden}
- #as5 .asNav .asNavIcon{font-size:17px}
  #as5 .asDrawer .asResearchTab{min-height:42px}#as5 .asCoverageNote{text-align:left}#as5 .asi-head>.asi-button{min-height:44px}
 }
 @media(prefers-reduced-motion:reduce){#as5 *{scroll-behavior:auto!important}#as5 :is(.asRow,.asCard){transition:none}}

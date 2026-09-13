@@ -1,6 +1,13 @@
 // Compatibility build command: Auto Scout identity only. Never rewrite the v5 app,
 // payment descriptors, account identifiers, storage keys, or research calculations.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { applySoccerPublicFeedPatches } from './patch-soccer-public-feeds.mjs';
+
+// Public soccer expansion is applied at image-build time so it composes cleanly
+// with parallel Auto Scout work on the underlying adapters. The patch is guarded
+// by exact anchors and fails closed if an adapter shape changes.
+applySoccerPublicFeedPatches();
+
 for (const file of ['public/index.html', 'public/checkout.html']) {
   if (!existsSync(file)) continue;
   const source = readFileSync(file, 'utf8');

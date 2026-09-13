@@ -6,6 +6,8 @@ var mlClient=createMLClient({fetcher:nativeFetch});
 // Optional presentation enhancement: a failed studio load must not break the board.
 var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(()=>null);
 var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
+var {proToolsAnalysis}=await import('/assets/lib/analytics/pro-tools.mjs');
+var {proToolsHtml}=await import('/assets/lib/ui/pro-tools.mjs');
 var {matchupAnalysis,similarGames}=await import('/assets/lib/analytics/matchup.mjs');
 var {compareResearchQuotes}=await import('/assets/lib/ui/line-comparison.mjs');
 var playerChoices=new Map();
@@ -1084,6 +1086,14 @@ function comparisonRows(g){
   +'<p class="asNotice">Research a quoted line to update your chart, side and book history. Sportsbook offers stay unchanged. A lower Over or higher Under line is not by itself better value; price matters too.</p>';
 }
 
+function proToolsPanel(g){
+ var group={...g,archived:!!g.archived||!!payload.meta?.stale},predictions=new Map();
+ (g.comparisonOffers||g.rows||[]).forEach(q=>{
+  var target={...g,...q,playerName:g.playerName,gameStartTime:g.gameStartTime},prediction=mlClient.peek(target),key=predictionKey(prediction);
+  if(key&&prediction?.available)predictions.set(key,prediction);
+ });
+ return proToolsHtml(proToolsAnalysis(group,{predictions:Array.from(predictions.values())}));
+}
 function matchupOptions(g){return {line:drawerState.line,side:drawerState.side,window:drawerState.window,sport:g.sport,eventStart:g.gameStartTime};}
 function matchupWindowControl(){return '<label class="asSampleWindow">Historical sample<select class="asMarketSelect" id="asMatchWindow">'+[['l5','Last 5'],['l10','Last 10'],['l15','Last 15'],['l20','Last 20'],['season','Current regular season'],['h2h','Direct opponent games']].map(([value,label])=>'<option value="'+value+'" '+(drawerState.window===value?'selected':'')+'>'+label+'</option>').join('')+'</select></label>';}
 function matchupMetric(label,metric,id){
@@ -1180,12 +1190,12 @@ function renderDrawer(){
  var section=(title,body,sub='')=>'<section class="asSection"><div class="asSectionTitle"><h3>'+title+'</h3><span>'+sub+'</span></div><div class="asSectionBody">'+body+'</div></section>';
  var controls='<div class="asResearchTop"><label>Market<select class="asMarketSelect" id="asMarketSwitch">'+marketOptions(g)+'</select></label><div><label>Research line</label><div class="asLineCtl"><button class="asLineBtn" id="asLineMinus" aria-label="Decrease line">−</button><input class="asLineVal" id="asLineInput" type="number" step="0.5" aria-label="Research line" value="'+(line==null?'':line)+'"><button class="asLineBtn" id="asLinePlus" aria-label="Increase line">+</button></div></div></div><div class="asSideToggle">'+['OVER','UNDER'].map(x=>'<button class="asSideBtn '+x.toLowerCase()+' '+(side===x?'on':'')+'" data-side="'+x+'" aria-pressed="'+(side===x)+'">'+x+'</button>').join('')+'</div><p class="asNotice">Adjusting this line changes your research, not sportsbook offers.</p>';
  var filters='<div class="asFilterRow">'+[['all','All'],['home','Home'],['away','Away'],['h2h','VS '+(r?.matchup?.opponent||'opponent')]].map(([id,label])=>'<button class="asFilterBtn '+(drawerState.filter===id?'on':'')+'" data-filter="'+id+'" aria-pressed="'+(drawerState.filter===id)+'">'+esc(label)+'</button>').join('')+'</div>';
- var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['matchup','Matchup'],['similar','Similar games'],['intelligence','Intelligence'],['sandbox','Scenario'],['ask','Ask']];
+ var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Game log'],['lines','Compare lines'],['matchup','Matchup'],['similar','Similar games'],['intelligence','Intelligence'],['sandbox','Scenario'],['pro','Pro Tools'],['ask','Ask']];
  var tabBar='<div class="asResearchTabs" role="tablist" aria-label="Player research sections">'+tabs.map(([id,label])=>'<button role="tab" class="asResearchTab" id="asTab-'+id+'" data-research-panel="'+id+'" aria-controls="asPanel-'+id+'" aria-selected="'+(panel===id)+'" tabindex="'+(panel===id?'0':'-1')+'">'+label+'</button>').join('')+'</div>';
  var logContent=filteredGames(r).length?gameTable(r,g):emptyLog(r,g,base);
  var projectionHtml=mlPanel(g,line,side)+projectionCard(g,line);
  var pillsHtml=section('Hit rate',hitPills(r||base));
- var panels={matchup:section('Matchup research',matchupPanel(base||{},g)),similar:section('Similar games · same player',similarPanel(base||{},g)),sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
+ var panels={pro:panel==='pro'?section('Pro Tools',proToolsPanel(g)):'',matchup:section('Matchup research',matchupPanel(base||{},g)),similar:section('Similar games · same player',similarPanel(base||{},g)),sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
   ask:section('Ask about this prop',askPanel(g,line,side)),
   overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent),lines:section('Best Line Finder',comparisonRows(g))+section('Every book',bookMatrix(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
  intelligence?.disposeDetails();

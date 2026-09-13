@@ -494,3 +494,6 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asSimilarControls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.asSimilarControls input{display:block;width:100%;margin-top:7px}
 .asSimilarSummary{grid-template-columns:minmax(0,1fr)}.asSimilarGames{max-height:380px}
 @media(max-width:430px){.asMatchMetrics,.asSimilarControls{grid-template-columns:1fr}}
+
+/* Read-only mathematical research tools. */
+.asProTools{display:grid;gap:20px;min-width:0}.asProSection{min-width:0}.asProSection>h3{margin:0 0 12px}.asProCards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:12px}.asProCard{min-width:0;padding:16px;border:1px solid var(--border,#29445c);border-radius:12px;background:var(--panel,#102234);overflow-wrap:anywhere}.asProCard h4{margin:0 0 10px}.asProCard p{font-size:13px;line-height:1.6}.asProCard dl{display:grid;gap:10px}.asProCard dl div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px}.asProCard dt{font-size:12px}.asProCard dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums}.asProTools summary{cursor:pointer;padding:12px 0;font-size:13px}.asProTools summary:focus-visible{outline:2px solid #70aaff;outline-offset:3px}.asProTools caption{text-align:left;padding:8px 0}.asProTools details{min-width:0}

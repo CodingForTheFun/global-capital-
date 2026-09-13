@@ -5,7 +5,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { analyzeResearch } from '../lib/analytics/research.mjs';
-const now=Date.now();let revision=0,historyRequests=0,paidRequests=0,boardRequests=0,researchRequests=0,historyFailurePending=false;
+const now=Date.now();let revision=0,historyRequests=0,paidRequests=0,boardRequests=0,researchRequests=0,historyFailurePending=false,matchupRequests=0,matchupFailurePending=true;
 const quoteTime=()=>new Date(now-60000+revision*1000).toISOString();
 const athlete='Local QA Athlete',eventId='qa-event',playerId='qa-player';
 const games=Array.from({length:12},(_,i)=>({gameId:`qa-g${i}`,date:new Date(now-(i+1)*86400000).toISOString(),value:20+i,minutes:30,assists:i===1?null:i,season:2026,completed:true,isHome:i%2===0,opponent:'NY',teammateParticipation:[{playerId:'qa-t',name:'Fixture teammate',played:i<6,verified:true,source:'Local test participation fixture'}]}));
@@ -20,6 +20,15 @@ const server=http.createServer(async(req,res)=>{
   const file=p==='/ui.js'?'apex-v2/scout-ui-v5.js':p==='/assets/autoscout-research.css'?'apex-v2/research-ui.css':p.startsWith('/assets/lib/')?p.slice(8):null;
   if(file && !file.includes('..') && fs.existsSync(file))return send(fs.readFileSync(file),200,file.endsWith('.css')?'text/css':'application/javascript');
   if(p==='/api/apex/props'){boardRequests++;return send({props:props(),data:{lines:props().map(r=>({id:r.id,propId:'qa-prop'})),players:[{id:playerId,team:'BOS'}]},meta:{fetchedAt:quoteTime(),events:1,sportsbookCount:3}});}
+  if(p==='/api/apex/research-matchup'){
+    matchupRequests++;
+    if(matchupFailurePending){matchupFailurePending=false;return send({available:false,message:'Fixture temporary failure'},503);}
+    const retrievedAt=new Date().toISOString(),expiresAt=new Date(Date.now()+300000).toISOString();
+    return send({ok:true,available:true,eventId,sport:'NBA',gameStartTime:props()[0].gameStartTime,source:'ESPN',sourceUrl:'https://www.espn.com/nba/game/_/gameId/100',retrievedAt,expiresAt,
+      prediction:{available:true,kind:'published-model',homePercent:61.9,awayPercent:37.8,drawPercent:null,retrievedAt,expiresAt,note:'Fixture published model; missing draw is not inferred.'},
+      teams:[{side:'home',name:'Boston Celtics',record:'1-0',rank:null,injuries:{available:true,rows:[{playerName:'Fixture Teammate',status:'Questionable',detail:'Knee',reportedAt:retrievedAt}]},lineup:{available:false,starters:[],probables:[]}},{side:'away',name:'New York Knicks',record:'0-1',rank:null,injuries:{available:true,rows:[]},lineup:{available:true,starters:[{playerName:'Fixture Starter',position:'G',status:'Listed starter'}],probables:[]}}],
+      venue:{name:'Fixture Arena'},weather:{available:true,temperature:0,unit:'°',note:'Fixture forecast'}});
+  }
   if(p==='/api/apex/research'){researchRequests++;return send(analyzeResearch(base,Number(url.searchParams.get('line')),url.searchParams.get('side')));}
   if(p==='/api/apex/research-batch'){let raw='';for await(const chunk of req)raw+=chunk;const request=JSON.parse(raw);return send({ok:true,results:Object.fromEntries(request.props.map(r=>[r.key,analyzeResearch(base,r.line,r.side)]))});}
   if(p==='/api/apex/line-history'){historyRequests++;const book=url.searchParams.get('bookmaker'),side=url.searchParams.get('side');if(historyFailurePending&&book==='Book B'&&side==='UNDER'){historyFailurePending=false;return send({error:'Temporary fixture history failure'},503);}return send({configured:true,rows:[{prop_id:'qa-prop',bookmaker_key:book,side,line:22.5,created_at:new Date(now-3600000).toISOString()},{prop_id:'qa-prop',bookmaker_key:book,side,line:24.5,created_at:new Date(now-1800000).toISOString()}]});}
@@ -135,9 +144,23 @@ try{
   assert.equal(researchRequests,beforeMatchupResearch,'matchup filters reuse loaded history');
   assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   await page.screenshot({path:path.join(out,`${name}-similar-games.png`),fullPage:false});
+  matchupFailurePending=true;
   await page.locator('#asTab-win').click();
-  assert.equal(await page.locator('[data-win-status] strong').allTextContents().then(v=>v.join('|')),'Unavailable|Unavailable');
-  assert.doesNotMatch(await page.locator('.asWinPredictor').textContent(),/[0-9]+%/);
+  await page.getByRole('button',{name:'Retry game context',exact:true}).click();
+  await page.waitForSelector('[data-win-status="home"] strong');
+  assert.equal(await page.locator('[data-win-status="home"] strong').textContent(),'61.9%');
+  assert.equal(await page.locator('[data-win-status="away"] strong').textContent(),'37.8%');
+  const matchupCount=matchupRequests;
+  await page.locator('#asLinePlus').click();
+  assert.equal(await page.locator('[data-win-status="home"] strong').textContent(),'61.9%');
+  await page.locator('#asTab-context').click();
+  assert.match(await page.locator('#asGameContext').textContent(),/Fixture Teammate/);
+  assert.match(await page.locator('#asGameContext').textContent(),/Questionable/);
+  assert.match(await page.locator('#asGameContext').textContent(),/Confirmed starters have not been published/);
+  assert.match(await page.locator('#asGameContext').textContent(),/0°/);
+  assert.equal(matchupRequests,matchupCount,'tabs and research-line changes reuse one game summary');
+  await page.screenshot({path:path.join(out,`${name}-game-context.png`),fullPage:false});
+  await page.locator('#asTab-win').click();
   await page.locator('.asWinPredictor summary').click();
   assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   await page.screenshot({path:path.join(out,`${name}-win-predictor.png`),fullPage:false});
@@ -145,6 +168,8 @@ try{
   assert.match(await page.locator('[data-pro-tool="ev"]').textContent(),/No qualifying positive EV/);
   assert.ok(await page.locator('[data-pro-tool="arbitrage"] .asProCard').count()>0);
   assert.ok(await page.locator('[data-pro-tool="middles"] .asProCard').count()>0);
+  await page.locator('[data-load-pro-models]').click();
+  await page.getByRole('button',{name:'Load available model estimates',exact:true}).waitFor();
   const offersBefore=await page.locator('[data-pro-tool="middles"]').textContent();
   await page.locator('#asLinePlus').click();
   assert.equal(await page.locator('[data-pro-tool="middles"]').textContent(),offersBefore,'hypothetical line does not alter real offers');
@@ -156,10 +181,10 @@ try{
   revision++;await page.locator('#asRefresh').click();await page.waitForFunction(()=>document.querySelector('#asi-radar-count')?.textContent.includes('observed changes'));
   await page.locator('.asi-radar summary').click();assert.ok(await page.locator('[data-radar-key]').count()>0);
   assert.deepEqual(errors,[]);
-  report.checks.push({viewport:name,selectedSampleStats:true,l20Controls:true,exactLinePriceComparison:true,quoteResearchSelection:true,historyFailureRetry:true,winPredictorUnavailable:true,proTools:true,matchupSamples:true,similarGameFilters:true,eightTools:true,sharedSensitivityReactivity:true,zeroMinuteScenario:true,dependencyGraph:true,historyCache:true,citedBrief:true,textDownload:true,radar:true,keyboardTabs:true,noOverflow:true,pageErrors:errors});
+  report.checks.push({viewport:name,selectedSampleStats:true,l20Controls:true,exactLinePriceComparison:true,quoteResearchSelection:true,historyFailureRetry:true,publishedWinPredictor:true,gameContext:true,matchupRetry:true,proTools:true,matchupSamples:true,similarGameFilters:true,eightTools:true,sharedSensitivityReactivity:true,zeroMinuteScenario:true,dependencyGraph:true,historyCache:true,citedBrief:true,textDownload:true,radar:true,keyboardTabs:true,noOverflow:true,pageErrors:errors});
   await context.close();
  }
- assert.equal(paidRequests,0);report.requests={historyRequests,paidRequests,boardRequests};
+ assert.equal(paidRequests,0);report.requests={historyRequests,paidRequests,boardRequests,matchupRequests};
  console.log(JSON.stringify(report,null,2));
 }catch(error){
  report.failure={viewport:activeLabel,message:error.stack||String(error),network:failures};

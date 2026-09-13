@@ -4,6 +4,7 @@ const maybeServeML = createMLHandler();
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
+import { fetchMatchupResearch } from './lib/data-sources/espn/research.mjs';
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
 import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
 import { projectPlayerProp, projectionsConfigured } from './lib/projections/service.mjs';
@@ -39,7 +40,7 @@ const PROJECTION_RATE_PER_MINUTE = 12;
 const ASK_RATE_PER_MINUTE = 20;
 const CLIENT_MODULES = new Map([
   'lib/ui/intelligence-studio.mjs', 'lib/autoscout/intelligence.mjs',
-  'lib/ui/offer-promotion.mjs', 'lib/ml/contract.mjs', 'lib/ui/ml-prediction.mjs', 'lib/ui/prop-board.mjs', 'lib/ui/line-comparison.mjs', 'lib/analytics/research.mjs', 'lib/analytics/matchup.mjs', 'lib/analytics/pro-tools.mjs', 'lib/ui/pro-tools.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
+  'lib/ui/offer-promotion.mjs', 'lib/ml/contract.mjs', 'lib/ui/ml-prediction.mjs', 'lib/ui/prop-board.mjs', 'lib/ui/line-comparison.mjs', 'lib/analytics/research.mjs', 'lib/analytics/matchup.mjs', 'lib/analytics/pro-tools.mjs', 'lib/ui/pro-tools.mjs', 'lib/ui/matchup-context.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
   'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
   'lib/betting/kelly.mjs', 'lib/markets/line-lag.mjs',
   'lib/projections/reprice.mjs', 'lib/projections/baseline.mjs', 'lib/projections/schema.mjs',
@@ -164,7 +165,7 @@ function safeParam(url, name, max = 100) {
 
 async function maybeServeResearch(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
-  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health') return false;
+  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup') return false;
   if (req.method !== 'GET') {
     directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
     return true;
@@ -183,6 +184,11 @@ async function maybeServeResearch(req, res) {
     return true;
   }
   const sport = safeParam(url, 'sport', 12).toUpperCase();
+  if(url.pathname === '/api/apex/research-matchup') {
+    const result = await fetchMatchupResearch({sport,eventId:safeParam(url,'eventId',160),homeTeam:safeParam(url,'homeTeam',100),awayTeam:safeParam(url,'awayTeam',100),gameStartTime:safeParam(url,'gameStartTime',40)}).catch(()=>({ok:true,available:false,code:'MATCHUP_SOURCE_UNAVAILABLE',message:'Game context could not load. Try again shortly.'}));
+    directJson(res,result.code==='INVALID_MATCHUP'?400:200,sanitizePublicPayload(result,{statsContext:true}));
+    return true;
+  }
   const playerName = safeParam(url, 'playerName', 90);
   const market = safeParam(url, 'market', 100);
   const lineRaw = safeParam(url, 'line', 24);

@@ -564,7 +564,7 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 }
 
 /* Routed analytics uses the document scroll, with a grounded safe-area nav. */
-:root{--as-nav-height:56px}
+:root{--as-nav-height:56px;scroll-padding-bottom:calc(var(--as-nav-height) + env(safe-area-inset-bottom) + 20px)}
 #as5{padding-bottom:calc(var(--as-nav-height) + env(safe-area-inset-bottom) + 20px)}
 #as5 .asNav{position:fixed;inset:auto 0 0;transform:none;width:100%;max-width:none;height:calc(var(--as-nav-height) + env(safe-area-inset-bottom));margin:0;border:0;border-top:1px solid #2b3a52;border-radius:0;padding:5px 6px env(safe-area-inset-bottom);display:flex;gap:4px;justify-content:space-around;background:rgba(16,26,43,.82);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:none;z-index:60}
 #as5 .asNav button{flex:1;max-width:220px;min-width:0;height:44px;min-height:44px;border-radius:7px;padding:2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}

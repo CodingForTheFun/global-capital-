@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { researchClient } from '../lib/ui/research-home.mjs';
 import { landingPage } from '../lib/auth/landing.mjs';
 import { analyzeResearch } from '../lib/analytics/research.mjs';
 const now=Date.now();let revision=0,historyRequests=0,paidRequests=0,boardRequests=0,researchRequests=0,historyFailurePending=false,matchupRequests=0,matchupFailurePending=true;
@@ -21,7 +22,7 @@ const server=http.createServer(async(req,res)=>{
   if(p==='/welcome')return send(landingPage({passwordSignup:true,beta:true}),200,'text/html');
   if(p==='/')return send('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Auto Scout local QA fixture</title><link rel="stylesheet" href="/assets/autoscout-home.css"></head><body><script src="/ui.js"></script></body></html>',200,'text/html');
   const file=p==='/assets/autoscout-home.css'?'public/autoscout-home.css':p==='/ui.js'?'apex-v2/scout-ui-v5.js':p==='/assets/autoscout-research.css'?'apex-v2/research-ui.css':p.startsWith('/assets/lib/')?p.slice(8):null;
-  if(file && !file.includes('..') && fs.existsSync(file))return send(fs.readFileSync(file),200,file.endsWith('.css')?'text/css':'application/javascript');
+  if(file && !file.includes('..') && fs.existsSync(file))return send(p==='/ui.js'?researchClient(fs.readFileSync(file,'utf8')):fs.readFileSync(file),200,file.endsWith('.css')?'text/css':'application/javascript');
   if(p==='/api/apex/props'){boardRequests++;return send({props:props(),data:{lines:props().map(r=>({id:r.id,propId:'qa-prop'})),players:[{id:playerId,team:'BOS'}]},meta:{fetchedAt:quoteTime(),events:1,sportsbookCount:3}});}
   if(p==='/api/apex/research-matchup'){
     matchupRequests++;

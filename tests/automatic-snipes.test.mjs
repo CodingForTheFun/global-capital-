@@ -71,6 +71,8 @@ test('runtime UI patch creates an automatic Snipes view and still parses', () =>
   assert.match(patched, /🎯 Snipe/);
   assert.match(patched, /New snipe detected/);
   assert.match(patched, /announceSnipes\(\);render\(\);syncPropRoute\(\)/);
+  assert.doesNotMatch(patched, /<button class="asBtn" id="asRefresh">Refresh<\/button>/);
+  assert.match(patched, /<span id="asRefresh" hidden aria-hidden="true"><\/span>/);
 
   // Parse the generated browser bundle without executing it.
   assert.doesNotThrow(() => new Function(patched));

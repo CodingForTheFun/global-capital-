@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { patchEdgeFrontdoor } from './lib/edge/frontdoor-patch.mjs';
 import { patchResearchUi } from './lib/autoscout/research-ui-runtime-patch.mjs';
+import { patchNavAndRingUi } from './lib/autoscout/nav-ring-runtime-patch.mjs';
 
 // Preserve the owner's disabled legacy provider and the single data-core scheduler.
 process.env.AUTOSCOUT_DISABLE_SPORTSDATAIO = 'true';
@@ -19,7 +20,8 @@ const source = readFileSync(sourcePath, 'utf8');
 if (!source.includes(oldImport)) throw new Error('ClearSports bootstrap could not locate the research-service import.');
 if (!source.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the Auto Scout v5 UI source.');
 if (!source.includes(researchSports)) throw new Error('ClearSports bootstrap could not locate the research sport allowlist.');
-writeFileSync(uiRuntimePath, patchResearchUi(readFileSync(uiSourcePath, 'utf8')), 'utf8');
+const patchedResearchUi = patchResearchUi(readFileSync(uiSourcePath, 'utf8'));
+writeFileSync(uiRuntimePath, patchNavAndRingUi(patchedResearchUi), 'utf8');
 // Run the existing edge safety patch against its original source anchors first.
 // The runtime-only UI file substitution happens afterwards so account/routing
 // safeguards still fail closed if the production frontdoor shape changes.

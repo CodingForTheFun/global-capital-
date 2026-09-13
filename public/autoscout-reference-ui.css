@@ -1,0 +1,131 @@
+.as5{--as-ref-bg:#07101f;--as-ref-panel:#0b1425;--as-ref-panel-2:#101a2e;--as-ref-panel-3:#182238;--as-ref-line:#2a3650;--as-ref-text:#f7f9ff;--as-ref-muted:#9aa6bc;--as-ref-blue:#4338ff;--as-ref-blue2:#2f6dff;--as-ref-green:#43dfad;--as-ref-red:#ff4d5f;--as-ref-amber:#f6c75b;background:linear-gradient(180deg,#0a1030 0,#07101f 220px,#07101f 100%)!important;color:var(--as-ref-text)}
+.as5 .asMain{max-width:1480px;padding:14px 16px 96px!important}
+.as5 .asTop{background:linear-gradient(180deg,rgba(11,16,48,.98),rgba(7,16,31,.96))!important;border-bottom:1px solid #202b48!important;box-shadow:0 12px 35px rgba(0,0,0,.22)}
+.as5 .asBar{height:64px!important;max-width:1480px!important;padding:0 16px!important}
+.as5 .asLogo{border-radius:12px!important;background:linear-gradient(145deg,#5962ff,#7b7cff)!important;color:#fff!important;box-shadow:0 8px 20px rgba(67,56,255,.35)}
+.as5 .asBrand{font-size:20px!important;letter-spacing:-.03em!important}
+.as5 .asSports{max-width:1480px!important;padding:8px 16px 12px!important;gap:8px!important;scrollbar-width:none}
+.as5 .asSports::-webkit-scrollbar,.as5 .asQuickRow::-webkit-scrollbar,.as5 .asBadges::-webkit-scrollbar,.as5 .asOddsStrip::-webkit-scrollbar{display:none}
+.as5 .asSport,.as5 .asChip,.as5 .asTypeChip{min-height:40px!important;border:1px solid #293550!important;background:#10182b!important;color:#adb8cb!important;border-radius:13px!important;padding:0 14px!important;font-size:11px!important;font-weight:850!important;white-space:nowrap!important;transition:background .16s ease,border-color .16s ease,color .16s ease,transform .16s ease}
+.as5 .asSport.on,.as5 .asChip.on,.as5 .asTypeChip.on,.as5 [data-taco-filter][aria-pressed=true]{background:linear-gradient(135deg,#3d32ff,#403af2)!important;border-color:#646bff!important;color:#fff!important;box-shadow:0 8px 22px rgba(67,56,255,.22)}
+.as5 .asSport:active,.as5 .asChip:active,.as5 .asTypeChip:active,.as5 .asBtn:active{transform:scale(.985)}
+.as5 .asHero{align-items:center!important;margin:8px 0 14px!important}
+.as5 .asHero h1{font-size:26px!important;line-height:1.05!important}
+.as5 .asHero p{font-size:12px!important;color:var(--as-ref-muted)!important}
+.as5 .asFilters{grid-template-columns:minmax(240px,1.35fr) repeat(4,minmax(128px,.65fr))!important;gap:8px!important;margin-bottom:10px!important}
+.as5 .asControl,.as5 .asBtn{min-height:44px!important;border:1px solid #2d3853!important;background:#111a2d!important;color:#f7f9ff!important;border-radius:13px!important;font-size:11px!important;box-shadow:none!important}
+.as5 .asControl:focus,.as5 .asBtn:focus-visible,.as5 button:focus-visible{outline:2px solid #6387ff!important;outline-offset:2px!important}
+.as5 #asQuick,.as5 #asPropTypes{margin-bottom:10px!important}
+.as5 .asQuickRow,.as5 #asPropTypes{display:flex!important;gap:8px!important;overflow-x:auto!important;overscroll-behavior-x:contain;scroll-snap-type:x proximity;padding:2px 0 4px!important;scrollbar-width:none}
+.as5 .asQuickRow>* ,.as5 #asPropTypes>*{scroll-snap-align:start}
+.as5 .asSummary{gap:8px!important;margin:8px 0 12px!important}
+.as5 .asSummaryItem{background:#0e1729!important;border-color:#2a3550!important;border-radius:14px!important;padding:10px 12px!important}
+.as5 .asList{gap:14px!important}
+.as5 .asRow.asCard{background:linear-gradient(180deg,#131c2e 0,#08101f 58%,#07101f 100%)!important;border:1px solid #34425e!important;border-radius:22px!important;box-shadow:0 12px 36px rgba(0,0,0,.20)!important;overflow:hidden!important;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+.as5 .asRow.asCard:hover{border-color:#566783!important;box-shadow:0 16px 44px rgba(0,0,0,.28)!important;transform:translateY(-1px)}
+.as5 .asCardHead{display:grid!important;grid-template-columns:82px minmax(0,1fr) auto!important;gap:14px!important;align-items:center!important;padding:18px 20px 12px!important}
+.as5 .asAvatar{width:72px!important;height:72px!important;border-radius:50%!important;border:2px solid #44516c!important;background:#1b273d!important;box-shadow:inset 0 0 0 5px rgba(255,255,255,.025)}
+.as5 .asPlayer{font-size:20px!important;font-weight:900!important;letter-spacing:-.035em!important;line-height:1.12!important}
+.as5 .asTeamBadge,.as5 .asPos{font-size:10px!important;min-height:23px!important;display:inline-flex!important;align-items:center!important;padding:0 8px!important;border-radius:8px!important;background:#18233a!important;color:#d7deea!important;border:1px solid #2b3852!important}
+.as5 .asCardName{display:flex!important;align-items:center!important;gap:7px!important;flex-wrap:wrap!important}
+.as5 .asCardMatch{display:flex!important;align-items:center!important;gap:8px!important;color:#a9b4c7!important;font-size:12px!important;margin-top:5px!important;flex-wrap:wrap!important}
+.as5 .asCardTime{color:#8f9bb1!important}
+.as5 .asCardMarket{font-size:16px!important;line-height:1.25!important;margin-top:5px!important;color:#f2f5fb!important;font-weight:650!important}
+.as5 .asCardPrice{display:block!important;font-size:11px!important;color:#9ca8bb!important;margin-top:4px!important;font-weight:700!important}
+.as5 .asCardGauge{display:flex!important;align-items:center!important;gap:10px!important;justify-content:flex-end!important;min-width:168px!important}
+.as5 .asRing{display:flex!important;align-items:center!important;gap:8px!important}
+.as5 .asRingSvg{width:88px!important;height:88px!important;filter:drop-shadow(0 5px 12px rgba(0,0,0,.25))}
+.as5 .asRingText{display:flex!important;flex-direction:column!important;min-width:64px!important;font-size:11px!important}
+.as5 .asOverPct{color:var(--as-ref-green)!important;font-size:15px!important}
+.as5 .asUnderPct{color:var(--as-ref-red)!important;font-size:15px!important;font-weight:800!important}
+.as5 .asRingText em{font-size:8px!important;color:#7e8aa0!important;margin-top:2px!important}
+.as5 .asMatchPills{display:flex!important;gap:8px!important;padding:0 20px 12px!important;flex-wrap:wrap!important}
+.as5 .asMatchPills .asPill{border-radius:10px!important;background:#151e31!important;border:1px solid #2b3750!important;color:#c1cada!important;padding:7px 11px!important;font-size:11px!important;font-weight:800!important}
+.as5 .asBadges{display:grid!important;grid-template-columns:repeat(8,minmax(92px,1fr))!important;gap:2px!important;background:#09111f!important;border-top:1px solid #24304a!important;border-bottom:1px solid #24304a!important;overflow-x:auto!important;scrollbar-width:none!important}
+.as5 .asBadge{min-height:92px!important;padding:16px 8px 12px!important;text-align:center!important;background:linear-gradient(180deg,rgba(20,30,48,.96),rgba(11,18,31,.98))!important;border-right:1px solid #223049!important;position:relative!important;overflow:hidden!important}
+.as5 .asBadge:after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:#43516b;opacity:.8}
+.as5 .asBadge.hot{background:linear-gradient(180deg,rgba(9,82,69,.40),rgba(8,42,38,.72))!important}
+.as5 .asBadge.hot:after{background:#18d79f}
+.as5 .asBadge.cold{background:linear-gradient(180deg,rgba(89,26,36,.42),rgba(47,15,24,.72))!important}
+.as5 .asBadge.cold:after{background:#ff4d5f}
+.as5 .asBadge small{font-size:10px!important;color:#aeb7c7!important;font-weight:900!important;letter-spacing:.02em!important}
+.as5 .asBadge b{display:block!important;margin-top:3px!important;font-size:19px!important;line-height:1!important;color:#f3f6fa!important}
+.as5 .asBadge.hot b{color:#64e8bb!important}.as5 .asBadge.cold b{color:#ff8a95!important}
+.as5 .asBadge em{display:block!important;min-height:14px!important;margin-top:5px!important;color:#8491a6!important;font-size:9px!important;font-style:normal!important}
+.as5 .asHistoryGap{margin:0!important;border-radius:0!important;border-left:0!important;border-right:0!important}
+.as5 .asOddsStrip{display:flex!important;gap:10px!important;overflow-x:auto!important;padding:14px 18px 16px!important;background:#07101f!important;scroll-snap-type:x proximity!important;scrollbar-width:none!important}
+.as5 .asOddsChip{min-width:145px!important;display:flex!important;align-items:center!important;gap:10px!important;padding:10px 12px!important;border-radius:12px!important;background:#0b1425!important;border:1px solid #22304a!important;scroll-snap-align:start!important}
+.as5 .asOddsChip>b{font-size:11px!important;color:#eef2f8!important;white-space:nowrap!important}
+.as5 .asOddsChip span{display:flex!important;gap:7px!important;align-items:center!important;flex-wrap:wrap!important}
+.as5 .asOddsChip i{font-size:11px!important;font-style:normal!important;font-weight:850!important}.as5 .asOddsChip .o{color:var(--as-ref-green)!important}.as5 .asOddsChip .u{color:#ff7681!important}
+.as5 .asProjectedStat,.as5 .asPredict,.as5 .asMLHost,.as5 .asStale{margin-left:18px!important;margin-right:18px!important}
+.as5 .asRowActions{padding:12px 18px 16px!important;gap:8px!important;background:#09111f!important;flex-wrap:wrap!important}
+.as5 .asRowActions .asBtn,.as5 .asSave{min-height:42px!important;border-radius:12px!important}
+.as5 .asSave{padding:0 13px!important;background:#111a2d!important;border:1px solid #2b3852!important;color:#d9e0eb!important}
+.as5 .asSave.on{color:#ffd56b!important;border-color:#76602e!important;background:#2e2716!important}
+.as5 .asTacoPanel{border-radius:20px!important;background:#0d1628!important;border-color:#33415e!important}
+@media (max-width:980px){
+ .as5 .asFilters{grid-template-columns:1fr 1fr!important}
+ .as5 .asFilters>*:first-child{grid-column:1/-1}
+ .as5 .asSummary{grid-template-columns:repeat(3,1fr)!important}
+ .as5 .asCardHead{grid-template-columns:70px minmax(0,1fr) auto!important;padding:15px 14px 10px!important;gap:11px!important}
+ .as5 .asAvatar{width:62px!important;height:62px!important}
+ .as5 .asPlayer{font-size:17px!important}
+ .as5 .asCardMarket{font-size:14px!important}
+ .as5 .asCardGauge{min-width:118px!important}
+ .as5 .asRingSvg{width:74px!important;height:74px!important}
+ .as5 .asRingText{display:none!important}
+ .as5 .asBadges{grid-template-columns:repeat(8,104px)!important}
+ .as5 .asBadge{min-height:84px!important;padding-top:14px!important}
+ .as5 .asBadge b{font-size:17px!important}
+}
+@media (max-width:640px){
+ .as5{padding-bottom:82px!important;background:linear-gradient(180deg,#10124d 0,#07101f 164px,#07101f 100%)!important}
+ .as5 .asBar{height:58px!important;padding:0 12px!important}
+ .as5 .asBrand{font-size:18px!important}
+ .as5 .asSports{padding:7px 12px 10px!important}
+ .as5 .asMain{padding:10px 10px 96px!important}
+ .as5 .asHero{margin:6px 2px 10px!important}
+ .as5 .asHero h1{font-size:22px!important}
+ .as5 .asHeroBadge{display:none!important}
+ .as5 .asFilters{grid-template-columns:1fr 1fr!important;gap:7px!important}
+ .as5 .asControl{min-width:0!important;width:100%!important}
+ .as5 .asSummary{display:flex!important;overflow-x:auto!important;gap:7px!important;scrollbar-width:none}
+ .as5 .asSummaryItem{min-width:118px!important}
+ .as5 .asSport,.as5 .asChip,.as5 .asTypeChip{min-height:42px!important;font-size:11px!important}
+ .as5 .asRow.asCard{border-radius:18px!important}
+ .as5 .asCardHead{grid-template-columns:58px minmax(0,1fr) 80px!important;gap:10px!important;padding:14px 12px 10px!important;align-items:start!important}
+ .as5 .asAvatar{width:56px!important;height:56px!important}
+ .as5 .asPlayer{font-size:16px!important;line-height:1.08!important}
+ .as5 .asCardName{gap:5px!important}
+ .as5 .asTeamBadge,.as5 .asPos{font-size:8px!important;min-height:20px!important;padding:0 6px!important}
+ .as5 .asCardMatch{font-size:10px!important;gap:5px!important;margin-top:4px!important}
+ .as5 .asCardMarket{font-size:13px!important;margin-top:4px!important}
+ .as5 .asCardPrice{font-size:9px!important}
+ .as5 .asCardGauge{min-width:80px!important;align-self:start!important}
+ .as5 .asVerdict{display:none!important}
+ .as5 .asRingSvg{width:72px!important;height:72px!important}
+ .as5 .asRingText{display:none!important}
+ .as5 .asMatchPills{padding:0 12px 10px!important;gap:6px!important;flex-wrap:nowrap!important;overflow-x:auto!important;scrollbar-width:none!important}
+ .as5 .asMatchPills .asPill{font-size:9px!important;padding:6px 9px!important;white-space:nowrap!important}
+ .as5 .asBadges{grid-template-columns:repeat(8,88px)!important;scroll-snap-type:x mandatory!important}
+ .as5 .asBadge{min-height:78px!important;padding:12px 5px 9px!important;scroll-snap-align:start!important}
+ .as5 .asBadge small{font-size:9px!important}.as5 .asBadge b{font-size:16px!important}.as5 .asBadge em{font-size:8px!important}
+ .as5 .asOddsStrip{padding:12px!important;gap:8px!important}
+ .as5 .asOddsChip{min-width:130px!important;padding:9px 10px!important}
+ .as5 .asProjectedStat,.as5 .asPredict,.as5 .asMLHost,.as5 .asStale{margin-left:12px!important;margin-right:12px!important}
+ .as5 .asRowActions{padding:10px 12px 14px!important}
+ .as5 .asResearchState{flex:1 1 100%!important}
+ .as5 .asRowUpdated{margin-right:auto!important}
+ .as5 .asRowActions .asBtn,.as5 .asSave{flex:1 1 calc(50% - 6px)!important;min-height:44px!important}
+ .as5 .asTacoPanel{margin:10px 0!important;padding:16px!important;border-radius:18px!important}
+}
+@media (max-width:410px){
+ .as5 .asCardHead{grid-template-columns:52px minmax(0,1fr) 68px!important;padding-left:10px!important;padding-right:10px!important}
+ .as5 .asAvatar{width:50px!important;height:50px!important}
+ .as5 .asPlayer{font-size:15px!important}
+ .as5 .asRingSvg{width:64px!important;height:64px!important}
+ .as5 .asBadges{grid-template-columns:repeat(8,82px)!important}
+ .as5 .asBadge b{font-size:15px!important}
+}
+@media (prefers-reduced-motion:reduce){.as5 .asRow.asCard,.as5 .asSport,.as5 .asChip,.as5 .asTypeChip{transition:none!important}}

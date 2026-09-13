@@ -1,0 +1,53 @@
+name: Train real-history NFL research candidates
+on:
+  push:
+    branches: [chatgpt/ml-training-20260913]
+    paths: [.github/workflows/ml-nfl-research-training.yml]
+permissions:
+  contents: read
+concurrency:
+  group: autoscout-nfl-research-training
+  cancel-in-progress: false
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      PYTHONUNBUFFERED: '1'
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install bounded CPU training dependencies
+        timeout-minutes: 5
+        run: |
+          python -m pip install 'numpy==1.26.4' 'pandas==2.2.3' 'lightgbm==4.6.0' 'scikit-learn==1.7.2' 'nflreadpy==0.1.2' 'polars==1.33.1' 'pyarrow==23.0.1' 'pytest==8.4.2'
+          mkdir -p nfl-training-output
+          python -m pip freeze > nfl-training-output/requirements-resolved.txt
+      - name: Test code with explicitly synthetic unit fixtures
+        run: python -m pytest -q tests/test_nfl_training_features.py
+      - name: Fit and evaluate from actual public history only
+        timeout-minutes: 5
+        run: |
+          set -o pipefail
+          python scripts/train-nfl-research-models.py --output nfl-training-output 2>&1 | tee nfl-training-output/training.log
+      - name: Preserve source and evidence attribution
+        if: always()
+        run: |
+          mkdir -p nfl-training-output/source
+          cp scripts/train-nfl-research-models.py tests/test_nfl_training_features.py nfl-training-output/source/
+          printf '%s\n' 'Data: nflverse project (https://nflverse.com/), retrieved through nflreadpy. Source datasets and their hashes are recorded in sources.json. These are research-only retrospective point-estimate models, not Sportstradamus releases or sportsbook probabilities. No live site or provider credentials used; no production changes.' > nfl-training-output/README.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: autoscout-nfl-trained-research-candidates
+          path: nfl-training-output/
+          retention-days: 14
+          if-no-files-found: error

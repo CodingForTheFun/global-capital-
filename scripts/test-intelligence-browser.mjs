@@ -4,9 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { researchClient } from '../lib/ui/research-home.mjs';
 import { landingPage } from '../lib/auth/landing.mjs';
 import { analyzeResearch } from '../lib/analytics/research.mjs';
 const now=Date.now();let revision=0,historyRequests=0,paidRequests=0,boardRequests=0,researchRequests=0,historyFailurePending=false,matchupRequests=0,matchupFailurePending=true;
+const savedProps=new Map();
 const quoteTime=()=>new Date(now-60000+revision*1000).toISOString();
 const athlete='Local QA Athlete',eventId='qa-event',playerId='qa-player';
 const games=Array.from({length:12},(_,i)=>({gameId:`qa-g${i}`,date:new Date(now-(i+1)*86400000).toISOString(),value:20+i,minutes:30,assists:i===1?null:i,season:2026,completed:true,isHome:i%2===0,opponent:'NY',teammateParticipation:[{playerId:'qa-t',name:'Fixture teammate',played:i<6,verified:true,source:'Local test participation fixture'}]}));
@@ -18,9 +20,9 @@ const server=http.createServer(async(req,res)=>{
  const send=(value,status=200,type='application/json')=>{res.writeHead(status,{'content-type':type+'; charset=utf-8'});res.end(typeof value==='string'||Buffer.isBuffer(value)?value:JSON.stringify(value));};
  try {
   if(p==='/welcome')return send(landingPage({passwordSignup:true,beta:true}),200,'text/html');
-  if(p==='/')return send('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Auto Scout local QA fixture</title></head><body><script src="/ui.js"></script></body></html>',200,'text/html');
-  const file=p==='/ui.js'?'apex-v2/scout-ui-v5.js':p==='/assets/autoscout-research.css'?'apex-v2/research-ui.css':p.startsWith('/assets/lib/')?p.slice(8):null;
-  if(file && !file.includes('..') && fs.existsSync(file))return send(fs.readFileSync(file),200,file.endsWith('.css')?'text/css':'application/javascript');
+  if(p==='/')return send('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Auto Scout local QA fixture</title><link rel="stylesheet" href="/assets/autoscout-home.css"></head><body><script src="/ui.js"></script></body></html>',200,'text/html');
+  const file=p==='/assets/autoscout-home.css'?'public/autoscout-home.css':p==='/ui.js'?'apex-v2/scout-ui-v5.js':p==='/assets/autoscout-research.css'?'apex-v2/research-ui.css':p.startsWith('/assets/lib/')?p.slice(8):null;
+  if(file && !file.includes('..') && fs.existsSync(file))return send(p==='/ui.js'?researchClient(fs.readFileSync(file,'utf8')):fs.readFileSync(file),200,file.endsWith('.css')?'text/css':'application/javascript');
   if(p==='/api/apex/props'){boardRequests++;return send({props:props(),data:{lines:props().map(r=>({id:r.id,propId:'qa-prop'})),players:[{id:playerId,team:'BOS'}]},meta:{fetchedAt:quoteTime(),events:1,sportsbookCount:3}});}
   if(p==='/api/apex/research-matchup'){
     matchupRequests++;
@@ -36,7 +38,10 @@ const server=http.createServer(async(req,res)=>{
   if(p==='/api/apex/line-history'){historyRequests++;const book=url.searchParams.get('bookmaker'),side=url.searchParams.get('side');if(historyFailurePending&&book==='Book B'&&side==='UNDER'){historyFailurePending=false;return send({error:'Temporary fixture history failure'},503);}return send({configured:true,rows:[{prop_id:'qa-prop',bookmaker_key:book,side,line:22.5,created_at:new Date(now-3600000).toISOString()},{prop_id:'qa-prop',bookmaker_key:book,side,line:24.5,created_at:new Date(now-1800000).toISOString()}]});}
   if(p==='/api/props/teammates'){assert.equal(url.searchParams.get('team'),'BOS');return send({available:true,injuryReport:false,teammates:Array.from({length:15},(_,i)=>({playerId:'mate-'+i,playerName:'Roster teammate '+i,position:'G',injuryStatus:null}))});}
   if(p==='/api/account/me')return send({authenticated:true,user:{id:'local-qa',email:'qa@example.invalid'}});
-  if(p==='/api/saved-props')return send({saved:[],profile:{kind:'account',id:'local-qa'}});
+  if(p==='/api/saved-props'){
+   if(req.method==='POST'||req.method==='DELETE'){let raw='';for await(const chunk of req)raw+=chunk;const record=JSON.parse(raw);if(req.method==='POST')savedProps.set(record.key,record);else savedProps.delete(record.key);}
+   return send({saved:[...savedProps.values()],profile:{kind:'account',id:'local-qa'}});
+  }
   if(p==='/api/account/health')return send({ok:true,password:{available:true}});
   if(p==='/api/apex/player-artwork')return send('',404);
   if(p.includes('predict')||p.includes('project')||p.includes('ask')){paidRequests++;return send({available:false});}
@@ -89,6 +94,23 @@ try{
   assert.equal(await page.locator('.asCard [data-column="season"] b').first().textContent(),expectedPct);
 
   assert.equal(await page.locator('.asNav').evaluate(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return Math.abs(r.bottom-innerHeight)<1&&Math.abs(r.left)<1&&Math.abs(r.right-innerWidth)<1&&s.borderRadius==='0px';}),true,'navigation is flush with viewport bottom');
+  assert.equal(await page.locator('.asNav #asDiscord').count(),0);
+  assert.equal(await page.locator('.asNav').evaluate(e=>e.getBoundingClientRect().height<=60),true,'compact navigation');
+  assert.equal(await page.locator('.asNav button').evaluateAll(buttons=>buttons.every(e=>{const r=e.getBoundingClientRect();return r.width>=44&&r.height>=44;})),true,'navigation retains touch targets');
+  await page.locator('.asNav [data-view="saved"]').click();
+  await page.waitForFunction(()=>document.querySelector('.asNav [data-view="saved"]')?.disabled===false);
+  assert.match(await page.locator('#asList').innerText(),/No saved props/);
+  assert.equal(await page.locator('.asNav [aria-current="page"]').getAttribute('data-view'),'saved');
+  await page.locator('.asNav [data-view="research"]').click();
+  await page.locator('.asPlayer').first().click();await page.waitForSelector('.asAnalyticsPage .asChart');
+  await page.locator('#asDetailSave').click();await page.waitForFunction(()=>document.querySelector('#asDetailSave')?.getAttribute('aria-pressed')==='true');
+  await page.locator('.asNav [data-view="saved"]').click();
+  await page.waitForFunction(()=>document.querySelector('.asNav [data-view="saved"]')?.disabled===false);
+  assert.equal(await page.locator('#asDrawerBg').isVisible(),false,'saved navigation exits analytics');
+  assert.equal(await page.locator('.asCard').count(),1,'account save appears in Saved');
+  await page.locator('.asPlayer').first().click();await page.waitForSelector('.asAnalyticsPage .asChart');
+  await page.locator('#asDetailSave').click();await page.waitForFunction(()=>document.querySelector('#asDetailSave')?.getAttribute('aria-pressed')==='false');
+  await page.locator('.asNav [data-view="research"]').click();
   await page.locator('.asPlayer').first().click();await page.waitForSelector('.asAnalyticsPage .asChart');
   const detailUrl=page.url();assert.ok(detailUrl.includes('#prop/NBA/'));
   assert.equal(await page.locator('.asWindow[data-window="season"] b').textContent(),expectedPct);

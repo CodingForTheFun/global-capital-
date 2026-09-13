@@ -1,0 +1,120 @@
+name: Validate reconciled ML and Taco release
+on:
+  push:
+    branches: [chatgpt/prop-ml-integration]
+    paths: [.github/workflows/ml-integrated-verify.yml]
+permissions:
+  contents: write
+jobs:
+  integrated:
+    if: github.repository == 'CodingForTheFun/global-capital-' && github.ref == 'refs/heads/chatgpt/prop-ml-integration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Reconcile exact concurrent production on feature only
+        id: apply
+        run: |
+          mkdir -p validation-output
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --no-commit --no-ff cabfa191ee492cd0b59a0d850ad5759a14e1dccf > validation-output/merge.txt 2>&1 || true
+          python3 <<'PY'
+          import base64,hashlib,json,lzma,pathlib,subprocess
+          root=pathlib.Path.cwd()
+          conflicts=set(subprocess.check_output(['git','diff','--name-only','--diff-filter=U']).decode().splitlines())
+          assert conflicts=={'AUTOPROP_COORDINATION.md','apps/guest-dashboard/components/SportsWorkspace.tsx'},conflicts
+          data=lzma.decompress(base64.b64decode(pathlib.Path('scripts/prop-ml-integration-resolution.txt').read_text().strip(),validate=True))
+          assert hashlib.sha256(data).hexdigest()=='46bde748fcd8b5419eca351f5d8094280eca1f72726df6f84624762a9bd90bca'
+          plan=json.loads(data)
+          allowed={'.github/workflows/prop-ml-checks.yml','AUTOPROP_COORDINATION.md','apps/guest-dashboard/components/PropInsight.tsx','apps/guest-dashboard/components/SportsWorkspace.tsx','docs/prop-ml-integration.md','lib/autoscout/providers/taco-offers.mjs','lib/ui/offer-promotion.d.mts','lib/ui/offer-promotion.mjs','public/autoscout-tacos.js','scripts/assert-taco-placement.mjs','scripts/verify-prop-ml-live.mjs','tests/taco-concurrent-integration.test.mjs'}
+          assert {e['path'] for e in plan}==allowed and len(plan)==len(allowed)
+          output={}
+          for e in plan:
+              p=root/e['path'];assert p.resolve().is_relative_to(root) and not p.is_symlink()
+              old=p.read_bytes() if p.exists() else b''
+              assert hashlib.sha256(old).hexdigest()==e['old'],e['path']
+              lines=old.decode().splitlines(keepends=True)
+              for a,b,s in reversed(e['edits']):
+                  assert 0<=a<=b<=len(lines)
+                  lines[a:b]=s.splitlines(keepends=True)
+              new=''.join(lines).encode();assert hashlib.sha256(new).hexdigest()==e['new'],e['path']
+              assert b'<<<<<<<' not in new
+              output[p]=new
+          for p,data in output.items():
+              p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(data)
+          subprocess.run(['git','add','--',*allowed],check=True)
+          subprocess.run(['git','rm','apps/guest-dashboard/components/TacoBadge.tsx'],check=True)
+          assert not subprocess.check_output(['git','diff','--name-only','--diff-filter=U']).strip()
+          pathlib.Path('validation-output/expected.json').write_text(json.dumps({e['path']:e['new'] for e in plan},indent=2))
+          PY
+      - name: Install existing dependencies
+        id: dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm --prefix apps/guest-dashboard install --include=dev --no-audit --no-fund
+      - name: Combined full regression gate
+        id: regression
+        run: |
+          set -o pipefail
+          npm run check 2>&1 | tee validation-output/regression.txt
+      - name: Browser tools
+        if: always() && steps.dependencies.outcome == 'success'
+        id: browser_install
+        run: |
+          npx playwright install --with-deps chromium
+          npm install -g agent-browser
+      - name: ML and exact-offer fixture UI
+        if: always() && steps.browser_install.outcome == 'success'
+        id: ml_browser
+        run: |
+          set -o pipefail
+          node scripts/qa-prop-ml.mjs 2>&1 | tee validation-output/ml-browser.txt
+      - name: Preserved Next.js production build
+        if: always() && steps.dependencies.outcome == 'success'
+        id: build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: |
+          set -o pipefail
+          node scripts/prepare-edge-deploy.mjs
+          npm --prefix apps/guest-dashboard run build 2>&1 | tee validation-output/build.txt
+      - name: Accounts, workspace, game board, Ask and separate Taco placement
+        if: always() && steps.build.outcome == 'success' && steps.browser_install.outcome == 'success'
+        id: workspace
+        run: |
+          set -o pipefail
+          node scripts/verify-edge-release.mjs 2>&1 | tee validation-output/edge.txt
+          node scripts/verify-workspace.mjs 2>&1 | tee validation-output/workspace.txt
+          node scripts/verify-sportsbook.mjs 2>&1 | tee validation-output/sportsbook.txt
+      - name: Restore source transforms and preserve candidate evidence
+        if: always() && steps.apply.outcome == 'success'
+        run: |
+          git restore --worktree -- public/index.html public/checkout.html public/manifest.webmanifest payments/paypal.mjs apex-v2/scout-ui-v5.js
+          python3 <<'PY'
+          import pathlib,json,hashlib,subprocess,tarfile
+          for name,sha in json.loads(pathlib.Path('validation-output/expected.json').read_text()).items():assert hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()==sha,name
+          with tarfile.open('validation-output/tested-source.tar.gz','w:gz') as tar:
+              for name in sorted(set(subprocess.check_output(['git','ls-files','-z']).decode().split('\0'))):
+                  if name and pathlib.Path(name).is_file() and name!='scripts/prop-ml-integration-resolution.txt':tar.add(name,arcname=name,recursive=False)
+          PY
+          cp -R artifacts validation-output/application-artifacts 2>/dev/null || true
+      - name: Publish validated integration to feature only
+        if: steps.regression.outcome == 'success' && steps.ml_browser.outcome == 'success' && steps.workspace.outcome == 'success'
+        run: |
+          test "$(git branch --show-current)" = 'chatgpt/prop-ml-integration'
+          git rm scripts/prop-ml-integration-resolution.txt .github/workflows/ml-integration-snapshot.yml .github/workflows/ml-integrated-verify.yml
+          git commit -m 'Preserve newest game and Ask workspace; bind Taco badges to exact promotional lines and separate trained ML status'
+          git push origin HEAD:refs/heads/chatgpt/prop-ml-integration
+          git rev-parse HEAD > validation-output/application-head.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ml-concurrent-validated
+          path: validation-output/
+          retention-days: 5

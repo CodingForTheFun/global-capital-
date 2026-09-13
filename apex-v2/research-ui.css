@@ -537,3 +537,28 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
  .asDrawerBody{padding:10px}.asSectionBody{padding:12px}.asSectionTitle{padding:12px}.asNav button{min-height:44px}.asNav button span:last-child{font-size:10px}
  #as5 .asi-studio{padding:16px}#as5 .asi-studio h2{font-size:20px}#as5 .asi-head{gap:12px}#as5 .asi-head>.asi-button{width:auto;align-self:stretch}#as5 .asi-lede{font-size:13px}
 }
+
+/* Compact Props workspace and research-local dropdowns. */
+.asTop .asBar{position:relative;flex-wrap:nowrap;overflow:visible;min-height:68px;height:auto}
+.asTop .asIdentity{flex:0 0 auto}.asTop .asGrow{display:block;flex:1}.asTop .asSports{padding:0;margin:0;overflow:visible;max-width:120px;flex:0 0 110px}
+.asSports>[data-sport]{display:none}.asSportSelect select{font-weight:700;background:#1c2e4b;border-color:#4c688c;border-radius:14px;min-height:42px}
+.asProfileMenu{position:relative;flex:none}.asProfileMenu>summary{list-style:none;display:grid;place-items:center;width:42px;height:42px;border-radius:50%;color:#e8eaff;background:#5954d6;font-size:24px;cursor:pointer}.asProfileMenu>summary::-webkit-details-marker{display:none}
+.asProfileMenu>summary:focus-visible{outline:2px solid #8ee8c7;outline-offset:3px}
+.asProfileDropdown{position:absolute;right:0;top:calc(100% + 12px);width:min(340px,calc(100vw - 24px));z-index:50;display:grid;background:#090f1e;border:1px solid #344059;border-radius:18px;box-shadow:0 20px 60px #0009;overflow:hidden}
+.asProfileDropdown strong{padding:22px;font-size:15px;color:#d9e4f4}.asProfileDropdown .asBtn{height:auto;min-height:54px;width:100%;padding:15px 22px;border:0;border-top:1px solid #273145;border-radius:0;text-align:left;font-weight:500;background:transparent;color:#b9c7dc}.asProfileDropdown .asBtn:hover{background:#1b2841}
+.asBoardFilterMenu{border:1px solid #31435d;background:#101d30;border-radius:12px;margin-bottom:12px;padding:0 12px}.asBoardFilterMenu>summary{cursor:pointer;min-height:44px;padding:12px 2px;font-weight:650;font-size:13px;color:#cbd8eb}.asBoardFilterMenu .asFilters{border:0;padding:8px 0;background:none}.asBoardFilterMenu .asToolbar{flex-wrap:wrap}
+.asPropFilterGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}.asPropFilterGrid label{display:grid;gap:6px;font-size:12px;color:#a9b9d0}.asPropFilterGrid select{background:#192239;border-color:#303b54;border-radius:10px;min-height:44px;font-size:14px}
+.asLegacyVenue{display:none}.asCardModels{border-top:1px solid #293d54;padding:0 12px}.asCardModels>summary{cursor:pointer;padding:10px 0;font-size:11px;color:#a5b9d4}.asCardModels>summary:focus-visible{outline:2px solid #86ddc0}.asCardModels .asMLHost{margin-top:4px}
+.asCard .asCardHead{align-items:center}.asCard .asPlayerChoice{margin:6px 0}.asCard .asPlayerChoice small{display:none}
+@media(max-width:700px){
+ .asTop .asBar{min-height:64px;padding:10px 12px;gap:9px}.asTop .asIdentity{flex:none}.asTop .asBrand{font-size:20px}.asTop .asLogo{display:none}.asTop .asGrow{display:block}.asTop .asStatus{display:none}
+ .asTop .asBar>button:not(#asRefresh){flex:none}.asTop #asRefresh{padding:0 9px;font-size:11px;min-height:38px}.asTop .asSports{flex:0 0 86px;max-width:86px}.asSportSelect select{padding:0 9px;font-size:13px}.asProfileMenu>summary{width:38px;height:38px}
+ .asMain{padding:12px 10px}.asHero{margin-bottom:8px}.asHero h1{display:none}.asHero p{margin:0;font-size:11px}.asPropTypes{padding:2px 0 10px;gap:6px}.asTypeChip{padding:8px 10px;min-height:38px}
+ .asSummary{margin-bottom:12px}.asSummaryItem{padding:9px}.asSummaryItem small{font-size:10px}.asSummaryItem b{font-size:18px;margin-top:3px}
+ .asList{gap:12px}.asCard{border-radius:17px;background:linear-gradient(180deg,#202a3b 0,#0b1325 95px,#0a1020 100%)}.asCardHead{grid-template-columns:42px minmax(0,1fr);padding:12px 12px 10px}.asCardGauge{display:none}.asCardName .asPlayer{font-size:16px}.asCardMarket{font-size:13px}.asCardMatch{font-size:11px;gap:2px 7px}.asCard .asAvatar{width:44px;height:44px}
+ .asBadges{grid-template-columns:repeat(8,minmax(0,1fr));gap:1px}.asBadge{padding:9px 1px}.asBadge small{font-size:8.5px;letter-spacing:0}.asBadge b{font-size:12px}.asBadge em{font-size:8px;min-height:10px}
+ .asCard .asOddsStrip{padding:9px 11px;gap:6px}.asOddsChip{min-width:94px;padding:6px 8px}.asCard .asRowActions{min-height:36px;padding:6px 10px;font-size:10px;gap:7px}.asCard .asSave{min-height:32px;font-size:11px}
+ .asPropFilterGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.asPropFilterGrid label{font-size:12px}.asPropFilterGrid select{font-size:14px}.asDrawerHead{padding:12px 10px}.asResearchTabs{padding:6px 0}.asResearchTab{min-height:38px}
+ #as5 .asi-studio{padding:12px;margin-bottom:12px}#as5 .asi-studio h2{font-size:16px}#as5 .asi-studio .asi-lede,#as5 .asi-studio .asi-tags,#as5 .asi-studio .asi-eyebrow{display:none}#as5 .asi-head{flex-direction:row;align-items:center;gap:8px}#as5 .asi-head>.asi-button{font-size:11px;min-height:36px;padding:6px 9px;align-self:center}#as5 .asi-radar{margin-top:9px;padding-top:9px}
+ .asNav{border-radius:28px;left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom));padding:6px;gap:2px}
+}

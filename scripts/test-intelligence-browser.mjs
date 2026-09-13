@@ -65,11 +65,16 @@ try{
   assert.equal(await page.locator('#asi-open').isEnabled(),true);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   if(viewport.width<=430){
-   for(const id of ['asRefresh','asSettings','asAccount']){
+   for(const id of ['asRefresh','asProfileMenu','asSportSelect']){
     assert.equal(await page.locator('#'+id).evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;}),true,'header action fits mobile viewport');
    }
   }
   await page.screenshot({path:path.join(out,`${name}-board.png`),fullPage:true});
+  await page.locator('#asProfileMenu summary').click();
+  assert.equal(await page.locator('#asAccount').isVisible(),true);
+  assert.equal(await page.locator('.asProfileDropdown').evaluate(e=>{const r=e.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth;}),true);
+  await page.locator('#asProfileMenu summary').click();
+  await page.locator('#asBoardFilterMenu>summary').click();
   await page.locator('#asSort').selectOption('l20');
   await page.locator('#asAdvancedToggle').click();
   assert.equal(await page.locator('[data-threshold="l20"]').count(),1);
@@ -98,11 +103,16 @@ try{
   assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   await page.screenshot({path:path.join(out,`${name}-studio.png`),fullPage:false});
   await page.locator('#asTab-intelligence').focus();await page.keyboard.press('End');assert.equal(await page.locator('[role="tab"][aria-selected="true"]').getAttribute('id'),'asTab-ask');await page.keyboard.press('Home');assert.equal(await page.locator('[role="tab"][aria-selected="true"]').getAttribute('id'),'asTab-overview');
+  const filterResearchCount=researchRequests;
+  await page.locator('#asPropFilter-minMinutes').selectOption('35');
+  assert.match(await page.locator('.asChartEmpty').textContent(),/Historical game data/);
+  await page.locator('#asClearPropFilters').click();
+  assert.equal(researchRequests,filterResearchCount,'prop cohort filters do not refetch history');
   await page.locator('[data-window="l5"]').click();
   assert.equal(await page.locator('[data-support-stat="assists"] b').textContent(),'2.3');
   assert.equal(await page.locator('[data-support-stat="assists"] .asSupportSample').textContent(),'4 of 5 games reported');
   assert.equal(await page.locator('[data-support-stat="rebounds"] b').textContent(),'Unavailable');
-  await page.locator('[data-filter="home"]').click();
+  await page.locator('#asPropVenue').selectOption('home');
   assert.equal(await page.locator('[data-support-stat="assists"] b').textContent(),'4');
   assert.equal(await page.locator('[data-support-stat="assists"] .asSupportSample').textContent(),'5 of 5 games reported');
   await page.locator('[data-window="l20"]').click();

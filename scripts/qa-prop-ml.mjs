@@ -42,7 +42,9 @@ try{
  for(const [label,viewport] of [['desktop',{width:1440,height:900}],['mobile',{width:390,height:844}]]){
   const context=await browser.newContext({viewport}),page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(base);await page.waitForSelector('.asCard [data-ml-state="READY"]');
+  await page.goto(base);await page.waitForSelector('.asCard [data-ml-state="READY"]',{state:'attached'});
+  for(const summary of await page.locator('.asCardModels > summary').all())await summary.click();
+  assert.equal(await page.locator('#asDrawerBg').isVisible(),false,'Expanding model estimates must not open player research');
   assert.equal(await page.locator('.asCard').count(),2);
   assert.equal(await page.locator('.asCard .asML').count(),2);
   assert.equal(await page.locator('.asCard .asTacoBadge').count(),1);
@@ -58,11 +60,12 @@ try{
   await page.locator('[data-side="UNDER"]').click();assert.ok((await page.locator('#asDrawerBody .asMLSelected').innerText()).includes('Under'));
   await page.locator('#asLinePlus').click();await page.waitForSelector('#asDrawerBody [data-ml-state="TARGET_UNVERIFIED"]');
   assert.ok(!(await page.locator('#asDrawerBody .asML').innerText()).includes('231.4'),'No forecast borrowed for an unscored line');
-  await page.locator('#asClose').click();await page.locator('[data-prop-type="all"]').click();
+  await page.locator('#asClose').click();await page.locator('#asBoardFilterMenu > summary').click();await page.locator('[data-prop-type="all"]').click();
   await page.locator('#asSearch').fill('QA Model Fixture');await page.waitForTimeout(350);
   const control=page.locator('.asCard [data-card-choice]');
   const option=await control.locator('option').evaluateAll(items=>items.find(i=>i.textContent.startsWith('Rushing')).value);
-  await control.selectOption(option);await page.waitForSelector('.asCard [data-ml-state="MODEL_NOT_READY"]');
+  await control.selectOption(option);await page.waitForSelector('.asCard [data-ml-state="MODEL_NOT_READY"]',{state:'attached'});
+  await page.locator('.asCardModels > summary').click();
   assert.equal(await page.locator('.asCard').count(),1);assert.ok(!(await page.locator('.asCard .asML').innerText()).includes('231.4'));
   assert.equal(await page.locator('.asCard .asTacoBadge').count(),0,'Rushing prop cannot inherit a passing Taco');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);
@@ -71,7 +74,7 @@ try{
   report.checks.push({viewport:label,cardCount:2,noRepeats:true,exactLine:true,sideSwitch:true,marketSwitch:true,tacoOfferOnly:true,absentModelNoNumbers:true,noAutomaticLLM:true,pageErrors:errors});
   await context.close();
  }
- failure=true;const c=await browser.newContext();const p=await c.newPage();await p.goto(base);await p.waitForSelector('.asCard [data-ml-state="MODEL_FEED_UNAVAILABLE"]');await c.close();
+ failure=true;const c=await browser.newContext();const p=await c.newPage();await p.goto(base);await p.waitForSelector('.asCard [data-ml-state="MODEL_FEED_UNAVAILABLE"]',{state:'attached'});await c.close();
  report.failureDoesNotCrashBoard=true;
  await writeFile('validation-output/ml/report.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 }finally{await browser.close();server.closeAllConnections();await new Promise(r=>server.close(r));}

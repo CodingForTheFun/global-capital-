@@ -5,7 +5,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { analyzeResearch } from '../lib/analytics/research.mjs';
-const now=Date.now();let revision=0,historyRequests=0,paidRequests=0,boardRequests=0;
+const now=Date.now();let revision=0,historyRequests=0,paidRequests=0,boardRequests=0,researchRequests=0,historyFailurePending=false;
 const quoteTime=()=>new Date(now-60000+revision*1000).toISOString();
 const athlete='Local QA Athlete',eventId='qa-event',playerId='qa-player';
 const games=Array.from({length:12},(_,i)=>({gameId:`qa-g${i}`,date:new Date(now-(i+1)*86400000).toISOString(),value:20+i,minutes:30,assists:i===1?null:i,season:2026,completed:true,isHome:i%2===0,opponent:'NY',teammateParticipation:[{playerId:'qa-t',name:'Fixture teammate',played:i<6,verified:true,source:'Local test participation fixture'}]}));
@@ -20,9 +20,9 @@ const server=http.createServer(async(req,res)=>{
   const file=p==='/ui.js'?'apex-v2/scout-ui-v5.js':p==='/assets/autoscout-research.css'?'apex-v2/research-ui.css':p.startsWith('/assets/lib/')?p.slice(8):null;
   if(file && !file.includes('..') && fs.existsSync(file))return send(fs.readFileSync(file),200,file.endsWith('.css')?'text/css':'application/javascript');
   if(p==='/api/apex/props'){boardRequests++;return send({props:props(),data:{lines:props().map(r=>({id:r.id,propId:'qa-prop'})),players:[{id:playerId,team:'BOS'}]},meta:{fetchedAt:quoteTime(),events:1,sportsbookCount:3}});}
-  if(p==='/api/apex/research')return send(analyzeResearch(base,Number(url.searchParams.get('line')),url.searchParams.get('side')));
+  if(p==='/api/apex/research'){researchRequests++;return send(analyzeResearch(base,Number(url.searchParams.get('line')),url.searchParams.get('side')));}
   if(p==='/api/apex/research-batch'){let raw='';for await(const chunk of req)raw+=chunk;const request=JSON.parse(raw);return send({ok:true,results:Object.fromEntries(request.props.map(r=>[r.key,analyzeResearch(base,r.line,r.side)]))});}
-  if(p==='/api/apex/line-history'){historyRequests++;const book=url.searchParams.get('bookmaker'),side=url.searchParams.get('side');return send({configured:true,rows:[{prop_id:'qa-prop',bookmaker_key:book,side,line:22.5,created_at:new Date(now-3600000).toISOString()},{prop_id:'qa-prop',bookmaker_key:book,side,line:24.5,created_at:new Date(now-1800000).toISOString()}]});}
+  if(p==='/api/apex/line-history'){historyRequests++;const book=url.searchParams.get('bookmaker'),side=url.searchParams.get('side');if(historyFailurePending&&book==='Book B'&&side==='UNDER'){historyFailurePending=false;return send({error:'Temporary fixture history failure'},503);}return send({configured:true,rows:[{prop_id:'qa-prop',bookmaker_key:book,side,line:22.5,created_at:new Date(now-3600000).toISOString()},{prop_id:'qa-prop',bookmaker_key:book,side,line:24.5,created_at:new Date(now-1800000).toISOString()}]});}
   if(p==='/api/account/me')return send({authenticated:true,user:{id:'local-qa',email:'qa@example.invalid'}});
   if(p==='/api/saved-props')return send({saved:[],profile:{kind:'account',id:'local-qa'}});
   if(p==='/api/account/health')return send({ok:true,password:{available:true}});
@@ -95,11 +95,28 @@ try{
   assert.equal(await page.locator('.asMatrix .asBest').count(),2);
   for(const cell of await page.locator('.asMatrix .asBest').all())assert.match(await cell.textContent(),/^-110/);
   assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
+  const researchBefore=researchRequests;
+  const underQuote=page.locator('[data-use-quote]').filter({hasText:'Book B'});
+  historyFailurePending=true;
+  await underQuote.click();
+  await page.waitForSelector('#asRetryHistory');
+  await page.locator('#asRetryHistory').click();
+  await page.waitForSelector('.asHistoryTable');
+  assert.equal(await page.locator('#asLineInput').inputValue(),String(initialLine+1));
+  assert.equal(await page.locator('[data-side="UNDER"]').getAttribute('aria-pressed'),'true');
+  assert.equal(await page.locator('#asHistoryBook').inputValue(),'Book B');
+  await page.locator('[data-use-quote]').filter({hasText:'Book A'}).click();
+  assert.equal(await page.locator('#asLineInput').inputValue(),String(initialLine));
+  assert.equal(await page.locator('[data-side="OVER"]').getAttribute('aria-pressed'),'true');
+  assert.equal(await page.locator('#asHistoryBook').inputValue(),'Book A');
+  assert.equal(researchRequests,researchBefore,'quote selection reuses loaded research');
+  assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
+  await page.screenshot({path:path.join(out,`${name}-best-line-finder.png`),fullPage:false});
   await page.keyboard.press('Escape');assert.equal(await page.locator('.asDrawerBg.on').count(),0);
   revision++;await page.locator('#asRefresh').click();await page.waitForFunction(()=>document.querySelector('#asi-radar-count')?.textContent.includes('observed changes'));
   await page.locator('.asi-radar summary').click();assert.ok(await page.locator('[data-radar-key]').count()>0);
   assert.deepEqual(errors,[]);
-  report.checks.push({viewport:name,selectedSampleStats:true,l20Controls:true,exactLinePriceComparison:true,eightTools:true,sharedSensitivityReactivity:true,zeroMinuteScenario:true,dependencyGraph:true,historyCache:true,citedBrief:true,textDownload:true,radar:true,keyboardTabs:true,noOverflow:true,pageErrors:errors});
+  report.checks.push({viewport:name,selectedSampleStats:true,l20Controls:true,exactLinePriceComparison:true,quoteResearchSelection:true,historyFailureRetry:true,eightTools:true,sharedSensitivityReactivity:true,zeroMinuteScenario:true,dependencyGraph:true,historyCache:true,citedBrief:true,textDownload:true,radar:true,keyboardTabs:true,noOverflow:true,pageErrors:errors});
   await context.close();
  }
  assert.equal(paidRequests,0);report.requests={historyRequests,paidRequests,boardRequests};

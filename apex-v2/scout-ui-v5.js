@@ -1071,8 +1071,16 @@ function gameTable(r,g){
  }).join('')+'</tbody></table></div><details class="asGameDetails"><summary>Scores, starters &amp; additional stats</summary>'+detailedGameTable(r,g)+'</details>';
 }
 function comparisonRows(g){
- var comparison=quoteComparison(g),low=comparison.bestLines.OVER,high=comparison.bestLines.UNDER;
- return '<p class="asNotice">'+esc(comparison.side)+' line consensus: '+(comparison.consensus==null?'Unavailable':esc(dec(comparison.consensus)))+'. Median of fresh, unambiguous lines from at least two books on this side.</p><div class="asLineBest"><span>Lowest Over '+(low==null?'Unavailable':esc(dec(low)))+'</span><span>Highest Under '+(high==null?'Unavailable':esc(dec(high)))+'</span></div><p class="asNotice">Line position and price are separate comparisons. Neither is a win probability or a claim of positive expected value.</p>';
+ var comparison=quoteComparison(g);
+ var card=(side,title)=>{
+  var line=comparison.bestLines[side],offers=comparison.offers.filter(q=>q.fresh&&q.side===side&&q.line===line);
+  return '<article class="asLineOpportunity"><small>'+title+'</small><strong>'+(line==null?'Unavailable':esc(dec(line)))+'</strong>'
+   +(offers.length?offers.map(q=>'<button type="button" class="asQuoteChoice" data-use-quote="'+esc(JSON.stringify([q.bookKey,q.side,q.line]))+'" aria-label="Research '+esc(q.sportsbook||q.sportsbookKey)+' '+side+' '+esc(dec(line))+'"><span>'+esc(q.sportsbook||q.sportsbookKey)+'</span><span>'+(q.price==null?'Price unavailable':esc(money(q.price)))+'</span><span class="asQuoteAction">Research this line →</span></button>').join(''):'<p>No fresh, verified offer on this side.</p>')+'</article>';
+ };
+ var winners=comparison.bestPrices[comparison.side]||[];
+ return '<div class="asLineOpportunities">'+card('OVER','Lowest Over line')+card('UNDER','Highest Under line')+'</div>'
+  +'<div class="asMarketSummary"><div><small>'+esc(comparison.side)+' consensus line</small><b>'+(comparison.consensus==null?'Unavailable':esc(dec(comparison.consensus)))+'</b><span>Median across at least two fresh books</span></div><div><small>Best '+esc(comparison.side)+' price at '+esc(dec(comparison.selectedLine))+'</small><b>'+(winners.length?esc(money(winners[0].price)):'Unavailable')+'</b><span>'+esc(winners.length?winners.map(q=>q.sportsbook||q.sportsbookKey).join(' · '):'Needs two fresh prices at this exact line')+'</span></div></div>'
+  +'<p class="asNotice">Research a quoted line to update your chart, side and book history. Sportsbook offers stay unchanged. A lower Over or higher Under line is not by itself better value; price matters too.</p>';
 }
 
 function historyChart(series){
@@ -1096,16 +1104,25 @@ async function intelligenceReadHistory(g,book,side){
 }
 async function historyHtml(g,book,side){
  var pid=propIdForRow(g.rows[0])||g.propId;if(!pid)return'<p class="asNotice">Line history is unavailable for this prop.</p>';
- var key=[pid,book,side].join('|'),entry=historyCache.get(key),j;
- try{if(entry&&entry.expires>Date.now())j=await entry.promise;else{var promise=nativeFetch('/api/apex/line-history?'+new URLSearchParams({propId:pid,bookmaker:book,side,limit:1000}),{signal:AbortSignal.timeout(15000)}).then(async response=>{if(!response.ok)throw Error();return response.json();});historyCache.set(key,{promise,expires:Date.now()+60000});j=await promise;}
- var series=analyzeLineHistory(j.rows||[],{bookmaker:book,side}),rows=series.rows;
+ var j;
+ try{j=await intelligenceReadHistory(g,book,side);
+ var series=analyzeLineHistory(j.rows||[],{propId:pid,bookmaker:book,side}),rows=series.rows;
  if(!j.configured||!rows.length)return'<p class="asNotice">Building line history</p>';
  var a=series.first,b=series.last,move=series.lineChange,current=g.archived?null:g.rows.find(x=>x.sportsbookKey===book&&x.side===side);
  return'<div class="asContext"><div class="asCtx"><small>First observed</small><b>'+dec(a.line)+'</b></div><div class="asCtx"><small>Last observed</small><b>'+dec(b.line)+'</b></div><div class="asCtx"><small>Observed line change</small><b>'+(move>0?'+':'')+dec(move)+'</b></div><div class="asCtx"><small>Current offer</small><b>'+dec(current?.line)+'</b></div></div><p class="asNotice">'+(series.building?'Building line history':series.changes.length<2?'No line or price changes observed.':'Observed changes for this sportsbook and side.')+' '+rows.length+' stored observations.'+((j.rows||[]).length===1000?' History limited to the first 1,000 observations; the current offer may be newer.':'')+'</p>'+historyChart(series)+'<div class="asTableWrap"><table class="asTable asHistoryTable"><thead><tr><th>Observed</th><th>Line</th><th>Price</th></tr></thead><tbody>'+series.changes.slice().reverse().map(x=>'<tr><td><time datetime="'+esc(x.created_at)+'">'+esc(new Date(x.created_at).toLocaleDateString())+'<span>'+esc(new Date(x.created_at).toLocaleTimeString())+'</span></time></td><td>'+dec(x.line)+'</td><td>'+money(x.price)+'</td></tr>').join('')+'</tbody></table></div>';
- }catch{return'<p class="asNotice">Line history could not load. Close and reopen the drawer to try again shortly.</p>';}
+ }catch{return'<p class="asNotice">Line history could not load.</p><button type="button" class="asBtn" id="asRetryHistory">Retry history</button>';}
 }
 function openDrawer(g){if(!drawerState)lastFocus=document.activeElement;if(sandbox.key!==g.key)sandbox={key:g.key,out:new Set(),roster:null,loading:false};drawerState={g,line:boardLine(g),side:defaultSide(g),window:'l10',filter:'all',base:null,historyBook:bookFilter!=='all'?bookFilter:books(g)[0]};document.getElementById('asDrawerBg').classList.add('on');document.body.style.overflow='hidden';document.querySelector('.asMain').inert=true;document.querySelector('.asTop').inert=true;document.querySelector('.asNav').inert=true;renderDrawer();document.getElementById('asClose').focus();getResearch(g,drawerState.line,drawerState.side,false).then(r=>{if(!drawerState||drawerState.g.key!==g.key)return;drawerState.base=r;renderDrawer();});}
-function loadHistoryIntoDrawer(){if(!drawerState)return;var {g,historyBook,side}=drawerState;historyHtml(g,historyBook,side).then(html=>{if(drawerState?.g.key!==g.key||drawerState?.historyBook!==historyBook||drawerState?.side!==side)return;var el=document.getElementById('asHistory');if(el)el.innerHTML=html;});}
+function loadHistoryIntoDrawer(){
+ if(!drawerState)return;var {g,historyBook,side}=drawerState;
+ var host=document.getElementById('asHistory');if(host)host.innerHTML='<p class="asNotice" role="status">Loading observed history…</p>';
+ historyHtml(g,historyBook,side).then(html=>{
+  if(drawerState?.g.key!==g.key||drawerState?.historyBook!==historyBook||drawerState?.side!==side)return;
+  var el=document.getElementById('asHistory');if(!el)return;el.innerHTML=html;
+  document.getElementById('asRetryHistory')?.addEventListener('click',()=>loadHistoryIntoDrawer());
+ });
+}
+
 function researchAvailability(base){if(base?.message)return base.message;var c=String(base?.code||'');if(/UNMAPPED/.test(c))return 'This market does not yet have a supported historical statistic. Current sportsbook lines remain available.';if(/SEASON_ONLY|NO_GAME_LOG/.test(c)||base?.sections?.seasonTotal)return 'Season or player context is available, but completed game logs were not returned. Hit rates require individual game results.';if(/PLAYER.*MATCH|AMBIGUOUS/.test(c))return 'This player could not be uniquely matched to historical statistics. Current sportsbook lines remain available.';return 'Historical research could not be loaded for this player and market. Any supplied player context and sportsbook lines remain available.';}
 // An empty filtered log is usually the head-to-head view on a player who has
 // not faced this opponent. Say that in plain language and show the recent form
@@ -1148,7 +1165,7 @@ function renderDrawer(){
  var pillsHtml=section('Hit rate',hitPills(r||base));
  var panels={sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
   ask:section('Ask about this prop',askPanel(g,line,side)),
-  overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent),lines:section('Every book',bookMatrix(g))+section('Sportsbook line shop',comparisonRows(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
+  overview:pillsHtml+projectionHtml+(base?.available?section('Hit-rate windows',windowCards(r,drawerState.window),esc(side+' '+dec(line)))+section('Game-by-game performance',filters+chartHtml(r),'Actual results')+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent):'')+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Supporting stats',supportingStats(r,g))+section('Game log',logContent),lines:section('Best Line Finder',comparisonRows(g))+section('Every book',bookMatrix(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
  intelligence?.disposeDetails();
  panels.intelligence='<div id="asIntelligenceDetail">'+(intelligence?'':'<p class="asNotice">Intelligence tools could not load. Reload the page; existing research remains available.</p>')+'</div>';
  document.getElementById('asDrawerBody').innerHTML=(g.archived?'<p class="asAvailability">Saved snapshot from '+esc(when(g.savedAt))+'. Current sportsbook offers are unavailable for this prop.</p>':'')+section('Research controls',controls)+(!base?'<div class="asLoading" role="status">Loading player research…</div>':!base.available?'<p class="asAvailability">'+esc(researchAvailability(base))+'</p><button class="asBtn" id="asRetryResearch">Retry research</button>':'')+tabBar+'<div role="tabpanel" id="asPanel-'+panel+'" aria-labelledby="asTab-'+panel+'" tabindex="0">'+panels[panel]+'</div>';
@@ -1175,6 +1192,13 @@ function renderDrawer(){
  document.getElementById('asLineMinus').onclick=()=>changeLine(Number(((num(line)??0)-.5).toFixed(2)));
  document.getElementById('asLinePlus').onclick=()=>changeLine(Number(((num(line)??0)+.5).toFixed(2)));
  document.getElementById('asLineInput').onchange=e=>changeLine(e.target.value);
+ document.querySelectorAll('[data-use-quote]').forEach(b=>b.onclick=()=>{
+  var [book,offerSide,offerLine]=JSON.parse(b.dataset.useQuote);
+  var offer=quoteComparison(g).offers.find(q=>q.fresh&&q.bookKey===book&&q.side===offerSide&&q.line===offerLine);
+  if(!offer){toast('This quote is no longer current. Refresh the board.');return;}
+  drawerState.line=offer.line;drawerState.side=offer.side;drawerState.historyBook=offer.sportsbookKey||offer.sportsbook;
+  renderDrawer();document.getElementById('asLineInput')?.focus();
+ });
  document.querySelectorAll('[data-side]').forEach(b=>b.onclick=()=>{drawerState.side=b.dataset.side;renderDrawer();});
  document.querySelectorAll('[data-window]').forEach(b=>b.onclick=()=>{drawerState.window=b.dataset.window;renderDrawer();});
  document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{drawerState.filter=b.dataset.filter;renderDrawer();});

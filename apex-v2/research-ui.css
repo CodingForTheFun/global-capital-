@@ -469,3 +469,16 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asSupportingStats .asSupportSample{display:block;margin-top:6px;font-size:.75rem;line-height:1.5;color:#94a3b8;overflow-wrap:anywhere}
 
 .asQuoteTime{display:block;margin-top:4px;font-size:.75rem;font-weight:400;color:#94a3b8;white-space:normal}
+
+/* Market-intelligence controls reuse the verified quote comparison. */
+.asLineOpportunities,.asMarketSummary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.asLineOpportunity{min-width:0;background:#0b1120;border:1px solid #2a3b51;border-radius:12px;padding:16px}
+.asLineOpportunity>small,.asMarketSummary small{display:block;font-size:.875rem;color:#aabbd0}
+.asLineOpportunity>strong{display:block;font-size:1.75rem;margin:8px 0 14px;color:#e5f5ee;font-variant-numeric:tabular-nums}
+.asLineOpportunity p{font-size:.875rem;color:#aabbd0;line-height:1.5}
+.asQuoteChoice{width:100%;min-height:44px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;text-align:left;padding:12px;margin-top:8px;border:1px solid #36566a;border-radius:8px;background:#102831;color:#e2eee9;font:inherit;font-size:.875rem}
+.asQuoteChoice span{overflow-wrap:anywhere}.asQuoteChoice:hover{background:#173c44}.asQuoteChoice:focus-visible{outline:2px solid #5ee5b5;outline-offset:3px}
+.asQuoteChoice .asQuoteAction{grid-column:1/-1;color:#80dbbc;font-size:.75rem}
+.asMarketSummary{margin-top:14px}.asMarketSummary>div{min-width:0;padding:12px;border-left:2px solid #3a635c}
+.asMarketSummary b{display:block;font-size:1.125rem;margin:8px 0}.asMarketSummary span{display:block;font-size:.75rem;line-height:1.5;color:#aabbd0;overflow-wrap:anywhere}
+@media(max-width:480px){.asLineOpportunities,.asMarketSummary{grid-template-columns:1fr}.asLineOpportunity{padding:14px}}

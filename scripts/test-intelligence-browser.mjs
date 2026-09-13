@@ -135,6 +135,12 @@ try{
   assert.equal(researchRequests,beforeMatchupResearch,'matchup filters reuse loaded history');
   assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
   await page.screenshot({path:path.join(out,`${name}-similar-games.png`),fullPage:false});
+  await page.locator('#asTab-win').click();
+  assert.equal(await page.locator('[data-win-status] strong').allTextContents().then(v=>v.join('|')),'Unavailable|Unavailable');
+  assert.doesNotMatch(await page.locator('.asWinPredictor').textContent(),/[0-9]+%/);
+  await page.locator('.asWinPredictor summary').click();
+  assert.equal(await page.locator('.asDrawer').evaluate(e=>e.scrollWidth>e.clientWidth),false);
+  await page.screenshot({path:path.join(out,`${name}-win-predictor.png`),fullPage:false});
   await page.locator('#asTab-pro').click();
   assert.match(await page.locator('[data-pro-tool="ev"]').textContent(),/No qualifying positive EV/);
   assert.ok(await page.locator('[data-pro-tool="arbitrage"] .asProCard').count()>0);
@@ -150,7 +156,7 @@ try{
   revision++;await page.locator('#asRefresh').click();await page.waitForFunction(()=>document.querySelector('#asi-radar-count')?.textContent.includes('observed changes'));
   await page.locator('.asi-radar summary').click();assert.ok(await page.locator('[data-radar-key]').count()>0);
   assert.deepEqual(errors,[]);
-  report.checks.push({viewport:name,selectedSampleStats:true,l20Controls:true,exactLinePriceComparison:true,quoteResearchSelection:true,historyFailureRetry:true,proTools:true,matchupSamples:true,similarGameFilters:true,eightTools:true,sharedSensitivityReactivity:true,zeroMinuteScenario:true,dependencyGraph:true,historyCache:true,citedBrief:true,textDownload:true,radar:true,keyboardTabs:true,noOverflow:true,pageErrors:errors});
+  report.checks.push({viewport:name,selectedSampleStats:true,l20Controls:true,exactLinePriceComparison:true,quoteResearchSelection:true,historyFailureRetry:true,winPredictorUnavailable:true,proTools:true,matchupSamples:true,similarGameFilters:true,eightTools:true,sharedSensitivityReactivity:true,zeroMinuteScenario:true,dependencyGraph:true,historyCache:true,citedBrief:true,textDownload:true,radar:true,keyboardTabs:true,noOverflow:true,pageErrors:errors});
   await context.close();
  }
  assert.equal(paidRequests,0);report.requests={historyRequests,paidRequests,boardRequests};

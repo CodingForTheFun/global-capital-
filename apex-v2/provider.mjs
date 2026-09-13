@@ -91,14 +91,14 @@ async function fetchPrimaryCoalesced(provider, selected, options) {
   }
 }
 
-export async function fetchUnifiedBoard(league, { signal, force = false, includeAlternates = false } = {}) {
+export async function fetchUnifiedBoard(league, { signal, force = false, includeAlternates = false, cacheOnly = false, respectFresh = false } = {}) {
   const selected = text(league || 'NFL').toUpperCase();
   const oddsProvider = primaryOddsProvider();
   let oddsError = null;
 
   if (oddsProvider) {
     try {
-      return await fetchPrimaryCoalesced(oddsProvider, selected, { signal, force, includeAlternates });
+      return await oddsProvider.fetchBoard(selected, { signal, force, includeAlternates, cacheOnly, respectFresh });
     } catch (error) {
       oddsError = error;
     }

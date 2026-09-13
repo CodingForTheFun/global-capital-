@@ -14,6 +14,8 @@ permissions:
 
 jobs:
   production-smoke:
+    # PRs use mocked regression/browser checks. Live verification runs once after deployment.
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -30,5 +32,7 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify public production pipeline and rendered prop card
         env:
+          AUTOSCOUT_EXPECTED_SHA: ${{ github.sha }}
+          AUTOSCOUT_SMOKE_SPORTS: NFL,MLB
           AUTOSCOUT_PUBLIC_URL: https://autoprop-live-production.up.railway.app
         run: node scripts/public-production-smoke.mjs

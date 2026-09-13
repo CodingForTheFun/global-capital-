@@ -653,6 +653,15 @@ const server = http.createServer(async (req, res) => {
     const injectApexShell = dst.injectShell === true && dst.port === APEX_PORT && type.includes('text/html');
     const scrubJson = dst.sanitizeJson === true && type.includes('application/json');
 
+    // Only the trusted loopback data-core props route can attest that it used
+    // the shared sanitizer. Pipe its bounded stream without 60+ MB JSON copies.
+    if(scrubJson && dst.port===APEX_PORT && dst.path.split('?')[0]==='/api/props' && upstream.headers['x-autoscout-public-json']==='1'){
+      const headers=proxyHeaders(upstream.headers);delete headers['x-autoscout-public-json'];
+      res.writeHead(upstream.statusCode||200,headers);
+      upstream.on('error',()=>res.destroy());res.on('close',()=>upstream.destroy());
+      upstream.pipe(res);return;
+    }
+
     if (scrubJson) {
       // Buffer so vendor names, plan limits and credit balances can be removed
       // before anything customer-facing leaves the frontdoor.

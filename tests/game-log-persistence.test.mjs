@@ -27,7 +27,8 @@ test('NBA verified logs persist under stable ESPN history identity and general c
   assert.equal(rows.length, 1);
   assert.equal(rows[0].player_id, 'history:NBA:12345');
   assert.equal(rows[0].category, 'general');
-  assert.equal(rows[0].season_type, '2');
+  assert.equal(rows[0].season_type, 2);
+  assert.equal(rows[0].season, '2026');
   assert.equal(rows[0].stats.value, 31);
 });
 

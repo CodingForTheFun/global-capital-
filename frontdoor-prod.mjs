@@ -98,7 +98,7 @@ function target(rawUrl = '/') {
     return { port: APEX_NEXT_PORT, path: url.pathname + url.search, injectShell: false };
   }
   if (url.pathname === '/api/apex-next/health') return { port: APEX_NEXT_PORT, path: '/api/health' + url.search, injectShell: false, sanitizeJson: true };
-  if (url.pathname === '/api/apex-next/props') return { port: APEX_NEXT_PORT, path: '/api/props' + url.search, injectShell: false, sanitizeJson: true };
+  if (url.pathname === '/api/apex-next/props') return { port: APEX_PORT, path: '/api/props' + url.search, injectShell: false, sanitizeJson: true };
 
   return { port: SCOUT_PORT, path: rawUrl, injectShell: false };
 }
@@ -652,6 +652,15 @@ const server = http.createServer(async (req, res) => {
     const type = String(upstream.headers['content-type'] || '');
     const injectApexShell = dst.injectShell === true && dst.port === APEX_PORT && type.includes('text/html');
     const scrubJson = dst.sanitizeJson === true && type.includes('application/json');
+
+    // Only the trusted loopback data-core props route can attest that it used
+    // the shared sanitizer. Pipe its bounded stream without 60+ MB JSON copies.
+    if(scrubJson && dst.port===APEX_PORT && dst.path.split('?')[0]==='/api/props' && upstream.headers['x-autoscout-public-json']==='1'){
+      const headers=proxyHeaders(upstream.headers);delete headers['x-autoscout-public-json'];
+      res.writeHead(upstream.statusCode||200,headers);
+      upstream.on('error',()=>res.destroy());res.on('close',()=>upstream.destroy());
+      upstream.pipe(res);return;
+    }
 
     if (scrubJson) {
       // Buffer so vendor names, plan limits and credit balances can be removed

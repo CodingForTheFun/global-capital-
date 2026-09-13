@@ -154,3 +154,17 @@ test('health reports progress and never leaks a credential', async () => {
   const text = JSON.stringify(health);
   assert.ok(!/key|token|secret|password|apikey/i.test(text), text);
 });
+
+test('overlapping ingestion cycles do not duplicate scheduled refreshes',async()=>{
+ _resetIngestState();let release,calls=0;
+ const hold=new Promise(r=>release=r);
+ const pending=runIngestCycle({sports:['NFL'],fetchBoard:async()=>{calls++;await hold;return board(1);},persist:persistOk(),log:quiet});
+ await new Promise(r=>setImmediate(r));
+ const duplicate=await runIngestCycle({sports:['NFL'],fetchBoard:async()=>{calls++;return board(1);},persist:persistOk(),log:quiet});
+ assert.equal(duplicate.skipped,true);assert.match(duplicate.reason,/already running/);release();await pending;assert.equal(calls,1);
+});
+test('events without useful prop lines are skipped temporarily',async()=>{
+ _resetIngestState();let calls=0;
+ const deps={sports:['NHL'],fetchBoard:async()=>{calls++;return {meta:{events:25,lineCount:0}};},persist:persistOk(),log:quiet};
+ await runIngestCycle(deps);const second=await runIngestCycle(deps);assert.equal(calls,1);assert.equal(second.leagues[0].skipped,true);
+});

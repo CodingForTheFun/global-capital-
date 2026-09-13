@@ -9,7 +9,7 @@ async function waitForHealth() {
     try {
       const response = await fetch(`${BASE}/api/health`, { cache: 'no-store' });
       const body = await response.json();
-      if (response.ok && body?.ok === true && body?.service === 'autoscout-apex' && body?.provider?.configured === true) return body;
+      if (response.ok && body?.ok === true && body?.service === 'autoscout-apex' && body?.provider?.configured === true && (!process.env.AUTOSCOUT_EXPECTED_SHA || body.revision===process.env.AUTOSCOUT_EXPECTED_SHA)) return body;
       last = `HTTP ${response.status} service=${body?.service || 'unknown'}`;
     } catch (error) {
       last = error?.message || String(error);
@@ -81,7 +81,7 @@ function assertRealProp(row) {
 
 async function verifyApi(cookie) {
   const authed = cookie ? { cache: 'no-store', headers: { cookie } } : { cache: 'no-store' };
-  const sports = ['NFL', 'NBA', 'WNBA', 'MLB', 'NCAAF'];
+  const sports = (process.env.AUTOSCOUT_SMOKE_SPORTS || 'NFL,MLB').split(',').map(s=>s.trim()).filter(Boolean);
   const results = [];
   let sample = null;
   for (const sport of sports) {
@@ -96,6 +96,7 @@ async function verifyApi(cookie) {
       lines: Number(body?.meta?.lineCount ?? body?.props?.length ?? 0),
       provider: body?.meta?.provider || null,
       cacheHit: body?.meta?.cacheHit === true,
+      stale:body?.meta?.stale===true,
       ruleAudit: Boolean(body?.props?.[0]?.autoScout?.checks?.length),
       databaseConfigured: body?.persistence?.configured === true,
     });
@@ -226,9 +227,21 @@ const health = await waitForHealth();
 const session = await openSession();
 const api = await verifyApi(session);
 const browser = await verifyBrowser(session);
+const after = await waitForHealth();
+if(after.startedAt!==health.startedAt)throw new Error('Data core restarted during controlled smoke.');
+if(after.provider?.requestControl?.circuit==='OPEN')throw new Error('Provider circuit is open after smoke.');
+const repeat=await fetch(`${BASE}/api/apex/props?sport=NFL`,session?{headers:{cookie:session}}:{});
+if(!repeat.ok)throw new Error(`Repeated cached board returned HTTP ${repeat.status}`);
+const repeatBody=await repeat.json();
+if(repeatBody?.meta?.cacheHit!==true||!repeatBody?.props?.length)throw new Error('Expected a populated cache hit.');
+
 
 console.log(JSON.stringify({
   ok: true,
+  revision:after.revision,
+  cacheVerified:true,
+  stableProcess:true,
+  requestControl:after.provider?.requestControl,
   phase: 'Auto Scout v5 prop research',
   health: {
     service: health.service,

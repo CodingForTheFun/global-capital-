@@ -1,3 +1,4 @@
+import {writePublicBoard} from '../lib/autoscout/public-board-response.mjs';
 import { fetchGameBoard, fetchTacoBoard } from '../lib/autoscout/providers/the-odds-api.mjs';
 import { startFrugalPersistence } from '../lib/autoscout/persistence-scheduler.mjs';
 import crypto from 'node:crypto';
@@ -78,10 +79,11 @@ async function propsResponse(req, url, res) {
   try {
     const rawBoard = await fetchUnifiedBoard(sport, { signal: controller.signal, includeAlternates });
     const board = decorateBoardWithScoutAudit(rawBoard);
-    if (!board?.meta?.cacheHit) void persistNormalizedBoard(board);
-    return json(res, 200, { ...board, supportedSports: SUPPORTED_SPORTS, persistence: persistenceHealth() });
+    if (!board?.meta?.cacheHit) void persistNormalizedBoard(board).catch(()=>{});
+    return await writePublicBoard(res, { ...board, supportedSports: SUPPORTED_SPORTS, persistence: persistenceHealth() });
   } catch (error) {
-    return json(res, 502, { ok: false, code: String(error?.code || 'PROVIDER_ERROR'), message: 'Live prop data is temporarily unavailable for this sport.', sport });
+    if(res.headersSent){res.destroy();return;}
+    return json(res, 503, { ok: false, code: String(error?.code || 'PROVIDER_ERROR'), message: 'Live prop data is temporarily unavailable for this sport.', sport }, {'retry-after':'30'});
   } finally {
     clearTimeout(timer);
   }
@@ -103,7 +105,7 @@ async function e2eStatus() {
   const preferred = ['NFL','MLB','WNBA','NCAAF','NBA','NHL','NCAAB'];
   for (const sport of preferred) {
     try {
-      const board = decorateBoardWithScoutAudit(await fetchUnifiedBoard(sport, {}));
+      const board = decorateBoardWithScoutAudit(await fetchUnifiedBoard(sport, {cacheOnly:true}));
       const row = (board?.props || []).find((prop) => prop.playerName && prop.sportsbook && Number.isFinite(Number(prop.line)) && ['OVER','UNDER'].includes(prop.side));
       if (!row) continue;
       return {
@@ -129,7 +131,7 @@ async function e2eStatus() {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, { ok: true, service: 'autoscout-apex', startedAt, supportedSports: SUPPORTED_SPORTS, ...providerHealth(), persistence: persistenceHealth() });
+    return json(res, 200, { ok: true, service: 'autoscout-apex', revision:process.env.RAILWAY_GIT_COMMIT_SHA||null, startedAt, supportedSports: SUPPORTED_SPORTS, ...providerHealth(), persistence: persistenceHealth() });
   }
   if (url.pathname === '/api/game-markets' || url.pathname === '/api/taco-offers') {
     if(req.method !== 'GET') return json(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'});
@@ -160,9 +162,9 @@ async function warmSports() {
   if (!process.env.THE_ODDS_API_KEY) return;
   for (const sport of AUTOMATIC_SPORTS) {
     try {
-      const rawBoard = await fetchUnifiedBoard(sport, {});
+      const rawBoard = await fetchUnifiedBoard(sport, {cacheOnly:true});
       const board = decorateBoardWithScoutAudit(rawBoard);
-      if (!board?.meta?.cacheHit) void persistNormalizedBoard(board);
+      if (!board?.meta?.cacheHit) void persistNormalizedBoard(board).catch(()=>{});
       console.log(`[AutoScout Phase2] ${sport} events=${board?.meta?.events || 0} markets=${board?.meta?.marketKeys?.length || 0} books=${board?.meta?.sportsbookCount || 0} lines=${board?.meta?.lineCount ?? board?.props?.length ?? 0} cache=${board?.meta?.cacheHit ? 'hit' : 'miss'}`);
     } catch (error) {
       console.error(`[AutoScout Phase2] ${sport} sync failed code=${String(error?.code || 'SYNC_FAILED')}`);

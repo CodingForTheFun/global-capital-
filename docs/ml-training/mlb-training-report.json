@@ -1,0 +1,290 @@
+{
+  "sport": "MLB",
+  "records": 223905,
+  "marketsAttempted": 15,
+  "modelsPassed": 10,
+  "passedMarkets": [
+    "batter_hits",
+    "batter_hits_runs_rbis",
+    "batter_rbis",
+    "batter_singles",
+    "batter_total_bases",
+    "pitcher_earned_runs",
+    "pitcher_hits_allowed",
+    "pitcher_outs",
+    "pitcher_strikeouts",
+    "pitcher_walks"
+  ],
+  "evidence": [
+    {
+      "marketId": "batter_doubles",
+      "status": "WITHHELD",
+      "trainingRows": 5884,
+      "trainingEvents": 2670,
+      "heldoutRows": 3081,
+      "heldoutEvents": 880,
+      "rmse": 0.0,
+      "baselineRmse": 0.0,
+      "improvement": 0,
+      "mseDelta95": [
+        0.0,
+        0.0
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-04-02T18:10:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "batter_hits",
+      "status": "PASSED",
+      "trainingRows": 5884,
+      "trainingEvents": 2670,
+      "heldoutRows": 3081,
+      "heldoutEvents": 880,
+      "rmse": 0.0180158248443725,
+      "baselineRmse": 0.018791556169093553,
+      "improvement": 0.041280845382933085,
+      "mseDelta95": [
+        -4.913858613271929e-05,
+        -1.0002669108303815e-05
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-04-02T18:10:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "batter_hits_runs_rbis",
+      "status": "PASSED",
+      "trainingRows": 5884,
+      "trainingEvents": 2670,
+      "heldoutRows": 3081,
+      "heldoutEvents": 880,
+      "rmse": 0.05404747453311749,
+      "baselineRmse": 0.05637466850728065,
+      "improvement": 0.041280845382933085,
+      "mseDelta95": [
+        -0.0004422472751944735,
+        -9.002402197473433e-05
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-04-02T18:10:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "batter_home_runs",
+      "status": "WITHHELD",
+      "trainingRows": 5884,
+      "trainingEvents": 2670,
+      "heldoutRows": 3081,
+      "heldoutEvents": 880,
+      "rmse": 0.0,
+      "baselineRmse": 0.0,
+      "improvement": 0,
+      "mseDelta95": [
+        0.0,
+        0.0
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-04-02T18:10:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "batter_rbis",
+      "status": "PASSED",
+      "trainingRows": 5884,
+      "trainingEvents": 2670,
+      "heldoutRows": 3081,
+      "heldoutEvents": 880,
+      "rmse": 0.036031649688745,
+      "baselineRmse": 0.037583112338187105,
+      "improvement": 0.041280845382933085,
+      "mseDelta95": [
+        -0.00019655434453087715,
+        -4.001067643321526e-05
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-04-02T18:10:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "batter_runs",
+      "status": "WITHHELD",
+      "trainingRows": 5884,
+      "trainingEvents": 2670,
+      "heldoutRows": 3081,
+      "heldoutEvents": 880,
+      "rmse": 0.0,
+      "baselineRmse": 0.0,
+      "improvement": 0,
+      "mseDelta95": [
+        0.0,
+        0.0
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-04-02T18:10:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "batter_singles",
+      "status": "PASSED",
+      "trainingRows": 5884,
+      "trainingEvents": 2670,
+      "heldoutRows": 3081,
+      "heldoutEvents": 880,
+      "rmse": 0.0180158248443725,
+      "baselineRmse": 0.018791556169093553,
+      "improvement": 0.041280845382933085,
+      "mseDelta95": [
+        -4.913858613271929e-05,
+        -1.0002669108303815e-05
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-04-02T18:10:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "batter_stolen_bases",
+      "status": "WITHHELD",
+      "trainingRows": 5884,
+      "trainingEvents": 2670,
+      "heldoutRows": 3081,
+      "heldoutEvents": 880,
+      "rmse": 0.0,
+      "baselineRmse": 0.0,
+      "improvement": 0,
+      "mseDelta95": [
+        0.0,
+        0.0
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-04-02T18:10:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "batter_total_bases",
+      "status": "PASSED",
+      "trainingRows": 5884,
+      "trainingEvents": 2670,
+      "heldoutRows": 3081,
+      "heldoutEvents": 880,
+      "rmse": 0.0180158248443725,
+      "baselineRmse": 0.018791556169093553,
+      "improvement": 0.041280845382933085,
+      "mseDelta95": [
+        -4.913858613271929e-05,
+        -1.0002669108303815e-05
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-04-02T18:10:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "batter_walks",
+      "status": "WITHHELD",
+      "trainingRows": 5884,
+      "trainingEvents": 2670,
+      "heldoutRows": 3081,
+      "heldoutEvents": 880,
+      "rmse": 0.0,
+      "baselineRmse": 0.0,
+      "improvement": 0,
+      "mseDelta95": [
+        0.0,
+        0.0
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-04-02T18:10:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "pitcher_earned_runs",
+      "status": "PASSED",
+      "trainingRows": 15054,
+      "trainingEvents": 6612,
+      "heldoutRows": 8041,
+      "heldoutEvents": 2115,
+      "rmse": 1.3192795831908546,
+      "baselineRmse": 1.3440674081427384,
+      "improvement": 0.018442397160821078,
+      "mseDelta95": [
+        -0.08852914644016283,
+        -0.04441740513273417
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-10-11T00:08:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "pitcher_hits_allowed",
+      "status": "PASSED",
+      "trainingRows": 15054,
+      "trainingEvents": 6612,
+      "heldoutRows": 8041,
+      "heldoutEvents": 2115,
+      "rmse": 1.5486260949457356,
+      "baselineRmse": 1.5711788650228236,
+      "improvement": 0.014354043692384022,
+      "mseDelta95": [
+        -0.09632669216807349,
+        -0.0446736360686773
+      ],
+      "alpha": 50.0,
+      "holdoutStart": "2025-10-11T00:08:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "pitcher_outs",
+      "status": "PASSED",
+      "trainingRows": 15054,
+      "trainingEvents": 6612,
+      "heldoutRows": 8041,
+      "heldoutEvents": 2115,
+      "rmse": 2.5419874746944093,
+      "baselineRmse": 2.7087732627185295,
+      "improvement": 0.061572443260434984,
+      "mseDelta95": [
+        -1.0578481861843247,
+        -0.7090109703843283
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-10-11T00:08:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "pitcher_strikeouts",
+      "status": "PASSED",
+      "trainingRows": 15054,
+      "trainingEvents": 6612,
+      "heldoutRows": 8041,
+      "heldoutEvents": 2115,
+      "rmse": 1.490823473146629,
+      "baselineRmse": 1.51879680234552,
+      "improvement": 0.018418085392128192,
+      "mseDelta95": [
+        -0.11247877857261998,
+        -0.05701668359069349
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-10-11T00:08:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    },
+    {
+      "marketId": "pitcher_walks",
+      "status": "PASSED",
+      "trainingRows": 15054,
+      "trainingEvents": 6612,
+      "heldoutRows": 8041,
+      "heldoutEvents": 2115,
+      "rmse": 0.9032970924531192,
+      "baselineRmse": 0.9231321947173039,
+      "improvement": 0.021486740878167487,
+      "mseDelta95": [
+        -0.045603572652941946,
+        -0.026761469681391935
+      ],
+      "alpha": 50.0,
+      "holdoutStart": "2025-10-11T00:08:00+00:00",
+      "holdoutEnd": "2026-09-13T01:40:00+00:00"
+    }
+  ]
+}

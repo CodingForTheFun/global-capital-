@@ -1,0 +1,238 @@
+{
+  "sport": "NBA",
+  "records": 411504,
+  "marketsAttempted": 12,
+  "modelsPassed": 12,
+  "passedMarkets": [
+    "player_assists",
+    "player_blocks",
+    "player_blocks_steals",
+    "player_points",
+    "player_points_assists",
+    "player_points_rebounds",
+    "player_points_rebounds_assists",
+    "player_rebounds",
+    "player_rebounds_assists",
+    "player_steals",
+    "player_threes",
+    "player_turnovers"
+  ],
+  "evidence": [
+    {
+      "marketId": "player_assists",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 1.8951047800124816,
+      "baselineRmse": 1.9316874561832216,
+      "improvement": 0.01893819626650306,
+      "mseDelta95": [
+        -0.18109825099501253,
+        -0.10121396398936143
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_blocks",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 0.7506507961919316,
+      "baselineRmse": 0.7691429307064718,
+      "improvement": 0.024042520286255198,
+      "mseDelta95": [
+        -0.035033227215003716,
+        -0.02133501726628474
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_blocks_steals",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 1.2673662705039876,
+      "baselineRmse": 1.299892734124628,
+      "improvement": 0.025022421286587382,
+      "mseDelta95": [
+        -0.09931912997466696,
+        -0.06704446784898792
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_points",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 6.197857396101618,
+      "baselineRmse": 6.3005705348731,
+      "improvement": 0.016302196476172037,
+      "mseDelta95": [
+        -1.6233997718298498,
+        -0.9546218123405128
+      ],
+      "alpha": 200.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_points_assists",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 6.790795633729493,
+      "baselineRmse": 6.9083152308765525,
+      "improvement": 0.017011325224681184,
+      "mseDelta95": [
+        -2.0093783628102124,
+        -1.1941819740821764
+      ],
+      "alpha": 200.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_points_rebounds",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 7.330690852630255,
+      "baselineRmse": 7.466958310917248,
+      "improvement": 0.018249393208444764,
+      "mseDelta95": [
+        -2.4965439044831825,
+        -1.5222457412678059
+      ],
+      "alpha": 200.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_points_rebounds_assists",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 7.965979925417144,
+      "baselineRmse": 8.119408052828943,
+      "improvement": 0.018896467133258876,
+      "mseDelta95": [
+        -3.084991220779731,
+        -1.8553215295542773
+      ],
+      "alpha": 50.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_rebounds",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 2.4994403356369688,
+      "baselineRmse": 2.548791337410926,
+      "improvement": 0.019362511575423125,
+      "mseDelta95": [
+        -0.30588602807237425,
+        -0.19271679314953163
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_rebounds_assists",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 3.443770046330162,
+      "baselineRmse": 3.5170220580988767,
+      "improvement": 0.020827851107738216,
+      "mseDelta95": [
+        -0.6228610055527725,
+        -0.3958854171906584
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_steals",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 0.966519757334251,
+      "baselineRmse": 0.9926082570257831,
+      "improvement": 0.026282775210537568,
+      "mseDelta95": [
+        -0.06038421521091404,
+        -0.041552064071274625
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_threes",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 1.309187555383958,
+      "baselineRmse": 1.3340238333167866,
+      "improvement": 0.0186175668774059,
+      "mseDelta95": [
+        -0.08355192492136862,
+        -0.048019665842263276
+      ],
+      "alpha": 200.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    },
+    {
+      "marketId": "player_turnovers",
+      "status": "PASSED",
+      "trainingRows": 23955,
+      "trainingEvents": 4112,
+      "heldoutRows": 9431,
+      "heldoutEvents": 1264,
+      "rmse": 1.2068072047090144,
+      "baselineRmse": 1.2320639927390369,
+      "improvement": 0.02049957484259679,
+      "mseDelta95": [
+        -0.0767590797347018,
+        -0.04591402112509165
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-10-29T00:00:00+00:00",
+      "holdoutEnd": "2026-06-14T00:30:00+00:00"
+    }
+  ]
+}

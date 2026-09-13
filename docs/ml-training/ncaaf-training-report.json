@@ -1,0 +1,81 @@
+{
+  "sport": "NCAAF",
+  "records": 5743,
+  "marketsAttempted": 12,
+  "modelsPassed": 0,
+  "passedMarkets": [],
+  "evidence": [
+    {
+      "marketId": "player_pass_attempts",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 94,
+      "dates": 48
+    },
+    {
+      "marketId": "player_pass_completions",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 94,
+      "dates": 48
+    },
+    {
+      "marketId": "player_pass_interceptions",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 94,
+      "dates": 48
+    },
+    {
+      "marketId": "player_pass_tds",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 94,
+      "dates": 48
+    },
+    {
+      "marketId": "player_pass_yds",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 94,
+      "dates": 48
+    },
+    {
+      "marketId": "player_reception_tds",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 428,
+      "dates": 132
+    },
+    {
+      "marketId": "player_reception_yds",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 428,
+      "dates": 132
+    },
+    {
+      "marketId": "player_receptions",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 428,
+      "dates": 132
+    },
+    {
+      "marketId": "player_rush_attempts",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 522,
+      "dates": 141
+    },
+    {
+      "marketId": "player_rush_reception_yds",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 428,
+      "dates": 132
+    },
+    {
+      "marketId": "player_rush_tds",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 522,
+      "dates": 141
+    },
+    {
+      "marketId": "player_rush_yds",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 522,
+      "dates": 141
+    }
+  ]
+}

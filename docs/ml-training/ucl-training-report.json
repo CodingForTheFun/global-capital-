@@ -1,0 +1,33 @@
+{
+  "sport": "UCL",
+  "records": 4018,
+  "marketsAttempted": 4,
+  "modelsPassed": 0,
+  "passedMarkets": [],
+  "evidence": [
+    {
+      "marketId": "player_assists",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 811,
+      "dates": 64
+    },
+    {
+      "marketId": "player_goals",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 811,
+      "dates": 64
+    },
+    {
+      "marketId": "player_shots",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 549,
+      "dates": 64
+    },
+    {
+      "marketId": "player_shots_on_target",
+      "status": "INSUFFICIENT_HISTORY",
+      "rows": 549,
+      "dates": 64
+    }
+  ]
+}

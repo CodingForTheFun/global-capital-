@@ -1,0 +1,105 @@
+{
+  "sport": "NHL",
+  "records": 264090,
+  "marketsAttempted": 5,
+  "modelsPassed": 5,
+  "passedMarkets": [
+    "player_assists",
+    "player_goals",
+    "player_points",
+    "player_power_play_points",
+    "player_shots_on_goal"
+  ],
+  "evidence": [
+    {
+      "marketId": "player_assists",
+      "status": "PASSED",
+      "trainingRows": 37343,
+      "trainingEvents": 4473,
+      "heldoutRows": 14273,
+      "heldoutEvents": 1377,
+      "rmse": 0.5654561793364069,
+      "baselineRmse": 0.581677127866895,
+      "improvement": 0.027886515995519612,
+      "mseDelta95": [
+        -0.021725736498275333,
+        -0.01550804746676105
+      ],
+      "alpha": 800.0,
+      "holdoutStart": "2025-05-27T00:00:00+00:00",
+      "holdoutEnd": "2026-06-15T00:00:00+00:00"
+    },
+    {
+      "marketId": "player_goals",
+      "status": "PASSED",
+      "trainingRows": 37343,
+      "trainingEvents": 4473,
+      "heldoutRows": 14273,
+      "heldoutEvents": 1377,
+      "rmse": 0.46950378400537474,
+      "baselineRmse": 0.48489704456668675,
+      "improvement": 0.031745420463570206,
+      "mseDelta95": [
+        -0.016971028508172364,
+        -0.012451841642794078
+      ],
+      "alpha": 200.0,
+      "holdoutStart": "2025-05-27T00:00:00+00:00",
+      "holdoutEnd": "2026-06-15T00:00:00+00:00"
+    },
+    {
+      "marketId": "player_points",
+      "status": "PASSED",
+      "trainingRows": 37343,
+      "trainingEvents": 4473,
+      "heldoutRows": 14273,
+      "heldoutEvents": 1377,
+      "rmse": 0.7320149121651068,
+      "baselineRmse": 0.752442115142764,
+      "improvement": 0.027147872994564448,
+      "mseDelta95": [
+        -0.035775229066827854,
+        -0.024964730273763627
+      ],
+      "alpha": 800.0,
+      "holdoutStart": "2025-05-27T00:00:00+00:00",
+      "holdoutEnd": "2026-06-15T00:00:00+00:00"
+    },
+    {
+      "marketId": "player_power_play_points",
+      "status": "PASSED",
+      "trainingRows": 37343,
+      "trainingEvents": 4473,
+      "heldoutRows": 14273,
+      "heldoutEvents": 1377,
+      "rmse": 0.3520464167819292,
+      "baselineRmse": 0.36259867328489837,
+      "improvement": 0.02910175155185446,
+      "mseDelta95": [
+        -0.009295144758140307,
+        -0.005748333731507424
+      ],
+      "alpha": 800.0,
+      "holdoutStart": "2025-05-27T00:00:00+00:00",
+      "holdoutEnd": "2026-06-15T00:00:00+00:00"
+    },
+    {
+      "marketId": "player_shots_on_goal",
+      "status": "PASSED",
+      "trainingRows": 37343,
+      "trainingEvents": 4473,
+      "heldoutRows": 14273,
+      "heldoutEvents": 1377,
+      "rmse": 1.4129538806737443,
+      "baselineRmse": 1.4496698247427322,
+      "improvement": 0.025327107898865053,
+      "mseDelta95": [
+        -0.12103303176069831,
+        -0.08838159906916628
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2025-05-27T00:00:00+00:00",
+      "holdoutEnd": "2026-06-15T00:00:00+00:00"
+    }
+  ]
+}

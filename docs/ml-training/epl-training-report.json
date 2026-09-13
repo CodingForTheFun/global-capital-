@@ -1,0 +1,84 @@
+{
+  "sport": "EPL",
+  "records": 22284,
+  "marketsAttempted": 4,
+  "modelsPassed": 2,
+  "passedMarkets": [
+    "player_assists",
+    "player_goals"
+  ],
+  "evidence": [
+    {
+      "marketId": "player_assists",
+      "status": "PASSED",
+      "trainingRows": 3752,
+      "trainingEvents": 804,
+      "heldoutRows": 1734,
+      "heldoutEvents": 230,
+      "rmse": 0.1904360231384816,
+      "baselineRmse": 0.19798286522944167,
+      "improvement": 0.03811866285607124,
+      "mseDelta95": [
+        -0.004048183665915736,
+        -0.0017935077630480973
+      ],
+      "alpha": 800.0,
+      "holdoutStart": "2025-12-27T12:30:00+00:00",
+      "holdoutEnd": "2026-09-12T19:00:00+00:00"
+    },
+    {
+      "marketId": "player_goals",
+      "status": "PASSED",
+      "trainingRows": 3752,
+      "trainingEvents": 804,
+      "heldoutRows": 1734,
+      "heldoutEvents": 230,
+      "rmse": 0.1587647253449691,
+      "baselineRmse": 0.163652091096983,
+      "improvement": 0.029864364819619516,
+      "mseDelta95": [
+        -0.0026488618772933284,
+        -0.0004326511130349167
+      ],
+      "alpha": 800.0,
+      "holdoutStart": "2025-12-27T12:30:00+00:00",
+      "holdoutEnd": "2026-09-12T19:00:00+00:00"
+    },
+    {
+      "marketId": "player_shots",
+      "status": "WITHHELD",
+      "trainingRows": 3123,
+      "trainingEvents": 778,
+      "heldoutRows": 1150,
+      "heldoutEvents": 194,
+      "rmse": 0.8444384593782092,
+      "baselineRmse": 0.8509626112866749,
+      "improvement": 0.0076667903171457885,
+      "mseDelta95": [
+        -0.034979076795739354,
+        0.012879696538830658
+      ],
+      "alpha": 10.0,
+      "holdoutStart": "2026-01-17T15:00:00+00:00",
+      "holdoutEnd": "2026-09-12T19:00:00+00:00"
+    },
+    {
+      "marketId": "player_shots_on_target",
+      "status": "WITHHELD",
+      "trainingRows": 3123,
+      "trainingEvents": 778,
+      "heldoutRows": 1150,
+      "heldoutEvents": 194,
+      "rmse": 0.41257669870990393,
+      "baselineRmse": 0.42016349889993637,
+      "improvement": 0.01805678077675965,
+      "mseDelta95": [
+        -0.014228961167944506,
+        0.0017903536225647612
+      ],
+      "alpha": 800.0,
+      "holdoutStart": "2026-01-17T15:00:00+00:00",
+      "holdoutEnd": "2026-09-12T19:00:00+00:00"
+    }
+  ]
+}

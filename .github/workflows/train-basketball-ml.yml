@@ -1,0 +1,53 @@
+name: Train basketball research ML
+on:
+  push:
+    branches: [chatgpt/activate-ml-20260913]
+    paths:
+      - scripts/train-basketball-research-models.py
+      - .github/workflows/train-basketball-ml.yml
+permissions:
+  contents: write
+concurrency:
+  group: autoscout-basketball-training
+  cancel-in-progress: false
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install training dependencies
+        run: python -m pip install 'numpy==1.26.4' 'pandas==2.2.3' 'scikit-learn==1.7.2' 'nba_api==1.11.4'
+      - name: Train on official league player game logs
+        run: python scripts/train-basketball-research-models.py --output .training-basketball
+      - name: Enforce nonempty validated output
+        run: |
+          python - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('.training-basketball')
+          for sport in ('nba','wnba'):
+              p=json.loads((root/f'{sport}-ridge-v1.json').read_text())
+              assert p['engine']=='Auto Scout ML' and p['sport']==sport.upper()
+              assert len(p['models'])>=3,(sport,len(p['models']))
+              for m in p['models']:
+                  v=m['validation'];assert v['observations']>=250 and v['events']>=40 and v['rmse']<v['baselineRmse']
+          PY
+      - name: Publish model packs to feature branch only
+        run: |
+          mkdir -p data/ml/research docs/ml-training
+          cp .training-basketball/nba-ridge-v1.json data/ml/research/nba-ridge-v1.json
+          cp .training-basketball/wnba-ridge-v1.json data/ml/research/wnba-ridge-v1.json
+          cp .training-basketball/basketball-training-report.json docs/ml-training/basketball-training-report.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/ml/research/nba-ridge-v1.json data/ml/research/wnba-ridge-v1.json docs/ml-training/basketball-training-report.json
+          git commit -m 'Add chronologically validated NBA and WNBA research models'
+          git push origin HEAD:chatgpt/activate-ml-20260913
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: basketball-ml-training-evidence
+          path: .training-basketball/
+          retention-days: 14

@@ -20,6 +20,7 @@ jobs:
         run: |
           mkdir -p validation-output
           python3 scripts/apply-organized-board.py
+          python3 scripts/finalize-organized-board.py
       - name: Locked dependencies and complete regression suite
         id: tests
         run: |
@@ -73,7 +74,7 @@ jobs:
         run: |
           test "$(git branch --show-current)" = 'chatgpt/organized-player-board'
           git add apex-v2/scout-ui-v5.js apex-v2/research-ui.css frontdoor-prod.mjs lib/data-sources/espn/stat-contract.mjs lib/data-sources/espn/research.mjs lib/autoscout/research-service-v2.mjs scripts/qa-multisport-browser.mjs
-          git rm scripts/apply-organized-board.py scripts/organized-board-browser-tests.txt .github/workflows/organized-board-validation.yml
+          git rm scripts/apply-organized-board.py scripts/finalize-organized-board.py scripts/organized-board-browser-tests.txt .github/workflows/organized-board-validation.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'Fix verified player photos, categorize props and render one player card with genuine history states'

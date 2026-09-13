@@ -15,8 +15,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           mkdir -p evidence
-          gh api /repos/CodingForTheFun/global-capital-/actions/jobs/103665123545/logs | tail -120 > evidence/publish-tail.txt
+          curl --fail --location --silent --show-error --max-time 45 -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/CodingForTheFun/global-capital-/actions/jobs/103665123545/logs | tail -130 > evidence/publish-tail.txt
+          test -s evidence/publish-tail.txt
           cat evidence/publish-tail.txt
       - uses: actions/upload-artifact@v4
         with:

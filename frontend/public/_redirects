@@ -1,0 +1,3 @@
+/api/health /health.json 200
+/api/* /unavailable.json 404
+/* /index.html 200

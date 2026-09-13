@@ -1,0 +1,26 @@
+name: Sportsbook main live verification
+on:
+  push:
+    branches: [production-stable]
+    paths: ['apps/guest-dashboard/**', 'lib/projections/ask.mjs', 'lib/edge/gateway.mjs', 'scripts/verify-sportsbook-live.mjs', '.github/workflows/sportsbook-live-check.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Verify homepage, readiness and one real guest AI answer
+        run: node scripts/verify-sportsbook-live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sportsbook-main-live-verification
+          path: artifacts/
+          retention-days: 7

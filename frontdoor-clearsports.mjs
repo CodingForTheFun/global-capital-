@@ -11,6 +11,7 @@ const sourcePath = './frontdoor-prod.mjs';
 const runtimePath = './.frontdoor-clearsports-runtime.mjs';
 const uiSourcePath = './apex-v2/scout-ui-v5.js';
 const uiRuntimePath = './.scout-ui-v5-runtime.js';
+const ownerSecurityPath = './public/owner-passkey.js';
 const oldImport = './lib/autoscout/research-service.mjs';
 const newImport = './lib/autoscout/research-service-v2.mjs';
 const uiRead = "readFileSync('./apex-v2/scout-ui-v5.js', 'utf8')";
@@ -46,9 +47,15 @@ const source = readFileSync(sourcePath, 'utf8');
 if (!source.includes(oldImport)) throw new Error('ClearSports bootstrap could not locate the research-service import.');
 if (!source.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the Auto Scout v5 UI source.');
 if (!source.includes(researchSports)) throw new Error('ClearSports bootstrap could not locate the research sport allowlist.');
+const ownerSecurityClient = readFileSync(ownerSecurityPath, 'utf8');
+try { new Function(ownerSecurityClient); }
+catch (error) { throw new Error(`Owner security client is invalid: ${error?.message || error}`); }
 const patchedResearchUi = patchResearchUi(readFileSync(uiSourcePath, 'utf8'));
 const patchedNavAndRingUi = patchNavAndRingUi(patchedResearchUi);
-writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedNavAndRingUi), 'utf8');
+// Owner security executes first. The v5 application captures window.fetch at
+// startup, so loading the passkey wrapper after the application would leave the
+// ordinary owner-password form unable to upgrade itself into WebAuthn.
+writeFileSync(uiRuntimePath, ownerSecurityClient + '\n' + makeClientSafeVisualUi(patchedNavAndRingUi), 'utf8');
 // Run the existing edge safety patch against its original source anchors first.
 // The runtime-only UI file substitution happens afterwards so account/routing
 // safeguards still fail closed if the production frontdoor shape changes.

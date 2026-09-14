@@ -26,3 +26,53 @@ test('Oblige Props visual layer keeps real-data UI and matches the mobile target
   assert.match(output, /\.asSave:before\{content:"☆"/, 'save action must be represented as the compact card-corner star');
   assert.match(output, /env\(safe-area-inset-bottom\)/, 'floating navigation must respect iPhone safe area');
 });
+
+test('the centre hit rate fits inside the donut hole at every ring size', () => {
+  const original = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
+  const output = patchObligePropsVisualUi(patchNavAndRingUi(patchResearchUi(original)));
+
+  // The ring is viewBox 64 with r=26, so the hole radius is (26 - stroke/2)
+  // scaled by size/64. The percentage is typeset in whatever the font stack
+  // resolves to: the app names Inter but never loads an @font-face for it, so
+  // the real metric is the system fallback, measured at 3.246x the font size
+  // for the widest value ("57.6%") and one line box tall.
+  const stroke = Number(/#as5 \.asRingSvg circle\{stroke-width:(\d+(?:\.\d+)?)!important\}/.exec(output)?.[1]);
+  assert.ok(Number.isFinite(stroke), 'ring stroke width must be pinned in the patch');
+  const WIDEST = 3.246, reach = f => Math.hypot(WIDEST * f / 2, f / 2);
+
+  // Only this patch's own stylesheet matters: it is appended last and every one
+  // of its ring rules is !important, so it overrides the nav/ring sheet that
+  // ships earlier in the bundle. Walking both as one stylesheet would pair a
+  // ring size from one with a font size from the other.
+  const sheet = /<style id="oblige-props-pixel-target">([\s\S]*?)<\/style>/.exec(output)?.[1];
+  assert.ok(sheet, 'the visual patch stylesheet must be present');
+  // Walk the cascade: base rules first, then each narrower media block, each
+  // inheriting whatever it does not restate.
+  const blocks = sheet.split(/@media\(max-width:(\d+)px\)\{/);
+  let size = null, font = null, checked = 0;
+  for (let i = 0; i < blocks.length; i += (i === 0 ? 1 : 2)) {
+    const css = i === 0 ? blocks[0] : blocks[i + 1];
+    if (!css) continue;
+    const sizes = [...css.matchAll(/#as5 [^{]*\.asRingSvg[^{]*\{width:(\d+)px!important/g)];
+    const fonts = [...css.matchAll(/#as5 \.asHitChance strong\{font-size:(\d+)px!important/g)];
+    if (sizes.length) size = Number(sizes.at(-1)[1]);
+    if (fonts.length) font = Number(fonts.at(-1)[1]);
+    if (size == null || font == null) continue;
+    const hole = size * (26 - stroke / 2) / 64;
+    assert.ok(
+      reach(font) <= hole - 2,
+      `a ${font}px percentage reaches ${reach(font).toFixed(1)}px inside a ${size}px ring whose hole is ${hole.toFixed(1)}px — it would touch the stroke`,
+    );
+    checked++;
+  }
+  assert.ok(checked >= 4, `every ring size must be covered, only checked ${checked}`);
+
+  // The caption used to sit under the number inside the hole, where nothing of
+  // that width fits. It stays in the DOM for screen readers but must not paint.
+  assert.match(
+    output,
+    /#as5 \.asHitChance span\{position:absolute!important;[^}]*clip-path:inset\(50%\)!important/,
+    'the centre caption must be screen-reader only, not painted inside the donut',
+  );
+  assert.match(output, /#as5 \.asRingLegend \.asWin b\{/, 'the legend must mark which side the centre number reports');
+});

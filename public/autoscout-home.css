@@ -46,6 +46,7 @@ body.asResearchHome{background:#0a101b}
 /* Always-visible account/security entry point. It reuses the existing server-backed
    account flows; this is presentation only and grants no client-side authority. */
 #as5 .asHeaderAccount{position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);right:max(14px,env(safe-area-inset-right,0px));margin:0;z-index:80;width:44px;height:44px}
+#as5:has(#asDrawerBg:not([hidden]),.asUtility[open])>.asHeaderAccount{display:none}
 #as5 .asHeaderAccount>summary{list-style:none;display:flex;align-items:center;justify-content:center;width:44px;height:44px;min-height:44px;padding:0;border:1px solid #30445d;border-radius:999px;background:#111c2b;color:#eaf3ff;cursor:pointer;font-size:12px;font-weight:800;user-select:none;box-shadow:0 8px 24px #0003}
 #as5 .asHeaderAccount>summary::-webkit-details-marker{display:none}
 #as5 .asHeaderAccount>summary::marker{content:""}

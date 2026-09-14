@@ -63,9 +63,9 @@ body.asResearchHome{background:#0a101b}
 @media(max-width:1050px){#as5 .asDesktopLabel{display:none}#as5 .asFilters{grid-template-columns:repeat(4,minmax(0,1fr))}#as5 .asSearchLabel{grid-column:1/-1}#as5 .asMain{padding:22px 16px}}
 @media(max-width:650px){
  #as5 .asBar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));height:auto;min-height:96px;padding:12px 12px 8px;gap:8px;overflow:visible}
- #as5 .asIdentity{grid-column:1/4}#as5 .asBar .asGrow,#as5 .asBar .asStatus{display:none}#as5 .asBar .asBtn{padding:6px;font-size:11px;min-height:36px}
+ #as5 .asIdentity{grid-column:1/3;grid-row:1}#as5 .asBar .asGrow,#as5 .asBar .asStatus{display:none}#as5 .asBar .asBtn{padding:6px;font-size:11px;min-height:36px}
+ #as5 .asBar #asRefresh{display:inline-flex;grid-column:3;grid-row:1;justify-self:end;align-self:center}
  #as5 .asProfileDropdown{position:fixed!important;top:calc(env(safe-area-inset-top,0px) + 70px)!important;right:12px!important;left:12px!important;width:auto!important;max-height:min(72vh,560px);overflow:auto;-webkit-overflow-scrolling:touch}
- #as5 .asBar #asRefresh{display:none}
  #as5 .asBrand{font-size:20px}#as5 .asSports{padding:4px 12px 10px}#as5 .asSport{padding:0 12px;min-height:36px}
  #as5 .asMain{padding:20px 12px 100px}#as5 .asHero{align-items:start}#as5 .asHeroBadge{font-size:8px;padding:7px}
  #as5 .asFilters{padding:10px;grid-template-columns:1fr 1fr;gap:8px}#as5 .asFilters .asSearchLabel{grid-column:1/-1}#as5 .asFilterTrigger{min-height:44px}

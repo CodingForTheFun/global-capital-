@@ -30,11 +30,18 @@ test('every response carries the hardening headers', () => {
   assert.match(res.headers['content-security-policy'], /frame-ancestors/);
 });
 
-// The app injects its shell inline, so a script-src policy would white-screen
-// the board. The CSP must stay to the directives that cannot do that.
-test('the CSP does not restrict scripts or styles', () => {
+// The app still injects its shell inline, so scripts and styles need the narrow
+// unsafe-inline exception for now. The policy must nevertheless default closed
+// and keep every network-capable surface on the same origin.
+test('the CSP defaults closed while preserving the current inline shell', () => {
   const csp = SECURITY_HEADERS['content-security-policy'];
-  assert.doesNotMatch(csp, /script-src|style-src|default-src/);
+  for (const expected of [
+    "default-src 'self'", "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'",
+    "connect-src 'self'", "frame-src 'none'", "frame-ancestors 'none'", "object-src 'none'",
+    "base-uri 'self'", "form-action 'self'", 'upgrade-insecure-requests',
+  ]) assert.ok(csp.includes(expected), `${expected} must stay in the production CSP`);
+  assert.doesNotMatch(csp, /https?:\/\//, 'the CSP must not allow arbitrary remote origins');
+  assert.doesNotMatch(csp, /\*/, 'the CSP must not contain wildcard sources');
 });
 
 test('a header already set by a route is not overwritten', () => {

@@ -34,18 +34,15 @@ export function applySoccerPublicFeedPatches(root = process.cwd()) {
     to: "const PUBLIC_PERSISTENCE_SPORTS = Object.freeze([...AUTOMATIC_SPORTS, 'SOCCER','MLS','EPL','UCL','TENNIS']);",
   }]);
 
-  patchFile(root, 'lib/autoscout/research-ui-runtime-patch.mjs', [
-    {
-      label: 'all-soccer tab',
-      from: "    \"var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB','MLS','EPL','UCL','TENNIS'];\",",
-      to: "    \"var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB','SOCCER','MLS','EPL','UCL','TENNIS'];\",",
-    },
-    {
-      label: 'generic soccer line-only policy',
-      from: " if(selectedSport==='TENNIS')return {ok:true,available:false,lineOnly:true,retryable:false,code:'HISTORICAL_SOURCE_UNVERIFIED',message:'Live tennis line only. A complete tennis match-history source is not verified yet, so Auto Scout will not invent L5/L10/H2H results.'};",
-      to: " if(selectedSport==='SOCCER')return {ok:true,available:false,lineOnly:true,retryable:false,code:'HISTORICAL_SOURCE_UNVERIFIED',message:'Live all-soccer line only. Use MLS, EPL or UCL when a league-specific verified history match is available.'};\n if(selectedSport==='TENNIS')return {ok:true,available:false,lineOnly:true,retryable:false,code:'HISTORICAL_SOURCE_UNVERIFIED',message:'Live tennis line only. A complete tennis match-history source is not verified yet, so Auto Scout will not invent L5/L10/H2H results.'};",
-    },
-  ]);
+  // The soccer tab and its research policy used to be added here, because at
+  // the time there was no way to research a prop that named no competition:
+  // the tab was introduced already pinned to "line only", pointing people at
+  // MLS, EPL and UCL instead. Those are now real: a league-agnostic ESPN game
+  // log answers generic SOCCER props, so the sport list lives in the adapter
+  // itself and soccer is researched rather than declared unresearchable. The
+  // two edits that used to sit here are deliberately gone, not lost - leaving
+  // the line-only edit in place would switch the research back off at build
+  // time, which is the one change no test would have caught.
 
   patchFile(root, 'lib/ingestion/fanduel-public.mjs', [{
     label: 'FanDuel soccer page',

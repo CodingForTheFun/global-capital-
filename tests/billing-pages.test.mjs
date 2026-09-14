@@ -84,7 +84,7 @@ test('the billing pages load nothing from another origin', () => {
   for (const path of BILLING_PATHS) {
     const html = billingPage(path);
     const external = html.match(/(?:src|href)="https?:\/\/[^"]+"/g) || [];
-    const offsite = external.filter(tag => !tag.includes('example.test') && !tag.includes('www.obligepay.com'));
+    const offsite = external.filter(tag => !tag.includes('example.test') && !tag.includes('www.obligeprops.com'));
     assert.deepEqual(offsite, [], `${path} must not load offsite resources`);
   }
 });

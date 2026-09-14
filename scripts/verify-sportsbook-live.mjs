@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
-const origin='https://www.obligepay.com';
+const origin='https://www.obligeprops.com';
 const report={expected:process.env.GITHUB_SHA,observed:null,checks:[],browserErrors:[],productionAccountsCreated:false,realGuestAiCalls:0};
 const check=(ok,label)=>{assert.ok(ok,label);report.checks.push(label);console.log('LIVE_PASS',label)};
 let browser,page;

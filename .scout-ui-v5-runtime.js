@@ -46,7 +46,7 @@ var COLUMN_DEFS=[['projection','Projection',104],['l5','L5',78],['l10','L10',78]
 var rulesEnabled=true, saveEpoch=0;
 var savePending=new Set();
 
-var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB','MLS','EPL','UCL','TENNIS'];
+var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB','SOCCER','TENNIS'];
 var BOARD_VIEWS={research:'Prop Research',players:'Players',popular:'Popular',snipes:'Automatic Snipes',discrepancies:'Line Discrepancies',saved:'Saved Props'};
 var hydrating=false, hydrated=new Set(), hydrateFailed=false, hydrateController=null, hydratePending=new Set();
 var projections=new Map(), projectionPending=new Set();

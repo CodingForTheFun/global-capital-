@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
-const base = 'https://www.obligepay.com';
+const base = 'https://www.obligeprops.com';
 const expected = process.env.GITHUB_SHA;
 const report = { expected, observed: null, passed: 0, domain: base, accountCreated: false, errors: [] };
 await mkdir('artifacts', { recursive: true });

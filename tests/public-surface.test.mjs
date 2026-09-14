@@ -228,3 +228,18 @@ test('every public page names one brand to the customer', async () => {
   assert.ok(!webManifest().includes('Auto Scout'));
   assert.ok(!headTags('https://example.test').includes('Auto Scout'));
 });
+
+// The public identity moved to obligeprops.com; obligepay.com is retired and no
+// longer routed to this product. PUBLIC_SITE_ORIGIN settles this in production,
+// but the fallback is what every canonical, og:url, sitemap entry and robots
+// Sitemap line falls back to if that variable is ever missing - which is
+// exactly how the site spent its first hours on the new domain telling
+// crawlers it lived on the old one.
+test('the site origin never falls back to the retired domain', () => {
+  assert.equal(siteOrigin({}), 'https://www.obligeprops.com');
+  assert.equal(siteOrigin({ PUBLIC_SITE_ORIGIN: 'https://www.obligeprops.com/' }), 'https://www.obligeprops.com');
+  for (const surface of [robotsTxt(siteOrigin({})), sitemapXml(siteOrigin({})), headTags(siteOrigin({}))]) {
+    assert.ok(!surface.includes('obligepay'), 'no crawler surface may name the retired domain');
+    assert.ok(surface.includes('obligeprops.com'));
+  }
+});

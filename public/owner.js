@@ -66,6 +66,7 @@ function memberMatches(member) {
   if (filter === 'pro' && !isPro(access)) return false;
   if (filter === 'banned' && !member.disabled) return false;
   if (filter === 'owner' && member.role !== 'owner') return false;
+  if (filter === 'support' && member.role !== 'support') return false;
   return true;
 }
 
@@ -87,7 +88,11 @@ function renderMembers() {
       : m.presence === 'ONLINE' ? '<span class="pill online">ONLINE</span>'
       : m.presence === 'IDLE' ? '<span class="pill idle">IDLE</span>'
       : '<span class="pill">OFFLINE</span>';
-    const role = m.role === 'owner' ? '<span class="pill owner">OWNER</span>' : '<span class="pill">MEMBER</span>';
+    const role = own || m.role === 'owner'
+      ? '<span class="pill owner">OWNER</span>'
+      : m.role === 'support'
+        ? '<span class="pill pro">SUPPORT</span>'
+        : '<span class="pill">MEMBER</span>';
     const plan = isPro(access) ? '<span class="pill pro">PRO</span>' : '<span class="pill">FREE</span>';
     const deviceHtml = devices.length ? devices.map((d) => `
       <div class="device">
@@ -102,6 +107,11 @@ function renderMembers() {
         <button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="30" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+30d</button>
         <button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="90" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+90d</button>
         ${isPro(access) ? `<button class="btn small" data-action="revoke-access" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>Remove Pro</button>` : ''}`;
+    const roleButton = own
+      ? '<button class="btn small" disabled>Protected owner</button>'
+      : m.role === 'support'
+        ? `<button class="btn small" data-action="role" data-user="${esc(m.id)}" data-role="member" ${busy ? 'disabled' : ''}>Remove Support</button>`
+        : `<button class="btn small" data-action="role" data-user="${esc(m.id)}" data-role="support" ${busy ? 'disabled' : ''}>Make Support</button>`;
     return `<article class="member" data-user-row="${esc(m.id)}">
       <div class="account">
         <strong>${esc(m.email)}</strong>
@@ -114,7 +124,7 @@ function renderMembers() {
       <div class="actions">
         ${accessButtons}
         <button class="btn small ${m.disabled ? 'good' : 'danger'}" data-action="ban" data-user="${esc(m.id)}" data-disabled="${m.disabled ? 'false' : 'true'}" ${busy || own ? 'disabled' : ''}>${m.disabled ? 'Restore' : 'Ban'}</button>
-        <button class="btn small" data-action="role" data-user="${esc(m.id)}" data-role="${m.role === 'owner' ? 'member' : 'owner'}" ${busy || own ? 'disabled' : ''}>${m.role === 'owner' ? 'Make member' : 'Make owner'}</button>
+        ${roleButton}
       </div>
       <details class="more"><summary>${devices.length} active device${devices.length === 1 ? '' : 's'} · account details</summary><div class="more-grid">${deviceHtml}</div></details>
     </article>`;
@@ -138,10 +148,12 @@ async function loadHealth() {
 async function loadDashboard({ quiet = false } = {}) {
   if (!quiet) notice('');
   const me = await request('/api/account/me');
-  if (!me.authenticated || me.user?.role !== 'owner') {
+  // The page and script are already protected by the server-side designated
+  // owner check. Do not trust a stale role string from older account storage.
+  if (!me.authenticated) {
     $('dashboard').classList.add('hidden');
     $('accessDenied').classList.remove('hidden');
-    $('ownerIdentity').textContent = me.authenticated ? me.user?.email || 'Member account' : 'Signed out';
+    $('ownerIdentity').textContent = 'Signed out';
     return;
   }
   state.me = me.user;

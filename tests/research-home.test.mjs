@@ -44,12 +44,19 @@ test('presentation adapter removes the slip without replacing server-bound resea
  assert.ok(client.includes(before),'original drawer implementation remains unchanged');
  assert.equal(researchClient(client),client,'idempotent');assert.throws(()=>researchClient('unknown shell'));
 });
+test('owner Control link is rendered only from the server-issued owner capability',()=>{
+ const client=researchClient(read('apex-v2/scout-ui-v5.js'));
+ assert.match(client,/me\.data\.capabilities\.viewOwnerConsole===true/);
+ assert.match(client,/textContent='Control';control\.href='\/owner';/);
+ assert.match(client,/existingControl\.remove\(\)/,'a stale owner link is removed before permissions are re-evaluated');
+ assert.ok(client.indexOf("viewOwnerConsole===true")<client.indexOf("textContent='Control';control.href='/owner';"),'owner capability must guard Control link creation');
+});
 test('native sign-in form and safe redirects survive the research-only landing decoration',()=>{
  for(const options of [{passwordSignup:true,googleSignup:true,next:'/apex'},{passwordSignup:false,googleSignup:false,next:'https://evil.invalid'}]){
   const original=landingPage(options), decorated=researchLanding(original);
   assert.equal(decorated.slice(decorated.indexOf('<script>')),original.slice(original.indexOf('<script>')),'auth code unchanged');
-  assert.doesNotMatch(decorated,/Betslip with Kelly|Stake suggestions|ObligePay|Pushes excluded/);
-  assert.match(decorated,/Auto Scout/);assert.match(decorated,/asResearchGate/);
+  assert.doesNotMatch(decorated,/Betslip with Kelly|Stake suggestions|ObligePay|Pushes excluded|Auto Scout/);
+  assert.match(decorated,/Oblige Props/);assert.match(decorated,/asResearchGate/);
   assert.equal(decorated.includes('id="authForm"'),original.includes('id="authForm"'));
  }
 });
@@ -63,8 +70,8 @@ test('retired React sportsbook is excluded from runtime, not reinstalled on depl
  assert.doesNotMatch(read('Dockerfile'),/guest-dashboard|next build|NEXT_TELEMETRY/);
  assert.match(read('.dockerignore'),/apps\/guest-dashboard/);
  assert.match(read('Dockerfile'),/frontdoor-clearsports.mjs/);
- assert.doesNotMatch(read('scripts/prepare-edge-deploy.mjs'),/writeFileSync\([^)]*payments|replaceAll\('Auto Scout', 'ObligePay Edge'\)/);
- const manifest=JSON.parse(read('public/manifest.webmanifest'));assert.equal(manifest.name,'Auto Scout');assert.equal(manifest.start_url,'/');
+ assert.doesNotMatch(read('scripts/prepare-edge-deploy.mjs'),/writeFileSync\([^)]*payments|replaceAll\('Oblige Props', 'ObligePay Edge'\)/);
+ const manifest=JSON.parse(read('public/manifest.webmanifest'));assert.equal(manifest.name,'Oblige Props');assert.equal(manifest.start_url,'/');assert.equal(manifest.display,'standalone');
 });
 test('theme and presentation script introduce no provider calls or persistent state',()=>{
  const script=read('public/autoscout-home.js');new vm.Script(script);

@@ -224,37 +224,42 @@ test('disabling an account signs it out everywhere and blocks sign-in', async ()
   assert.equal((await api('/api/account/login', { body: { email: victim.email, password: PASSWORD }, ip: freshIp() })).status, 200);
 });
 
-test('an owner cannot disable themselves or strand the account with no owner', async () => {
+test('the configured owner cannot be disabled or demoted', async () => {
   const self = await api('/api/admin/member/disable', {
     cookie: owner.cookie, csrf: owner.csrf, ip: owner.ip, body: { userId: owner.user.id, disabled: true },
   });
   assert.equal(self.status, 400);
-  assert.equal(self.data.code, 'SELF_DISABLE');
+  assert.equal(self.data.code, 'OWNER_PROTECTED');
 
   const demote = await api('/api/admin/member/role', {
     cookie: owner.cookie, csrf: owner.csrf, ip: owner.ip, body: { userId: owner.user.id, role: 'member' },
   });
   assert.equal(demote.status, 400);
-  assert.equal(demote.data.code, 'LAST_OWNER', 'the last owner cannot demote themselves');
+  assert.equal(demote.data.code, 'OWNER_PROTECTED');
 });
 
-test('promoting a member grants owner capabilities after they sign back in', async () => {
-  const promoted = await makeAccount();
-  assert.equal(promoted.user.role, 'member');
+test('the owner can grant support access but cannot create another owner', async () => {
+  const worker = await makeAccount();
+  assert.equal(worker.user.role, 'member');
 
-  const result = await api('/api/admin/member/role', {
-    cookie: owner.cookie, csrf: owner.csrf, ip: owner.ip, body: { userId: promoted.user.id, role: 'owner' },
+  const support = await api('/api/admin/member/role', {
+    cookie: owner.cookie, csrf: owner.csrf, ip: owner.ip, body: { userId: worker.user.id, role: 'support' },
   });
-  assert.equal(result.status, 200);
+  assert.equal(support.status, 200);
 
-  // A role change revokes their sessions, so the old cookie is dead.
-  const stale = await api('/api/account/me', { method: 'GET', cookie: promoted.cookie, ip: promoted.ip });
+  const stale = await api('/api/account/me', { method: 'GET', cookie: worker.cookie, ip: worker.ip });
   assert.equal(stale.data.authenticated, false, 'a role change forces a fresh session');
 
-  const again = await api('/api/account/login', { body: { email: promoted.email, password: PASSWORD }, ip: freshIp() });
-  assert.equal(again.data.user.role, 'owner');
-  assert.equal(again.data.capabilities.viewPresence, true);
-  assert.ok(again.data.nav.map((t) => t.id).includes('presence'));
+  const again = await api('/api/account/login', { body: { email: worker.email, password: PASSWORD }, ip: freshIp() });
+  assert.equal(again.data.user.role, 'support');
+  assert.equal(again.data.capabilities.viewSupportConsole, true);
+  assert.equal(again.data.capabilities.viewOwnerConsole, false);
+
+  const denied = await api('/api/admin/member/role', {
+    cookie: owner.cookie, csrf: owner.csrf, ip: owner.ip, body: { userId: worker.user.id, role: 'owner' },
+  });
+  assert.equal(denied.status, 400);
+  assert.equal(denied.data.code, 'INVALID_ROLE');
 });
 
 test('signing out removes the device from the presence panel', async () => {

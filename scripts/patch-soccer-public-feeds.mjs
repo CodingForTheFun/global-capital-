@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 function replaceOnceOrPresent(source, from, to, label) {
@@ -10,6 +10,10 @@ function replaceOnceOrPresent(source, from, to, label) {
 
 function patchFile(root, relative, edits) {
   const file = path.join(root, relative);
+  if (!existsSync(file)) {
+    console.warn(`[soccer-feeds] ${relative} is not present; skipping its patches.`);
+    return;
+  }
   let source = readFileSync(file, 'utf8');
   for (const edit of edits) source = replaceOnceOrPresent(source, edit.from, edit.to, `${relative}: ${edit.label}`);
   writeFileSync(file, source, 'utf8');

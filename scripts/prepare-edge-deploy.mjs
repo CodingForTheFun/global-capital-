@@ -2,6 +2,7 @@
 // Never rewrite payment descriptors, account identifiers, storage keys, or research calculations.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { applySoccerPublicFeedPatches } from './patch-soccer-public-feeds.mjs';
+import './patch-real-snipe-table.mjs';
 
 // Public soccer expansion is applied at image-build time so it composes cleanly
 // with parallel ingestion work. A real application checkout always includes

@@ -80,16 +80,31 @@ test('safe fallback ids can use their exact label but mismatched provider ids st
 });
 
 test('soccer core labels still resolve while fantasy formulas remain unsupported', () => {
-  assert.deepEqual(marketContract({sport:'EPL',market:'Passes Attempted',providerMarketKey:'player_passes_attempted'})?.fields,['PassesAttempted']);
   assert.deepEqual(marketContract({sport:'EPL',market:'Shots',providerMarketKey:'player_shots'})?.fields,['Shots']);
+  assert.deepEqual(marketContract({sport:'EPL',market:'Shots On Target',providerMarketKey:'player_shots_on_target'})?.fields,['ShotsOnTarget']);
+  assert.deepEqual(marketContract({sport:'SOCCER',market:'Goalie Saves',providerMarketKey:'player_goalie_saves'})?.fields,['Saves']);
   assert.equal(marketContract({sport:'EPL',market:'Outfield Fantasy Score',providerMarketKey:'player_outfield_fantasy_score'}),null);
   assert.equal(marketContract({sport:'EPL',market:'Goalie Fantasy Score',providerMarketKey:'player_goalie_fantasy_score'}),null);
+});
+
+// Every soccer game log ESPN serves carries the same nine columns, and passes,
+// tackles, clearances, dribbles and crosses are not among them at any league.
+// Refusing these here is what keeps three round trips from being spent to
+// discover an emptiness that was knowable before the first one.
+test('soccer markets the game log cannot report are refused without a request', () => {
+  for (const [market, key] of [['Passes Attempted','player_passes_attempted'],['Passes Completed','player_passes_completed'],
+    ['Tackles','player_tackles'],['Clearances','player_clearances'],['Attempted Dribbles','player_attempted_dribbles'],
+    ['Crosses','player_crosses'],['Shots Assisted','player_shots_assisted']]) {
+    for (const sport of ['SOCCER','EPL','MLS','UCL']) {
+      assert.equal(marketContract({sport,market,providerMarketKey:key}), null, `${sport} ${market} is not in any soccer game log`);
+    }
+  }
 });
 
 test('research UI patch exposes tennis and honest line-only states without changing the checked-in UI', () => {
   const source=readFileSync(new URL('../apex-v2/scout-ui-v5.js',import.meta.url),'utf8');
   const patched=patchResearchUi(source);
-  assert.match(patched,/,'UCL','TENNIS'\]/);
+  assert.match(patched,/,'SOCCER','TENNIS'\]/);
   assert.match(patched,/Combo line only/);
   assert.match(patched,/Fantasy line only/);
   assert.match(patched,/research\?\.lineOnly/);

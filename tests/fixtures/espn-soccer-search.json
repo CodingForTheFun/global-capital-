@@ -1,0 +1,30 @@
+{
+ "totalFound": 3,
+ "didYouMean": "dier cambindo",
+ "results": [
+  {
+   "type": "player",
+   "totalFound": 1,
+   "page": 1,
+   "limit": 5,
+   "displayName": "Players",
+   "contents": [
+    {
+     "id": "eaee7bc8-f1af-c3d8-adb5-40379c08eca3",
+     "uid": "s:600~a:248826",
+     "guid": "eaee7bc8-f1af-c3d8-adb5-40379c08eca3",
+     "type": "player",
+     "displayName": "Diber Cambindo",
+     "description": "Liga MX",
+     "subtitle": "Le\u00f3n",
+     "link": {
+      "app": "sportscenter://x-callback-url/showClubhouse?uid=s:600~a:248826",
+      "web": "https://www.espn.com/soccer/player/_/id/248826/diber-cambindo"
+     },
+     "defaultLeagueSlug": "mex.1",
+     "sport": "soccer"
+    }
+   ]
+  }
+ ]
+}

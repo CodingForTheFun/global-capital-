@@ -16,7 +16,9 @@ const newImport = './lib/autoscout/research-service-v2.mjs';
 const uiRead = "readFileSync('./apex-v2/scout-ui-v5.js', 'utf8')";
 const uiRuntimeRead = "readFileSync('./.scout-ui-v5-runtime.js', 'utf8')";
 const researchSports = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL']);";
-const researchSportsWithTennis = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL','TENNIS']);";
+// The DFS feeds tag every club competition "SOCCER" and never MLS, EPL or UCL,
+// so the research API refused the only soccer props that actually arrive.
+const researchSportsWithTennis = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL','SOCCER','TENNIS']);";
 
 function makeClientSafeVisualUi(source) {
   const patched = patchObligePropsVisualUi(source);

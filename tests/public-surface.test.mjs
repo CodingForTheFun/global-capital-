@@ -204,3 +204,20 @@ test('the redirect does not swallow the real routes', () => {
     assert.ok(!handled || res.statusCode !== 302, `${path} must not be redirected`);
   }
 });
+
+// Oblige Props is the public brand; Auto Scout is the research engine behind
+// it. A customer reading the terms before paying should meet one company, not
+// two - the chrome was renamed and these page bodies were missed.
+test('every public page names one brand to the customer', async () => {
+  const { legalPage, LEGAL_PATHS } = await import('../lib/web/legal.mjs');
+  const { billingPage, BILLING_PATHS } = await import('../lib/web/billing-pages.mjs');
+  for (const path of LEGAL_PATHS) {
+    assert.ok(!legalPage(path).includes('Auto Scout'), `${path} still names the research engine`);
+    assert.ok(legalPage(path).includes('Oblige Props'), `${path} must name the public brand`);
+  }
+  for (const path of BILLING_PATHS) {
+    assert.ok(!billingPage(path).includes('Auto Scout'), `${path} still names the research engine`);
+  }
+  assert.ok(!webManifest().includes('Auto Scout'));
+  assert.ok(!headTags('https://example.test').includes('Auto Scout'));
+});

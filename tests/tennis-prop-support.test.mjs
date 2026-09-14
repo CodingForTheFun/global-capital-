@@ -34,5 +34,14 @@ test('public DFS tennis rows normalize into active tennis props', () => {
 
 test('research presentation exposes TENNIS in the sport selector', () => {
   const source = '<div class="as5" id="as5"></div>\nvar SPORTS=[\'NFL\',\'NBA\',\'MLB\',\'NHL\',\'WNBA\',\'NCAAF\',\'NCAAB\',\'MLS\',\'EPL\',\'UCL\'];';
-  assert.match(researchClient(source), /'NCAAB','TENNIS','MLS'/);
+  assert.match(researchClient(source), /'NCAAB','SOCCER','TENNIS'/);
+});
+
+// The DFS feeds tag club football "SOCCER" and have never posted MLS, EPL or
+// UCL as a sport, so those three tabs could only ever show an empty board.
+test('the selector offers no sport the feeds never post', () => {
+  const source = '<div class="as5" id="as5"></div>\nvar SPORTS=[\'NFL\',\'NBA\',\'MLB\',\'NHL\',\'WNBA\',\'NCAAF\',\'NCAAB\',\'MLS\',\'EPL\',\'UCL\'];';
+  const list = researchClient(source).match(/var SPORTS=\[[^\]]*\]/)[0];
+  for (const empty of ['MLS', 'EPL', 'UCL']) assert.ok(!list.includes(empty), `${empty} has no props to show`);
+  assert.ok(list.includes('SOCCER'));
 });

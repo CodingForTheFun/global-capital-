@@ -10,6 +10,13 @@ test('Oblige Props visual layer keeps real-data UI and matches the mobile target
   const output = patchObligePropsVisualUi(patchNavAndRingUi(patchResearchUi(original)));
 
   assert.match(output, /\.asRingMid,#as5 \.asRingText\{display:none!important\}/, 'legacy SVG percentage must be hidden so the center percentage cannot overlap');
+  // The edge build renames that midpoint to .asRingCenter, so hiding only
+  // .asRingMid left two centre percentages stacked in the same box.
+  assert.match(
+    output,
+    /#as5 \.asRing\[data-premium-ring="1"\] \.asRingCenter\{display:none!important\}/,
+    'the edge build centre percentage must be hidden wherever the premium hit-rate centre replaces it',
+  );
   assert.match(output, /grid-template-columns:repeat\(8,minmax\(0,1fr\)\)!important/, 'all eight metric cells must stay in one mobile row');
   assert.match(output, /\.asNavBrand\{display:grid!important/, 'center ObligePay capsule must remain visible on iPhone');
   assert.match(output, /minmax\(82px,1\.5fr\)/, '430px nav must reserve center space for the brand capsule');

@@ -95,7 +95,12 @@ test('a moved number is reported as a line lag and outranks a shaded price', () 
   assert.equal(signal.line, 63.5);
   assert.equal(signal.sharpLine, 66.5);
   assert.equal(signal.lineMove, 3);
-  assert.match(staleLineLabel(signal), /still at 63.5, sharp moved to 66.5/);
+  const label = staleLineLabel(signal);
+  assert.match(label, /DraftKings/, 'the lagging book must be named');
+  assert.match(label, /Pinnacle/, 'the book that moved must be named');
+  assert.match(label, /\b63\.5\b/, 'the stale number must be shown');
+  assert.match(label, /\b66\.5\b/, 'the moved number must be shown');
+  assert.match(label, /OVER/, 'the side must be shown');
 
   // A retail number on the wrong side of the move is not an edge.
   const unfavourable = detectStaleLine([

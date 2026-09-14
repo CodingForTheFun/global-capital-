@@ -18,8 +18,39 @@ test('one player card across markets and events, every exact prop remains select
  assert.equal(categoryOptions(groups,'NBA').find(c=>c.label==='Rebounds').count,1);
 });
 test('player, defensive unit, namesake and league identities cannot merge',()=>{
- const p=row('a');const g=[p,{...p,key:'team',entityType:'team'},{...p,key:'other',playerId:'other-id'},{...p,key:'league',sport:'WNBA'}];
+ // A real namesake collision is two athletes on two teams — Josh Allen the
+ // Bills quarterback and Josh Allen the Jaguars linebacker. Differing provider
+ // IDs alone do not make two people: on a live board a third of names carried
+ // several IDs and every one was a single athlete quoted by several books.
+ const p={...row('a'),team:'BUF'};
+ const g=[p,{...p,key:'team',entityType:'team'},{...p,key:'other',playerId:'other-id',team:'JAX'},{...p,key:'league',sport:'WNBA'}];
  assert.equal(uniquePlayerCards(g).length,4);
+});
+test('one athlete quoted by several books is one card, not one card per book',()=>{
+ // The duplicate-card case: same athlete, a different internal id from each
+ // book, and — as on the real board — a team on only some of the rows. All of
+ // it must collapse, or he appears five times. Keying a teamless row on the
+ // empty team caused 17 false splits on a live NFL board before this.
+ const p={...row('a'),team:'KC'};
+ const books=[{...p,key:'q0',playerId:'dk'},{...p,key:'q1',playerId:'fd'},
+  {...p,key:'q2',playerId:'mgm',team:''},{...p,key:'q3',playerId:'czr',team:''},
+  {...p,key:'q4',playerId:'pn'}];
+ assert.equal(uniquePlayerCards(books).length,1);
+});
+test('a row that cannot be attributed to either namesake gets its own card',()=>{
+ // Two athletes share the name and a third row arrives with no team. Which of
+ // them it belongs to is unknowable, so it stays separate rather than having a
+ // stranger's props attached to one of their cards.
+ const p=row('a');
+ const rows=[{...p,key:'buf',playerId:'i1',team:'BUF'},{...p,key:'jax',playerId:'i9',team:'JAX'},{...p,key:'none',playerId:'i7'}];
+ assert.equal(uniquePlayerCards(rows).length,3);
+});
+test('without a team, same-named athletes still merge, and that limit is deliberate',()=>{
+ // About a tenth of board rows arrive with no team. There is then nothing that
+ // distinguishes a namesake from the same athlete, and inventing a split would
+ // be a guess. Asserted so the limit stays visible instead of being rediscovered.
+ const p=row('a');
+ assert.equal(uniquePlayerCards([p,{...p,key:'other',playerId:'other-id'}]).length,1);
 });
 test('duplicate book quotes collapse, with most recent real quote kept',()=>{
  const a={side:'OVER',line:20.5,sportsbookKey:'book',price:-110,providerUpdatedAt:'2026-09-12T12:00:00Z'};

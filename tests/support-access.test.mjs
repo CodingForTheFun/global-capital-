@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  ROLES, isOwner, isSupport, requireOwner, requireSupport, capabilitiesFor, navFor,
+  ROLES, isOwner, isSupport, effectiveRole, requireOwner, requireSupport, capabilitiesFor, navFor,
 } from '../lib/auth/permissions.mjs';
 
 function withEnv(values, run) {
@@ -31,6 +31,35 @@ test('production owner access fails closed when no owner email is configured', (
   withEnv({ NODE_ENV:'production', ACCOUNT_OWNER_EMAIL:null, RAILWAY_PROJECT_ID:'project' }, () => {
     assert.equal(isOwner({ email:'first@example.com', role:ROLES.OWNER }), false);
   });
+});
+
+test('designated owner receives owner capabilities even with legacy member role', () => {
+  withEnv({ NODE_ENV:'production', ACCOUNT_OWNER_EMAIL:'owner@example.com', RAILWAY_PROJECT_ID:'project' }, () => {
+    const owner = { email:'OWNER@example.com', role:ROLES.MEMBER };
+    assert.equal(effectiveRole(owner), ROLES.OWNER);
+    assert.equal(capabilitiesFor(owner).viewOwnerConsole, true);
+    assert.equal(capabilitiesFor(owner).manageAccessTime, true);
+    assert.equal(navFor(owner).some((item) => item.href.startsWith('/owner')), true);
+  });
+});
+
+test('stale owner role cannot receive owner capabilities when email is not designated', () => {
+  withEnv({ NODE_ENV:'production', ACCOUNT_OWNER_EMAIL:'owner@example.com', RAILWAY_PROJECT_ID:'project' }, () => {
+    const stale = { email:'other@example.com', role:ROLES.OWNER };
+    assert.equal(effectiveRole(stale), ROLES.MEMBER);
+    assert.equal(capabilitiesFor(stale).viewOwnerConsole, false);
+    assert.equal(navFor(stale).some((item) => item.href.startsWith('/owner')), false);
+  });
+});
+
+test('account routes issue capabilities from the complete account identity', () => {
+  const source = readFileSync(new URL('../lib/auth/routes.mjs', import.meta.url), 'utf8');
+  assert.match(source, /capabilities:\s*capabilitiesFor\(user\)/);
+  assert.match(source, /nav:\s*navFor\(user\)/);
+  assert.match(source, /capabilities:\s*capabilitiesFor\(result\.user\)/);
+  assert.match(source, /nav:\s*navFor\(result\.user\)/);
+  assert.doesNotMatch(source, /capabilitiesFor\([^)]*\.role\)/);
+  assert.doesNotMatch(source, /navFor\([^)]*\.role\)/);
 });
 
 test('support role receives only support navigation and not owner capabilities', () => {

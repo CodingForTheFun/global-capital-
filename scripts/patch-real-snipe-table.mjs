@@ -1,6 +1,9 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const file = 'apex-v2/scout-ui-v5.js';
+if (!existsSync(file)) {
+  console.warn(`[snipe-table] ${file} is not present; skipping the snipe table patch.`);
+} else {
 let source = readFileSync(file, 'utf8');
 function replaceOnce(from, to, label) {
   if (source.includes(to)) return;
@@ -58,3 +61,4 @@ replaceOnce(
 
 writeFileSync(file, source, 'utf8');
 console.log('[autoscout] real snipe table enabled: sharp/no-vig/multi-book consensus opportunities only');
+}

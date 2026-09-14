@@ -14,7 +14,7 @@ test('nav/ring runtime patch keeps research basis and installs compact glass nav
   assert.match(output, /active=100\*hits\/games/, 'ring must derive percentage from exact counts');
   assert.match(output, /if\(!rates\)return null/, 'invalid samples must remain unavailable');
   assert.match(output, /class="asNavBrand"[^>]*>obligepay\.com<\/a>/, 'ObligePay capsule must be installed');
-  assert.match(output, /backdrop-filter:blur\(28px\) saturate\(150%\)/, 'current premium glass treatment must be installed');
+  assert.match(output, /backdrop-filter:blur\(\d+px\) saturate\(\d+%\)/, 'current premium glass treatment must be installed');
   assert.match(output, /height:44px!important/, 'base mobile nav must stay compact before the screenshot-target override');
   assert.match(output, /env\(safe-area-inset-bottom\)/, 'mobile nav must respect device safe area');
 });

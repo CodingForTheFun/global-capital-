@@ -11,6 +11,7 @@ import { decorateBoardWithScoutAudit } from '../lib/autoscout/scout-rules.mjs';
 import { persistNormalizedBoard, getLineHistory, persistenceHealth, persistenceConfigured } from '../lib/autoscout/supabase-persistence.mjs';
 import { startIngestWorker, ingestHealth } from '../lib/autoscout/ingest-worker.mjs';
 import { createSessionCodec, createRateLimiter, parseCookies, clientKey, SESSION_COOKIE, OWNER } from '../lib/session.mjs';
+import { installProcessGuards } from '../lib/web/process-guards.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const startedAt = new Date().toISOString();
@@ -203,5 +204,8 @@ startIngestWorker({
 function shutdown() { server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 5000).unref(); }
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+// The data core runs the ingestion ticks, so it is where a rejected upstream
+// fetch is most likely to surface. Surviving one keeps the board served.
+installProcessGuards({ label: 'apex-core', onFatal: shutdown });
 
 startFrugalPersistence();

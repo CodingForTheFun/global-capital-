@@ -12,6 +12,8 @@ import { askAboutProp, askConfigured } from './lib/projections/ask.mjs';
 import { recordProjection, gradeFromGameLog, accuracyReport } from './lib/projections/ledger.mjs';
 import { teammatesFor, injuryFeedConfigured } from './lib/data-sources/sportsdataio/injury-feed.mjs';
 import { accountSecret } from './lib/auth/secret.mjs';
+import { applySecurityHeaders, servePublicSurface, siteOrigin } from './lib/web/public-surface.mjs';
+import { serveLegal } from './lib/web/legal.mjs';
 import { handleAccountRoutes, currentAccount, mailStatus } from './lib/auth/routes.mjs';
 import { handleGoogleRoutes } from './lib/auth/google-routes.mjs';
 import { createAccountSessions } from './lib/auth/session.mjs';
@@ -620,7 +622,17 @@ async function maybeServeAccount(req, res) {
   return true;
 }
 
+const SITE_ORIGIN = siteOrigin();
+
 const server = http.createServer(async (req, res) => {
+  // Hardening first, so it covers every branch below including error paths.
+  applySecurityHeaders(res);
+  // Icons, robots.txt and the manifest are fetched without a session; serving
+  // them ahead of the gate keeps a crawler or a tab icon out of the login flow.
+  if (servePublicSurface(req, res, { origin: SITE_ORIGIN })) return;
+  // Terms, privacy and responsible gaming are public by definition: a payment
+  // processor, a crawler and a signed-out visitor all have to be able to read them.
+  if (serveLegal(req, res, { origin: SITE_ORIGIN })) return;
   const asset = CLIENT_MODULES.get(new URL(req.url || '/', 'http://localhost').pathname);
   if (asset && req.method === 'GET') {
     res.writeHead(200, { 'content-type': asset.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' });

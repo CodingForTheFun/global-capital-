@@ -51,15 +51,16 @@ test('owner Control link is rendered only from the server-issued owner capabilit
  assert.match(client,/existingControl\.remove\(\)/,'a stale owner link is removed before permissions are re-evaluated');
  assert.ok(client.indexOf("viewOwnerConsole===true")<client.indexOf("textContent='Control';control.href='/owner';"),'owner capability must guard Control link creation');
 });
-test('top-right account control exposes security actions without granting client-side authority',()=>{
+test('top-right account control reuses existing secure account flows',()=>{
  const client=researchClient(read('apex-v2/scout-ui-v5.js'));
  new vm.Script(client);
- assert.match(client,/accountRoot\.appendChild\(profileMenu\)/,'account menu is pinned to the app root so it cannot widen the scrolling header');
- for(const id of ['asAccount','asSecurity','asMenuReset','asMenuSaved','asMenuSignOut'])assert.ok(client.includes(`id=\"${id}\"`),id);
- assert.match(client,/authPanel\('forgot',''\)/,'reset password reuses the existing reset flow');
- assert.match(client,/securityMenu\.onclick=accountPanel/,'security reuses the server-backed account panel');
- assert.match(client,/signOutButton\.hidden=!account\.authenticated/);
- assert.match(client,/resetButton\.hidden=account\.authenticated/);
+ assert.match(client,/profileMenu\.classList\.add\('asHeaderAccount'\)/);
+ assert.match(client,/accountRoot\.appendChild\(profileMenu\)/);
+ for(const id of ['asProfileMenu','asAccount','asSettings','asMenuSignOut'])assert.ok(client.includes(`id=\"${id}\"`),id);
+ assert.match(client,/data-auth=\"forgot\"/,'forgot-password route remains available from sign-in');
+ assert.match(client,/id=\"asChangePassword\"/,'signed-in account panel keeps password changes');
+ assert.match(client,/id=\"asSignOutAll\"/,'signed-in account panel keeps device/session sign-out');
+ assert.match(client,/document\.getElementById\('asAccount'\)\.onclick=accountPanel/);
  const css=read('public/autoscout-home.css');
  assert.match(css,/\.asHeaderAccount\{position:fixed/);assert.match(css,/safe-area-inset-top/);assert.match(css,/\.asProfileDropdown/);
 });

@@ -1,7 +1,7 @@
 /* One scoped product theme, replacing the retired Edge styles and navigation. */
 body.asResearchHome{background:#0a101b}
 #as5{--bg:#0a101b;--panel:#101b2b;--panel2:#152238;--line:#27384d;--text:#eef4fc;--muted:#9daec4;--blue:#59dcb2;--green:#59dcb2;min-height:100vh;background:radial-gradient(ellipse at 85% 0,rgba(36,102,91,.09),transparent 700px),#0a101b;color:var(--text);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-#as5 .asTop{background:rgba(10,16,27,.97);border-color:#223247;box-shadow:0 8px 26px #0002}
+#as5 .asTop{background:rgba(10,16,27,.97);border-color:#223247;box-shadow:0 8px 26px #0002;overflow:visible}
 #as5 .asBar{max-width:1720px;padding:0 24px;gap:10px;height:72px}
 #as5 .asLogo{background:#6ce4b8;color:#092b23;border-radius:11px;box-shadow:none;font-size:22px}
 #as5 .asBrand{font-size:21px;letter-spacing:-.6px}#as5 .asBrand i{color:#79e5bf}
@@ -42,10 +42,30 @@ body.asResearchHome{background:#0a101b}
 #as5 :is(.asUtility,.asFilterSheet)::backdrop{background:#020713bb}
 #as5 .asi-studio{box-shadow:none;margin-bottom:22px}
 #as5 .asCoverageNote{max-width:800px;margin:24px auto;font-size:11px;line-height:1.7;color:#90a5bd}
+
+/* Always-visible account/security entry point. It reuses the existing server-backed
+   account flows; this is presentation only and grants no client-side authority. */
+#as5 .asHeaderAccount{position:fixed;top:calc(env(safe-area-inset-top,0px) + 14px);right:max(14px,env(safe-area-inset-right,0px));margin:0;z-index:80;width:44px;height:44px}
+#as5:has(#asDrawerBg:not([hidden]),.asUtility[open])>.asHeaderAccount{display:none}
+#as5 .asHeaderAccount>summary{list-style:none;display:flex;align-items:center;justify-content:center;width:44px;height:44px;min-height:44px;padding:0;border:1px solid #30445d;border-radius:999px;background:#111c2b;color:#eaf3ff;cursor:pointer;font-size:12px;font-weight:800;user-select:none;box-shadow:0 8px 24px #0003}
+#as5 .asHeaderAccount>summary::-webkit-details-marker{display:none}
+#as5 .asHeaderAccount>summary::marker{content:""}
+#as5 .asHeaderAccount .asProfileText{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+#as5 .asAccountIcon{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+#as5 .asHeaderAccount[open]>summary{border-color:#59dcb2;background:#14283a;color:#9aefd2}
+#as5 .asProfileDropdown{position:absolute!important;top:calc(100% + 10px)!important;right:0!important;left:auto!important;width:min(310px,calc(100vw - 24px));padding:12px!important;border:1px solid #30455e!important;border-radius:14px!important;background:#0d1827!important;box-shadow:0 24px 70px #0009!important;display:grid!important;gap:8px!important;z-index:120!important}
+#as5 .asProfileDropdown strong{font-size:12px;color:#eef5ff;padding:4px 3px 7px;border-bottom:1px solid #26384d}
+#as5 .asProfileDropdown .asBtn,#as5 .asProfileDropdown>a.asBtn{width:100%;min-height:44px;display:flex;align-items:center;justify-content:flex-start;text-align:left;text-decoration:none;padding:0 12px}
+#as5 .asProfileDropdown .asPrimary{background:#68e2b6;color:#072b20;border-color:#68e2b6}
+#as5 .asProfileDropdown .asProfileSignOut{margin-top:4px;border-color:#5a3440;color:#ffb5bf;background:#24151c}
+#as5 .asProfileDropdown [hidden]{display:none!important}
+
 @media(max-width:1050px){#as5 .asDesktopLabel{display:none}#as5 .asFilters{grid-template-columns:repeat(4,minmax(0,1fr))}#as5 .asSearchLabel{grid-column:1/-1}#as5 .asMain{padding:22px 16px}}
 @media(max-width:650px){
- #as5 .asBar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));height:auto;min-height:96px;padding:12px 12px 8px;gap:8px}
- #as5 .asIdentity{grid-column:1/4}#as5 .asBar .asGrow,#as5 .asBar .asStatus{display:none}#as5 .asBar .asBtn{padding:6px;font-size:11px;min-height:36px}
+ #as5 .asBar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));height:auto;min-height:96px;padding:12px 12px 8px;gap:8px;overflow:visible}
+ #as5 .asIdentity{grid-column:1/3;grid-row:1}#as5 .asBar .asGrow,#as5 .asBar .asStatus{display:none}#as5 .asBar .asBtn{padding:6px;font-size:11px;min-height:36px}
+ #as5 .asBar #asRefresh{display:inline-flex;grid-column:3;grid-row:1;justify-self:end;align-self:center}
+ #as5 .asProfileDropdown{position:fixed!important;top:calc(env(safe-area-inset-top,0px) + 70px)!important;right:12px!important;left:12px!important;width:auto!important;max-height:min(72vh,560px);overflow:auto;-webkit-overflow-scrolling:touch}
  #as5 .asBrand{font-size:20px}#as5 .asSports{padding:4px 12px 10px}#as5 .asSport{padding:0 12px;min-height:36px}
  #as5 .asMain{padding:20px 12px 100px}#as5 .asHero{align-items:start}#as5 .asHeroBadge{font-size:8px;padding:7px}
  #as5 .asFilters{padding:10px;grid-template-columns:1fr 1fr;gap:8px}#as5 .asFilters .asSearchLabel{grid-column:1/-1}#as5 .asFilterTrigger{min-height:44px}

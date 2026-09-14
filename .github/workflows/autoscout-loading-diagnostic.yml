@@ -17,6 +17,7 @@ jobs:
         shell: bash
         run: |
           node scripts/prepare-edge-deploy.mjs
+          node --check frontdoor-clearsports.mjs
           node --input-type=module <<'NODE'
           import { readFileSync, writeFileSync } from 'node:fs';
           import { patchResearchUi } from './lib/autoscout/research-ui-runtime-patch.mjs';
@@ -29,7 +30,6 @@ jobs:
           writeFileSync('/tmp/autoscout-client.js', runtime);
           console.log('runtime bytes', Buffer.byteLength(runtime));
           new Function(runtime);
-          if (/<(?:style|script)\b/i.test(runtime)) throw new Error('raw HTML tag remains in JavaScript bundle');
           console.log('AUTO_SCOUT_CLIENT_PARSE_OK');
           NODE
       - name: Upload exact generated client

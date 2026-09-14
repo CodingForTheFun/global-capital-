@@ -1,21 +1,12 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { accountSecret } from './lib/auth/secret.mjs';
 
 const DATA = path.resolve(process.env.DATA_DIR || './data');
 const FILE = path.join(DATA, 'access-codes.json');
-const PEPPER = process.env.DASHBOARD_SESSION_SECRET || process.env.AUTOPROP_MASTER_KEY || process.env.DASHBOARD_PASSWORD || 'autoprop-local-only';
+const PEPPER = accountSecret();
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const BOOTSTRAP = {
-  id: 'friend-20260908',
-  label: 'Friend access',
-  salt: 'c1583dc3abc8e0cad22d2dc7cd9ad3a7',
-  hash: 'ba8d3b3223afe0990867f6e496dedd707c645716e5028fcdf19379169be11b6a',
-  hint: '••••-K62U',
-  createdAt: '2026-09-08T23:38:59+00:00',
-  expiresAt: '2026-10-08T23:38:59+00:00',
-  maxUses: 5,
-};
 
 async function readRows() {
   try {
@@ -27,10 +18,11 @@ async function readRows() {
 }
 
 async function writeRows(rows) {
-  await fs.mkdir(DATA, { recursive: true });
+  await fs.mkdir(DATA, { recursive: true, mode: 0o700 });
   const temp = `${FILE}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
-  await fs.writeFile(temp, JSON.stringify(rows, null, 2), 'utf8');
+  await fs.writeFile(temp, JSON.stringify(rows, null, 2), { encoding: 'utf8', mode: 0o600 });
   await fs.rename(temp, FILE);
+  await fs.chmod(FILE, 0o600).catch(() => {});
 }
 
 function normalize(code = '') {
@@ -39,19 +31,6 @@ function normalize(code = '') {
 
 function digest(code) {
   return crypto.createHmac('sha256', PEPPER).update(normalize(code)).digest('hex');
-}
-
-// scryptSync blocks the event loop for ~100ms per call, which would stall every
-// other dashboard request during a redemption attempt. Use the async form.
-function bootstrapDigest(code) {
-  return new Promise((resolve, reject) => {
-    crypto.scrypt(normalize(code), Buffer.from(BOOTSTRAP.salt, 'hex'), 32, {
-      N: 16384,
-      r: 8,
-      p: 1,
-      maxmem: 64 * 1024 * 1024,
-    }, (error, derived) => (error ? reject(error) : resolve(derived.toString('hex'))));
-  });
 }
 
 function safeHashEqual(a, b) {
@@ -66,8 +45,8 @@ function randomChunk(length = 4) {
   return out;
 }
 
-// Explicit allowlist. `codeHash` and `salt` must never cross this boundary, so
-// the shape is built field by field rather than by spreading the stored row.
+// Explicit allowlist. `codeHash` must never cross this boundary, so the shape
+// is built field by field rather than by spreading the stored row.
 function publicRow(row) {
   const maxUses = Number(row.maxUses || 1);
   const uses = Number(row.uses || 0);
@@ -125,7 +104,7 @@ export async function redeemAccessCode(code) {
   const now = Date.now();
 
   for (const row of rows) {
-    if (row.bootstrap) continue;
+    if (row.bootstrap) continue; // Ignore any legacy bootstrap row left on disk.
     if (row.active === false) continue;
     if (Date.parse(row.expiresAt || '') <= now) continue;
     if (Number(row.uses || 0) >= Number(row.maxUses || 1)) continue;
@@ -136,55 +115,18 @@ export async function redeemAccessCode(code) {
     return publicRow(row);
   }
 
-  if (Date.parse(BOOTSTRAP.expiresAt) > now && safeHashEqual(await bootstrapDigest(normalized), BOOTSTRAP.hash)) {
-    let row = rows.find((item) => item.id === BOOTSTRAP.id);
-    if (!row) {
-      row = {
-        id: BOOTSTRAP.id,
-        label: BOOTSTRAP.label,
-        hint: BOOTSTRAP.hint,
-        createdAt: BOOTSTRAP.createdAt,
-        expiresAt: BOOTSTRAP.expiresAt,
-        maxUses: BOOTSTRAP.maxUses,
-        uses: 0,
-        active: true,
-        lastUsedAt: null,
-        bootstrap: true,
-      };
-      rows.unshift(row);
-    }
-    if (row.active === false || Number(row.uses || 0) >= Number(row.maxUses || BOOTSTRAP.maxUses)) return null;
-    row.uses = Number(row.uses || 0) + 1;
-    row.lastUsedAt = new Date(now).toISOString();
-    await writeRows(rows.slice(0, 250));
-    return publicRow(row);
-  }
-
+  // Production accepts only codes that were generated dynamically and stored
+  // as one-way digests. No hard-coded bootstrap credential is recognized.
   return null;
 }
 
 export async function listAccessCodes() {
-  return (await readRows()).map(publicRow);
+  return (await readRows()).filter((row) => !row.bootstrap).map(publicRow);
 }
 
 export async function revokeAccessCode(id) {
   const rows = await readRows();
-  let row = rows.find((item) => item.id === id);
-  if (!row && id === BOOTSTRAP.id) {
-    row = {
-      id: BOOTSTRAP.id,
-      label: BOOTSTRAP.label,
-      hint: BOOTSTRAP.hint,
-      createdAt: BOOTSTRAP.createdAt,
-      expiresAt: BOOTSTRAP.expiresAt,
-      maxUses: BOOTSTRAP.maxUses,
-      uses: 0,
-      active: false,
-      lastUsedAt: null,
-      bootstrap: true,
-    };
-    rows.unshift(row);
-  }
+  const row = rows.find((item) => item.id === id && !item.bootstrap);
   if (!row) return null;
   row.active = false;
   await writeRows(rows.slice(0, 250));
@@ -210,8 +152,7 @@ export async function isAccessCodeActive(id, { now = Date.now() } = {}) {
   if (cached && now - cached.at < ACTIVE_CACHE_MS) return cached.value;
 
   const rows = await readRows();
-  const row = rows.find((item) => item.id === key)
-    || (key === BOOTSTRAP.id ? { ...BOOTSTRAP, uses: 0, active: true } : null);
+  const row = rows.find((item) => item.id === key && !item.bootstrap) || null;
   // A member session outlives its use count (uses are consumed at redemption),
   // so only revocation and expiry end it.
   const value = rowUsable(row, now);

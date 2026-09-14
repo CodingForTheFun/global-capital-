@@ -185,3 +185,22 @@ test('the landing page links its legal pages', () => {
   const landing = readFileSync(new URL('../lib/auth/landing.mjs', import.meta.url), 'utf8');
   for (const path of LEGAL_PATHS) assert.ok(landing.includes(`href="${path}"`), `landing must link ${path}`);
 });
+
+// The sign-in form lives on the front page, so these were dead ends that lost
+// a visitor who was actively trying to reach an account.
+test('the account paths people type redirect to the sign-in page', () => {
+  for (const path of ['/login', '/signin', '/sign-in', '/signup', '/sign-up', '/register', '/account', '/login/']) {
+    const res = fakeRes();
+    assert.equal(servePublicSurface(req(path), res), true, `${path} must be handled`);
+    assert.equal(res.statusCode, 302, `${path} must redirect`);
+    assert.equal(res.headers.location, '/');
+  }
+});
+
+test('the redirect does not swallow the real routes', () => {
+  for (const path of ['/', '/apex', '/api/account/login', '/accounts', '/logins']) {
+    const res = fakeRes();
+    const handled = servePublicSurface(req(path), res);
+    assert.ok(!handled || res.statusCode !== 302, `${path} must not be redirected`);
+  }
+});

@@ -11,7 +11,17 @@ var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(
 var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
 // Presentation enhancement: a failed load must leave the board intact.
 var dfsEdge=await import('/assets/lib/props/dfs-edge.mjs').catch(()=>null);
-var slipMaths=await import('/assets/lib/betting/slip-correlation.mjs').catch(()=>null);
+// Loaded on first use rather than at boot: the research-only client strips the
+// betslip, so eagerly importing this cost every visitor a request for a module
+// that never runs. loadSlipMaths() is called from renderSlip once a slip exists.
+var slipMaths=null,slipMathsPending=null;
+function loadSlipMaths(){
+ if(slipMaths||slipMathsPending)return slipMathsPending;
+ slipMathsPending=import('/assets/lib/betting/slip-correlation.mjs')
+  .then(function(m){slipMaths=m;renderSlip();})
+  .catch(function(){return null;});
+ return slipMathsPending;
+}
 var {proToolsAnalysis}=await import('/assets/lib/analytics/pro-tools.mjs');
 var {proToolsHtml}=await import('/assets/lib/ui/pro-tools.mjs');
 var {matchupAnalysis,similarGames}=await import('/assets/lib/analytics/matchup.mjs');
@@ -254,6 +264,7 @@ function slipPickProbability(pick){
 function renderSlip(){
  var host=document.getElementById('asSlip');
  if(!host)return;
+ if(!slipMaths)loadSlipMaths();
  host.classList.toggle('on',slipOpen);
  var count=slip.length;
  var toggle='<button class="asSlipToggle" id="asSlipToggle" aria-expanded="'+slipOpen+'" aria-controls="asSlipBody">'

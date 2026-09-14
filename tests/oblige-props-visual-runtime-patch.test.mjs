@@ -76,3 +76,30 @@ test('the centre hit rate fits inside the donut hole at every ring size', () => 
   );
   assert.match(output, /#as5 \.asRingLegend \.asWin b\{/, 'the legend must mark which side the centre number reports');
 });
+
+test('an absent value is stated but never wears the typography of a result', () => {
+  const original = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
+  const output = patchObligePropsVisualUi(patchNavAndRingUi(patchResearchUi(original)));
+
+  // The board already rendered a missing value muted via .asUnavailable; the
+  // drawer panels showed "Unavailable" in the same large green type as a real
+  // hit rate, so a gap read as a broken number.
+  assert.match(output, /#as5 \.asMatchMetric>strong\.asUnavailable\{/,
+    'a missing hit rate must be styled down, not shown in the result colour');
+  assert.match(output, /tidyUnavailable\(\)/, 'the decorator must run');
+  for (const slot of ['.asMatchMetric>strong', '.asMatchMetric dd', '.asCtx b', '.asProjectedStat b']) {
+    assert.ok(output.includes(slot), `${slot} must be covered by the unavailable pass`);
+  }
+
+  // This string reaches the browser through a template literal, where an
+  // escaped slash collapses and would end a regex literal early — the bundle
+  // then fails to parse and the whole board white-screens. Compare plainly.
+  // Slice forward from the function itself: the nav/ring patch ships its own
+  // decorate() earlier in the bundle, so anchoring on that name finds the wrong one.
+  const start = output.indexOf('function tidyUnavailable');
+  assert.ok(start > 0, 'the unavailable pass must be present');
+  const decorator = output.slice(start, start + 700);
+  assert.doesNotMatch(decorator, /\/\^|\$\//, 'no regex literal may be emitted here');
+  assert.match(decorator, /toLowerCase\(\)/);
+  assert.match(decorator, /'n\/a'/);
+});

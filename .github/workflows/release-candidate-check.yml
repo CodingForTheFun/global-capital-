@@ -27,4 +27,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Syntax and test suite
-        run: npm run check
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run check 2>&1 | tee release-check.log
+      - name: Upload failed release-check log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-check-log
+          path: release-check.log
+          if-no-files-found: error
+          retention-days: 3

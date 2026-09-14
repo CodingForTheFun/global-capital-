@@ -14,6 +14,7 @@ import { teammatesFor, injuryFeedConfigured } from './lib/data-sources/sportsdat
 import { accountSecret } from './lib/auth/secret.mjs';
 import { applySecurityHeaders, servePublicSurface, siteOrigin } from './lib/web/public-surface.mjs';
 import { serveLegal } from './lib/web/legal.mjs';
+import { serveBillingPages } from './lib/web/billing-pages.mjs';
 import { installProcessGuards } from './lib/web/process-guards.mjs';
 import { handleAccountRoutes, currentAccount, mailStatus } from './lib/auth/routes.mjs';
 import { handleGoogleRoutes } from './lib/auth/google-routes.mjs';
@@ -634,6 +635,9 @@ const server = http.createServer(async (req, res) => {
   // Terms, privacy and responsible gaming are public by definition: a payment
   // processor, a crawler and a signed-out visitor all have to be able to read them.
   if (serveLegal(req, res, { origin: SITE_ORIGIN })) return;
+  // Pricing is public; /checkout is where PayPal returns, and its return URL
+  // pointed at a route that answered 404 until now.
+  if (serveBillingPages(req, res, { origin: SITE_ORIGIN })) return;
   const asset = CLIENT_MODULES.get(new URL(req.url || '/', 'http://localhost').pathname);
   if (asset && req.method === 'GET') {
     res.writeHead(200, { 'content-type': asset.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8', 'cache-control': 'no-cache', 'x-content-type-options': 'nosniff' });

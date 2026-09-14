@@ -40,6 +40,40 @@ test('Underdog v2 still rejects genuinely live rows', () => {
   assert.equal(normalizeUnderdog(underdogV2({ liveEvent: true })).length, 0);
 });
 
+// The public-feeds collector reads api.underdogfantasy.com/v1/over_under_lines,
+// which carries no _autoscout_v2 marker. That feed stamps live_event:false on
+// every ordinary pregame row, so a predicate that treated any non-null marker
+// as live discarded the entire feed — 2,858 of 2,858 rows — while the v2 path
+// kept working, which is why it went unnoticed.
+test('Underdog v1 keeps pregame rows that are marked live_event:false', () => {
+  const payload = underdogV2();
+  delete payload._autoscout_v2;
+  const rows = normalizeUnderdog(payload);
+  assert.equal(rows.length, 1, 'the v1 feed shape must survive normalization');
+  assert.equal(rows[0].market, 'Hits');
+});
+
+test('Underdog v1 still rejects genuinely live rows', () => {
+  const payload = underdogV2({ liveEvent: true });
+  delete payload._autoscout_v2;
+  assert.equal(normalizeUnderdog(payload).length, 0);
+});
+
+// Tennis, golf and MMA appearances reference solo_games; joining only against
+// games dropped every individual-sport line Underdog offers.
+test('Underdog individual-sport lines resolve through solo_games', () => {
+  const payload = underdogV2();
+  delete payload._autoscout_v2;
+  payload.players = [{ id: 'p1', full_name: 'Test Player', sport_id: 'TENNIS', live_event: false }];
+  payload.solo_games = payload.games.map(game => ({
+    id: game.id, sport_id: 'TENNIS', scheduled_at: game.scheduled_at, status: 'scheduled',
+  }));
+  payload.games = [];
+  const rows = normalizeUnderdog(payload);
+  assert.equal(rows.length, 1, 'a solo-game appearance must still produce a line');
+  assert.equal(rows[0].sport, 'TENNIS');
+});
+
 test('3-PT Made normalizes to the canonical basketball threes market', () => {
   const row = record({
     sourceId: 'projection-1',

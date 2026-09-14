@@ -51,6 +51,18 @@ test('owner Control link is rendered only from the server-issued owner capabilit
  assert.match(client,/existingControl\.remove\(\)/,'a stale owner link is removed before permissions are re-evaluated');
  assert.ok(client.indexOf("viewOwnerConsole===true")<client.indexOf("textContent='Control';control.href='/owner';"),'owner capability must guard Control link creation');
 });
+test('mobile header exposes account security controls without granting client-side authority',()=>{
+ const client=researchClient(read('apex-v2/scout-ui-v5.js'));
+ new vm.Script(client);
+ assert.match(client,/headerBar\.appendChild\(profileMenu\)/,'account menu is moved into the sticky header');
+ for(const id of ['asAccount','asSecurity','asMenuReset','asMenuSaved','asMenuSignOut'])assert.ok(client.includes(`id=\"${id}\"`),id);
+ assert.match(client,/authPanel\('forgot',''\)/,'reset password reuses the existing reset flow');
+ assert.match(client,/securityMenu\.onclick=accountPanel/,'security reuses the server-backed account panel');
+ assert.match(client,/signOutButton\.hidden=!account\.authenticated/);
+ assert.match(client,/resetButton\.hidden=account\.authenticated/);
+ const css=read('public/autoscout-home.css');
+ assert.match(css,/\.asHeaderAccount/);assert.match(css,/grid-column:4/);assert.match(css,/\.asProfileDropdown/);
+});
 test('native sign-in form and safe redirects survive the research-only landing decoration',()=>{
  for(const options of [{passwordSignup:true,googleSignup:true,next:'/apex'},{passwordSignup:false,googleSignup:false,next:'https://evil.invalid'}]){
   const original=landingPage(options), decorated=researchLanding(original);

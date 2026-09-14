@@ -42,7 +42,7 @@ const CLIENT_MODULES = new Map([
   'lib/ui/intelligence-studio.mjs', 'lib/autoscout/intelligence.mjs',
   'lib/ui/offer-promotion.mjs', 'lib/ml/contract.mjs', 'lib/ui/ml-prediction.mjs', 'lib/ui/prop-board.mjs', 'lib/ui/line-comparison.mjs', 'lib/analytics/research.mjs', 'lib/analytics/matchup.mjs', 'lib/analytics/pro-tools.mjs', 'lib/ui/pro-tools.mjs', 'lib/ui/matchup-context.mjs', 'lib/ui/prop-filters.mjs', 'lib/ui/research-percentages.mjs', 'lib/constants/books.mjs', 'lib/analytics/rolling.mjs', 'lib/props/model.mjs',
   'lib/filters/index.mjs', 'lib/data-sources/contract.mjs',
-  'lib/betting/kelly.mjs', 'lib/markets/line-lag.mjs',
+  'lib/betting/kelly.mjs', 'lib/markets/line-lag.mjs', 'lib/props/dfs-edge.mjs',
   'lib/projections/reprice.mjs', 'lib/projections/baseline.mjs', 'lib/projections/schema.mjs',
 ].map(file => ['/assets/' + file, file]));
 CLIENT_MODULES.set('/assets/autoscout-research.css', 'apex-v2/research-ui.css');

@@ -9,6 +9,8 @@ var matchupClient=createMatchupClient({fetcher:nativeFetch});
 // Optional presentation enhancement: a failed studio load must not break the board.
 var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(()=>null);
 var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
+// Presentation enhancement: a failed load must leave the board intact.
+var dfsEdge=await import('/assets/lib/props/dfs-edge.mjs').catch(()=>null);
 var {proToolsAnalysis}=await import('/assets/lib/analytics/pro-tools.mjs');
 var {proToolsHtml}=await import('/assets/lib/ui/pro-tools.mjs');
 var {matchupAnalysis,similarGames}=await import('/assets/lib/analytics/matchup.mjs');
@@ -456,6 +458,22 @@ function oddsStrip(g){
    +(x.u?'<i class="u">U '+esc(dec(x.u.line))+' '+esc(money(x.u.price))+tacoBadgeHtml(g.archived?null:x.u)+'</i>':'')+'</span></div>';});
  return chips.length?'<div class="asOddsStrip" aria-label="Sportsbook lines">'+chips.join('')+'</div>':'';
 }
+// Sharp fair value for a DFS leg.
+//
+// A DFS prop carries a number and no price, so the donut is otherwise the only
+// signal on the card and a hit rate is a record of the past. A book quoting
+// both sides of the same number is stating a probability; de-vigged, that is
+// the market's price for this exact line. Stays silent unless the comparison
+// is honest — see lib/props/dfs-edge.mjs for what it refuses to do.
+function fairValueStrip(g){
+ if(g.archived||!dfsEdge)return '';
+ var value=dfsEdge.dfsFairValue(g.comparisonOffers||g.rows||[]);
+ var copy=dfsEdge.describeDfsEdge(value);
+ if(!copy)return '';
+ var edge=dfsEdge.hasMeaningfulEdge(value);
+ return '<div class="asFairStrip'+(edge?' asFairEdge':'')+'" aria-label="Sharp fair value">'
+  +'<b>'+(edge?'Edge':'Fair value')+'</b><span>'+esc(copy)+'</span></div>';
+}
 // ---------------------------------------------------------------------------
 // Modelled projection card.
 //
@@ -853,6 +871,7 @@ function rowHtml(g){
   +badgeStrip(g,r,side)
   +staleBadge(g)
   +oddsStrip(g)
+  +fairValueStrip(g)
   +'<details class="asCardModels"><summary>Model estimates &amp; projection</summary>'+mlPanel(g,line,side)+predictionStrip(g,line)+'</details>'
   +'<div class="asRowActions"><span class="asResearchState '+(r&&r.available?'ready':'')+'">'
    +esc(g.archived?'Saved snapshot · no current line':state)+'</span>'

@@ -205,6 +205,13 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asBadge.cold b,.asBadge.cold small{color:#f43f5e}
 .asBadge.cold em{color:#c53a53}
 .asOddsStrip{display:flex;gap:7px;overflow-x:auto;padding:10px 14px;scrollbar-width:thin}
+/* Sharp fair value for the DFS line. Rendered only when a book prices both
+   sides of the same number, so its absence is meaningful, not a gap. */
+.asFairStrip{display:flex;align-items:baseline;gap:9px;padding:0 14px 10px;font-size:11px;line-height:1.45;color:#9fb0c6}
+.asFairStrip b{flex:none;font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#8ba2bd;border:1px solid #2d4866;background:#0b1a2c;border-radius:999px;padding:3px 8px}
+.asFairStrip span{min-width:0}
+.asFairStrip.asFairEdge{color:#cfe6da}
+.asFairStrip.asFairEdge b{color:#7ef0bd;border-color:#2b6b52;background:#0e241c}
 .asOddsChip{flex:none;min-width:104px;border:1px solid #2d4866;background:#0b1a2c;border-radius:9px;padding:7px 9px}
 .asOddsChip b{display:block;font-size:11px;font-weight:700;color:#d6e6fa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .asOddsChip span{display:flex;gap:8px;margin-top:4px}

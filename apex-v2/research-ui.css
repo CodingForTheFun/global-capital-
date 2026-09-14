@@ -362,6 +362,10 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asSlipTotal b{font-size:18px;font-weight:800;color:#fff;margin-left:auto;font-variant-numeric:tabular-nums}
 .asSlipTotal em{font-style:normal;font-size:11px;color:#8ba2be;width:100%;text-align:right}
 .asSlipWarn{margin:10px 0 0;font-size:11px;line-height:1.6;color:#f0c98a;background:#2a2013;border:1px solid #5c4423;border-radius:8px;padding:9px}
+/* The interval dependence allows around the product of the legs. Neutral when
+   no two legs share a game or a player, flagged when they do. */
+.asSlipJoint{margin:10px 0 0;font-size:11px;line-height:1.6;color:#9fb0c6;background:#0c1421;border:1px solid #29425f;border-radius:8px;padding:9px}
+.asSlipJoint.asSlipJointWarn{color:#cfe0f2;border-color:#3a5a80;background:#0e1b2b}
 .asSlipFootnote{margin:10px 0 8px;font-size:10px;font-style:italic;color:#7d95b3;line-height:1.5}
 .asSlipAdd{height:30px;font-size:11px;padding:0 10px;border-color:#3a5477;background:#14263c}
 

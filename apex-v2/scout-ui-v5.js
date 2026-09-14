@@ -11,6 +11,7 @@ var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(
 var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
 // Presentation enhancement: a failed load must leave the board intact.
 var dfsEdge=await import('/assets/lib/props/dfs-edge.mjs').catch(()=>null);
+var slipMaths=await import('/assets/lib/betting/slip-correlation.mjs').catch(()=>null);
 var {proToolsAnalysis}=await import('/assets/lib/analytics/pro-tools.mjs');
 var {proToolsHtml}=await import('/assets/lib/ui/pro-tools.mjs');
 var {matchupAnalysis,similarGames}=await import('/assets/lib/analytics/matchup.mjs');
@@ -175,6 +176,8 @@ function toggleSlip(key){
  else{
   var line=boardLine(g),side=defaultSide(g),quote=bestPrice(g,side,line,true);
   slip.push({key:key,sport:g.sport,playerName:g.playerName,market:g.market,
+   // Kept so the slip can tell which legs share a game or a player.
+   eventId:g.eventId,playerId:g.playerId,
    line:num(line),side:side,price:quote?num(quote.price):null,
    sportsbook:quote?(quote.sportsbook||quote.sportsbookKey):null});
  }
@@ -197,6 +200,14 @@ function renderSlip(){
  var sized=sizeSlip(slip.map(function(pick){
   return {ref:pick,probability:slipPickProbability(pick),americanOdds:pick.price};
  }),{bankroll:bankroll,fraction:kellyPart});
+ // The product of the legs is only the answer when they are independent, which
+ // a DFS slip usually is not. Report the interval dependence allows instead of
+ // a single confident number — see lib/betting/slip-correlation.mjs.
+ var joint=slipMaths?slipMaths.slipJointProbability(slip.map(function(pick){
+  return {probability:slipPickProbability(pick),eventId:pick.eventId,
+   playerId:pick.playerId,playerName:pick.playerName};
+ })):null;
+ var jointCopy=joint?slipMaths.describeSlipCorrelation(joint):null;
  var rows=sized.picks.map(function(row){
   var pick=row.ref,k=row.kelly;
   var stake=k&&num(k.stake)!=null?'$'+k.stake.toFixed(2):null;
@@ -221,6 +232,7 @@ function renderSlip(){
    +(count?'<ul class="asSlipList">'+rows+'</ul>':'<p class="asNotice">No picks yet. Add one from any card.</p>')
    +(count?'<div class="asSlipTotal"><span>Suggested total</span><b>'+(sized.totalStake==null?'—':'$'+sized.totalStake.toFixed(2))+'</b>'
      +(sized.sharePercent!=null?'<em>'+sized.sharePercent+'% of bankroll</em>':'')+'</div>':'')
+   +(jointCopy?'<p class="asSlipJoint'+(slipMaths.hasDependentLegs(joint)?' asSlipJointWarn':'')+'">'+esc(jointCopy)+'</p>':'')
    +(sized.exceedsBankroll?'<p class="asSlipWarn">These stakes are sized independently and add up to more than your bankroll. Scale them down — the maths does not account for picks moving together.</p>':'')
    +(count&&sized.unsizedCount?'<p class="asNotice">'+sized.unsizedCount+' pick'+(sized.unsizedCount===1?'':'s')+' cannot be sized until a prediction has been generated.</p>':'')
    +'<p class="asSlipFootnote">Stake suggestions come from a model estimate, not a measured probability. Not betting advice.</p>'

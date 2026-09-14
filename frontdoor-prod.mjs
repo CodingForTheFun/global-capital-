@@ -14,6 +14,7 @@ import { teammatesFor, injuryFeedConfigured } from './lib/data-sources/sportsdat
 import { accountSecret } from './lib/auth/secret.mjs';
 import { applySecurityHeaders, servePublicSurface, siteOrigin } from './lib/web/public-surface.mjs';
 import { serveLegal } from './lib/web/legal.mjs';
+import { installProcessGuards } from './lib/web/process-guards.mjs';
 import { handleAccountRoutes, currentAccount, mailStatus } from './lib/auth/routes.mjs';
 import { handleGoogleRoutes } from './lib/auth/google-routes.mjs';
 import { createAccountSessions } from './lib/auth/session.mjs';
@@ -760,3 +761,8 @@ function shutdown(signal) {
 }
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+// A rejected upstream fetch must not take the whole site down with it. An
+// uncaught exception still stops the process, but through the same shutdown
+// path so children are killed and in-flight requests get a chance to finish.
+installProcessGuards({ label: 'frontdoor', onFatal: () => shutdown('SIGTERM') });

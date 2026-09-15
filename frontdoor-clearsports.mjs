@@ -11,6 +11,7 @@ import { patchResearchTabsUi } from './lib/autoscout/research-tabs-runtime-patch
 import { patchLiveMainViewUi } from './lib/autoscout/live-main-view-runtime-patch.mjs';
 import { patchProplineRealtimeCore, patchProplineRealtimeFrontdoor, patchProplineRealtimeUi } from './lib/autoscout/propline-realtime-runtime-patch.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
+import { patchMobileNavDockUi } from './lib/autoscout/mobile-nav-dock-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
 import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs';
 
@@ -57,7 +58,10 @@ function makeClientSafeVisualUi(source) {
   if (scopedVisualClient === visualClient) throw new Error('Profile avatar bootstrap could not locate the client scope boundary.');
   // Avatar styling is applied after the screenshot-target layer so its compact
   // profile ring wins over older generic account-button sizing.
-  const client = patchProfileAvatarUi(scopedVisualClient);
+  const avatarClient = patchProfileAvatarUi(scopedVisualClient);
+  // The mobile dock is intentionally last so its compact side-rail geometry
+  // wins over the older full-width floating navigation without changing routes.
+  const client = patchMobileNavDockUi(avatarClient);
   // Fail the container before Railway cuts traffic over if a future runtime
   // presentation patch ever generates invalid client JavaScript again.
   try { new Function(client); }

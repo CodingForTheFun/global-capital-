@@ -32,13 +32,14 @@
         <div class="hero-copy-wrap">
           <p class="eyebrow"><span></span> PRIVATE OWNER ACCESS</p>
           <h1>Owner Control Center</h1>
-          <p class="hero-copy">Manage members, access, live sessions and production health from one focused workspace.</p>
+          <p class="hero-copy">Manage members, access codes, complimentary access, live sessions and production health from one focused workspace.</p>
         </div>
         <div id="systemBadge" class="system-badge"><i></i><span>Checking system</span></div>
       </section>
 
       <nav class="section-nav glass" aria-label="Owner console sections">
         <a href="#overview" class="active">Overview</a>
+        <a href="#codes">Access Codes</a>
         <a href="#members">Users</a>
         <a href="/support">Support</a>
         <a href="#system">System</a>
@@ -78,6 +79,70 @@
           </article>
         </section>
 
+        <section id="codes" class="panel glass codes-panel">
+          <div class="panel-head codes-head">
+            <div>
+              <p class="eyebrow">ACCESS CODES</p>
+              <h2>Create guest & trial access</h2>
+              <p class="section-copy">Generate as many codes as needed. Choose anything from a short trial to a one-year or unlimited grant.</p>
+            </div>
+            <span id="codeCount" class="muted">—</span>
+          </div>
+
+          <form id="codeForm" class="code-builder">
+            <label class="field">
+              <span>Label</span>
+              <input id="codeLabel" type="text" maxlength="80" value="Trial access" placeholder="e.g. 3-day trial" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Duration</span>
+              <select id="codeDuration">
+                <option value="3">3 days</option>
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30" selected>30 days</option>
+                <option value="90">90 days</option>
+                <option value="180">180 days</option>
+                <option value="365">1 year</option>
+                <option value="unlimited">Unlimited</option>
+                <option value="custom">Custom days…</option>
+              </select>
+            </label>
+            <label id="customDurationWrap" class="field hidden">
+              <span>Custom days</span>
+              <input id="codeCustomDays" type="number" min="1" max="3650" step="1" value="30" inputmode="numeric" />
+            </label>
+            <label class="field">
+              <span>Redemptions</span>
+              <select id="codeUses">
+                <option value="1" selected>1 person</option>
+                <option value="5">5 uses</option>
+                <option value="10">10 uses</option>
+                <option value="25">25 uses</option>
+                <option value="100">100 uses</option>
+                <option value="unlimited">Unlimited uses</option>
+                <option value="custom">Custom uses…</option>
+              </select>
+            </label>
+            <label id="customUsesWrap" class="field hidden">
+              <span>Custom uses</span>
+              <input id="codeCustomUses" type="number" min="1" max="100000" step="1" value="1" inputmode="numeric" />
+            </label>
+            <button id="generateCodeBtn" class="btn primary code-generate" type="submit">Generate code</button>
+          </form>
+
+          <div id="generatedCode" class="generated-code hidden" role="status">
+            <div>
+              <span>New access code · shown in full only now</span>
+              <code id="generatedCodeValue"></code>
+            </div>
+            <button id="copyGeneratedCode" class="btn good" type="button">Copy code</button>
+          </div>
+
+          <div class="code-list-head"><strong>Issued codes</strong><span>Only the last four characters are stored for display.</span></div>
+          <div id="accessCodes" class="code-list"><div class="loading">Loading access codes…</div></div>
+        </section>
+
         <section id="system" class="panel glass system-panel">
           <div class="panel-head">
             <div><p class="eyebrow">SYSTEM</p><h2>Production health</h2></div>
@@ -93,7 +158,7 @@
 
         <section class="panel glass members-panel">
           <div class="panel-head member-head">
-            <div><p class="eyebrow">USERS</p><h2>Members & access</h2><p class="section-copy">Search quickly, then make the smallest change needed.</p></div>
+            <div><p class="eyebrow">USERS</p><h2>Members & access</h2><p class="section-copy">Search quickly, then make the smallest change needed. Complimentary access can be 3 days, a year, custom, or unlimited.</p></div>
             <div class="filters">
               <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search email…" autocomplete="off" /></label>
               <select id="statusFilter" aria-label="Filter accounts">
@@ -113,7 +178,7 @@
           <div>
             <p class="eyebrow">SECURITY BOUNDARY</p>
             <h2>Secrets stay outside the control center.</h2>
-            <p>API keys, passwords, payment secrets, Railway settings and authentication hashes are never displayed here. Sensitive deployment changes stay outside the customer-facing admin surface.</p>
+            <p>API keys, passwords, payment secrets, Railway settings and authentication hashes are never displayed here. Access codes are stored as one-way digests; the full code is shown only when it is generated.</p>
           </div>
         </section>
       </div>

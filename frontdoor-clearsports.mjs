@@ -19,15 +19,21 @@ const uiSourcePath = './apex-v2/scout-ui-v5.js';
 const uiRuntimePath = './.scout-ui-v5-runtime.js';
 const oldImport = './lib/autoscout/research-service.mjs';
 const newImport = './lib/autoscout/research-service-v2.mjs';
+const landingImport = "import { landingPage } from './lib/auth/landing.mjs';";
+const obligeLandingImport = "import { landingPage } from './lib/auth/landing-oblige.mjs';";
 const uiRead = "readFileSync('./apex-v2/scout-ui-v5.js', 'utf8')";
 const uiRuntimeRead = "readFileSync('./.scout-ui-v5-runtime.js', 'utf8')";
 const researchSports = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL']);";
+const oldWordmark = "identity.innerHTML='<span class=\"asOblige\">oblige</span><span class=\"asPay\">pay</span>';";
+const currentWordmark = "identity.innerHTML='<span class=\"asOblige\">oblige</span><span class=\"asPay\">props</span>';";
 // The DFS feeds tag every club competition "SOCCER" and never MLS, EPL or UCL,
 // so the research API refused the only soccer props that actually arrive.
 const researchSportsWithTennis = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL','SOCCER','TENNIS']);";
 
 function makeClientSafeVisualUi(source) {
-  const patched = patchObligePropsVisualUi(source);
+  const legacyPatched = patchObligePropsVisualUi(source);
+  const patched = legacyPatched.replace(oldWordmark, currentWordmark);
+  if (patched === legacyPatched) throw new Error('Oblige Props wordmark patch could not locate the legacy ObligePay wordmark.');
   // The visual patch is authored as HTML fragments because it is also useful in
   // screenshot review tooling. The production Auto Scout shell, however, is
   // injected inside an existing <script>. Convert those fragments into real
@@ -62,6 +68,7 @@ function makeClientSafeVisualUi(source) {
 
 const source = readFileSync(sourcePath, 'utf8');
 if (!source.includes(oldImport)) throw new Error('ClearSports bootstrap could not locate the research-service import.');
+if (!source.includes(landingImport)) throw new Error('ClearSports bootstrap could not locate the account landing import.');
 if (!source.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the Auto Scout v5 UI source.');
 if (!source.includes(researchSports)) throw new Error('ClearSports bootstrap could not locate the research sport allowlist.');
 const patchedResearchUi = patchResearchUi(readFileSync(uiSourcePath, 'utf8'));
@@ -76,6 +83,7 @@ writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedPropBookSelectorUi), 
 // safeguards still fail closed if the production frontdoor shape changes.
 let runtimeSource = source
   .replace(oldImport, newImport)
+  .replace(landingImport, obligeLandingImport)
   .replace(researchSports, researchSportsWithTennis);
 runtimeSource = patchEdgeFrontdoor(runtimeSource);
 runtimeSource = patchProfileAvatarFrontdoor(runtimeSource);

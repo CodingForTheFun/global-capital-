@@ -46,7 +46,7 @@ try{
   if(name==='mobile')await page.locator('#tabIn').click();
   await page.locator('#email').fill(email);await page.locator('#password').fill(password);await page.locator('#submit').click();await ready();
   check(true,name+' signs in through the native account form');
-  check((await page.title()).startsWith('Auto Scout'),name+' uses Auto Scout product identity');
+  check((await page.title()).startsWith('Oblige Props'),name+' uses Oblige Props product identity');
   check(!(await page.locator('#as5').innerText()).includes('ObligePay'),name+' has no ObligePay product wording');
   check(await page.locator('.edge-workspace-nav,#asSlip,.asSlipAdd').count()===0,name+' has no sportsbook navigation or bet slip');
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),name+' root has no horizontal overflow');

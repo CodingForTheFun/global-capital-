@@ -7,7 +7,7 @@
     if (!root) return false;
     document.body.classList.add('asResearchHome');
     root.dataset.product = 'autoscout';
-    document.title = 'Auto Scout — Player Prop Research';
+    document.title = 'Oblige Props — Player Prop Research';
     root.querySelector('.asIdentity')?.setAttribute('href', '/');
     const label = root.querySelector('.asDesktopLabel');
     if (label) label.textContent = 'PLAYER PROP INTELLIGENCE';

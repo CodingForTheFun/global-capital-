@@ -50,6 +50,45 @@ if (existsSync('package.json')) {
   }
 }
 
+// The signed-in shell must own the public browser-tab identity too. This is
+// placed in the client entrypoint that actually renders the authenticated board,
+// so an upstream placeholder title cannot leak an old internal product name.
+{
+  const file = 'apex-v2/scout-ui-v5.js';
+  if (existsSync(file)) {
+    const source = readFileSync(file, 'utf8');
+    const legacy = "'use strict';\nvar {BOOKS,bookId,bookInfo,bookSelection,bookEnabled,filterBookGroups}=await import('/assets/lib/constants/books.mjs');";
+    const current = "'use strict';\ndocument.title='Oblige Props — Player Prop Research & Line Comparison';\nvar {BOOKS,bookId,bookInfo,bookSelection,bookEnabled,filterBookGroups}=await import('/assets/lib/constants/books.mjs');";
+    if (!source.includes(legacy) && !source.includes(current)) {
+      throw new Error('Oblige Props signed-in title anchor not found.');
+    }
+    const output = source.replace(legacy, current);
+    if (output !== source) writeFileSync(file, output);
+  }
+}
+
+// Remove the last customer-visible uses of the retired Auto Scout name from the
+// intelligence workspace. Internal module/env/data identifiers remain unchanged.
+{
+  const file = 'lib/ui/intelligence-studio.mjs';
+  if (existsSync(file)) {
+    const source = readFileSync(file, 'utf8');
+    const replacements = [
+      ["boardRoot.setAttribute('aria-label','Auto Scout intelligence studio');", "boardRoot.setAttribute('aria-label','Oblige Props intelligence studio');"],
+      ['<p class="asi-eyebrow">Auto Scout / Intelligence studio</p>', '<p class="asi-eyebrow">Oblige Props / Intelligence studio</p>'],
+      ['without leaving Auto Scout.</p>', 'without leaving Oblige Props.</p>'],
+    ];
+    let output = source;
+    for (const [legacy, current] of replacements) {
+      if (!output.includes(legacy) && !output.includes(current)) {
+        throw new Error(`Oblige Props intelligence identity anchor not found: ${legacy}`);
+      }
+      output = output.replace(legacy, current);
+    }
+    if (output !== source) writeFileSync(file, output);
+  }
+}
+
 // Signed-out visitors should see the current product identity without changing
 // any registration, verification, session, or account-gate behavior.
 {

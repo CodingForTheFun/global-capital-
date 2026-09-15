@@ -23,7 +23,7 @@ test('public persistence uses bounded production write tuning', () => {
     withEnv('AUTOSCOUT_PUBLIC_STORE_TIMEOUT_MS', '35000', restore);
     withEnv('AUTOSCOUT_PUBLIC_FALLBACK_DELAY_MS', '750', restore);
     assert.deepEqual(__publicPersistenceTuning(), {
-      snapshotBatchSize: 25,
+      snapshotBatchSize: 50,
       historyBatchSize: 100,
       storeTimeoutMs: 35000,
       fallbackDelayMs: 750,
@@ -34,7 +34,7 @@ test('public persistence uses bounded production write tuning', () => {
   }
 });
 
-test('prop snapshots are split into small chunks before finalization', async () => {
+test('prop snapshots are split into bounded chunks before finalization', async () => {
   const restore = {};
   const originalFetch = globalThis.fetch;
   const calls = [];
@@ -42,7 +42,7 @@ test('prop snapshots are split into small chunks before finalization', async () 
     withEnv('AUTOSCOUT_SUPABASE_URL', 'https://example.supabase.co', restore);
     withEnv('AUTOSCOUT_SUPABASE_PUBLISHABLE_KEY', 'test-key', restore);
     withEnv('AUTOSCOUT_SUPABASE_INGEST_TOKEN', 'test-token', restore);
-    withEnv('AUTOSCOUT_PUBLIC_SNAPSHOT_BATCH_SIZE', '25', restore);
+    withEnv('AUTOSCOUT_PUBLIC_SNAPSHOT_BATCH_SIZE', '50', restore);
     withEnv('AUTOSCOUT_PUBLIC_FALLBACK_DELAY_MS', '0', restore);
     globalThis.fetch = async (_url, init) => {
       const request = JSON.parse(init.body);
@@ -50,15 +50,42 @@ test('prop snapshots are split into small chunks before finalization', async () 
       calls.push({ rows: rows.length, finalize: request.p_payload?.finalize === true });
       return ok({ written: rows.length });
     };
-    const rows = Array.from({ length: 53 }, (_, index) => ({ id: `row-${index}` }));
+    const rows = Array.from({ length: 103 }, (_, index) => ({ id: `row-${index}` }));
     const result = await persistPublicSnapshot('prizepicks', rows, '2026-09-15T17:30:00.000Z');
-    assert.equal(result.written, 53);
+    assert.equal(result.written, 103);
     assert.deepEqual(calls, [
-      { rows: 25, finalize: false },
-      { rows: 25, finalize: false },
+      { rows: 50, finalize: false },
+      { rows: 50, finalize: false },
       { rows: 3, finalize: false },
       { rows: 0, finalize: true },
     ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv(restore);
+  }
+});
+
+test('direct-primary write failure never spills into PostgREST', async () => {
+  const restore = {};
+  const originalFetch = globalThis.fetch;
+  const urls = [];
+  try {
+    withEnv('AUTOSCOUT_SUPABASE_URL', 'https://example.supabase.co', restore);
+    withEnv('AUTOSCOUT_SUPABASE_PUBLISHABLE_KEY', 'test-key', restore);
+    withEnv('AUTOSCOUT_SUPABASE_INGEST_TOKEN', 'test-token', restore);
+    withEnv('AUTOSCOUT_DIRECT_DB_PRIMARY', 'true', restore);
+    withEnv('AUTOSCOUT_PUBLIC_SNAPSHOT_BATCH_SIZE', '250', restore);
+    globalThis.fetch = async (url) => {
+      urls.push(String(url));
+      return { ok: false, status: 500, json: async () => ({ message: 'database operation failed' }) };
+    };
+    await assert.rejects(
+      () => persistPublicSnapshot('prizepicks', [{ id: 'row-1' }], '2026-09-15T17:30:00.000Z'),
+      (error) => error?.code === 'PUBLIC_STORE_FAILED_500',
+    );
+    assert.equal(urls.length, 1, 'direct-primary mode gets one write attempt per operation');
+    assert.ok(urls[0].endsWith('/functions/v1/autoscout-db-direct'));
+    assert.ok(!urls[0].includes('/rest/v1/rpc/'));
   } finally {
     globalThis.fetch = originalFetch;
     restoreEnv(restore);

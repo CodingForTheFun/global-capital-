@@ -4,12 +4,17 @@ import { readFileSync } from 'node:fs';
 import { patchResearchUi } from '../lib/autoscout/research-ui-runtime-patch.mjs';
 import { patchFantasyH2HUi } from '../lib/autoscout/fantasy-h2h-runtime-patch.mjs';
 import { patchRecentFiveUi } from '../lib/autoscout/recent-five-runtime-patch.mjs';
+import { patchNflPercentAndOpponentUi } from '../lib/autoscout/nfl-percent-opponent-runtime-patch.mjs';
 import { patchNavAndRingUi } from '../lib/autoscout/nav-ring-runtime-patch.mjs';
 import { patchPropBookSelectorUi } from '../lib/autoscout/prop-book-selector-runtime-patch.mjs';
 
 function productionUiSource() {
   const original = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
-  return patchNavAndRingUi(patchRecentFiveUi(patchFantasyH2HUi(patchResearchUi(original))));
+  const researched = patchResearchUi(original);
+  const fantasyH2h = patchFantasyH2HUi(researched);
+  const recentFive = patchRecentFiveUi(fantasyH2h);
+  const nflPercentAndOpponent = patchNflPercentAndOpponentUi(recentFive);
+  return patchNavAndRingUi(nflPercentAndOpponent);
 }
 
 test('each prop gets a real-book selector that reprices that card only', () => {

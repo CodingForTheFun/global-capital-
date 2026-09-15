@@ -9,6 +9,7 @@ import { patchNavAndRingUi } from './lib/autoscout/nav-ring-runtime-patch.mjs';
 import { patchPropBookSelectorUi } from './lib/autoscout/prop-book-selector-runtime-patch.mjs';
 import { patchResearchTabsUi } from './lib/autoscout/research-tabs-runtime-patch.mjs';
 import { patchLiveMainViewUi } from './lib/autoscout/live-main-view-runtime-patch.mjs';
+import { patchProplineRealtimeCore, patchProplineRealtimeFrontdoor, patchProplineRealtimeUi } from './lib/autoscout/propline-realtime-runtime-patch.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
 import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs';
@@ -17,6 +18,8 @@ import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs
 process.env.AUTOSCOUT_DISABLE_SPORTSDATAIO = 'true';
 const sourcePath = './frontdoor-prod.mjs';
 const runtimePath = './.frontdoor-clearsports-runtime.mjs';
+const coreSourcePath = './apex-v2/server-core.mjs';
+const coreRuntimePath = './apex-v2/.server-core-propline-runtime.mjs';
 const uiSourcePath = './apex-v2/scout-ui-v5.js';
 const uiRuntimePath = './.scout-ui-v5-runtime.js';
 const oldImport = './lib/autoscout/research-service.mjs';
@@ -74,7 +77,14 @@ const patchedNavAndRingUi = patchNavAndRingUi(patchedNflPercentAndOpponentUi);
 const patchedPropBookSelectorUi = patchPropBookSelectorUi(patchedNavAndRingUi);
 const patchedResearchTabsUi = patchResearchTabsUi(patchedPropBookSelectorUi);
 const patchedLiveMainViewUi = patchLiveMainViewUi(patchedResearchTabsUi);
-writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedLiveMainViewUi), 'utf8');
+const patchedRealtimeUi = patchProplineRealtimeUi(patchedLiveMainViewUi);
+writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedRealtimeUi), 'utf8');
+
+// Keep PropLine real-time behavior as a runtime layer over the stable data core.
+// That avoids forking the large server while still making the signed webhook and
+// customer market-moves API part of the production process.
+writeFileSync(coreRuntimePath, patchProplineRealtimeCore(readFileSync(coreSourcePath, 'utf8')), 'utf8');
+
 // Run the existing edge safety patch against its original source anchors first.
 // The runtime-only UI file substitution happens afterwards so account/routing
 // safeguards still fail closed if the production frontdoor shape changes.
@@ -83,6 +93,7 @@ let runtimeSource = source
   .replace(researchSports, researchSportsWithTennis);
 runtimeSource = patchEdgeFrontdoor(runtimeSource);
 runtimeSource = patchProfileAvatarFrontdoor(runtimeSource);
+runtimeSource = patchProplineRealtimeFrontdoor(runtimeSource);
 if (!runtimeSource.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the edge-patched Auto Scout UI source.');
 runtimeSource = runtimeSource.replace(uiRead, uiRuntimeRead);
 writeFileSync(runtimePath, runtimeSource, 'utf8');

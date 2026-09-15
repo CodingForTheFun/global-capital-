@@ -101,12 +101,12 @@ test('soccer markets the game log cannot report are refused without a request', 
   }
 });
 
-test('research UI patch exposes tennis and honest line-only states without changing the checked-in UI', () => {
+test('research UI patch exposes tennis and customer-safe line-only states without changing the checked-in UI', () => {
   const source=readFileSync(new URL('../apex-v2/scout-ui-v5.js',import.meta.url),'utf8');
   const patched=patchResearchUi(source);
   assert.match(patched,/,'SOCCER','TENNIS'\]/);
-  assert.match(patched,/Combo line only/);
-  assert.match(patched,/Fantasy line only/);
+  assert.match(patched,/Combo line available/);
+  assert.match(patched,/Fantasy line available/);
   assert.match(patched,/research\?\.lineOnly/);
   assert.match(patched,/base\.lineOnly\?'':'<button/);
   assert.match(patched,/lineOnlyPolicy\(g\)\|\|research\?\.lineOnly/);

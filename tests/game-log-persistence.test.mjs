@@ -44,6 +44,35 @@ test('MLB pitcher logs persist in pitching category', () => {
   assert.equal(rows[0].sport, 'MLB');
 });
 
+test('verified public history persists for WNBA, NCAAF, NHL and soccer too', () => {
+  const cases = [
+    { sport: 'WNBA', market: 'Points', player: 'Fixture Guard' },
+    { sport: 'NCAAF', market: 'Pass Yards', player: 'Fixture Quarterback' },
+    { sport: 'NHL', market: 'Shots on Goal', providerMarketKey: 'player_shots_on_goal', player: 'Fixture Skater' },
+    { sport: 'SOCCER', market: 'Shots', providerMarketKey: 'player_shots', player: 'Fixture Forward' },
+  ];
+  for (const [index, item] of cases.entries()) {
+    const result = historyRowsFromResearch({
+      available: true,
+      player: { playerName: item.player, providerPlayerId: `history:${item.sport}:${12345 + index}` },
+      gameLog: [game({ gameId: `${item.sport.toLowerCase()}:40100000${index + 2}` })],
+    }, item, { now: () => now });
+    assert.equal(result.length, 1, item.sport);
+    assert.equal(result[0].sport, item.sport);
+    assert.equal(result[0].player_name, item.player);
+    assert.equal(result[0].category, 'general');
+  }
+});
+
+test('sports outside the verified public research registry remain fail closed', () => {
+  const rows = historyRowsFromResearch({
+    available: true,
+    player: { playerName: 'Fixture Server', providerPlayerId: 'history:TENNIS:12345' },
+    gameLog: [game()],
+  }, { sport: 'TENNIS', market: 'Aces' }, { now: () => now });
+  assert.deepEqual(rows, []);
+});
+
 test('invalid identity, future games and postseason values outside 2/3 fail closed', () => {
   const base = { available: true, player: { name: 'Fixture Guard', providerPlayerId: 'history:NBA:not-numeric' }, gameLog: [game()] };
   assert.deepEqual(historyRowsFromResearch(base, { sport: 'NBA', market: 'Points' }, { now: () => now }), []);

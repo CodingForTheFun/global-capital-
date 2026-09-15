@@ -1,5 +1,6 @@
 import {appendPublicFeeds,publicFeeds} from '../lib/ingestion/public-feeds.mjs';
 import { publicPersistenceConfigured, readPublicProps } from '../lib/ingestion/public-persistence.mjs';
+import { mergeCachedPropline, proplineSupplementHealth } from '../lib/ingestion/propline-supplement.mjs';
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
@@ -181,13 +182,17 @@ async function fetchPublicFirstBoard(sport, options) {
 
   let board = await appendPublicFeeds(cached || emptyPublicBoard(sport), sport);
   board = mergePersistedPublic(board, persisted, sport);
+  // PropLine is cache-only on the customer path. Existing direct/public rows
+  // win identity collisions; PropLine only fills missing book/market coverage.
+  board = mergeCachedPropline(board, sport);
   if (board.props.length || options.cacheOnly || options.allowPaidRefresh !== true) return board;
 
   // Metered network access is opt-in only in public-first mode. Browser page loads,
   // health checks and persistence bootstraps never set allowPaidRefresh.
   const live = await fetchBaseBoard(sport, { ...options, cacheOnly: false });
   board = await appendPublicFeeds(live, sport);
-  return mergePersistedPublic(board, persisted, sport);
+  board = mergePersistedPublic(board, persisted, sport);
+  return mergeCachedPropline(board, sport);
 }
 
 export async function fetchUnifiedBoard(league,options={}) {
@@ -200,8 +205,16 @@ export async function fetchUnifiedBoard(league,options={}) {
 
   // Legacy behavior remains available for local/test environments without the
   // secure public store. Production uses the public-first branch above.
-  try{return await appendPublicFeeds(await fetchBaseBoard(sport,options),sport);}
-  catch(error){const fallback=await appendPublicFeeds({props:[],data:{events:[],players:[],props:[],lines:[]},meta:{provider:'Public platform feeds',stale:true,cacheHit:true,warning:'Primary sportsbook feed is temporarily unavailable.'}},sport);if(fallback.props.length)return fallback;throw error;}
+  try{
+    const board=await appendPublicFeeds(await fetchBaseBoard(sport,options),sport);
+    return mergeCachedPropline(board,sport);
+  }
+  catch(error){
+    let fallback=await appendPublicFeeds({props:[],data:{events:[],players:[],props:[],lines:[]},meta:{provider:'Public platform feeds',stale:true,cacheHit:true,warning:'Primary sportsbook feed is temporarily unavailable.'}},sport);
+    fallback=mergeCachedPropline(fallback,sport);
+    if(fallback.props.length)return fallback;
+    throw error;
+  }
 }
 
 export function providerDiagnostics() {
@@ -209,6 +222,7 @@ export function providerDiagnostics() {
     checkedAt: new Date().toISOString(),
     catalog: providerCatalog(),
     publicFeeds: publicFeeds.health(),
+    proplineSupplement: proplineSupplementHealth(),
     runtime: snapshotDiagnostics(),
     inflightRefreshes: [...inflight.keys()].map((key) => key.replace(/^[^|]+\|/, '')),
   };
@@ -225,6 +239,7 @@ export function providerHealth() {
     preferredProvider: publicFirst ? 'Public feed database' : oddsProvider?.name || 'SportsDataIO fallback',
     publicFirst,
     regularLinesOnly: true,
+    proplineSupplement: proplineSupplementHealth(),
     // `provider` describes the provider actually serving page requests. In
     // public-first production the metered provider is intentionally paused, so
     // reporting it as the active provider makes healthy zero-credit deploys

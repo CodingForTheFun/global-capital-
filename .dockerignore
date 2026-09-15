@@ -7,15 +7,17 @@ data/*
 *.zip
 
 # Retired sportsbook/guest frontend retained in Git history only, never in runtime.
-# The validation stage needs the one source-contract file below; the final
-# runtime stage explicitly removes the entire retired app before it is shipped.
+# Validation keeps only source-contract fixtures needed by the production test suite;
+# the final Docker stage removes the retired frontend tree before shipping.
 apps/guest-dashboard
 !apps/guest-dashboard/
 apps/guest-dashboard/*
 !apps/guest-dashboard/components/
 apps/guest-dashboard/components/*
 !apps/guest-dashboard/components/SportsWorkspace.tsx
+!apps/guest-dashboard/components/PropInsight.tsx
 public/edge-workspace-*
+!public/edge-workspace-nav.js
 public/edge-theme.css
 artifacts
 test-results

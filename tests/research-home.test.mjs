@@ -42,6 +42,7 @@ test('presentation adapter removes the slip without replacing server-bound resea
  for(const feature of ['data-fav','loadSaved','/api/saved-props','/api/apex/props','/api/apex/research','research-batch','analyzeResearch','repriceProjection','intelligence-studio.mjs','offer-promotion.mjs','createMLClient'])assert.ok(client.includes(feature),feature);
  const before=original.slice(original.indexOf('function openDrawer('),original.indexOf('function openDrawer(')+1000);
  assert.ok(client.includes(before),'original drawer implementation remains unchanged');
+ assert.match(client,/open=drawerState\?\.g\?\.key===route\.key\?drawerState\.g:null/,'already-open prop survives transient route reconciliation');
  assert.equal(researchClient(client),client,'idempotent');assert.throws(()=>researchClient('unknown shell'));
 });
 test('owner Control link is rendered only from the server-issued owner capability',()=>{

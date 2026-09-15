@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 const readText = (relativePath) => readFileSync(new URL(relativePath, import.meta.url), 'utf8');
 
-test('production image keeps tests available for the Railway pre-deploy gate', () => {
+test('production image keeps tests available for release enforcement', () => {
   const dockerignore = readText('../.dockerignore');
   const activePatterns = dockerignore
     .split(/\r?\n/)
@@ -13,6 +13,14 @@ test('production image keeps tests available for the Railway pre-deploy gate', (
 
   assert.ok(!activePatterns.includes('tests'));
   assert.ok(!activePatterns.includes('tests/'));
+});
+
+test('the Docker image runs the full check before build-time source patching', () => {
+  const dockerfile = readText('../Dockerfile');
+  const checkIndex = dockerfile.indexOf('RUN npm run check');
+  const prepareIndex = dockerfile.indexOf('RUN node scripts/prepare-edge-deploy.mjs');
+  assert.ok(checkIndex >= 0, 'Dockerfile must execute the release check');
+  assert.ok(prepareIndex > checkIndex, 'release check must run before prepare-edge-deploy mutates source anchors');
 });
 
 test('npm run check executes the hermetic test suite', () => {

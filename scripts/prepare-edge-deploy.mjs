@@ -47,6 +47,12 @@ if (existsSync('package.json')) {
   }
 }
 
+function replaceOrConfirmCurrent(source, legacy, current, label) {
+  if (source.includes(legacy)) return source.replace(legacy, current);
+  if (source.includes(current)) return source;
+  throw new Error(`${label} anchor not found: ${legacy}`);
+}
+
 // Signed-out visitors should see the current product identity without changing
 // any registration, verification, session, or account-gate behavior.
 {
@@ -67,8 +73,7 @@ if (existsSync('package.json')) {
 
     let output = source;
     for (const [legacy, current] of replacements) {
-      if (!output.includes(legacy)) throw new Error(`Oblige Props landing identity anchor not found: ${legacy}`);
-      output = output.replace(legacy, current);
+      output = replaceOrConfirmCurrent(output, legacy, current, 'Oblige Props landing identity');
     }
     if (output !== source) writeFileSync(file, output);
   }
@@ -90,8 +95,7 @@ if (existsSync('package.json')) {
     ];
     let output = source;
     for (const [legacy, current] of replacements) {
-      if (!output.includes(legacy)) throw new Error(`Oblige Props core identity anchor not found: ${legacy}`);
-      output = output.replace(legacy, current);
+      output = replaceOrConfirmCurrent(output, legacy, current, 'Oblige Props core identity');
     }
     if (output !== source) writeFileSync(file, output);
   }
@@ -104,12 +108,12 @@ if (existsSync('package.json')) {
   const file = 'lib/autoscout/oblige-props-visual-runtime-patch.mjs';
   if (existsSync(file)) {
     const source = readFileSync(file, 'utf8');
-    if (!source.includes('asPay') || !source.includes('>pay</span>')) {
+    let output = source;
+    if (source.includes('asPay') && source.includes('>pay</span>')) {
+      output = source.replaceAll('asPay', 'asProps').replaceAll('>pay</span>', '>props</span>');
+    } else if (!(source.includes('asProps') && source.includes('>props</span>'))) {
       throw new Error('Oblige Props signed-in wordmark anchor not found.');
     }
-    const output = source
-      .replaceAll('asPay', 'asProps')
-      .replaceAll('>pay</span>', '>props</span>');
     if (output !== source) writeFileSync(file, output);
   }
 }

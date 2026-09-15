@@ -1,4 +1,9 @@
-FROM mcr.microsoft.com/playwright:v1.63.0-noble
+# The customer-facing Oblige Props service is HTTP/API driven. It does not run
+# the retired PickFinder browser scanner, so shipping a ~1 GB Playwright browser
+# image in production only slows builds, pulls and cold starts. Keep the
+# Playwright JS dependency installable for shared source compatibility, but do
+# not ship Chromium/WebKit/Firefox binaries in this live image.
+FROM node:22-bookworm-slim
 WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./

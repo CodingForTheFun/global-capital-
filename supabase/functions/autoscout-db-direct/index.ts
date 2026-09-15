@@ -126,9 +126,19 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error("autoscout-db-direct", name, error);
     const pgCode = String(error?.code || "").slice(0, 32);
-    let message = String(error?.message || "database operation failed").slice(0, 240);
+    let message = String(error?.message || "database operation failed").slice(0, 180);
     if (token) message = message.split(token).join("[redacted]");
     if (headerToken) message = message.split(headerToken).join("[redacted]");
+    // Safe diagnostic context only: source and observation time are already
+    // public feed metadata. Never include row payloads, tokens, player data, or
+    // connection details. This makes SQL contract rejections actionable from
+    // Railway logs without widening the function's public error surface.
+    if (name === "autoscout_public_store") {
+      const action = String(args?.p_action || "").slice(0, 24);
+      const source = String(args?.p_payload?.source || "").slice(0, 80);
+      const observedAt = String(args?.p_payload?.observed_at || "").slice(0, 40);
+      message = `${message}; context action=${action || "none"} source=${source || "none"} observed_at=${observedAt || "none"}`.slice(0, 320);
+    }
     return json({ error: "database_operation_failed", code: pgCode || null, message }, 500);
   }
 });

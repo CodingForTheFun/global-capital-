@@ -7,6 +7,8 @@ const DATA = path.resolve(process.env.DATA_DIR || './data');
 const FILE = path.join(DATA, 'access-codes.json');
 const PEPPER = accountSecret();
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const MAX_FINITE_DAYS = 3650;
+const MAX_FINITE_USES = 100000;
 
 async function readRows() {
   try {
@@ -45,21 +47,34 @@ function randomChunk(length = 4) {
   return out;
 }
 
+function unlimitedValue(value) {
+  return value === null || String(value ?? '').trim().toLowerCase() === 'unlimited';
+}
+
+function finiteNumber(value, fallback, max) {
+  const parsed = Math.trunc(Number(value));
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(max, parsed);
+}
+
 // Explicit allowlist. `codeHash` must never cross this boundary, so the shape
 // is built field by field rather than by spreading the stored row.
 function publicRow(row) {
-  const maxUses = Number(row.maxUses || 1);
+  const unlimitedUses = row.maxUses === null;
+  const maxUses = unlimitedUses ? null : Math.max(1, Number(row.maxUses || 1));
   const uses = Number(row.uses || 0);
   return {
     id: row.id,
     label: row.label,
     hint: row.hint,
     createdAt: row.createdAt,
-    expiresAt: row.expiresAt,
+    expiresAt: row.expiresAt || null,
+    neverExpires: !row.expiresAt,
     maxUses,
+    unlimitedUses,
     uses,
-    usesRemaining: Math.max(0, maxUses - uses),
-    active: row.active !== false,
+    usesRemaining: unlimitedUses ? null : Math.max(0, maxUses - uses),
+    active: row.active !== false && rowUsable(row),
     lastUsedAt: row.lastUsedAt || null,
     role: 'member',
   };
@@ -69,22 +84,40 @@ function publicRow(row) {
 function rowUsable(row, now = Date.now()) {
   if (!row) return false;
   if (row.active === false) return false;
-  if (Date.parse(row.expiresAt || '') <= now) return false;
+  if (row.expiresAt) {
+    const expires = Date.parse(row.expiresAt);
+    if (Number.isFinite(expires) && expires <= now) return false;
+  }
   return true;
 }
 
-export async function generateAccessCode({ label = 'Friend access', expiresInDays = 30, maxUses = 5 } = {}) {
-  const days = Math.max(1, Math.min(90, Number(expiresInDays) || 30));
-  const uses = Math.max(1, Math.min(20, Number(maxUses) || 5));
+/**
+ * Generate an access code for a guest/member session.
+ *
+ * The owner can create as many codes as the backing volume can hold. Finite
+ * durations support up to ten years for custom grants; `neverExpires` creates
+ * a lifetime code. Redemption count can likewise be finite or unlimited.
+ */
+export async function generateAccessCode({
+  label = 'Guest access',
+  expiresInDays = 30,
+  maxUses = 5,
+  neverExpires = false,
+  unlimitedUses = false,
+} = {}) {
+  const lifetime = neverExpires === true || unlimitedValue(expiresInDays);
+  const days = lifetime ? null : finiteNumber(expiresInDays, 30, MAX_FINITE_DAYS);
+  const noUseLimit = unlimitedUses === true || unlimitedValue(maxUses);
+  const uses = noUseLimit ? null : finiteNumber(maxUses, 5, MAX_FINITE_USES);
   const code = `AP-${randomChunk()}-${randomChunk()}-${randomChunk()}`;
   const now = Date.now();
   const row = {
     id: crypto.randomUUID(),
-    label: String(label || 'Friend access').trim().slice(0, 80) || 'Friend access',
+    label: String(label || 'Guest access').trim().slice(0, 80) || 'Guest access',
     codeHash: digest(code),
     hint: `••••-${code.slice(-4)}`,
     createdAt: new Date(now).toISOString(),
-    expiresAt: new Date(now + days * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: days === null ? null : new Date(now + days * 24 * 60 * 60 * 1000).toISOString(),
     maxUses: uses,
     uses: 0,
     active: true,
@@ -92,7 +125,10 @@ export async function generateAccessCode({ label = 'Friend access', expiresInDay
   };
   const rows = await readRows();
   rows.unshift(row);
-  await writeRows(rows.slice(0, 250));
+  // No application-level total-code cap. The owner can create any number of
+  // grants; old/revoked rows remain visible for audit and can be removed later
+  // by a dedicated retention policy rather than being silently discarded.
+  await writeRows(rows);
   return { code, ...publicRow(row) };
 }
 
@@ -106,8 +142,11 @@ export async function redeemAccessCode(code) {
   for (const row of rows) {
     if (row.bootstrap) continue; // Ignore any legacy bootstrap row left on disk.
     if (row.active === false) continue;
-    if (Date.parse(row.expiresAt || '') <= now) continue;
-    if (Number(row.uses || 0) >= Number(row.maxUses || 1)) continue;
+    if (row.expiresAt) {
+      const expires = Date.parse(row.expiresAt);
+      if (Number.isFinite(expires) && expires <= now) continue;
+    }
+    if (row.maxUses !== null && Number(row.uses || 0) >= Number(row.maxUses || 1)) continue;
     if (!safeHashEqual(row.codeHash, target)) continue;
     row.uses = Number(row.uses || 0) + 1;
     row.lastUsedAt = new Date(now).toISOString();
@@ -129,7 +168,7 @@ export async function revokeAccessCode(id) {
   const row = rows.find((item) => item.id === id && !item.bootstrap);
   if (!row) return null;
   row.active = false;
-  await writeRows(rows.slice(0, 250));
+  await writeRows(rows);
   invalidateAccessCodeCache(row.id);
   return publicRow(row);
 }

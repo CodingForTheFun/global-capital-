@@ -61,7 +61,12 @@ async function verifySignedOutBrowserGate() {
     ), null, { timeout: 30_000 });
 
     if (await page.locator('.asRow').count()) throw new Error('Signed-out account gate exposed prop rows.');
-    return { title: await page.title(), accountSurface: true, propRowsExposed: false };
+    const title = await page.title();
+    const bodyText = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
+    if (!/Oblige Props/i.test(title) || !/Oblige Props/i.test(bodyText)) {
+      throw new Error('Signed-out customer surface is not branded as Oblige Props.');
+    }
+    return { title, accountSurface: true, propRowsExposed: false };
   } finally {
     await browser.close();
   }

@@ -16,11 +16,13 @@
         <span class="brand-copy"><strong>OBLIGE PROPS</strong><small>OWNER CONTROL</small></span>
       </a>
       <nav class="side-nav">
-        <a class="side-link active" href="#overview"><span class="nav-dot"></span>Overview</a>
-        <a class="side-link" href="#members-section"><span class="nav-dot"></span>Users</a>
-        <a class="side-link" href="#system"><span class="nav-dot"></span>System health</a>
-        <a class="side-link" href="#activity"><span class="nav-dot"></span>Audit activity</a>
-        <a class="side-link" href="/support"><span class="nav-dot"></span>Support panel</a>
+        <a class="side-link active" href="/owner?tab=overview" data-tab-link="overview"><span class="nav-dot"></span>Overview</a>
+        <a class="side-link" href="/owner?tab=users" data-tab-link="users"><span class="nav-dot"></span>Users</a>
+        <a class="side-link" href="/owner?tab=support" data-tab-link="support"><span class="nav-dot"></span>Support</a>
+        <a class="side-link" href="/owner?tab=access" data-tab-link="access"><span class="nav-dot"></span>Access</a>
+        <a class="side-link" href="/owner?tab=system" data-tab-link="system"><span class="nav-dot"></span>System</a>
+        <a class="side-link" href="/owner?tab=logs" data-tab-link="logs"><span class="nav-dot"></span>Logs</a>
+        <a class="side-link" href="/owner?tab=settings" data-tab-link="settings"><span class="nav-dot"></span>Settings</a>
       </nav>
       <div class="private-card">
         <span class="private-label">OWNER ONLY</span>
@@ -46,9 +48,9 @@
       <main>
         <section id="overview" class="intro-row">
           <div>
-            <p class="eyebrow">OWNER CONTROL CENTER</p>
-            <h1>Owner overview</h1>
-            <p class="intro-copy">Everything important, without the clutter.</p>
+            <p id="pageEyebrow" class="eyebrow">OWNER CONTROL CENTER</p>
+            <h1 id="pageTitle">Owner overview</h1>
+            <p id="pageSubtitle" class="intro-copy">Complete control. Private, secure, and connected to the live Oblige Props accounts.</p>
           </div>
           <div id="systemBadge" class="system-badge" aria-live="polite"><i></i><span>Checking system</span></div>
         </section>
@@ -67,81 +69,200 @@
 
         <div id="dashboard" class="hidden">
           <nav class="section-tabs" aria-label="Owner sections">
-            <a class="active" href="#overview">Overview</a>
-            <a href="#members-section">Users</a>
-            <a href="#system">System</a>
-            <a href="#activity">Audit</a>
+            <a class="active" href="/owner?tab=overview" data-tab-link="overview">Overview</a>
+            <a href="/owner?tab=users" data-tab-link="users">Users</a>
+            <a href="/owner?tab=support" data-tab-link="support">Support</a>
+            <a href="/owner?tab=access" data-tab-link="access">Access</a>
+            <a href="/owner?tab=system" data-tab-link="system">System</a>
+            <a href="/owner?tab=logs" data-tab-link="logs">Logs</a>
+            <a href="/owner?tab=settings" data-tab-link="settings">Settings</a>
           </nav>
 
-          <section class="kpis" aria-label="Account overview">
-            <article class="kpi-card">
-              <span>TOTAL USERS</span><strong id="kpiTotal">—</strong><small><i class="dot green"></i>all accounts</small>
-            </article>
-            <article class="kpi-card">
-              <span>ONLINE</span><strong id="kpiOnline">—</strong><small><i class="dot green"></i>active now</small>
-            </article>
-            <article class="kpi-card">
-              <span>PRO USERS</span><strong id="kpiPro">—</strong><small><i class="dot gold"></i>active access</small>
-            </article>
-            <article class="kpi-card">
-              <span>BANNED</span><strong id="kpiBanned">—</strong><small><i class="dot red"></i>disabled accounts</small>
-            </article>
+          <section class="tab-panel" data-panel="overview">
+            <div class="kpis" aria-label="Account overview">
+              <article class="kpi-card">
+                <span>TOTAL USERS</span><strong id="kpiTotal">—</strong><small><i class="dot green"></i>all accounts</small>
+              </article>
+              <article class="kpi-card">
+                <span>ONLINE</span><strong id="kpiOnline">—</strong><small><i class="dot green"></i>active now</small>
+              </article>
+              <article class="kpi-card">
+                <span>PRO USERS</span><strong id="kpiPro">—</strong><small><i class="dot gold"></i>active access</small>
+              </article>
+              <article class="kpi-card">
+                <span>BANNED</span><strong id="kpiBanned">—</strong><small><i class="dot red"></i>disabled accounts</small>
+              </article>
+            </div>
+
+            <div class="owner-overview-grid">
+              <section class="glass-panel overview-status-card">
+                <div class="panel-head compact">
+                  <div>
+                    <p class="eyebrow">LIVE STATUS</p>
+                    <h2>Business at a glance</h2>
+                  </div>
+                  <span id="lastRefresh" class="muted">—</span>
+                </div>
+                <div class="mini-status-list">
+                  <div><span>Support workers</span><strong id="overviewStaff">—</strong></div>
+                  <div><span>Customer accounts</span><strong id="overviewCustomers">—</strong></div>
+                  <div><span>Verified accounts</span><strong id="overviewVerified">—</strong></div>
+                  <div><span>Idle sessions</span><strong id="overviewIdle">—</strong></div>
+                </div>
+              </section>
+
+              <section class="glass-panel quick-actions-card">
+                <div class="panel-head compact">
+                  <div>
+                    <p class="eyebrow">QUICK ACTIONS</p>
+                    <h2>Owner shortcuts</h2>
+                  </div>
+                </div>
+                <div class="quick-actions-list">
+                  <button type="button" data-tab-jump="users"><span>PRO</span><b>Grant or revoke Pro access</b><i>→</i></button>
+                  <button type="button" data-tab-jump="access"><span>STAFF</span><b>Manage support workers</b><i>→</i></button>
+                  <button type="button" data-tab-jump="support"><span>HELP</span><b>Open support operations</b><i>→</i></button>
+                  <button type="button" data-tab-jump="logs"><span>LOG</span><b>Review privileged activity</b><i>→</i></button>
+                </div>
+              </section>
+            </div>
           </section>
 
-          <section id="system" class="glass-panel system-panel">
-            <div class="panel-head compact">
+          <section id="members-section" class="tab-panel" data-panel="users" hidden>
+            <div class="glass-panel members-panel">
+              <div class="panel-head member-head">
+                <div>
+                  <p class="eyebrow">USERS & ACCESS</p>
+                  <h2>Customer control</h2>
+                  <p class="panel-copy">Search, review status, manage complimentary Pro time, support access, bans and active devices.</p>
+                </div>
+                <div class="filters">
+                  <label class="search-field">
+                    <span class="sr-only">Search accounts</span>
+                    <input id="searchInput" type="search" placeholder="Search email…" autocomplete="off" />
+                  </label>
+                  <select id="statusFilter" aria-label="Filter accounts">
+                    <option value="all">All accounts</option>
+                    <option value="online">Online</option>
+                    <option value="pro">Pro</option>
+                    <option value="banned">Banned</option>
+                    <option value="owner">Owner</option>
+                    <option value="support">Support</option>
+                  </select>
+                </div>
+              </div>
+              <div id="members" class="members"><div class="loading">Loading accounts…</div></div>
+            </div>
+          </section>
+
+          <section class="tab-panel" data-panel="support" hidden>
+            <div class="kpis support-kpis" aria-label="Support overview">
+              <article class="kpi-card"><span>CUSTOMERS</span><strong id="supportTotal">—</strong><small>support-visible accounts</small></article>
+              <article class="kpi-card"><span>ONLINE</span><strong id="supportOnline">—</strong><small><i class="dot green"></i>active customers</small></article>
+              <article class="kpi-card"><span>PRO</span><strong id="supportPro">—</strong><small><i class="dot gold"></i>active Pro access</small></article>
+              <article class="kpi-card"><span>DISABLED</span><strong id="supportDisabled">—</strong><small><i class="dot red"></i>blocked accounts</small></article>
+            </div>
+            <section class="glass-panel support-operations">
+              <div class="panel-head compact">
+                <div>
+                  <p class="eyebrow">SUPPORT</p>
+                  <h2>Support operations</h2>
+                  <p class="panel-copy">Customer device sign-outs and account review stay separated from owner-only plan, role and ban controls.</p>
+                </div>
+                <a class="btn primary" href="/support">Open support panel</a>
+              </div>
+              <div class="role-boundary-grid">
+                <article><span>Support can</span><strong>Review customer status</strong><p>See customer plan state, presence and active devices.</p></article>
+                <article><span>Support can</span><strong>Sign out customer devices</strong><p>Resolve stuck or compromised sessions without touching billing or roles.</p></article>
+                <article><span>Owner only</span><strong>Plans, bans and staff roles</strong><p>Higher-risk actions remain locked to this owner console.</p></article>
+              </div>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-panel="access" hidden>
+            <section class="glass-panel access-panel">
+              <div class="panel-head compact">
+                <div>
+                  <p class="eyebrow">ACCESS</p>
+                  <h2>Owner & support access</h2>
+                  <p class="panel-copy">The owner identity is server-pinned. Support can be granted or removed from existing accounts.</p>
+                </div>
+                <button class="btn primary" type="button" data-tab-jump="users">Find a user</button>
+              </div>
+              <div id="accessList" class="staff-list"><div class="loading">Loading staff access…</div></div>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-panel="system" hidden>
+            <section class="glass-panel system-panel">
+              <div class="panel-head compact">
+                <div>
+                  <p class="eyebrow">SYSTEM</p>
+                  <h2>System health</h2>
+                  <p class="panel-copy">Live health checks from the production application and account layer.</p>
+                </div>
+                <button id="systemRefreshBtn" class="btn small" type="button">Refresh</button>
+              </div>
+              <div class="health-list">
+                <div class="health-row"><span><i class="dot green"></i>Application</span><b id="healthApp">Checking</b></div>
+                <div class="health-row"><span><i class="dot green"></i>Accounts</span><b id="healthAccounts">Checking</b></div>
+                <div class="health-row"><span><i class="dot green"></i>Ask</span><b id="healthAsk">—</b></div>
+                <div class="health-row"><span><i class="dot green"></i>Projections</span><b id="healthProjections">—</b></div>
+              </div>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-panel="logs" hidden>
+            <section class="glass-panel activity-panel">
+              <div class="panel-head compact">
+                <div>
+                  <p class="eyebrow">LOGS</p>
+                  <h2>Recent privileged activity</h2>
+                  <p class="panel-copy">A clean record of protected owner and support actions.</p>
+                </div>
+                <button id="auditRefreshBtn" class="btn small" type="button">Refresh</button>
+              </div>
+              <div id="auditList" class="audit-list"><div class="loading">Loading activity…</div></div>
+            </section>
+          </section>
+
+          <section class="tab-panel" data-panel="settings" hidden>
+            <div class="settings-grid">
+              <section class="glass-panel setting-card">
+                <p class="eyebrow">AUTHENTICATION</p>
+                <h2>Existing customer auth retained</h2>
+                <p>The panel uses the same signed Oblige Props customer sessions as the live site, so there is no second owner login or duplicate user database.</p>
+                <span class="setting-state good">Protected owner session</span>
+              </section>
+              <section class="glass-panel setting-card">
+                <p class="eyebrow">DATA</p>
+                <h2>Live customer records</h2>
+                <p>Users, bans, devices and complimentary access are read from the production account and entitlement stores already used by obligeprops.com.</p>
+                <span class="setting-state good">Single source of truth</span>
+              </section>
+              <section class="glass-panel setting-card">
+                <p class="eyebrow">BILLING SAFETY</p>
+                <h2>Processor-managed Pro is protected</h2>
+                <p>The owner panel will not overwrite an active processor-managed subscription. Complimentary time stays separately identified.</p>
+                <span class="setting-state good">Billing-aware</span>
+              </section>
+              <section class="glass-panel setting-card">
+                <p class="eyebrow">RECOVERY</p>
+                <h2>Owner recovery</h2>
+                <p>Use the private recovery flow if the configured owner session needs to be restored.</p>
+                <a class="btn" href="/owner-access">Open owner recovery</a>
+              </section>
+            </div>
+            <section class="safety-strip settings-safety">
               <div>
-                <p class="eyebrow">SYSTEM</p>
-                <h2>System health</h2>
+                <p class="eyebrow">DEPLOYMENT NOTE</p>
+                <strong>No duplicate Better Auth database is used by this integration.</strong>
               </div>
-              <span id="lastRefresh" class="muted">—</span>
-            </div>
-            <div class="health-list">
-              <div class="health-row"><span><i class="dot green"></i>Application</span><b id="healthApp">Checking</b></div>
-              <div class="health-row"><span><i class="dot green"></i>Accounts</span><b id="healthAccounts">Checking</b></div>
-              <div class="health-row"><span><i class="dot green"></i>Ask</span><b id="healthAsk">—</b></div>
-              <div class="health-row"><span><i class="dot green"></i>Projections</span><b id="healthProjections">—</b></div>
-            </div>
+              <p>The uploaded panel’s interface is integrated into the existing production account system. Secrets and raw deployment variables remain server-side and are never exposed here.</p>
+            </section>
           </section>
 
-          <section id="members-section" class="glass-panel members-panel">
-            <div class="panel-head member-head">
-              <div>
-                <p class="eyebrow">USERS & ACCESS</p>
-                <h2>Customer control</h2>
-                <p class="panel-copy">Search, review status, manage complimentary Pro time, support access, bans and active devices.</p>
-              </div>
-              <div class="filters">
-                <label class="search-field">
-                  <span class="sr-only">Search accounts</span>
-                  <input id="searchInput" type="search" placeholder="Search email…" autocomplete="off" />
-                </label>
-                <select id="statusFilter" aria-label="Filter accounts">
-                  <option value="all">All accounts</option>
-                  <option value="online">Online</option>
-                  <option value="pro">Pro</option>
-                  <option value="banned">Banned</option>
-                  <option value="owner">Owner</option>
-                  <option value="support">Support</option>
-                </select>
-              </div>
-            </div>
-            <div id="members" class="members"><div class="loading">Loading accounts…</div></div>
-          </section>
-
-          <section id="activity" class="glass-panel activity-panel">
-            <div class="panel-head compact">
-              <div>
-                <p class="eyebrow">AUDIT</p>
-                <h2>Recent owner activity</h2>
-                <p class="panel-copy">A clean record of privileged actions.</p>
-              </div>
-              <button id="auditRefreshBtn" class="btn small" type="button">Refresh</button>
-            </div>
-            <div id="auditList" class="audit-list"><div class="loading">Loading activity…</div></div>
-          </section>
-
-          <section class="safety-strip">
+          <section class="safety-strip global-safety">
             <div>
               <p class="eyebrow">SECURE BY DESIGN</p>
               <strong>Owner actions stay private and auditable.</strong>
@@ -153,10 +274,10 @@
     </div>
 
     <nav class="mobile-nav" aria-label="Mobile owner navigation">
-      <a class="active" href="#overview"><span>O</span>Overview</a>
-      <a href="#members-section"><span>U</span>Users</a>
-      <a href="/support"><span>S</span>Support</a>
-      <a href="#system"><span>H</span>Health</a>
+      <a class="active" href="/owner?tab=overview" data-tab-link="overview"><span>O</span>Overview</a>
+      <a href="/owner?tab=users" data-tab-link="users"><span>U</span>Users</a>
+      <a href="/owner?tab=support" data-tab-link="support"><span>S</span>Support</a>
+      <a href="/owner?tab=system" data-tab-link="system"><span>H</span>System</a>
     </nav>
   </div>
   <script type="module" src="/owner.js"></script>

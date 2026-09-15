@@ -37,9 +37,18 @@ function makeClientSafeVisualUi(source) {
     /<script id="oblige-props-pixel-target-runtime">([\s\S]*?)<\/script>/,
     (_match, js) => `\n${js}\n`,
   );
+  // The current client closes its async bootstrap with `})().catch(...)`, while
+  // the avatar patch intentionally inserts before the last classic `})();`.
+  // Put a no-op IIFE immediately before the bootstrap closes so the avatar
+  // runtime is injected inside the account scope instead of at top level.
+  const scopedVisualClient = visualClient.replace(
+    '\n})().catch(function(){',
+    '\n(function(){})();\n})().catch(function(){',
+  );
+  if (scopedVisualClient === visualClient) throw new Error('Profile avatar bootstrap could not locate the client scope boundary.');
   // Avatar styling is applied after the screenshot-target layer so its compact
   // profile ring wins over older generic account-button sizing.
-  const client = patchProfileAvatarUi(visualClient);
+  const client = patchProfileAvatarUi(scopedVisualClient);
   // Fail the container before Railway cuts traffic over if a future runtime
   // presentation patch ever generates invalid client JavaScript again.
   try { new Function(client); }

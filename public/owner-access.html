@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#07090d" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Private Owner Access · Oblige Props</title>
+  <link rel="stylesheet" href="/owner-access.css" />
+</head>
+<body>
+  <main class="recovery-shell">
+    <a class="brand" href="/apex" aria-label="Back to Oblige Props">
+      <span class="brand-mark">OP</span>
+      <span><strong>OBLIGE PROPS</strong><small>PRIVATE OWNER ACCESS</small></span>
+    </a>
+
+    <section class="recovery-card" aria-labelledby="recoveryTitle">
+      <div class="secure-chip"><i></i> OWNER-ONLY RECOVERE</div>
+      <h1 id="recoveryTitle">Sign in without the password.</h1>
+      <p class="lead">A one-time code is sent to the owner inbox already configured on the server. The email address is never shown here.</p>
+
+      <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+
+      <div id="requestStep" class="step active">
+        <div class="step-number">1</div>
+        <div class="step-copy">
+          <strong>Request a one-time owner code</strong>
+          <span>The code expires quickly, works once, and older owner sessions are revoked after successful recovery.</span>
+        </div>
+        <button id="sendCodeBtn" class="primary-btn" type="button">Send owner code</button>
+      </div>
+
+      <form id="verifyForm" class="step verify-step" hidden>
+        <div class="step-number">2</div>
+        <div class="step-copy">
+          <strong>Enter the 6-digit code</strong>
+          <span>Use the latest code from the configured owner inbox.</span>
+        </div>
+        <label class="code-field">
+          <span class="sr-only">Six digit owner code</span>
+          <input id="codeInput" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" placeholder="000000" aria-label="Six digit owner code" />
+        </label>
+        <button id="verifyBtn" class="primary-btn" type="submit">Verify & open control center</button>
+        <button id="resendBtn" class="text-btn" type="button">Request a new code</button>
+      </form>
+
+      <div class="security-grid" aria-label="Recovery protections">
+        <div><i></i><span><strong>No password bypass</strong>Access requires proof of the configured owner inbox.</span></div>
+        <div><i></i><span><strong>Short-lived</strong>Codes expire in 10 minutes and are single-use.</span></div>
+        <div><i></i><span><strong>Attempt limited</strong>Incorrect tries and code requests are rate-limited.</span></div>
+        <div><i></i><span><strong>Session reset</strong>Successful recovery signs older owner sessions out.</span></div>
+      </div>
+    </section>
+
+    <p class="footer-note">This recovery page is not listed in customer navigation and is blocked from search indexing. Security does not depend on the URL staying secret.</p>
+  </main>
+  <script type="module" src="/owner-access.js"></script>
+</body>
+</html>

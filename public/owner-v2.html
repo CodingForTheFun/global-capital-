@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#07090d" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>Owner Control Center · Oblige Props</title>
+  <link rel="stylesheet" href="/owner.css" />
+</head>
+<body>
+  <div class="owner-shell">
+    <aside class="sidebar" aria-label="Owner navigation">
+      <a class="brand" href="/apex" aria-label="Oblige Props product">
+        <span class="brand-mark" aria-hidden="true">OP</span>
+        <span class="brand-copy"><strong>OBLIGE PROPS</strong><small>OWNER CONTROL</small></span>
+      </a>
+      <nav class="side-nav">
+        <a class="side-link active" href="#overview"><span class="nav-dot"></span>Overview</a>
+        <a class="side-link" href="#members-section"><span class="nav-dot"></span>Users</a>
+        <a class="side-link" href="#system"><span class="nav-dot"></span>System health</a>
+        <a class="side-link" href="#activity"><span class="nav-dot"></span>Audit activity</a>
+        <a class="side-link" href="/support"><span class="nav-dot"></span>Support panel</a>
+      </nav>
+      <div class="private-card">
+        <span class="private-label">OWNER ONLY</span>
+        <strong>Private control surface</strong>
+        <p>Secrets, API keys and passwords are never displayed here.</p>
+      </div>
+      <a class="sidebar-product" href="/apex">Open Oblige Props</a>
+    </aside>
+
+    <div class="main-wrap">
+      <header class="topbar">
+        <a class="mobile-brand" href="/apex" aria-label="Oblige Props home">
+          <span class="brand-mark" aria-hidden="true">OP</span>
+          <span class="brand-copy"><strong>OBLIGE PROPS</strong><small>OWNER CONTROL</small></span>
+        </a>
+        <div class="top-actions">
+          <span id="ownerIdentity" class="owner-id">Checking owner…</span>
+          <button id="refreshBtn" class="icon-btn" type="button" aria-label="Refresh owner data">Refresh</button>
+          <a class="product-btn" href="/apex">Open product</a>
+        </div>
+      </header>
+
+      <main>
+        <section id="overview" class="intro-row">
+          <div>
+            <p class="eyebrow">OWNER CONTROL CENTER</p>
+            <h1>Owner overview</h1>
+            <p class="intro-copy">Everything important, without the clutter.</p>
+          </div>
+          <div id="systemBadge" class="system-badge" aria-live="polite"><i></i><span>Checking system</span></div>
+        </section>
+
+        <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+        <section id="accessDenied" class="access-denied hidden">
+          <span class="lock-orb" aria-hidden="true">OP</span>
+          <p class="eyebrow">PRIVATE AREA</p>
+          <h2>Owner access required</h2>
+          <p>This page only opens for the configured owner account.</p>
+          <div class="denied-actions">
+            <a class="btn primary" href="/?next=/owner">Sign in</a>
+            <a class="btn" href="/owner-access">Owner recovery</a>
+          </div>
+        </section>
+
+        <div id="dashboard" class="hidden">
+          <nav class="section-tabs" aria-label="Owner sections">
+            <a class="active" href="#overview">Overview</a>
+            <a href="#members-section">Users</a>
+            <a href="#system">System</a>
+            <a href="#activity">Audit</a>
+          </nav>
+
+          <section class="kpis" aria-label="Account overview">
+            <article class="kpi-card">
+              <span>TOTAL USERS</span><strong id="kpiTotal">—</strong><small><i class="dot green"></i>all accounts</small>
+            </article>
+            <article class="kpi-card">
+              <span>ONLINE</span><strong id="kpiOnline">—</strong><small><i class="dot green"></i>active now</small>
+            </article>
+            <article class="kpi-card">
+              <span>PRO USERS</span><strong id="kpiPro">—</strong><small><i class="dot gold"></i>active access</small>
+            </article>
+            <article class="kpi-card">
+              <span>BANNED</span><strong id="kpiBanned">—</strong><small><i class="dot red"></i>disabled accounts</small>
+            </article>
+          </section>
+
+          <section id="system" class="glass-panel system-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">SYSTEM</p>
+                <h2>System health</h2>
+              </div>
+              <span id="lastRefresh" class="muted">—</span>
+            </div>
+            <div class="health-list">
+              <div class="health-row"><span><i class="dot green"></i>Application</span><b id="healthApp">Checking</b></div>
+              <div class="health-row"><span><i class="dot green"></i>Accounts</span><b id="healthAccounts">Checking</b></div>
+              <div class="health-row"><span><i class="dot green"></i>Ask</span><b id="healthAsk">—</b></div>
+              <div class="health-row"><span><i class="dot green"></i>Projections</span><b id="healthProjections">—</b></div>
+            </div>
+          </section>
+
+          <section id="members-section" class="glass-panel members-panel">
+            <div class="panel-head member-head">
+              <div>
+                <p class="eyebrow">USERS & ACCESS</p>
+                <h2>Customer control</h2>
+                <p class="panel-copy">Search, review status, manage complimentary Pro time, support access, bans and active devices.</p>
+              </div>
+              <div class="filters">
+                <label class="search-field">
+                  <span class="sr-only">Search accounts</span>
+                  <input id="searchInput" type="search" placeholder="Search email…" autocomplete="off" />
+                </label>
+                <select id="statusFilter" aria-label="Filter accounts">
+                  <option value="all">All accounts</option>
+                  <option value="online">Online</option>
+                  <option value="pro">Pro</option>
+                  <option value="banned">Banned</option>
+                  <option value="owner">Owner</option>
+                  <option value="support">Support</option>
+                </select>
+              </div>
+            </div>
+            <div id="members" class="members"><div class="loading">Loading accounts…</div></div>
+          </section>
+
+          <section id="activity" class="glass-panel activity-panel">
+            <div class="panel-head compact">
+              <div>
+                <p class="eyebrow">AUDIT</p>
+                <h2>Recent owner activity</h2>
+                <p class="panel-copy">A clean record of privileged actions.</p>
+              </div>
+              <button id="auditRefreshBtn" class="btn small" type="button">Refresh</button>
+            </div>
+            <div id="auditList" class="audit-list"><div class="loading">Loading activity…</div></div>
+          </section>
+
+          <section class="safety-strip">
+            <div>
+              <p class="eyebrow">SECURE BY DESIGN</p>
+              <strong>Owner actions stay private and auditable.</strong>
+            </div>
+            <p>API keys, passwords, payment secrets, Railway settings and raw authentication hashes are intentionally never exposed in this console.</p>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <nav class="mobile-nav" aria-label="Mobile owner navigation">
+      <a class="active" href="#overview"><span>O</span>Overview</a>
+      <a href="#members-section"><span>U</span>Users</a>
+      <a href="/support"><span>S</span>Support</a>
+      <a href="#system"><span>H</span>Health</a>
+    </nav>
+  </div>
+  <script type="module" src="/owner.js"></script>
+</body>
+</html>

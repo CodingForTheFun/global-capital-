@@ -3,7 +3,7 @@ import test from 'node:test';
 import { fetchFanDuelPublic } from '../lib/ingestion/fanduel-public.mjs';
 import { fetchPinnaclePublic } from '../lib/ingestion/pinnacle-public.mjs';
 import { fetchBetRiversPublic } from '../lib/ingestion/betrivers-public.mjs';
-import { fetchBovadaPublic } from '../lib/ingestion/bovada-public.mjs';
+import { fetchBovadaPublic, bovadaSupportedSports } from '../lib/ingestion/bovada-public.mjs';
 
 function response(body, status = 200) {
   const bodyText = JSON.stringify(body);
@@ -132,4 +132,48 @@ test('Bovada coupon collector keeps full-game two-sided player props', async () 
   assert.equal(result.records[0].line, 1.5);
   assert.equal(result.records[0].overOdds, -115);
   assert.equal(result.records[0].underOdds, -105);
+});
+
+test('Bovada tennis collector uses the tennis coupon and keeps supported player stat totals', async () => {
+  const startTime = Date.now() + 86_400_000;
+  let requestedUrl = '';
+  const fetcher = async (url) => {
+    requestedUrl = String(url);
+    return response([{
+      events: [{
+        id: 700, startTime, live: false,
+        competitors: [{ name: 'Aryna Sabalenka', home: true }, { name: 'Iga Swiatek', home: false }],
+        displayGroups: [{
+          description: 'Player Props',
+          markets: [
+            {
+              id: 701, status: 'O', description: 'Total Aces - Aryna Sabalenka',
+              outcomes: [
+                { status: 'O', description: 'Over', price: { american: '-110', handicap: '5.5' } },
+                { status: 'O', description: 'Under', price: { american: '-120', handicap: '5.5' } },
+              ],
+            },
+            {
+              id: 702, status: 'O', description: 'First Service Break - Aryna Sabalenka',
+              outcomes: [
+                { status: 'O', description: 'Over', price: { american: '-110', handicap: '0.5' } },
+                { status: 'O', description: 'Under', price: { american: '-110', handicap: '0.5' } },
+              ],
+            },
+          ],
+        }],
+      }],
+    }]);
+  };
+  assert.ok(bovadaSupportedSports().includes('TENNIS'));
+  const result = await fetchBovadaPublic('TENNIS', { fetcher, force: true });
+  assert.match(requestedUrl, /\/description\/tennis\?lang=en$/);
+  assert.equal(result.records.length, 1);
+  assert.equal(result.records[0].book, 'bvda');
+  assert.equal(result.records[0].sport, 'TENNIS');
+  assert.equal(result.records[0].playerName, 'Aryna Sabalenka');
+  assert.equal(result.records[0].market, 'Aces');
+  assert.equal(result.records[0].line, 5.5);
+  assert.equal(result.records[0].overOdds, -110);
+  assert.equal(result.records[0].underOdds, -120);
 });

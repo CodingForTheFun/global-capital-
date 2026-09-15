@@ -9,6 +9,10 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY . .
+# Run the real source-level gate before prepare-edge-deploy mutates generated
+# runtime assets. Railway's pre-deploy phase runs inside the already-mutated
+# image, which made source-anchor tests fail even when the source was healthy.
+RUN npm run check
 RUN node scripts/prepare-edge-deploy.mjs
 ENV NODE_ENV=production PORT=3000 HEADLESS=true
 EXPOSE 3000

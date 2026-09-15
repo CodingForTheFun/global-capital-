@@ -3,53 +3,84 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#071321" />
+  <meta name="theme-color" content="#050608" />
   <meta name="robots" content="noindex,nofollow,noarchive" />
   <title>Owner Control Center · Oblige Props</title>
   <link rel="stylesheet" href="/owner.css" />
 </head>
 <body>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
   <div class="app">
     <header class="topbar">
       <a class="brand" href="/apex" aria-label="Oblige Props home">
-        <span class="logo">OP</span>
-        <span><strong>OBLIGE PROPS</strong><small>Owner Control Center</small></span>
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 32 32" role="img"><path d="M5 23 3 8l8 6 5-10 5 10 8-6-2 15H5Zm2 3h18v3H7v-3Z" fill="currentColor"/></svg>
+        </span>
+        <span class="brand-copy"><strong>OBLIGE <em>PROPS</em></strong><small>Owner Control Center</small></span>
       </a>
       <div class="top-actions">
         <span id="ownerIdentity" class="owner-id">Checking owner…</span>
-        <button id="refreshBtn" class="btn" type="button">Refresh</button>
-        <a class="btn primary" href="/apex">Open product</a>
+        <button id="refreshBtn" class="btn ghost" type="button">Refresh</button>
+        <a class="btn primary" href="/apex">Open Props</a>
       </div>
     </header>
 
     <main>
-      <section class="hero">
-        <div>
-          <p class="eyebrow">OWNER ONLY</p>
-          <h1>Run Oblige Props from one screen.</h1>
-          <p class="hero-copy">See signups and live sessions, ban or restore accounts, extend Pro access, promote trusted owners, and verify the product is healthy without exposing secrets.</p>
+      <section class="hero glass">
+        <div class="hero-copy-wrap">
+          <p class="eyebrow"><span></span> PRIVATE OWNER ACCESS</p>
+          <h1>Owner Control Center</h1>
+          <p class="hero-copy">Manage members, access, live sessions and production health from one focused workspace.</p>
         </div>
         <div id="systemBadge" class="system-badge"><i></i><span>Checking system</span></div>
       </section>
 
+      <nav class="section-nav glass" aria-label="Owner console sections">
+        <a href="#overview" class="active">Overview</a>
+        <a href="#members">Users</a>
+        <a href="/support">Support</a>
+        <a href="#system">System</a>
+        <a href="#safety">Security</a>
+      </nav>
+
       <div id="notice" class="notice hidden" role="status"></div>
-      <section id="accessDenied" class="access-denied hidden">
+      <section id="accessDenied" class="access-denied glass hidden">
+        <div class="lock-mark" aria-hidden="true">◆</div>
+        <p class="eyebrow">OWNER ONLY</p>
         <h2>Owner access required</h2>
-        <p>This control center only opens for an account with the owner role.</p>
-        <a class="btn primary" href="/?next=/owner.html">Sign in</a>
+        <p>This control center opens only for the account designated as the Oblige Props owner.</p>
+        <a class="btn primary" href="/?next=/owner.html">Sign in securely</a>
       </section>
 
       <div id="dashboard" class="hidden">
-        <section class="kpis" aria-label="Account overview">
-          <article><span>Total signups</span><strong id="kpiTotal">—</strong><small>all accounts</small></article>
-          <article><span>Online now</span><strong id="kpiOnline">—</strong><small>active devices</small></article>
-          <article><span>Pro access</span><strong id="kpiPro">—</strong><small>active entitlements</small></article>
-          <article><span>Banned</span><strong id="kpiBanned">—</strong><small>disabled accounts</small></article>
+        <section id="overview" class="kpis" aria-label="Account overview">
+          <article class="glass metric-card">
+            <div class="metric-top"><span>Total users</span><i class="metric-icon">U</i></div>
+            <strong id="kpiTotal">—</strong>
+            <small>All registered accounts</small>
+          </article>
+          <article class="glass metric-card">
+            <div class="metric-top"><span>Online now</span><i class="metric-icon live">●</i></div>
+            <strong id="kpiOnline">—</strong>
+            <small>Active sessions</small>
+          </article>
+          <article class="glass metric-card">
+            <div class="metric-top"><span>Pro users</span><i class="metric-icon pro">P</i></div>
+            <strong id="kpiPro">—</strong>
+            <small>Active Pro access</small>
+          </article>
+          <article class="glass metric-card">
+            <div class="metric-top"><span>Banned</span><i class="metric-icon danger">!</i></div>
+            <strong id="kpiBanned">—</strong>
+            <small>Disabled accounts</small>
+          </article>
         </section>
 
-        <section class="panel system-panel">
+        <section id="system" class="panel glass system-panel">
           <div class="panel-head">
-            <div><p class="eyebrow">SITE CONTROL</p><h2>Production status</h2></div>
+            <div><p class="eyebrow">SYSTEM</p><h2>Production health</h2></div>
             <span id="lastRefresh" class="muted">—</span>
           </div>
           <div class="system-grid">
@@ -60,11 +91,11 @@
           </div>
         </section>
 
-        <section class="panel members-panel">
+        <section class="panel glass members-panel">
           <div class="panel-head member-head">
-            <div><p class="eyebrow">MEMBERS</p><h2>Users & access</h2></div>
+            <div><p class="eyebrow">USERS</p><h2>Members & access</h2><p class="section-copy">Search quickly, then make the smallest change needed.</p></div>
             <div class="filters">
-              <input id="searchInput" type="search" placeholder="Search email…" autocomplete="off" />
+              <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Search email…" autocomplete="off" /></label>
               <select id="statusFilter" aria-label="Filter accounts">
                 <option value="all">All accounts</option>
                 <option value="online">Online</option>
@@ -77,10 +108,13 @@
           <div id="members" class="members"><div class="loading">Loading accounts…</div></div>
         </section>
 
-        <section class="panel safety-panel">
-          <p class="eyebrow">SAFETY</p>
-          <h2>What this console intentionally cannot do</h2>
-          <p>API keys, passwords, payment secrets, Railway settings and raw authentication hashes are never displayed here. Deployment and secret changes stay outside the customer admin surface.</p>
+        <section id="safety" class="panel glass safety-panel">
+          <div class="safety-icon" aria-hidden="true">✓</div>
+          <div>
+            <p class="eyebrow">SECURITY BOUNDARY</p>
+            <h2>Secrets stay outside the control center.</h2>
+            <p>API keys, passwords, payment secrets, Railway settings and authentication hashes are never displayed here. Sensitive deployment changes stay outside the customer-facing admin surface.</p>
+          </div>
         </section>
       </div>
     </main>

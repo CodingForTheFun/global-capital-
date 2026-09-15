@@ -31,30 +31,25 @@ const regularBoard = {
   data: { events: [], players: [], props: [], lines: [] },
 };
 
-test('PrizePicks odds_type produces a source-labelled alternate, never a regular line', () => {
+test('projection-level odds_type alone never guesses More or Less', () => {
   const rows = normalizePrizePicksSpecials(raw({ odds_type: 'goblin' }));
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].specialType, 'goblin');
-  assert.equal(rows[0].side, 'OVER');
-  assert.equal(rows[0].isAlternate, true);
-  assert.equal(rows[0].specialVerified, true);
-  assert.equal(rows[0].specialTypeSource, 'projection_odds_type');
+  assert.equal(rows.length, 0);
 });
 
 test('outcome-level metadata binds red/green variants to the exact More/Less side', () => {
   const rows = normalizePrizePicksSpecials(raw({ odds_type: 'demon', more_odds_type: 'demon', less_odds_type: 'goblin' }));
   assert.deepEqual(rows.map(row => [row.side,row.specialType]), [['OVER','demon'],['UNDER','goblin']]);
-  assert.ok(rows.every(row => row.specialTypeSource === 'outcome_metadata'));
+  assert.ok(rows.every(row => row.isAlternate === true && row.specialVerified === true && row.specialTypeSource === 'outcome_metadata'));
 });
 
 test('Taco/flash-sale and unknown promotions never masquerade as Goblin or Demon', () => {
-  assert.equal(normalizePrizePicksSpecials(raw({ odds_type: 'goblin', flash_sale_line_score: 22.5 })).length, 0);
-  assert.equal(normalizePrizePicksSpecials(raw({ odds_type: 'demon', label: 'Taco Tuesday' })).length, 0);
+  assert.equal(normalizePrizePicksSpecials(raw({ more_odds_type: 'goblin', flash_sale_line_score: 22.5 })).length, 0);
+  assert.equal(normalizePrizePicksSpecials(raw({ more_odds_type: 'demon', label: 'Taco Tuesday' })).length, 0);
   assert.equal(normalizePrizePicksSpecials(raw({ odds_type: 'standard' })).length, 0);
 });
 
-test('special rows attach to a verified regular identity without entering normalized line data', () => {
-  const special = normalizePrizePicksSpecials(raw({ odds_type: 'goblin', more_odds_type: 'goblin', less_odds_type: 'demon' }));
+test('special rows attach without entering normalized line data', () => {
+  const special = normalizePrizePicksSpecials(raw({ more_odds_type: 'goblin', less_odds_type: 'demon' }));
   const board = attachPrizePicksSpecialRows(regularBoard, special, '2026-09-15T12:00:00.000Z');
   const alternates = board.props.filter(row => row.isAlternate);
   assert.equal(alternates.length, 2);
@@ -62,6 +57,18 @@ test('special rows attach to a verified regular identity without entering normal
   assert.ok(alternates.every(row => row.eventId === 'event-1' && row.playerId === 'normalized-player' && row.marketId === 'player_points'));
   assert.equal(board.data.lines.length, 0, 'alternates must not become Best Line/consensus line records');
   assert.equal(regularBoard.props.filter(row => !row.isAlternate).length, 2);
+});
+
+test('many alternate rows collapse to the closest exact-side variant per type', () => {
+  const specials = [
+    ...normalizePrizePicksSpecials(raw({ line_score: 19.5, more_odds_type: 'goblin' }, 'far')),
+    ...normalizePrizePicksSpecials(raw({ line_score: 25.5, more_odds_type: 'goblin' }, 'near')),
+  ];
+  const board = attachPrizePicksSpecialRows(regularBoard, specials, '2026-09-15T12:00:00.000Z');
+  const goblins = board.props.filter(row => row.isAlternate && row.specialType === 'goblin' && row.side === 'OVER');
+  assert.equal(goblins.length, 1);
+  assert.equal(goblins[0].line, 25.5);
+  assert.equal(goblins[0].specialSourceId, 'near');
 });
 
 test('face badges are original red/green SVG faces and expire with the source snapshot', () => {

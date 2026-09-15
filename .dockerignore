@@ -14,10 +14,11 @@ artifacts
 test-results
 
 # Development, audit and coordination files never needed by the live service.
+# Tests are intentionally included in the Docker build context so every Railway
+# image must pass the real release suite before the runtime patch mutates files.
 .claude
 .github
 docs
-tests
 coverage
 playwright-report
 .cache

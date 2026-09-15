@@ -6,9 +6,10 @@ import { researchClient } from '../lib/ui/research-home.mjs';
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('public access-code form no longer advertises an owner password', () => {
-  const source = '<div class="as5" id="as5">Access code or owner password</div>';
+  const source = read('apex-v2/scout-ui-v5.js');
+  assert.match(source, /Access code or owner password/i, 'fixture must exercise the legacy public wording');
   const rendered = researchClient(source);
-  assert.match(rendered, />Access code</);
+  assert.match(rendered, /Access code/i);
   assert.doesNotMatch(rendered, /owner password/i);
 });
 

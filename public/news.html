@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <meta name="robots" content="noindex,nofollow" />
+  <meta name="description" content="Oblige Props automated sports news center for injuries, trades, transactions, reports and breaking headlines from attributed sports publishers." />
+  <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/props.css" />
+  <link rel="stylesheet" href="/props-v2.css" />
+  <link rel="stylesheet" href="/news.css" />
+  <link rel="stylesheet" href="/news-nav.css" />
+  <title>Sports News • Oblige Props</title>
+</head>
+<body>
+  <header class="appbar">
+    <a class="brand" href="/"><span class="brand-mark">O</span><span><b>OBLIGE PROPS</b><small>Sports Research Platform</small></span></a>
+    <nav class="desktop-nav" aria-label="Primary"><a href="/">Home</a><a href="/props">Props</a><a href="/live.html">Live</a><a class="active" href="/news.html">News</a></nav>
+    <div class="appbar-actions"><span id="newsHealth" class="status-pill">News feeds · checking</span><button id="newsRefresh" class="icon-button" type="button" aria-label="Refresh sports news">↻</button></div>
+  </header>
+
+  <main class="shell news-shell">
+    <section class="news-heading">
+      <div><span class="eyebrow">SPORTS NEWS</span><h1>Everything that can move a line.</h1><p>Automated publisher headlines for injuries, trades, signings, transactions, reports, rumors, and major sports updates. Every story keeps its original headline, source, timestamp, and link.</p></div>
+      <div class="news-freshness"><span>Updated</span><strong id="newsUpdated">—</strong><small id="newsUpdatedNote">Checking sources</small></div>
+    </section>
+
+    <section class="news-kpis" aria-label="News overview">
+      <div><span>Matching stories</span><strong id="newsShowing">—</strong></div>
+      <div><span>Injury updates</span><strong id="newsInjuries">—</strong></div>
+      <div><span>Roster moves</span><strong id="newsMoves">—</strong></div>
+      <div><span>Publishers / feeds</span><strong><span id="newsSourcesKpi">—</span> / <span id="newsFeedsKpi">—</span></strong></div>
+    </section>
+
+    <section class="news-controls" aria-label="Sports news filters">
+      <label class="news-search"><span>⌕</span><input id="newsSearch" type="search" placeholder="Search headlines, sport, or source…" autocomplete="off" /></label>
+      <div class="news-filter-row"><span class="news-filter-label">Sport</span><div id="newsSports" class="news-filter-row" style="margin:0"></div></div>
+      <div class="news-filter-row"><span class="news-filter-label">Type</span><div id="newsCategories" class="news-filter-row" style="margin:0"></div></div>
+      <div class="news-filter-row"><span class="news-filter-label">Source</span><div id="newsSources" class="news-filter-row" style="margin:0"></div></div>
+    </section>
+
+    <div id="newsNotice" class="notice" hidden></div>
+
+    <section class="news-layout">
+      <div>
+        <div id="newsList" class="news-list" aria-live="polite"><div class="news-skeleton"></div><div class="news-skeleton"></div><div class="news-skeleton"></div></div>
+        <button id="newsMore" class="news-more" type="button" hidden>Show more</button>
+      </div>
+      <aside class="news-side">
+        <span class="eyebrow">SOURCE HEALTH</span><h2>Verified publishers</h2>
+        <div id="sourceHealth" class="source-health"><div class="source-row"><div><b>Checking feeds</b><small>Connecting to publishers</small></div><span class="source-dot"></span></div></div>
+        <p class="news-policy">Oblige Props does not rewrite publisher headlines or copy article bodies. Source links open the original story. ESPN items are displayed as provided by ESPN and link back to ESPN.</p>
+      </aside>
+    </section>
+  </main>
+
+  <nav class="mobile-nav" aria-label="Mobile navigation"><a href="/"><span>⌂</span><b>Home</b></a><a href="/props"><span>◆</span><b>Props</b></a><a href="/live.html"><span>●</span><b>Live</b></a><a class="active" href="/news.html"><span>▤</span><b>News</b></a></nav>
+  <script type="module" src="/news.js"></script>
+</body>
+</html>

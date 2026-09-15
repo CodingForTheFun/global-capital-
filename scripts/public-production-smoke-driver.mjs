@@ -3,11 +3,12 @@ import { chromium } from 'playwright';
 
 const BASE = process.env.AUTOSCOUT_PUBLIC_URL || 'https://www.obligeprops.com';
 const EXPECTED_SHA = process.env.AUTOSCOUT_EXPECTED_SHA || '';
+const HEALTH_ATTEMPTS = Math.max(1, Number.parseInt(process.env.AUTOSCOUT_SMOKE_HEALTH_ATTEMPTS || '60', 10) || 60);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function waitForHealth() {
   let last = 'no response';
-  for (let i = 0; i < 18; i += 1) {
+  for (let i = 0; i < HEALTH_ATTEMPTS; i += 1) {
     try {
       const response = await fetch(`${BASE}/api/health`, { cache: 'no-store' });
       const body = await response.json();

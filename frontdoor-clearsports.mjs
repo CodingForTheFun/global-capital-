@@ -10,6 +10,7 @@ import { patchPropBookSelectorUi } from './lib/autoscout/prop-book-selector-runt
 import { patchResearchTabsUi } from './lib/autoscout/research-tabs-runtime-patch.mjs';
 import { patchLiveMainViewUi } from './lib/autoscout/live-main-view-runtime-patch.mjs';
 import { patchProplineRealtimeCore, patchProplineRealtimeFrontdoor, patchProplineRealtimeUi } from './lib/autoscout/propline-realtime-runtime-patch.mjs';
+import { patchProplineMarketUi } from './lib/autoscout/propline-market-runtime-patch.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
 import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs';
@@ -78,7 +79,8 @@ const patchedPropBookSelectorUi = patchPropBookSelectorUi(patchedNavAndRingUi);
 const patchedResearchTabsUi = patchResearchTabsUi(patchedPropBookSelectorUi);
 const patchedLiveMainViewUi = patchLiveMainViewUi(patchedResearchTabsUi);
 const patchedRealtimeUi = patchProplineRealtimeUi(patchedLiveMainViewUi);
-writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedRealtimeUi), 'utf8');
+const patchedProplineMarketUi = patchProplineMarketUi(patchedRealtimeUi);
+writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedProplineMarketUi), 'utf8');
 
 // Keep PropLine real-time behavior as a runtime layer over the stable data core.
 // That avoids forking the large server while still making the signed webhook and

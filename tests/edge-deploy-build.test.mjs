@@ -5,7 +5,9 @@
 // an anchor in research-ui-runtime-patch.mjs moved, the build died at
 // `anchor count=0`, and the first sign of it was a failed deploy.
 //
-// These run the real script against a throwaway copy of the repo.
+// Railway now runs the full suite from the already-built image, so the same
+// preparation command can also be executed against source it has already
+// transformed. These tests require that exact second pass to be a safe no-op.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -23,20 +25,25 @@ function stagedCopy() {
   return dir;
 }
 
-test('the image build step still finds every anchor it rewrites', () => {
+function runPrepare(dir) {
+  return execFileSync(process.execPath, [path.join(dir, 'scripts/prepare-edge-deploy.mjs')],
+    { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+}
+
+test('the image build step finds every anchor and is safe on the predeploy second pass', () => {
   const dir = stagedCopy();
   try {
-    execFileSync(process.execPath, [path.join(dir, 'scripts/prepare-edge-deploy.mjs')],
-      { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+    runPrepare(dir);
+    runPrepare(dir);
   } catch (error) {
-    assert.fail(`the Docker build step would fail:\n${error.stderr || error.message}`);
+    assert.fail(`the Docker build/predeploy preparation would fail:\n${error.stderr || error.message}`);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('the built image serves soccer as a researched sport, not a line-only one', () => {
   const dir = stagedCopy();
   try {
-    execFileSync(process.execPath, [path.join(dir, 'scripts/prepare-edge-deploy.mjs')], { cwd: dir, stdio: 'pipe' });
+    runPrepare(dir);
     const adapter = readFileSync(path.join(dir, 'lib/autoscout/research-ui-runtime-patch.mjs'), 'utf8');
     // The build used to introduce this, which switched soccer research off
     // after the fact. Soccer resolves against a real game log now.
@@ -50,12 +57,8 @@ test('the built image serves soccer as a researched sport, not a line-only one',
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-// applySoccerPublicFeedPatches is idempotent by construction -
-// replaceOnceOrPresent returns early when the result is already there - so a
-// rerun over partly-patched source must be a no-op rather than a double edit.
-// (The donut-overlay patch alongside it is deliberately single-shot and throws
-// on a second run; the image always builds from a fresh checkout, so that is
-// left as it is rather than changed here.)
+// applySoccerPublicFeedPatches is independently idempotent by construction -
+// replaceOnceOrPresent returns early when the result is already there.
 test('the soccer patches are a no-op once they have been applied', async () => {
   const { applySoccerPublicFeedPatches } = await import('../scripts/patch-soccer-public-feeds.mjs');
   const dir = stagedCopy();

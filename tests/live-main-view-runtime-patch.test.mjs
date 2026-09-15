@@ -17,9 +17,10 @@ test('inline Live patch fails closed when the main navigation is missing', () =>
   assert.throws(() => patchLiveMainViewUi('var shell = 1;'), /could not locate the ObligeProps navigation/);
 });
 
-test('production ClearSports bootstrap applies Live before PropLine realtime and visual safety', () => {
+test('production ClearSports bootstrap applies Live, realtime, market rail, then visual safety', () => {
   const bootstrap = readFileSync(new URL('../frontdoor-clearsports.mjs', import.meta.url), 'utf8');
   assert.match(bootstrap, /patchLiveMainViewUi/);
   assert.match(bootstrap, /patchProplineRealtimeUi\(patchedLiveMainViewUi\)/);
-  assert.match(bootstrap, /makeClientSafeVisualUi\(patchedRealtimeUi\)/);
+  assert.match(bootstrap, /patchProplineMarketUi\(patchedRealtimeUi\)/);
+  assert.match(bootstrap, /makeClientSafeVisualUi\(patchedProplineMarketUi\)/);
 });

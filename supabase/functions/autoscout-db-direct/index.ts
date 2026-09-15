@@ -3,74 +3,85 @@ import postgres from "npm:postgres@3.4.3";
 
 const rawDbUrl = Deno.env.get("SUPABASE_DB_URL") || "";
 const configuredPoolerUrl = Deno.env.get("SUPABASE_DB_POOLER_URL") || "";
-const configuredPoolerHost = Deno.env.get("SUPABASE_DB_POOLER_HOST") || "aws-0-us-east-1.pooler.supabase.com";
-const canonicalPoolerHost = "aws-0-us-east-1.pooler.supabase.com";
+const configuredPoolerHost = Deno.env.get("SUPABASE_DB_POOLER_HOST") || "";
 
-function transactionPoolerUrl(raw, poolerHost = configuredPoolerHost) {
-  if (!raw) return "";
+function poolerUrl(raw: string, host: string) {
+  if (!raw || !host) return "";
   try {
     const url = new URL(raw);
-    if (url.hostname.endsWith(".pooler.supabase.com") && url.port === "6543") {
-      url.hostname = poolerHost;
-      return url.toString();
-    }
     const match = url.hostname.match(/^db\.([a-z0-9]+)\.supabase\.co$/i);
     if (!match) return raw;
     const projectRef = match[1];
-    url.hostname = poolerHost;
+    url.hostname = host;
     url.port = "6543";
     if (!decodeURIComponent(url.username || "").includes(".")) url.username = `postgres.${projectRef}`;
     return url.toString();
   } catch {
-    return raw;
+    return "";
   }
 }
 
-const configuredDbUrl = configuredPoolerUrl || transactionPoolerUrl(rawDbUrl);
-const canonicalDbUrl = transactionPoolerUrl(rawDbUrl, canonicalPoolerHost);
-const dbUrls = [...new Set([configuredDbUrl, canonicalDbUrl].filter(Boolean))];
-const sqlClients = dbUrls.map((url) => postgres(url, {
-  prepare: false,
-  max: 1,
-  connect_timeout: 10,
-  idle_timeout: 2,
-}));
+function configuredDatabaseUrl() {
+  if (configuredPoolerUrl) return configuredPoolerUrl;
+  if (configuredPoolerHost && rawDbUrl) return poolerUrl(rawDbUrl, configuredPoolerHost);
+  // Never guess a Supavisor cluster. A guessed cluster can authenticate against
+  // an unintended database. Direct persistence stays unavailable until an
+  // explicit transaction-pooler URL or host is configured.
+  return "";
+}
 
-const transientConnectionCodes = new Set([
-  "ENOTFOUND", "EAI_AGAIN", "ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "CONNECT_TIMEOUT",
-]);
+type SqlClient = ReturnType<typeof postgres>;
+let sqlClient: SqlClient | null = null;
+let connecting: Promise<SqlClient> | null = null;
 
-async function withDatabase(operation) {
-  let lastError = null;
-  for (let i = 0; i < sqlClients.length; i += 1) {
+async function closeClient(client: SqlClient | null) {
+  if (!client) return;
+  try { await client.end({ timeout: 0 }); } catch { /* no-op */ }
+}
+
+async function connectDatabase(): Promise<SqlClient> {
+  if (sqlClient) return sqlClient;
+  if (connecting) return connecting;
+  connecting = (async () => {
+    const url = configuredDatabaseUrl();
+    if (!url) throw Object.assign(new Error("direct database pooler not configured"), { code: "DATABASE_POOLER_NOT_CONFIGURED" });
+    const candidate = postgres(url, {
+      prepare: false,
+      max: 1,
+      connect_timeout: 3,
+      idle_timeout: 20,
+    });
     try {
-      return await operation(sqlClients[i]);
+      await candidate`select 1 as ok`;
+      sqlClient = candidate;
+      console.log("autoscout-db-direct database transport=explicit-transaction-pooler");
+      return candidate;
     } catch (error) {
-      lastError = error;
-      const code = String(error?.code || "");
-      if (!transientConnectionCodes.has(code) || i === sqlClients.length - 1) throw error;
-      console.warn("autoscout-db-direct transient database connection failure; retrying fallback pooler", code);
+      await closeClient(candidate);
+      throw error;
     }
-  }
-  throw lastError || new Error("database_not_configured");
+  })();
+  try { return await connecting; }
+  finally { connecting = null; }
 }
 
 const transientSafeFunctions = new Set([
-  "autoscout_ingest_board", "autoscout_line_history", "autoscout_public_store", "autoscout_public_history_store",
+  "autoscout_ingest_board",
+  "autoscout_line_history",
+  "autoscout_public_store",
+  "autoscout_public_history_store",
 ]);
 
-const json = (body, status = 200) => new Response(JSON.stringify(body), {
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { "content-type": "application/json", "cache-control": "no-store" },
 });
 
-console.log(`autoscout-db-direct database transport=transaction-pooler candidates=${sqlClients.length}`);
-
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
-  if (!sqlClients.length) return json({ error: "database_not_configured" }, 503);
+  if (!configuredDatabaseUrl()) return json({ error: "database_pooler_not_configured" }, 503);
 
-  let body;
+  let body: any;
   try { body = await req.json(); }
   catch { return json({ error: "invalid_json" }, 400); }
 
@@ -82,33 +93,34 @@ Deno.serve(async (req) => {
   if (!token || !headerToken || token !== headerToken) return json({ error: "unauthorized" }, 401);
 
   try {
+    const sql = await connectDatabase();
     if (name === "autoscout_ingest_board") {
       const payload = JSON.stringify(args?.p_payload || {});
-      const rows = await withDatabase((sql) => sql`select public.autoscout_ingest_board(${token}, ${payload}::jsonb) as result`);
+      const rows = await sql`select public.autoscout_ingest_board(${token}, ${payload}::jsonb) as result`;
       return json(rows[0]?.result ?? null);
     }
-
     if (name === "autoscout_public_store") {
       const action = String(args?.p_action || "");
       const payload = JSON.stringify(args?.p_payload || {});
-      const rows = await withDatabase((sql) => sql`select public.autoscout_public_store(${token}, ${action}, ${payload}::jsonb) as result`);
+      const rows = await sql`select public.autoscout_public_store(${token}, ${action}, ${payload}::jsonb) as result`;
       return json(rows[0]?.result ?? null);
     }
-
     if (name === "autoscout_public_history_store") {
       const action = String(args?.p_action || "");
       const payload = JSON.stringify(args?.p_payload || {});
-      const rows = await withDatabase((sql) => sql`select public.autoscout_public_history_store(${token}, ${action}, ${payload}::jsonb) as result`);
+      const rows = await sql`select public.autoscout_public_history_store(${token}, ${action}, ${payload}::jsonb) as result`;
       return json(rows[0]?.result ?? null);
     }
-
     const propId = String(args?.p_prop_id || "");
     const bookmaker = args?.p_bookmaker_key == null ? null : String(args.p_bookmaker_key);
     const side = args?.p_side == null ? null : String(args.p_side);
     const limit = Math.max(1, Math.min(1000, Number(args?.p_limit) || 250));
-    const rows = await withDatabase((sql) => sql`select * from public.autoscout_line_history(${token}, ${propId}, ${bookmaker}, ${side}, ${limit})`);
+    const rows = await sql`select * from public.autoscout_line_history(${token}, ${propId}, ${bookmaker}, ${side}, ${limit})`;
     return json(rows);
-  } catch (error) {
+  } catch (error: any) {
+    const broken = sqlClient;
+    sqlClient = null;
+    await closeClient(broken);
     console.error("autoscout-db-direct", name, error);
     const pgCode = String(error?.code || "").slice(0, 32);
     let message = String(error?.message || "database operation failed").slice(0, 180);

@@ -1,8 +1,35 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import postgres from "npm:postgres@3.4.3";
 
-const dbUrl = Deno.env.get("SUPABASE_DB_URL") || "";
+const rawDbUrl = Deno.env.get("SUPABASE_DB_URL") || "";
+const configuredPoolerUrl = Deno.env.get("SUPABASE_DB_POOLER_URL") || "";
+const configuredPoolerHost = Deno.env.get("SUPABASE_DB_POOLER_HOST") || "aws-0-us-east-1.pooler.supabase.com";
+
+// Supabase's direct database endpoint is IPv6-first and is intended for
+// persistent backends. This function is short-lived edge/serverless traffic,
+// so route its transient PostgreSQL connections through Supavisor transaction
+// pooling instead. Preserve the existing database password in-memory; never log
+// or return the connection string. A separately configured pooler URL wins.
+function transactionPoolerUrl(raw: string) {
+  if (!raw) return "";
+  try {
+    const url = new URL(raw);
+    if (url.hostname.endsWith(".pooler.supabase.com") && url.port === "6543") return raw;
+    const match = url.hostname.match(/^db\.([a-z0-9]+)\.supabase\.co$/i);
+    if (!match) return raw;
+    const projectRef = match[1];
+    url.hostname = configuredPoolerHost;
+    url.port = "6543";
+    if (!decodeURIComponent(url.username || "").includes(".")) url.username = `postgres.${projectRef}`;
+    return url.toString();
+  } catch {
+    return raw;
+  }
+}
+
+const dbUrl = configuredPoolerUrl || transactionPoolerUrl(rawDbUrl);
 const sql = postgres(dbUrl, {
+  // Transaction pool mode does not support prepared statements.
   prepare: false,
   max: 1,
   connect_timeout: 10,
@@ -20,6 +47,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   status,
   headers: { "content-type": "application/json", "cache-control": "no-store" },
 });
+
+console.log("autoscout-db-direct database transport=transaction-pooler");
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);

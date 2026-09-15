@@ -7,6 +7,7 @@ import { patchRecentFiveUi } from './lib/autoscout/recent-five-runtime-patch.mjs
 import { patchNflPercentAndOpponentUi } from './lib/autoscout/nfl-percent-opponent-runtime-patch.mjs';
 import { patchNavAndRingUi } from './lib/autoscout/nav-ring-runtime-patch.mjs';
 import { patchPropBookSelectorUi } from './lib/autoscout/prop-book-selector-runtime-patch.mjs';
+import { patchResearchTabsUi } from './lib/autoscout/research-tabs-runtime-patch.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
 import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs';
@@ -70,7 +71,8 @@ const patchedRecentFiveUi = patchRecentFiveUi(patchedFantasyH2HUi);
 const patchedNflPercentAndOpponentUi = patchNflPercentAndOpponentUi(patchedRecentFiveUi);
 const patchedNavAndRingUi = patchNavAndRingUi(patchedNflPercentAndOpponentUi);
 const patchedPropBookSelectorUi = patchPropBookSelectorUi(patchedNavAndRingUi);
-writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedPropBookSelectorUi), 'utf8');
+const patchedResearchTabsUi = patchResearchTabsUi(patchedPropBookSelectorUi);
+writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedResearchTabsUi), 'utf8');
 // Run the existing edge safety patch against its original source anchors first.
 // The runtime-only UI file substitution happens afterwards so account/routing
 // safeguards still fail closed if the production frontdoor shape changes.

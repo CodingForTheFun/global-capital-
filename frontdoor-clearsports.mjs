@@ -2,6 +2,9 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { patchEdgeFrontdoor } from './lib/edge/frontdoor-patch.mjs';
 import { patchResearchUi } from './lib/autoscout/research-ui-runtime-patch.mjs';
+import { patchFantasyH2HUi } from './lib/autoscout/fantasy-h2h-runtime-patch.mjs';
+import { patchRecentFiveUi } from './lib/autoscout/recent-five-runtime-patch.mjs';
+import { patchNflPercentAndOpponentUi } from './lib/autoscout/nfl-percent-opponent-runtime-patch.mjs';
 import { patchNavAndRingUi } from './lib/autoscout/nav-ring-runtime-patch.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
@@ -61,7 +64,10 @@ if (!source.includes(oldImport)) throw new Error('ClearSports bootstrap could no
 if (!source.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the Auto Scout v5 UI source.');
 if (!source.includes(researchSports)) throw new Error('ClearSports bootstrap could not locate the research sport allowlist.');
 const patchedResearchUi = patchResearchUi(readFileSync(uiSourcePath, 'utf8'));
-const patchedNavAndRingUi = patchNavAndRingUi(patchedResearchUi);
+const patchedFantasyH2HUi = patchFantasyH2HUi(patchedResearchUi);
+const patchedRecentFiveUi = patchRecentFiveUi(patchedFantasyH2HUi);
+const patchedNflPercentAndOpponentUi = patchNflPercentAndOpponentUi(patchedRecentFiveUi);
+const patchedNavAndRingUi = patchNavAndRingUi(patchedNflPercentAndOpponentUi);
 writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedNavAndRingUi), 'utf8');
 // Run the existing edge safety patch against its original source anchors first.
 // The runtime-only UI file substitution happens afterwards so account/routing

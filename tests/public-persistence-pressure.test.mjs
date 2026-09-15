@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { __publicPersistenceTuning, persistPublicSnapshot, persistGameLogs } from '../lib/ingestion/public-persistence.mjs';
+import { __publicPersistenceTuning, claimPublicCycle, persistPublicSnapshot, persistGameLogs } from '../lib/ingestion/public-persistence.mjs';
 
 const ok = (body = {}) => ({ ok: true, status: 200, json: async () => body });
 
@@ -30,6 +30,30 @@ test('public persistence uses bounded production write tuning', () => {
       directPrimary: false,
     });
   } finally {
+    restoreEnv(restore);
+  }
+});
+
+test('lease claims stay on the canonical pooled RPC even when direct-primary is enabled', async () => {
+  const restore = {};
+  const originalFetch = globalThis.fetch;
+  const urls = [];
+  try {
+    withEnv('AUTOSCOUT_SUPABASE_URL', 'https://example.supabase.co', restore);
+    withEnv('AUTOSCOUT_SUPABASE_PUBLISHABLE_KEY', 'test-key', restore);
+    withEnv('AUTOSCOUT_SUPABASE_INGEST_TOKEN', 'test-token', restore);
+    withEnv('AUTOSCOUT_DIRECT_DB_PRIMARY', 'true', restore);
+    globalThis.fetch = async (url) => {
+      urls.push(String(url));
+      return ok({ claimed: false, owner: null });
+    };
+    const result = await claimPublicCycle(300);
+    assert.equal(result.claimed, false);
+    assert.equal(urls.length, 1);
+    assert.ok(urls[0].endsWith('/rest/v1/rpc/autoscout_public_store'));
+    assert.ok(!urls[0].includes('/functions/v1/autoscout-db-direct'));
+  } finally {
+    globalThis.fetch = originalFetch;
     restoreEnv(restore);
   }
 });

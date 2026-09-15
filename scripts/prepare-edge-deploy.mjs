@@ -2,13 +2,17 @@
 // Never rewrite payment descriptors, account identifiers, storage keys, or research calculations.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { applySoccerPublicFeedPatches } from './patch-soccer-public-feeds.mjs';
+import { patchPublicSportsbookHosts } from './patch-public-sportsbook-hosts.mjs';
 import './patch-real-snipe-table.mjs';
 
-// Public soccer expansion is applied at image-build time so it composes cleanly
+// Public feed compatibility is applied at image-build time so it composes cleanly
 // with parallel ingestion work. A real application checkout always includes
 // package.json; tiny isolated branding fixtures intentionally do not. Production
 // therefore remains fail-closed if required adapter anchors disappear.
-if (existsSync('package.json')) applySoccerPublicFeedPatches();
+if (existsSync('package.json')) {
+  patchPublicSportsbookHosts();
+  applySoccerPublicFeedPatches();
+}
 
 // Safari/iOS can paint the donut circles while dropping SVG <text>. Render the
 // real computed percentage as an HTML overlay so it remains visible in the

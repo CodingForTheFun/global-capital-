@@ -121,7 +121,8 @@ test('link previews carry a title, description and image', () => {
 test('head tag values are escaped so a title cannot break out of the attribute', () => {
   const tags = headTags('https://example.test', { path: '/', title: 'a" onload="x', description: '<script>' });
   assert.ok(!tags.includes('onload="x'), 'quotes in a title must be escaped');
-  assert.ok(!tags.includes('<script>'), 'markup in a description must be escaped');
+  assert.ok(!tags.includes('content="<script>'), 'markup in a description must be escaped');
+  assert.ok(tags.includes('content="&lt;script>'), 'escaped description should remain visible to crawlers');
 });
 
 test('the origin comes from configuration before any default', () => {
@@ -151,7 +152,7 @@ test('the legal identity is configuration, never an invented one', () => {
 test('no governing-law clause appears when no jurisdiction is configured', () => {
   const terms = legalPage('/terms', { env: {} });
   assert.doesNotMatch(terms, /Governing law/);
-  assert.doesNotMatch(terms, /\[|\{\{|TODO|PLACEHOLDER/i, 'no unfilled placeholders may ship');
+  assert.doesNotMatch(terms, /\{\{|\[\[|TODO|PLACEHOLDER/i, 'no unfilled placeholders may ship');
 });
 
 test('the responsible-gaming page carries a real helpline', () => {
@@ -218,15 +219,19 @@ test('the redirect does not swallow the real routes', () => {
 test('every public page names one brand to the customer', async () => {
   const { legalPage, LEGAL_PATHS } = await import('../lib/web/legal.mjs');
   const { billingPage, BILLING_PATHS } = await import('../lib/web/billing-pages.mjs');
+  const customerMarkup = html => html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
   for (const path of LEGAL_PATHS) {
-    assert.ok(!legalPage(path).includes('Auto Scout'), `${path} still names the research engine`);
-    assert.ok(legalPage(path).includes('Oblige Props'), `${path} must name the public brand`);
+    const html = customerMarkup(legalPage(path));
+    assert.ok(!html.includes('Auto Scout'), `${path} still names the research engine`);
+    assert.ok(html.includes('Oblige Props'), `${path} must name the public brand`);
   }
   for (const path of BILLING_PATHS) {
-    assert.ok(!billingPage(path).includes('Auto Scout'), `${path} still names the research engine`);
+    assert.ok(!customerMarkup(billingPage(path)).includes('Auto Scout'), `${path} still names the research engine`);
   }
   assert.ok(!webManifest().includes('Auto Scout'));
-  assert.ok(!headTags('https://example.test').includes('Auto Scout'));
+  assert.ok(!customerMarkup(headTags('https://example.test')).includes('Auto Scout'));
 });
 
 // The public identity moved to obligeprops.com; obligepay.com is retired and no

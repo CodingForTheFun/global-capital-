@@ -42,6 +42,7 @@ test('presentation adapter removes the slip without replacing server-bound resea
  for(const feature of ['data-fav','loadSaved','/api/saved-props','/api/apex/props','/api/apex/research','research-batch','analyzeResearch','repriceProjection','intelligence-studio.mjs','offer-promotion.mjs','createMLClient'])assert.ok(client.includes(feature),feature);
  const before=original.slice(original.indexOf('function openDrawer('),original.indexOf('function openDrawer(')+1000);
  assert.ok(client.includes(before),'original drawer implementation remains unchanged');
+ assert.match(client,/open=drawerState\?\.g\?\.key===route\.key\?drawerState\.g:null/,'already-open prop survives transient route reconciliation');
  assert.equal(researchClient(client),client,'idempotent');assert.throws(()=>researchClient('unknown shell'));
 });
 test('owner Control link is rendered only from the server-issued owner capability',()=>{
@@ -66,7 +67,7 @@ test('top-right account control exposes security actions without granting client
 test('native sign-in form and safe redirects survive the research-only landing decoration',()=>{
  for(const options of [{passwordSignup:true,googleSignup:true,next:'/apex'},{passwordSignup:false,googleSignup:false,next:'https://evil.invalid'}]){
   const original=landingPage(options), decorated=researchLanding(original);
-  assert.equal(decorated.slice(decorated.indexOf('<script>')),original.slice(original.indexOf('<script>')),'auth code unchanged');
+  const authMarker='<script>\n(function(){';assert.ok(original.includes(authMarker)&&decorated.includes(authMarker),'auth script marker exists');assert.equal(decorated.slice(decorated.indexOf(authMarker)),original.slice(original.indexOf(authMarker)),'auth code unchanged');
   assert.doesNotMatch(decorated,/Betslip with Kelly|Stake suggestions|ObligePay|Pushes excluded|Auto Scout/);
   assert.match(decorated,/Oblige Props/);assert.match(decorated,/asResearchGate/);
   assert.equal(decorated.includes('id="authForm"'),original.includes('id="authForm"'));

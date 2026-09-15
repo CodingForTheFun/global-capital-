@@ -166,7 +166,7 @@ function syncPropRoute(){
  else {closeDrawer(false);toast('This prop is no longer on the current board. Browse the available lines.');history.replaceState(null,'',location.pathname+location.search);}
 }
 function renderSports(){if(!document.getElementById('asSports').children.length)document.getElementById('asSports').innerHTML='<label class="asSportSelect"><span class="asSrOnly">Sport</span><select id="asSportSelect" class="asControl">'+SPORTS.map(v=>'<option value="'+v+'">'+v+'</option>').join('')+'</select></label>'+SPORTS.map(s=>'<button class="asSport '+(s===sport?'on':'')+'" aria-pressed="'+(s===sport)+'" data-sport="'+s+'">'+s+'</button>').join('');document.getElementById('asSportSelect').value=sport;document.getElementById('asSportSelect').onchange=e=>document.querySelector('[data-sport="'+e.target.value+'"]').click();document.querySelectorAll('[data-sport]').forEach(b=>{b.classList.toggle('on',b.dataset.sport===sport);b.setAttribute('aria-pressed',String(b.dataset.sport===sport));b.onclick=()=>{if(sport===b.dataset.sport)return;persistFilters();sport=b.dataset.sport;saveState();closeDrawer();restoreFilters();document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;page=1;renderAdvanced();load();};});}
-function viewGroups(){var current=groups().filter(g=>g.sport===sport);if(activeView!=='saved')return current;var merged=new Map(current.filter(g=>favorites.has(g.key)).map(g=>[g.key,g]));savedRecords.forEach(g=>{if(g.sport===sport&&favorites.has(g.key)&&!merged.has(g.key))merged.set(g.key,{...g,archived:true});});return filterBookGroups(Array.from(merged.values()),selectedBooks);}
+function viewGroups(){var current=(activeView==='snipes'?groups(true):groups()).filter(g=>g.sport===sport);if(activeView!=='saved')return current;var merged=new Map(current.filter(g=>favorites.has(g.key)).map(g=>[g.key,g]));savedRecords.forEach(g=>{if(g.sport===sport&&favorites.has(g.key)&&!merged.has(g.key))merged.set(g.key,{...g,archived:true});});return filterBookGroups(Array.from(merged.values()),selectedBooks);}
 // Sports come from what the board actually serves. Adding a chip for a league
 // with no pipeline behind it would open an empty board, so the list is the
 // supported set and nothing else.
@@ -296,7 +296,7 @@ function renderQuick(){
   b.onclick=function(){
    var id=b.dataset.quick;
    if(id==='highEv')quick.highEv=!quick.highEv;
-   else if(id==='stale')quick.stale=!quick.stale;
+   else if(id==='stale'){quick.stale=false;activeView='snipes';}
    else quick.side=quick.side===(id==='over'?'OVER':'UNDER')?null:(id==='over'?'OVER':'UNDER');
    page=1;renderQuick();renderList();
   };
@@ -478,12 +478,12 @@ function ringGauge(rates,r){
   +'<small>'+esc(researchState(r))+'</small></div>';
  var radius=26,c=2*Math.PI*radius,over=Math.max(0,Math.min(100,rates.over)),under=Math.max(0,Math.min(100,rates.under));
  var arc=over/100*c,u=under/100*c;
- return '<div class="asRing" title="Historical hit rates, not a win prediction"><svg class="asRingSvg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Over '+over.toFixed(1)+' percent, under '+under.toFixed(1)+' percent; remaining games pushed">'
+ return '<div class="asRing" title="Historical hit rates, not a win prediction"><span class="asRingGraphic" style="position:relative;display:inline-grid;place-items:center;flex:none"><svg class="asRingSvg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Over '+over.toFixed(1)+' percent, under '+under.toFixed(1)+' percent; remaining games pushed">'
   +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#64748b" stroke-width="7"></circle>'
   +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#f43f5e" stroke-width="7" stroke-dasharray="'+u.toFixed(2)+' '+(c-u).toFixed(2)+'" stroke-dashoffset="'+(-arc).toFixed(2)+'" transform="rotate(-90 32 32)"></circle>'
   +'<circle cx="32" cy="32" r="'+radius+'" fill="none" stroke="#10b981" stroke-width="7" stroke-dasharray="'+arc.toFixed(2)+' '+(c-arc).toFixed(2)+'" transform="rotate(-90 32 32)"></circle>'
-  +'<text x="32" y="32" class="asRingMid" text-anchor="middle" dominant-baseline="central">'+Math.round(over)+'%</text>'
-  +'</svg><div class="asRingText"><b class="asOverPct">O '+formatResearchRate(over)+'</b><span class="asUnderPct">U '+formatResearchRate(under)+'</span>'
+  +''
+  +'</svg><span class="asRingCenter" aria-hidden="true" style="position:absolute;inset:0;display:grid;place-items:center;color:#f8fafc;font:800 15px/1 Inter,system-ui,sans-serif;z-index:2;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.35)">'+Math.round(over)+'%</span></span><div class="asRingText"><b class="asOverPct">O '+formatResearchRate(over)+'</b><span class="asUnderPct">U '+formatResearchRate(under)+'</span>'
   +'<em>'+esc(rates.basis)+' · '+rates.games+'g'+(rates.push>0?' · Push '+formatResearchRate(rates.push):'')+'</em></div></div>';
 }
 function badge(id,label,value,tone,sub){
@@ -1067,6 +1067,20 @@ function renderBatchControl(){
  batch.onclick=retry?retryResearch:hydrateBoard;
 }
 async function prefetch(list){await Promise.all(list.map(async g=>{await getResearch(g,boardLine(g),defaultSide(g),false);if(g.sport===sport)renderListLight();}));}
+function snipeTableHtml(groups){
+ var rows=groups.map(function(g){var s=staleFor(g);if(!s)return null;return {g:g,s:s};}).filter(Boolean);
+ if(!rows.length){
+  var liveBooks=uniq(viewGroups().flatMap(function(g){return books(g);})).length;
+  return '<div class="asEmpty"><b>No verified snipes right now.</b><p>A normal consensus snipe needs one bettor-friendly target quote plus at least two independent live reference books. A two-book signal is accepted only when the reference is a verified sharp book. '+esc(sport)+' currently has '+liveBooks+' live book'+(liveBooks===1?'':'s')+' available for comparison. Auto Scout will not turn ordinary props into fake snipes.</p></div>';
+ }
+ return '<div class="asTableWrap"><table class="asTable asSnipeTable"><thead><tr><th>Player / market</th><th>Take</th><th>Book</th><th>Reference</th><th>Edge</th><th>Evidence</th></tr></thead><tbody>'+rows.map(function(row){
+  var g=row.g,s=row.s,refBook=s.referenceBook||s.sharpBook||'Market consensus',refLine=s.referenceLine??s.sharpLine??s.line;
+  var edge=s.edgePct!=null?'+'+dec(s.edgePct)+'% EV':s.edgePoints!=null?s.edgePoints+' prob pts':s.lineMove!=null?'+'+dec(s.lineMove)+' line':'—';
+  var kind=s.source==='sharp-lag'?'Sharp confirmed':s.kind==='price-consensus'?'No-vig consensus':s.source==='sharp-consensus'?'Sharp + consensus':'Market consensus';
+  var evidence=s.referenceCount!=null?(s.supportCount!=null?s.supportCount+'/'+s.referenceCount+' refs':s.referenceCount+' refs'):(s.signalCount!=null?s.signalCount+' signal'+(s.signalCount===1?'':'s'):'Verified');
+  return '<tr><td><b>'+esc(g.playerName)+'</b><span class="asQuoteTime">'+esc(g.market)+' · '+esc(when(g.gameStartTime))+'</span></td><td><b>'+esc(s.side)+' '+esc(dec(s.line))+'</b>'+(s.price!=null||s.retailPrice!=null?'<span class="asQuoteTime">'+esc(money(s.price??s.retailPrice))+'</span>':'')+'</td><td>'+esc(s.targetBook||s.retailBook||s.targetKey||s.retailKey||'—')+'</td><td>'+esc(refBook)+' <b>'+esc(dec(refLine))+'</b></td><td><b>'+esc(edge)+'</b></td><td><span class="asStaleTag">🎯 '+esc(kind)+'</span><span class="asQuoteTime">'+esc(evidence)+'</span></td></tr>';
+ }).join('')+'</tbody></table></div><p class="asNotice">Snipes are temporary executable market mismatches, not a second copy of the regular prop list. They disappear when the market converges, the edge drops below the threshold, or the quote becomes stale.</p>';
+}
 function renderListLight(){
  var viewNote=document.getElementById('asViewNote'),notes={popular:'Sorted by the number of sportsbooks quoting each prop. User pick popularity is unavailable.',discrepancies:'Largest line differences across fresh, verified books on the selected side. Differences are in each market’s own units and are not an EV ranking.'};
  viewNote.hidden=!notes[activeView];viewNote.textContent=notes[activeView]||'';
@@ -1075,6 +1089,7 @@ function renderListLight(){
  // Player Index pages over players; every other view pages over props, so the
  // count and the pagination have to agree with whichever is actually listed.
  var playerIndex=activeView==='players',units=playerIndex?playerIndexUnits(a):a;
+ if(activeView==='snipes'){document.querySelector('.asHeaderRow').innerHTML='<span>Live snipe opportunities</span>';document.getElementById('asResultCount').textContent=a.length+' verified snipes · '+sport;list.innerHTML=snipeTableHtml(a);renderPagination(0);renderBatchControl();restoreFocus(focused||origin);return;}
  applyColumnHeaders();document.getElementById('asResultCount').textContent=a.length+' players · '+(marketFilter==='all'?'grouped props':marketFilter)+' · '+(activeView==='saved'?(saveLoadError?'Saved props unavailable':serverSaves?'Saved to access profile':'Saved on this device'):'Available board');
  // Left as its own statement: the image build anchors on the line above to
  // route Best Lines to its own table, so that line stays byte-identical.

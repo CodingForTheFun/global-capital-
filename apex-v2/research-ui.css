@@ -218,6 +218,24 @@ body{background:var(--bg)}button,a,input,select{-webkit-tap-highlight-color:tran
 .asOddsChip i{font-style:normal;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
 .asOddsChip i.o{color:#4ade9f}
 .asOddsChip i.u{color:#7fb4ff}
+/* Compare view: the book-by-book table the tab always implied but never showed. */
+.asCompare{padding:10px 14px}
+.asCompareMeta{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:7px}
+.asCompareMeta span{font-size:11px;font-weight:600;letter-spacing:.02em;color:#8fa4bd;text-transform:uppercase}
+.asCompareTable{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+.asCompareTable th{text-align:right;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7f95b0;padding:0 0 5px;border-bottom:1px solid #223a56}
+.asCompareTable th:first-child{text-align:left}
+.asCompareTable td{padding:5px 0;font-size:12px;font-weight:700;text-align:right;border-bottom:1px solid rgba(34,58,86,.5)}
+.asCompareTable tr:last-child td{border-bottom:0}
+.asCmpBook{text-align:left!important;font-weight:600!important;color:#d6e6fa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px}
+.asCmpLine{color:#c6d8ee}
+.asCmpPrice{color:#e4eefb}
+.asCmpNone{color:#5b6f88;font-weight:500!important}
+/* Marked only when at least two books are comparable, so it always means something. */
+.asCmpBest{color:#33e49b;position:relative}
+.asCmpBest::after{content:"";position:absolute;inset:2px -4px;border:1px solid rgba(51,228,155,.42);border-radius:5px;pointer-events:none}
+tr.asCmpStale td,td.asCmpStale{color:#6f849d;font-weight:500!important}
+@media(max-width:560px){.asCompare{padding:9px 11px}.asCompareTable td,.asCompareTable th{font-size:11px}.asCmpBook{max-width:88px}}
 .asCard .asRowActions{border-top:1px solid #24405c}
 .asNav button,.asNav a{min-width:auto;padding:0 13px;gap:2px}
 .asNav .asNavIcon{font-size:15px;line-height:1}

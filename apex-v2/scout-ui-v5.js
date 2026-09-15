@@ -358,6 +358,41 @@ function lineSpread(g){
  if(lines.length<2)return 0;
  return Number((Math.max.apply(null,lines)-Math.min.apply(null,lines)).toFixed(2));
 }
+// The Compare view exists to SHOW the disagreement, not merely to sort by it.
+// Sorting by spread and then rendering the same chip strip as every other tab
+// told a reader a difference existed while hiding the thing that differed.
+// This lays every fresh book that quotes the prop side by side: its line, both
+// prices, and which price is actually the best. Best is marked only when at
+// least two books can be compared, because a lone quote is not the best of
+// anything - compareResearchQuotes already draws that line and it is kept here.
+function compareTable(g){
+ var side=defaultSide(g);
+ var c=compareResearchQuotes({...g,rows:g.comparisonOffers||g.rows,archived:!!g.archived||!!payload.meta?.stale},{line:boardLine(g),side:side});
+ var rows=c.rows.slice().sort(function(a,b){return (a.line-b.line)||String(a.name||a.bookKey).localeCompare(String(b.name||b.bookKey));});
+ // Nothing comparable: fall back to the ordinary strip rather than an empty box.
+ if(!rows.length)return oddsStrip(g);
+ var best={OVER:new Set((c.bestPrices.OVER||[]).map(function(q){return q.bookKey;})),
+           UNDER:new Set((c.bestPrices.UNDER||[]).map(function(q){return q.bookKey;}))};
+ var cell=function(q,book,direction){
+  if(!q||num(q.price)==null)return '<td class="asCmpNone">—</td>';
+  var isBest=best[direction].has(book)&&q.line===c.selectedLine;
+  return '<td class="asCmpPrice'+(isBest?' asCmpBest':'')+(q.fresh?'':' asCmpStale')+'">'+esc(money(q.price))+'</td>';
+ };
+ var body=rows.map(function(r){
+  var live=(r.OVER&&r.OVER.fresh)||(r.UNDER&&r.UNDER.fresh);
+  return '<tr'+(live?'':' class="asCmpStale"')+'>'
+   +'<td class="asCmpBook">'+esc(String(r.name||r.bookKey).slice(0,18))+'</td>'
+   +'<td class="asCmpLine">'+esc(dec(r.line))+'</td>'
+   +cell(r.OVER,r.bookKey,'OVER')+cell(r.UNDER,r.bookKey,'UNDER')+'</tr>';
+ }).join('');
+ var spread=lineSpread(g),meta=[rows.length+(rows.length===1?' book':' books')];
+ if(num(c.consensus)!=null)meta.push('consensus '+dec(c.consensus));
+ if(spread>0)meta.push('spread '+dec(spread));
+ return '<div class="asCompare" aria-label="Sportsbook line comparison">'
+  +'<div class="asCompareMeta">'+meta.map(function(m){return '<span>'+esc(m)+'</span>';}).join('')+'</div>'
+  +'<table class="asCompareTable"><thead><tr><th>Book</th><th>Line</th><th>Over</th><th>Under</th></tr></thead>'
+  +'<tbody>'+body+'</tbody></table></div>';
+}
 function researchParams(g,line,side){var q=new URLSearchParams({sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:String(line==null?'':line),side:side||defaultSide(g),games:'40',providerPlayerId:g.providerPlayerId||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',team:g.team||''});return q.toString();}
 async function getResearch(g,line,side,force){
  var valueLine=line==null?boardLine(g):line,valueSide=side||defaultSide(g),key=researchKey(g,valueLine,valueSide);
@@ -893,7 +928,7 @@ function rowHtml(g){
   +matchupPills(r)
   +badgeStrip(g,r,side)
   +staleBadge(g)
-  +oddsStrip(g)
+  +(activeView==='discrepancies'?compareTable(g):oddsStrip(g))
   +fairValueStrip(g)
   +'<details class="asCardModels"><summary>Model estimates &amp; projection</summary>'+mlPanel(g,line,side)+predictionStrip(g,line)+'</details>'
   +'<div class="asRowActions"><span class="asResearchState '+(r&&r.available?'ready':'')+'">'

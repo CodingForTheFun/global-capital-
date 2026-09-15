@@ -29,6 +29,14 @@ var {compareResearchQuotes}=await import('/assets/lib/ui/line-comparison.mjs');
 var {filterPropResearch,propFiltersHtml}=await import('/assets/lib/ui/prop-filters.mjs');
 var {researchRate,formatResearchRate,researchSideRates}=await import('/assets/lib/ui/research-percentages.mjs');
 var playerChoices=new Map();
+var propBookChoices=new Map();
+function propBookFor(g){
+ var wanted=g&&propBookChoices.get(g.key);if(!wanted||!g||!Array.isArray(g.rows))return null;
+ var target=bookId(wanted);
+ return g.rows.some(function(row){return bookId(row.sportsbookKey||row.sportsbook)===target;})?target:null;
+}
+function rowMatchesPropBook(g,row){var selected=propBookFor(g);return !selected||bookId(row.sportsbookKey||row.sportsbook)===selected;}
+;(function(){var s=document.getElementById('as-prop-book-selector-style');if(!s){s=document.createElement('style');s.id='as-prop-book-selector-style';s.textContent="\n#as5 .asPropBookStrip{display:flex!important;align-items:center!important;gap:10px!important;flex-wrap:wrap!important;padding:11px 13px!important;border-top:1px solid rgba(55,91,133,.35)!important;background:rgba(2,9,20,.58)!important;overflow:visible!important}\n#as5 .asPropBookPicker{position:relative!important;display:flex!important;align-items:center!important;min-width:220px!important;max-width:310px!important;height:46px!important;padding:0 13px!important;border:1px solid rgba(77,118,166,.52)!important;border-radius:15px!important;background:linear-gradient(180deg,rgba(12,28,49,.98),rgba(6,17,33,.98))!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)!important}\n#as5 .asPropBookPicker:after{content:\"⌄\";position:absolute;right:12px;top:50%;transform:translateY(-55%);pointer-events:none;color:#90a8c6;font-size:17px;font-weight:900}\n#as5 .asPropBookSelect{appearance:none!important;-webkit-appearance:none!important;width:100%!important;height:100%!important;padding:0 30px 0 0!important;border:0!important;outline:0!important;background:transparent!important;color:#f4f8ff!important;font-size:14px!important;font-weight:900!important;letter-spacing:-.01em!important;cursor:pointer!important}\n#as5 .asPropBookSelect:focus-visible{outline:2px solid #3f8cff!important;outline-offset:4px!important;border-radius:8px!important}\n#as5 .asPropBookValues{display:flex!important;align-items:center!important;gap:12px!important;min-height:46px!important;padding:0 2px!important;font-variant-numeric:tabular-nums!important}\n#as5 .asPropBookQuote{display:flex!important;align-items:baseline!important;gap:5px!important;white-space:nowrap!important;font-style:normal!important}\n#as5 .asPropBookQuote b{font-size:15px!important;font-weight:950!important}\n#as5 .asPropBookQuote em{font-size:12px!important;font-style:normal!important;font-weight:850!important;color:#8093ac!important}\n#as5 .asPropBookQuote.o b{color:#70e7bd!important}\n#as5 .asPropBookQuote.u b{color:#ff8793!important}\n#as5 .asPropBookMeta{margin-left:auto!important;color:#7288a3!important;font-size:10px!important;font-weight:750!important;white-space:nowrap!important}\n@media(max-width:700px){\n #as5 .asPropBookStrip{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px 10px!important;padding:9px 11px 11px!important}\n #as5 .asPropBookPicker{min-width:0!important;max-width:none!important;width:100%!important;height:44px!important;border-radius:14px!important}\n #as5 .asPropBookSelect{font-size:13px!important}\n #as5 .asPropBookValues{min-height:44px!important;gap:9px!important}\n #as5 .asPropBookQuote b{font-size:13px!important}\n #as5 .asPropBookQuote em{font-size:10px!important}\n #as5 .asPropBookMeta{grid-column:1/-1!important;margin-left:0!important;font-size:9px!important}\n}\n@media(max-width:360px){\n #as5 .asPropBookStrip{grid-template-columns:1fr!important}\n #as5 .asPropBookValues{justify-content:space-between!important}\n #as5 .asPropBookMeta{grid-column:auto!important}\n}\n";(document.head||document.documentElement).appendChild(s);}})();
 var {tacoBadgeHtml,removeExpiredTacoBadges}=await import('/assets/lib/ui/offer-promotion.mjs');
 var { analyzeResearch, researchTeamMatches, researchOpponentMatches, analyzeLineHistory } = await import('/assets/lib/analytics/research.mjs');
 var { evaluatePropAgainstFilters } = await import('/assets/lib/filters/index.mjs');
@@ -47,7 +55,7 @@ var rulesEnabled=true, saveEpoch=0;
 var savePending=new Set();
 
 var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB','SOCCER','TENNIS'];
-var BOARD_VIEWS={research:'Prop Research',players:'Players',popular:'Popular',snipes:'Automatic Snipes',discrepancies:'Line Discrepancies',saved:'Saved Props'};
+var BOARD_VIEWS={research:'Prop Research',players:'Player Index',popular:'Hot Trends',snipes:'Best Lines',discrepancies:'Book Compare',saved:'Saved Props'};
 var hydrating=false, hydrated=new Set(), hydrateFailed=false, hydrateController=null, hydratePending=new Set();
 var projections=new Map(), projectionPending=new Set();
 var shuffleOrder=new Map(), page=1;
@@ -92,18 +100,18 @@ function groups(allBooks=false){var m=new Map(),pm=playerMap();(payload.props||[
 function books(g){return uniq(g.rows.map(function(r){return r.sportsbookKey;}));}
 function sideRows(g,side){return g.rows.filter(function(r){return r.side===side;});}
 function bestLine(g,side){var a=sideRows(g,side).filter(function(r){return num(r.line)!=null;});if(!a.length)return null;return a.slice().sort(function(a,b){return side==='OVER'?num(a.line)-num(b.line):num(b.line)-num(a.line);})[0];}
-function bestPrice(g,side,line,allBooks=false){var selected=num(line==null?boardLine(g):line);return sideRows(g,side).filter(r=>num(r.price)!=null&&num(r.line)===selected&&(allBooks||bookFilter==='all'||r.sportsbookKey===bookFilter)).sort((a,b)=>num(b.price)-num(a.price))[0]||null;}
+function bestPrice(g,side,line,allBooks=false){var selected=num(line==null?boardLine(g):line);return sideRows(g,side).filter(r=>num(r.price)!=null&&num(r.line)===selected&&(allBooks||rowMatchesPropBook(g,r))).sort((a,b)=>num(b.price)-num(a.price))[0]||null;}
 function consensus(g){var byBook=new Map();g.rows.forEach(r=>{if(!byBook.has(r.sportsbookKey))byBook.set(r.sportsbookKey,[]);byBook.get(r.sportsbookKey).push(r.line);});return median(Array.from(byBook.values()).map(median));}
-function boardLine(g){var side=defaultSide(g),rows=sideRows(g,side).filter(r=>num(r.line)!=null&&(bookFilter==='all'||r.sportsbookKey===bookFilter));if(!rows.length)return null;return rows.reduce((best,row)=>side==='UNDER'?Math.max(best,num(row.line)):Math.min(best,num(row.line)),num(rows[0].line));}
-function defaultSide(g){return sideFilter!=='all'?sideFilter:sideRows(g,'OVER').length?'OVER':'UNDER';}
+function boardLine(g){var side=defaultSide(g),rows=sideRows(g,side).filter(r=>num(r.line)!=null&&rowMatchesPropBook(g,r));if(!rows.length)return null;return rows.reduce((best,row)=>side==='UNDER'?Math.max(best,num(row.line)):Math.min(best,num(row.line)),num(rows[0].line));}
+function defaultSide(g){if(sideFilter!=='all')return sideFilter;var rows=g.rows.filter(function(r){return rowMatchesPropBook(g,r);});return rows.some(function(r){return r.side==='OVER';})?'OVER':'UNDER';}
 function researchKey(g,line,side){return [g.key,g.team,g.homeTeam,g.awayTeam,num(line),side||'OVER'].join('|');}
 function saveState(){try{localStorage.setItem('autoscout-sport',sport);}catch{}if(!serverSaves)storeLocal('autoscout-favorites',Array.from(favorites));}
 function favoriteKey(g){return g.key;}
 function lineOnlyPolicy(g){
  var name=String(g?.playerName||''),market=String(g?.market||''),marketId=String(g?.marketId||''),selectedSport=String(g?.sport||'').toUpperCase();
- if(/\s+\+\s+/.test(name)||/\bcombo\b/i.test(market))return {ok:true,available:false,lineOnly:true,retryable:false,code:'COMBO_HISTORY_UNVERIFIED',message:'Live combo line only. Auto Scout does not combine separate player histories unless the source provides a verified combo history.'};
- if(/\bfantasy(?:\s+(?:score|points?))?\b/i.test(market+' '+marketId))return {ok:true,available:false,lineOnly:true,retryable:false,code:'FANTASY_SCORING_UNVERIFIED',message:'Live fantasy line only. Historical hit rates are withheld until this platform’s exact scoring formula is verified for this sport.'};
- if(selectedSport==='TENNIS')return {ok:true,available:false,lineOnly:true,retryable:false,code:'HISTORICAL_SOURCE_UNVERIFIED',message:'Live tennis line only. A complete tennis match-history source is not verified yet, so Auto Scout will not invent L5/L10/H2H results.'};
+ if(/\s+\+\s+/.test(name)||/\bcombo\b/i.test(market))return {ok:true,available:false,lineOnly:true,retryable:false,code:'COMBO_HISTORY_UNVERIFIED',message:'Live combo line available. Trend data is not available for combo props yet.'};
+ if(/\bfantasy(?:\s+(?:score|points?))?\b/i.test(market+' '+marketId)){var pp=(g.rows||[]).some(r=>r.sportsbookKey==='prizepicks');var exact=pp&&(selectedSport==='NBA'&&marketId==='player_fantasy_score'||selectedSport==='MLB'&&(/hitter_fantasy_score/.test(marketId)||/pitcher_fantasy_score/.test(marketId)||/^(?:Hitter|Pitcher) Fantasy Score$/i.test(market)));if(!exact)return {ok:true,available:false,lineOnly:true,retryable:false,code:'FANTASY_SCORING_UNVERIFIED',message:'Live fantasy line available. Trend data is not available for this scoring market yet.'};}
+ if(selectedSport==='TENNIS')return {ok:true,available:false,lineOnly:true,retryable:false,code:'HISTORICAL_SOURCE_UNVERIFIED',message:'Live tennis line available. Trend data is not available for this market yet.'};
  return null;
 }
 function researchFor(g,line,side){
@@ -175,9 +183,9 @@ function shell(){
  <main class="asMain"><section class="asHero"><div><h1 id="asPageTitle">Prop Research</h1><p id="asSubtitle" aria-live="polite">Loading current markets…</p></div><span class="asHeroBadge">MAIN LINES ONLY</span></section>
  <nav id="asPropTypes" class="asPropTypes" aria-label="Prop types"></nav>
  <details class="asBoardFilterMenu" id="asBoardFilterMenu"><summary>Find props &amp; filters</summary><section class="asFilters" aria-label="Filter player props"><label class="asSearchLabel"><span class="asSrOnly">Search player, market or team</span><input class="asControl" id="asSearch" placeholder="Search player, market, team…" type="search"></label><label><span class="asSrOnly">Market</span><select class="asControl" id="asMarket"></select></label><button class="asControl" id="asBooksOpen" aria-haspopup="dialog">All books</button><label><span class="asSrOnly">Over or Under</span><select class="asControl" id="asSide"><option value="all">Over + Under</option><option value="OVER">Over</option><option value="UNDER">Under</option></select></label><button class="asBtn asFilterTrigger" id="asAdvancedToggle" aria-expanded="false">Filters <span id="asFilterCount"></span></button></section>
- <dialog id="asBooksDialog" class="asFilterSheet asBooksDialog" aria-labelledby="asBooksTitle"><div class="asSheetHead"><h2 id="asBooksTitle">Platforms</h2><button class="asBtn" id="asBooksDone">Done</button></div><div id="asBooksChoices"></div></dialog><dialog id="asFilterSheet" class="asFilterSheet" aria-labelledby="asFilterTitle"><div class="asSheetHead"><h2 id="asFilterTitle">Research filters</h2><button class="asBtn" id="asFilterDone">Done</button></div><section id="asAdvanced" class="asAdvanced"></section></dialog><div class="asToolbar"><span id="asResultCount" aria-live="polite"></span><button class="asBtn" id="asRules" role="switch" aria-checked="true">Rules on</button><button class="asBtn" id="asColumns">Columns</button><details class="asProfileMenu" id="asProfileMenu"><summary aria-label="Account menu">Account</summary><div class="asProfileDropdown"><strong>Auto Scout account</strong><button class="asBtn" id="asAccount">Manage account &amp; billing</button><button class="asBtn" data-view="saved">Saved props</button><button class="asBtn" id="asSettings">Display settings</button><button class="asBtn" id="asMenuSignOut">Sign out</button></div></details><button class="asBtn" id="asResearchBatch">Load research</button><label>Sort <select class="asControl" id="asSort"><option value="shuffle">Shuffled (no order)</option><option value="research">Research coverage</option><option value="recent">Recent hit rate</option><option value="l5">L5 hit rate</option><option value="l10">L10 hit rate</option><option value="l15">L15 hit rate</option><option value="l20">L20 hit rate</option><option value="season">Season hit rate</option><option value="h2h">H2H hit rate</option><option value="projection">Projection difference</option><option value="books">Most books</option><option value="player">Player A–Z</option><option value="time">Game time</option></select></label></div>
- </details><p class="asNotice" id="asViewNote" hidden></p><section class="asQuick" id="asQuick" aria-label="Quick filters"></section><section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">Browse by prop type. Each player appears once; use the card selector to switch props or games. Statistics use verified historical results only. N/A means no verified sample for that split; it is not zero. Combo, fantasy-formula and unverified-source markets are labeled line-only instead of being presented as failed research.</p></main>
- <nav class="asNav" aria-label="Main navigation"><button data-view="research" class="on" aria-current="page" data-icon="props"><span class="asNavIcon" aria-hidden="true">☲</span><span>Props</span></button><button data-view="players" data-icon="players"><span class="asNavIcon" aria-hidden="true">●</span><span>Players</span></button><button data-view="popular" data-icon="popular"><span class="asNavIcon" aria-hidden="true">▲</span><span>Popular</span></button><a class="asNavBrand" href="/" aria-label="ObligePay home">obligepay.com</a><button data-view="snipes" data-icon="trend" aria-label="Automatic snipes"><span class="asNavIcon" aria-hidden="true">◎</span><span>Snipes</span></button><button data-view="discrepancies" data-icon="trend" aria-label="Compare line discrepancies"><span class="asNavIcon" aria-hidden="true">↗</span><span>Compare</span></button><button data-view="saved" data-icon="saved" aria-label="Saved props"><span class="asNavIcon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h12v17l-6-4-6 4V4Z" stroke-linejoin="round"/></svg></span><span>Saved</span></button></nav>
+ <dialog id="asBooksDialog" class="asFilterSheet asBooksDialog" aria-labelledby="asBooksTitle"><div class="asSheetHead"><h2 id="asBooksTitle">Platforms</h2><button class="asBtn" id="asBooksDone">Done</button></div><div id="asBooksChoices"></div></dialog><dialog id="asFilterSheet" class="asFilterSheet" aria-labelledby="asFilterTitle"><div class="asSheetHead"><h2 id="asFilterTitle">Research filters</h2><button class="asBtn" id="asFilterDone">Done</button></div><section id="asAdvanced" class="asAdvanced"></section></dialog><div class="asToolbar"><span id="asResultCount" aria-live="polite"></span><button class="asBtn" id="asRules" role="switch" aria-checked="true">Rules on</button><button class="asBtn" id="asColumns">Columns</button><details class="asProfileMenu" id="asProfileMenu"><summary aria-label="Account menu"><span class="asProfileAvatarShell"><img id="asProfileAvatarImg" alt="" hidden><span class="asProfileAvatarFallback" id="asProfileAvatarFallback" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.7-4.5 3.2-7 7.5-7s6.8 2.5 7.5 7" stroke-linecap="round"/></svg></span><span class="asProfileCameraBadge" aria-hidden="true">+</span></span></summary><div class="asProfileDropdown"><div class="asProfileHead"><span class="asProfileMenuAvatar"><img id="asProfileMenuImg" alt="" hidden><span class="asProfileMenuFallback" id="asProfileMenuFallback" aria-hidden="true">U</span></span><span><strong>Oblige Props</strong><small id="asProfileEmail">Account</small></span></div><button class="asBtn asAvatarEdit" id="asAvatarEdit" type="button">Change profile photo</button><button class="asBtn" id="asAccount">Manage account &amp; billing</button><button class="asBtn" data-view="saved">Saved props</button><button class="asBtn" id="asSettings">Display settings</button><button class="asBtn" id="asMenuSignOut">Sign out</button></div></details><button class="asBtn" id="asResearchBatch">Load research</button><label>Sort <select class="asControl" id="asSort"><option value="shuffle">Shuffled (no order)</option><option value="research">Research coverage</option><option value="recent">Recent hit rate</option><option value="l5">L5 hit rate</option><option value="l10">L10 hit rate</option><option value="l15">L15 hit rate</option><option value="l20">L20 hit rate</option><option value="season">Season hit rate</option><option value="h2h">H2H hit rate</option><option value="projection">Projection difference</option><option value="books">Most books</option><option value="player">Player A–Z</option><option value="time">Game time</option></select></label></div>
+ </details><p class="asNotice" id="asViewNote" hidden></p><section class="asQuick" id="asQuick" aria-label="Quick filters"></section><section class="asSummary" id="asSummary" aria-label="Board summary"></section><div class="asTableViewport"><div class="asHeaderRow"><span>Player / Market</span><span>Line</span><span>Projection</span><span>L5</span><span>L10</span><span>L15</span><span>Season</span><span>H2H</span><span>Average</span><span>Books</span></div><section class="asList" id="asList" aria-label="Player props"></section></div><div id="asMore"></div><p class="asCoverageNote">Browse by prop type. Each player appears once; use the card selector to switch props or games. Trend stats are shown when source data is available. A dash means that split is unavailable right now.</p></main>
+ <nav class="asNav" aria-label="Main navigation"><button data-view="research" class="on" aria-current="page" data-icon="props"><span class="asNavIcon" aria-hidden="true">☲</span><span>Props</span></button><button data-view="players" data-icon="players"><span class="asNavIcon" aria-hidden="true">●</span><span>Players</span></button><button data-view="popular" data-icon="popular" aria-label="Hot verified trends"><span class="asNavIcon" aria-hidden="true">▲</span><span>Trends</span></button><a class="asNavBrand" href="/" aria-label="Oblige Props home">obligeprops.com</a><button data-view="snipes" data-icon="trend" aria-label="Best live lines"><span class="asNavIcon" aria-hidden="true">◎</span><span>Best Lines</span></button><button data-view="discrepancies" data-icon="trend" aria-label="Compare sportsbook quotes"><span class="asNavIcon" aria-hidden="true">↗</span><span>Compare</span></button><button data-view="saved" data-icon="saved" aria-label="Saved props"><span class="asNavIcon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h12v17l-6-4-6 4V4Z" stroke-linejoin="round"/></svg></span><span>Saved</span></button></nav>
  <div class="asDetailPage" id="asDrawerBg" hidden><main class="asDrawer asAnalyticsPage" aria-labelledby="asDrawerTitle" tabindex="-1"><div class="asDrawerHead"><div class="asDrawerAvatar"><img id="asDrawerImg" alt=""></div><div><h2 id="asDrawerTitle">Player research</h2><span id="asInjuryBadge" class="asInjuryBadge" hidden></span><p id="asDrawerSub"></p></div><button class="asClose" id="asClose" aria-label="Back to research"><span class="asBackText">Back</span><span aria-hidden="true">×</span></button></div><div class="asDrawerBody" id="asDrawerBody"></div></main></div>
  <aside class="asSlipDrawer" id="asSlip" aria-label="Betslip"></aside><dialog id="asUtility" class="asUtility" aria-labelledby="asUtilityTitle"></dialog><div id="asToast" class="asToast" role="status" aria-live="polite"></div></div>`);
  document.getElementById('asRefresh').onclick=()=>load();document.querySelector('.asNav')?.style.setProperty('grid-template-columns','repeat(6,minmax(0,1fr))');
@@ -405,9 +413,9 @@ function visible(ignoreResearch=false){
  if(sortBy==='shuffle')a.sort((x,y)=>shuffleRank(x)-shuffleRank(y));
  else a.sort((a,b)=>{if(sortBy==='player')return a.playerName.localeCompare(b.playerName);var av=score(a),bv=score(b);return av==null&&bv!=null?1:bv==null&&av!=null?-1:(bv??0)-(av??0)||a.playerName.localeCompare(b.playerName)||a.key.localeCompare(b.key);});
  if(activeView==='players')a.sort((x,y)=>x.playerName.localeCompare(y.playerName)||x.market.localeCompare(y.market));
- if(activeView==='popular')a.sort((x,y)=>books(y).length-books(x).length||x.playerName.localeCompare(y.playerName));
- if(activeView==='snipes'){var snipeScores=new Map(a.map(g=>{var s=staleFor(g);return[g.key,s?Math.max(num(s.lineMove)||0,(num(s.edgePoints)||0)/10):0];}));a=a.filter(g=>staleFor(g));a.sort((x,y)=>(snipeScores.get(y.key)||0)-(snipeScores.get(x.key)||0)||x.playerName.localeCompare(y.playerName));}
- if(activeView==='discrepancies'){var spreads=new Map(a.map(g=>[g.key,lineSpread(g)]));a=a.filter(g=>spreads.get(g.key)>0);a.sort((x,y)=>spreads.get(y.key)-spreads.get(x.key));}
+ if(activeView==='popular')a.sort((x,y)=>{var xr=researchFor(x),yr=researchFor(y),xw=xr?.windows?.l5,yw=yr?.windows?.l5,xr5=num(xw?.hitRate),yr5=num(yw?.hitRate),xg=num(xw?.games)||0,yg=num(yw?.games)||0;if(xr5!=null||yr5!=null){if(xr5==null)return 1;if(yr5==null)return -1;return yr5-xr5||yg-xg||books(y).length-books(x).length||x.playerName.localeCompare(y.playerName);}return books(y).length-books(x).length||x.playerName.localeCompare(y.playerName);});
+ if(activeView==='snipes'){var snipeScores=new Map(a.map(g=>{var s=staleFor(g);return[g.key,s?Math.max(num(s.lineMove)||0,(num(s.edgePoints)||0)/10):0];})),bestLineSpreads=new Map(a.map(g=>[g.key,num(lineSpread(g))||0]));a.sort((x,y)=>Number(Boolean(staleFor(y)))-Number(Boolean(staleFor(x)))||(snipeScores.get(y.key)||0)-(snipeScores.get(x.key)||0)||(bestLineSpreads.get(y.key)||0)-(bestLineSpreads.get(x.key)||0)||books(y).length-books(x).length||x.playerName.localeCompare(y.playerName));}
+ if(activeView==='discrepancies'){var compareSpreads=new Map(a.map(g=>[g.key,num(lineSpread(g))||0])),multiBook=a.filter(g=>books(g).length>1);if(multiBook.length)a=multiBook;a.sort((x,y)=>books(y).length-books(x).length||(compareSpreads.get(y.key)||0)-(compareSpreads.get(x.key)||0)||x.playerName.localeCompare(y.playerName));}
  if(quick.stale)a=a.filter(g=>staleFor(g));
  if(quick.side)a=a.filter(g=>sideRows(g,quick.side).length);
  if(quick.highEv)a=a.filter(function(g){var e=projectionFor(g,boardLine(g));return e&&e.available&&num(e.ev)!=null&&num(e.ev)>5;});
@@ -421,7 +429,50 @@ function lineSpread(g){
  if(lines.length<2)return 0;
  return Number((Math.max.apply(null,lines)-Math.min.apply(null,lines)).toFixed(2));
 }
-function researchParams(g,line,side){var q=new URLSearchParams({sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:String(line==null?'':line),side:side||defaultSide(g),games:'40',providerPlayerId:g.providerPlayerId||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',team:g.team||''});return q.toString();}
+// The Compare view exists to SHOW the disagreement, not merely to sort by it.
+// Sorting by spread and then rendering the same chip strip as every other tab
+// told a reader a difference existed while hiding the thing that differed.
+// This lays every fresh book that quotes the prop side by side: its line, both
+// prices, and which price is actually the best. Best is marked only when at
+// least two books can be compared, because a lone quote is not the best of
+// anything - compareResearchQuotes already draws that line and it is kept here.
+function compareTable(g){
+ var side=defaultSide(g);
+ var c=compareResearchQuotes({...g,rows:g.comparisonOffers||g.rows,archived:!!g.archived||!!payload.meta?.stale},{line:boardLine(g),side:side});
+ var rows=c.rows.slice().sort(function(a,b){return (a.line-b.line)||String(a.name||a.bookKey).localeCompare(String(b.name||b.bookKey));});
+ // Nothing comparable: fall back to the ordinary strip rather than an empty box.
+ if(!rows.length)return oddsStrip(g);
+ var best={OVER:new Set((c.bestPrices.OVER||[]).map(function(q){return q.bookKey;})),
+           UNDER:new Set((c.bestPrices.UNDER||[]).map(function(q){return q.bookKey;}))};
+ var cell=function(q,book,direction){
+  if(!q||num(q.price)==null)return '<td class="asCmpNone">—</td>';
+  var isBest=best[direction].has(book)&&q.line===c.selectedLine;
+  return '<td class="asCmpPrice'+(isBest?' asCmpBest':'')+(q.fresh?'':' asCmpStale')+'">'+esc(money(q.price))+'</td>';
+ };
+ var body=rows.map(function(r){
+  var live=(r.OVER&&r.OVER.fresh)||(r.UNDER&&r.UNDER.fresh);
+  return '<tr'+(live?'':' class="asCmpStale"')+'>'
+   +'<td class="asCmpBook">'+esc(String(r.name||r.bookKey).slice(0,18))+'</td>'
+   +'<td class="asCmpLine">'+esc(dec(r.line))+'</td>'
+   +cell(r.OVER,r.bookKey,'OVER')+cell(r.UNDER,r.bookKey,'UNDER')+'</tr>';
+ }).join('');
+ var spread=lineSpread(g),meta=[rows.length+(rows.length===1?' book':' books')];
+ if(num(c.consensus)!=null)meta.push('consensus '+dec(c.consensus));
+ if(spread>0)meta.push('spread '+dec(spread));
+ return '<div class="asCompare" aria-label="Sportsbook line comparison">'
+  +'<div class="asCompareMeta">'+meta.map(function(m){return '<span>'+esc(m)+'</span>';}).join('')+'</div>'
+  +'<table class="asCompareTable"><thead><tr><th>Book</th><th>Line</th><th>Over</th><th>Under</th></tr></thead>'
+  +'<tbody>'+body+'</tbody></table></div>';
+}
+function researchMarketKey(g,line,side){
+ var id=g.marketId||'',label=String(g.market||'')+' '+id;
+ if(!/\bfantasy(?:\s+(?:score|points?))?\b/i.test(label))return id;
+ var valueLine=num(line==null?boardLine(g):line),valueSide=side||defaultSide(g);
+ var candidates=sideRows(g,valueSide).filter(r=>num(r.line)===valueLine&&(bookFilter==='all'||r.sportsbookKey===bookFilter));
+ var quote=candidates.find(r=>r.sportsbookKey==='prizepicks')||candidates[0]||null;
+ return quote&&quote.sportsbookKey?quote.sportsbookKey+':'+id:id;
+}
+function researchParams(g,line,side){var q=new URLSearchParams({sport:g.sport,playerName:g.playerName,market:g.market,marketId:researchMarketKey(g,line,side)||'',line:String(line==null?'':line),side:side||defaultSide(g),games:'40',providerPlayerId:g.providerPlayerId||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',team:g.team||''});return q.toString();}
 async function getResearch(g,line,side,force){
  var lineOnly=lineOnlyPolicy(g);if(lineOnly)return lineOnly;
  var valueLine=line==null?boardLine(g):line,valueSide=side||defaultSide(g),key=researchKey(g,valueLine,valueSide);
@@ -474,16 +525,16 @@ function gaugeRates(r,side){
  return {...rates,basis:(h.id==='season'?'SZN '+(r.season||''):w.label||h.id.toUpperCase())+(w.partial?' · partial':'')};
 }
 function researchState(r){
- if(!r)return hydrateFailed?'Research needs retry':'Loading historical results';
+ if(!r)return hydrateFailed?'Stats updating':'Loading trends';
  if(r.available)return '';
- if(r.code==='COMBO_HISTORY_UNVERIFIED')return 'Combo line only';
- if(r.code==='FANTASY_SCORING_UNVERIFIED')return 'Fantasy line only';
- if(r.code==='HISTORICAL_SOURCE_UNVERIFIED'||r.code==='UNSUPPORTED_MARKET')return 'Line only';
- if(r.code==='STAT_NOT_AVAILABLE')return 'Stat not reported';
- if(r.code==='PLAYER_NOT_FOUND'||r.code==='PLAYER_TEAM_MISMATCH')return 'Player match unavailable';
- if(r.code==='NO_GAME_LOG_DATA')return 'No logs available';
- if(r.retryable||r.code==='RESEARCH_PROVIDER_ERROR')return 'Research needs retry';
- return 'Historical statistic unavailable';
+ if(r.code==='COMBO_HISTORY_UNVERIFIED')return 'Combo line available';
+ if(r.code==='FANTASY_SCORING_UNVERIFIED'||r.code==='FANTASY_COMPONENTS_INCOMPLETE')return 'Fantasy line available';
+ if(r.code==='HISTORICAL_SOURCE_UNVERIFIED'||r.code==='UNSUPPORTED_MARKET')return 'Line available';
+ if(r.code==='STAT_NOT_AVAILABLE')return 'Trend unavailable';
+ if(r.code==='PLAYER_NOT_FOUND'||r.code==='PLAYER_TEAM_MISMATCH')return 'Player trend unavailable';
+ if(r.code==='NO_GAME_LOG_DATA')return 'Trend unavailable';
+ if(r.retryable||r.code==='RESEARCH_PROVIDER_ERROR')return 'Stats updating';
+ return 'Trend unavailable';
 }
 function ringGauge(rates,r){
  if(!rates)return '<div class="asRing asRingEmpty" title="'+esc(r?.message||researchState(r))+'">'
@@ -511,7 +562,7 @@ function windowBadge(r,id,label,column){
 function h2hBadge(r){
  if(!r||!r.available)return badge('h2h','H2H','N/A','','');
  var games=num(r.coverage?.h2hGames),h=r.h2h||{},hits=num(h.hits),rate=researchRate(h);
- if(!games)return badge('h2h','H2H','N/A','','no meetings');
+ if(!games)return badge('h2h','H2H','0g','','no verified prior meetings');
  return badge('h2h','H2H',formatResearchRate(rate),rateTone(rate),hits==null?games+'g':hits+'/'+games);
 }
 function streakBadge(r,side){
@@ -531,7 +582,7 @@ function diffBadge(r,side){
 function badgeStrip(g,r,side){
  if(!r&&!hydrateFailed)return '<div class="asBadges" aria-busy="true" aria-label="Loading historical statistics">'
   +['L5','L10','L15','H2H','STRK','AVG','DIFF','SZN'].map(function(label){return '<div class="asBadge"><small>'+label+'</small><span class="asStatSkeleton" aria-hidden="true"></span></div>';}).join('')+'</div>';
- if((r&&!r.available)||(!r&&hydrateFailed))return '<div class="asHistoryGap" role="status"><b>'+esc(researchState(r))+'</b><span>'+esc(r?.message||'This exact statistic has no verified history. The listed lines are still available.')+'</span></div>';
+ if((r&&!r.available)||(!r&&hydrateFailed))return '<div class="asBadges asBadgesUnavailable" aria-label="Trend data unavailable">'+['L5','L10','L15','H2H','STRK','AVG','DIFF','SZN'].map(function(label){return '<div class="asBadge"><small>'+label+'</small><b>—</b></div>';}).join('')+'</div>';
  return '<div class="asBadges" title="'+esc(r?.available?'Hit rates = hits / eligible games. Pushes are not hits and end the streak. Season excludes playoffs and prior seasons.':r?.message||researchState(r))+'">'
   +windowBadge(r,'l5','L5')+windowBadge(r,'l10','L10')+windowBadge(r,'l15','L15')+h2hBadge(r)+streakBadge(r,side)+averageBadge(r)+diffBadge(r,side)+windowBadge(r,'season','SZN','season')+'</div>';
 }
@@ -551,13 +602,30 @@ function matchupPills(r){
 }
 function oddsStrip(g){
  var map=new Map();
- g.rows.forEach(function(r){var k=r.sportsbookKey||r.sportsbook;if(!map.has(k))map.set(k,{key:k,name:r.sportsbook||k,o:null,u:null});
-  map.get(k)[r.side==='OVER'?'o':'u']=r;});
- var chips=Array.from(map.values()).sort(function(a,b){return String(a.name).localeCompare(String(b.name));}).map(function(x){
-  return '<div class="asOddsChip"><b>'+esc(String(x.name||x.key).slice(0,16))+'</b><span>'
-   +(x.o?'<i class="o">O '+esc(dec(x.o.line))+' '+esc(money(x.o.price))+tacoBadgeHtml(g.archived?null:x.o)+'</i>':'')
-   +(x.u?'<i class="u">U '+esc(dec(x.u.line))+' '+esc(money(x.u.price))+tacoBadgeHtml(g.archived?null:x.u)+'</i>':'')+'</span></div>';});
- return chips.length?'<div class="asOddsStrip" aria-label="Sportsbook lines">'+chips.join('')+'</div>':'';
+ g.rows.forEach(function(r){
+  var key=bookId(r.sportsbookKey||r.sportsbook);if(!key)return;
+  if(!map.has(key))map.set(key,{key:key,name:r.sportsbook||bookInfo(key).name||key,rows:[]});
+  map.get(key).rows.push(r);
+ });
+ var choices=Array.from(map.values()).sort(function(a,b){return String(a.name).localeCompare(String(b.name));});
+ if(!choices.length)return '';
+ function currentSide(item,side){
+  var rows=(item&&item.rows||[]).filter(function(r){return r.side===side&&num(r.line)!=null;});if(!rows.length)return null;
+  var latest=Math.max.apply(null,rows.map(function(r){var t=Date.parse(r.providerUpdatedAt||r.updatedAt||r.ingestedAt||'');return Number.isFinite(t)?t:0;}));
+  var current=rows.filter(function(r){var t=Date.parse(r.providerUpdatedAt||r.updatedAt||r.ingestedAt||'');return (Number.isFinite(t)?t:0)===latest;});
+  var signatures=new Set(current.map(function(r){return JSON.stringify([num(r.line),num(r.price)]);}));
+  return signatures.size===1?current[0]:null;
+ }
+ var selected=propBookFor(g)||'',active=selected?map.get(selected):null;
+ var over=active?currentSide(active,'OVER'):bestLine(g,'OVER');
+ var under=active?currentSide(active,'UNDER'):bestLine(g,'UNDER');
+ var options='<option value="">All books · best line</option>'+choices.map(function(item){return '<option value="'+esc(item.key)+'" '+(item.key===selected?'selected':'')+'>'+esc(item.name)+'</option>';}).join('');
+ function quote(row,side){var line=row&&num(row.line)!=null?dec(row.line):'—',price=row&&num(row.price)!=null?money(row.price):'—';return '<span class="asPropBookQuote '+side.toLowerCase()+'"><b>'+side.charAt(0)+' '+esc(line)+'</b><em>'+esc(price)+'</em></span>';}
+ return '<div class="asOddsStrip asPropBookStrip" aria-label="Sportsbook lines">'
+  +'<label class="asPropBookPicker"><span class="asSrOnly">Sportsbook for '+esc(g.playerName+' '+g.market)+'</span><select class="asPropBookSelect" data-prop-book="'+esc(g.key)+'" aria-label="Choose sportsbook for '+esc(g.playerName+' '+g.market)+'">'+options+'</select></label>'
+  +'<div class="asPropBookValues">'+quote(over,'OVER')+quote(under,'UNDER')+'</div>'
+  +'<small class="asPropBookMeta">'+esc(selected?'Selected sportsbook':choices.length+' live book'+(choices.length===1?'':'s')+' · tap to choose')+'</small>'
+  +'</div>';
 }
 // Sharp fair value for a DFS leg.
 //
@@ -905,7 +973,7 @@ function projectedStatStrip(g,line){
  return '<div class="asProjectedStat"><span>Projected stat</span><b>'+esc(dec(value,1))+'</b><small>'+esc(model?.available?'AI model estimate':(estimate.sampleSize+' games · recent-form estimate'))+'</small></div>';
 }
 function predictionStrip(g,line){
- var research=researchFor(g,line),lineOnly=lineOnlyPolicy(g)||(research?.lineOnly?research:null);if(lineOnly)return '<div class="asPredict"><span class="asPredictNote">'+esc(lineOnly.message||'Live line only. A verified historical model input is not available for this market.')+'</span></div>';
+ var research=researchFor(g,line),lineOnly=lineOnlyPolicy(g)||(research?.lineOnly?research:null);if(lineOnly)return '<div class="asPredict"><span class="asPredictNote">'+esc(lineOnly.message||'Live line available. Trend data is not available for this market yet.')+'</span></div>';
  var key=projectionKey(g,line), entry=projectionFor(g,line);
  if(projectionPending.has(key)){
   return '<div class="asPredict asPredictBusy" role="status">Generating prediction…</div>';
@@ -942,7 +1010,7 @@ function calibrationNote(entry){
 }
 function mlTarget(g,line,side){
  var research=researchFor(g,line,side);if(lineOnlyPolicy(g)||research?.lineOnly)return null;
- var q=bestPrice(g,side,line)||sideRows(g,side).find(x=>num(x.line)===num(line)&&(bookFilter==='all'||x.sportsbookKey===bookFilter));
+ var q=bestPrice(g,side,line)||sideRows(g,side).find(x=>num(x.line)===num(line)&&rowMatchesPropBook(g,x));
  return q&&!g.archived?{sport:g.sport,eventId:g.eventId,playerId:g.playerId,playerName:g.playerName,marketId:g.marketId,sportsbookKey:q.sportsbookKey,gameStartTime:g.gameStartTime,line:num(line),entityType:g.entityType||'player',live:!!g.live,isAlternate:!!q.isAlternate}:null;
 }
 function mlPanel(g,line,side){
@@ -961,11 +1029,73 @@ function hydrateML(){
   });
  });
 }
+
+// PrizePicks-style recent form, grounded only in this prop's real game history.
+// The raw player statistic is shared across books; the colour is recalculated
+// against whichever book line is currently displayed on the card.
+function recentFiveStrip(g,r,line,side){
+ if(!r||!r.available)return '';
+ var games=Array.isArray(r.gameLog)?r.gameLog.slice(0,5):[];
+ var usable=games.filter(function(game){return num(game&&game.value)!=null;});
+ if(!usable.length){
+  return '<section class="asRecentFive asRecentFiveEmpty" aria-label="Last five recent results unavailable">'
+   +'<div class="asRecentFiveHead"><b>Last 5</b><span>'+esc(r?.marketDisplayName||g.market)+'</span></div>'
+   +'<p>Recent stats unavailable for this prop.</p></section>';
+ }
+ var target=num(line),activeSide=String(side||'OVER').toUpperCase();
+ var values=usable.map(function(game){return num(game.value);});
+ var average=values.reduce(function(total,value){return total+value;},0)/values.length;
+ var scale=Math.max.apply(Math,(target==null?values:values.concat([target])).concat([1]));
+ var cells=usable.map(function(game){
+  var value=num(game.value),push=target!=null&&value===target;
+  var hit=target==null?null:(activeSide==='UNDER'?value<target:value>target);
+  var tone=target==null?'neutral':push?'push':hit?'hit':'miss';
+  var height=Math.max(9,Math.min(100,Math.max(0,value)/scale*100));
+  return '<div class="asRecentFiveGame '+tone+'">'
+   +'<strong>'+esc(dec(value,1))+'</strong>'
+   +'<div class="asRecentFiveBar" aria-hidden="true"><i style="height:'+height.toFixed(1)+'%"></i></div>'
+   +'<span>'+esc(displayTeam(game.opponent)||'—')+'</span>'
+   +'<small>'+esc(shortDate(game.date))+'</small></div>';
+ }).join('');
+ var sideLabel=activeSide==='UNDER'?'Under':'Over';
+ return '<section class="asRecentFive" aria-label="Last '+usable.length+' recent '+esc(r?.marketDisplayName||g.market)+' results">'
+  +'<div class="asRecentFiveHead"><span><b>Last '+usable.length+'</b><em>'+esc(r?.marketDisplayName||g.market)+'</em></span>'
+   +(target==null?'':'<span class="asRecentFiveTarget">'+esc(sideLabel)+' '+esc(dec(target,1))+'</span>')+'</div>'
+  +'<div class="asRecentFiveChart" style="--recent-count:'+usable.length+'">'+cells+'</div>'
+  +'<div class="asRecentFiveFoot"><span><b>'+esc(dec(average,1))+'</b> avg last '+usable.length+'</span>'
+   +(target==null?'':'<span>vs displayed '+esc(dec(target,1))+' line</span>')+'</div></section>';
+}
+
+
+// The opponent belongs to the event, not the sportsbook quote. Prefer verified
+// research context, then infer it directly from the player's team and the
+// event's home/away teams so the label is present before hydration finishes.
+function cardOpponent(g,r){
+ var direct=r?.matchup?.opponent||r?.opponent||null;
+ if(direct)return displayTeam(direct);
+ var team=g?.team||r?.player?.team||r?.context?.team||null;
+ var home=g?.homeTeam||r?.matchup?.homeTeam||null,away=g?.awayTeam||r?.matchup?.awayTeam||null;
+ if(team&&home&&researchTeamMatches(team,home))return displayTeam(away);
+ if(team&&away&&researchTeamMatches(team,away))return displayTeam(home);
+ return '';
+}
+// The general product ring intentionally prefers season. Early NFL cards can
+// therefore show 0/100 after a single current-season game even though their
+// verified rolling history already contains prior regular-season games. For
+// NFL only, feed the ring a view where L5 is the first eligible headline window.
+// The underlying research object and every L5/L10/L15/L20/SZN badge stay intact.
+function ringResearchForSport(r,sport){
+ if(String(sport||'').toUpperCase()!=='NFL'||!r?.available||!r.windows)return r;
+ var l5=r.windows.l5;
+ if(!l5||researchRate(l5)==null)return r;
+ return {...r,windows:{...r.windows,season:null,l20:null,l15:null,l10:null}};
+}
+
 function rowHtml(g){
  var line=boardLine(g),side=defaultSide(g);
- var quote=bestPrice(g,side,line)||sideRows(g,side).find(x=>num(x.line)===num(line)&&(bookFilter==='all'||x.sportsbookKey===bookFilter));
+ var quote=bestPrice(g,side,line)||sideRows(g,side).find(x=>num(x.line)===num(line)&&rowMatchesPropBook(g,x));
  var r=researchFor(g,line,side),c=r&&r.context?r.context:{};
- var team=g.team||(r&&r.player?r.player.team:null)||c.team,position=g.position||c.position||c.playerPosition;
+ var team=g.team||(r&&r.player?r.player.team:null)||c.team,position=g.position||c.position||c.playerPosition,opponent=cardOpponent(g,r);
  var state=researchState(r);
  var marketLabel=(line==null?'':'O/U '+dec(line)+' ')+(r?.marketDisplayName||g.market);
  return '<article class="asRow asCard" data-open="'+esc(g.key)+'" tabindex="0" aria-label="Research '+esc(g.playerName+' '+g.market)+'">'
@@ -973,16 +1103,18 @@ function rowHtml(g){
    +'<div class="asAvatar"><div class="asAvatarFallback">'+esc(initials(g.playerName))+'</div>'+(g.entityType==='team'?'':'<img loading="lazy" decoding="async" data-player-photo src="'+esc(artUrl(g))+'" alt="'+esc(g.playerName)+'"> ')+'</div>'
    +'<div class="asCardId"><div class="asCardName"><span class="asPlayer">'+esc(r?.entityType==='team'?r.player?.playerName||g.playerName:g.playerName)+'</span>'
     +(displayTeam(team)?'<span class="asTeamBadge">'+esc(displayTeam(team))+'</span>':'')
+    +(opponent?'<span class="asOpponentBadge">'+esc(opponent)+'</span>':'')
     +(position?'<span class="asPos">'+esc(position)+'</span>':'')+'<span class="asLeagueBadge">'+esc(g.sport)+'</span></div>'
     +'<div class="asCardMatch"><span>'+esc(displayTeam(g.awayTeam)+' @ '+displayTeam(g.homeTeam))+'</span><span class="asCardTime">'+esc(when(g.gameStartTime))+'</span></div>'
     +playerChoiceControl(g)+'<div class="asCardMarket">'+esc(marketLabel)+(quote&&num(quote.price)!=null?'<span class="asCardPrice">'+esc(side+' '+money(quote.price))+(quote.sportsbook?' · '+esc(quote.sportsbook):'')+'</span>':'')+'</div>'
    +'</div>'
-   +'<div class="asCardGauge">'+ringGauge(gaugeRates(r,side),r)+'</div>'
+   +'<div class="asCardGauge">'+ringGauge(gaugeRates(ringResearchForSport(r,g.sport),side),r)+'</div>'
   +'</div>'
   +matchupPills(r)
   +badgeStrip(g,r,side)
+  +recentFiveStrip(g,r,line,side)
   +staleBadge(g)
-  +oddsStrip(g)
+  +(activeView==='discrepancies'?compareTable(g):oddsStrip(g))
   +fairValueStrip(g)
   +'<details class="asCardModels"><summary>Model estimates &amp; projection</summary>'+mlPanel(g,line,side)+predictionStrip(g,line)+'</details>'
   +'<div class="asRowActions"><span class="asResearchState '+(r&&r.available?'ready':'')+'">'
@@ -1021,6 +1153,7 @@ function bindRows(){
  document.querySelectorAll('.asCardModels').forEach(el=>{el.onclick=e=>e.stopPropagation();el.onkeydown=e=>e.stopPropagation();});
  document.querySelectorAll('[data-player-photo]').forEach(img=>{img.onerror=()=>{img.hidden=true;img.parentElement.title='Photo unavailable for '+img.alt;};});
  document.querySelectorAll('[data-card-choice]').forEach(select=>{select.onclick=e=>e.stopPropagation();select.onkeydown=e=>e.stopPropagation();select.onchange=e=>{e.stopPropagation();playerChoices.set(select.dataset.cardChoice,select.value);renderListLight();};});
+ document.querySelectorAll('[data-prop-book]').forEach(select=>{select.onclick=e=>e.stopPropagation();select.onkeydown=e=>e.stopPropagation();select.onchange=e=>{e.stopPropagation();var key=select.dataset.propBook;if(select.value)propBookChoices.set(key,bookId(select.value));else propBookChoices.delete(key);staleCache.delete(key);renderListLight();};});
  document.querySelectorAll('[data-slip]').forEach(b=>b.onclick=e=>{e.stopPropagation();toggleSlip(b.dataset.slip);});
  document.querySelectorAll('[data-predict]').forEach(b=>b.onclick=e=>{
   e.stopPropagation();
@@ -1057,8 +1190,8 @@ async function hydrateBoard(){
   var response=await nativeFetch('/api/apex/research-batch',{method:'POST',signal:controller.signal,headers:{'content-type':'application/json'},
    body:JSON.stringify({props:jobs.map(function(job,index){var {g,line,side}=job;
     // A short opaque batch key cannot be silently truncated by the API.
-    return {key:String(index),sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',
-     providerPlayerId:g.providerPlayerId||'',line:line,side:side,team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',games:40};})})});
+    return {key:String(index),sport:g.sport,playerName:g.playerName,market:g.market,
+     providerPlayerId:g.providerPlayerId||'',line:line,side:side,team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',marketId:researchMarketKey(g,line,side)||'',games:40};})})});
   var body=await response.json();
   if(generation!==loadGeneration||selected!==sport)return;
   if(!response.ok||!body?.results)throw Error('batch');
@@ -1092,7 +1225,7 @@ function renderBatchControl(){
 }
 async function prefetch(list){await Promise.all(list.map(async g=>{await getResearch(g,boardLine(g),defaultSide(g),false);if(g.sport===sport)renderListLight();}));}
 function renderListLight(){
- var viewNote=document.getElementById('asViewNote'),notes={popular:'Sorted by the number of sportsbooks quoting each prop. User pick popularity is unavailable.',snipes:'Automatic live line opportunities. Auto Scout scans every refreshed board, ranks bettor-friendlier numbers and removes a snipe when the gap closes.',discrepancies:'Largest line differences across fresh, verified books on the selected side. Differences are in each market’s own units and are not an EV ranking.'};
+ var viewNote=document.getElementById('asViewNote'),notes={players:'Every live player on the selected sport, alphabetized for fast lookup. This view never requires a projection or historical sample to appear.',popular:'Verified L5 trend leaders rank first. When trend history is still loading, props fall back to strongest live book coverage instead of showing an empty tab.',snipes:'Best live line-shopping board. True snipe signals rank first; otherwise props are ordered by the largest current cross-book line gap and quote coverage.',discrepancies:'Compare the same prop across books. Multi-book props rank first by quote coverage and line gap; if only one book is available, the live quote still remains visible instead of a blank page.'};
  viewNote.hidden=!notes[activeView];viewNote.textContent=notes[activeView]||'';
  renderPropTypes();
  var list=document.getElementById('asList'),a=cardList(),focused=(list.contains(document.activeElement)||document.querySelector('.asHeaderRow').contains(document.activeElement))?focusToken(document.activeElement):null,origin=focusToken(lastFocus);
@@ -1338,7 +1471,7 @@ function loadHistoryIntoDrawer(){
  });
 }
 
-function researchAvailability(base){if(base?.message)return base.message;var c=String(base?.code||'');if(/UNMAPPED/.test(c))return 'This market does not yet have a supported historical statistic. Current sportsbook lines remain available.';if(/SEASON_ONLY|NO_GAME_LOG/.test(c)||base?.sections?.seasonTotal)return 'Season or player context is available, but completed historical results were not returned. Hit rates require individual game results.';if(/PLAYER.*MATCH|AMBIGUOUS/.test(c))return 'This player could not be uniquely matched to historical statistics. Current sportsbook lines remain available.';return 'Historical research could not be loaded for this player and market. Any supplied player context and sportsbook lines remain available.';}
+function researchAvailability(base){var c=String(base?.code||'');if(/SEASON_ONLY|NO_GAME_LOG/.test(c)||base?.sections?.seasonTotal)return 'Recent trend data is not available for this prop yet.';if(/PLAYER.*MATCH|AMBIGUOUS/.test(c))return 'Player trend data is not available for this prop yet.';if(/UNMAPPED|UNSUPPORTED/.test(c)||base?.lineOnly)return 'Trend data is not available for this market yet.';return 'Trend data is updating. Current lines remain available.';}
 // An empty filtered log is usually the head-to-head view on a player who has
 // not faced this opponent. Say that in plain language and show the recent form
 // that does exist, rather than leaving a dead table.
@@ -1384,7 +1517,7 @@ function renderDrawer(){
   overview:(base?.available?'<div class="asTrendPills">'+windowCards(r,drawerState.window)+'</div>'+section('Game-by-game performance',filters+chartHtml(r),esc(side+' '+dec(line)))+section('Supporting stats',supportingStats(r,g)):'')+'<details class="asDetailModels"><summary>Model estimates &amp; projection</summary>'+projectionHtml+'</details>'+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Supporting stats',supportingStats(r,g))+section('Results',logContent),lines:section('Best Line Finder',comparisonRows(g))+section('Every book',bookMatrix(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
  intelligence?.disposeDetails();
  panels.intelligence='<div id="asIntelligenceDetail">'+(intelligence?'':'<p class="asNotice">Intelligence tools could not load. Reload the page; existing research remains available.</p>')+'</div>';
- document.getElementById('asDrawerBody').innerHTML=(g.archived?'<p class="asAvailability">Saved snapshot from '+esc(when(g.savedAt))+'. Current sportsbook offers are unavailable for this prop.</p>':'')+'<div class="asDetailBooks">'+oddsStrip(g)+'</div>'+controls+(!base?'<div class="asLoading" role="status">Loading player research…</div>':!base.available?'<p class="asAvailability">'+esc(researchAvailability(base))+'</p>'+(base.lineOnly?'':'<button class="asBtn" id="asRetryResearch">Retry research</button>'):'')+tabBar+'<div role="tabpanel" id="asPanel-'+panel+'" aria-labelledby="asTab-'+panel+'" tabindex="0">'+panels[panel]+'</div>';
+ document.getElementById('asDrawerBody').innerHTML=(g.archived?'<p class="asAvailability">Saved snapshot from '+esc(when(g.savedAt))+'. Current sportsbook offers are unavailable for this prop.</p>':'')+'<div class="asDetailBooks">'+oddsStrip(g)+'</div>'+controls+(!base?'<div class="asLoading" role="status">Loading player research…</div>':!base.available?'<p class="asAvailability">'+esc(researchAvailability(base))+'</p>'+(base.lineOnly?'':'<button class="asBtn" id="asRetryResearch">Refresh stats</button>'):'')+tabBar+'<div role="tabpanel" id="asPanel-'+panel+'" aria-labelledby="asTab-'+panel+'" tabindex="0">'+panels[panel]+'</div>';
  keepOpen.forEach(selector=>document.querySelector(selector)?.setAttribute('open',''));
  document.querySelectorAll('[data-research-panel]').forEach(b=>{b.onclick=()=>{drawerState.panel=b.dataset.researchPanel;renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();var i=tabs.findIndex(t=>t[0]===b.dataset.researchPanel),next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:tabs.length-1))%tabs.length;drawerState.panel=tabs[next][0];renderDrawer();document.getElementById('asTab-'+drawerState.panel)?.focus();};});
  document.querySelectorAll('[data-project]').forEach(b=>b.onclick=()=>runProjection(g,line,side));
@@ -1506,6 +1639,210 @@ async function toggleSaved(key){
 // still accepted by the server for the people who already have one, so it stays
 // reachable at the bottom rather than being silently withdrawn.
 var account={authenticated:false,user:null,csrfToken:null},accountHealth=null,entitlement=null,accuracy=null,authBusy=false;
+;(function avatarClientRuntime() {
+  var PROFILE_RUNTIME_MARKER = '__OBLIGE_PROFILE_AVATAR_V1__';
+  if (window[PROFILE_RUNTIME_MARKER]) return;
+  window[PROFILE_RUNTIME_MARKER] = true;
+
+  var style = document.createElement('style');
+  style.id = 'oblige-profile-avatar-style';
+  style.textContent = `
+#as5 .asProfileMenu{position:relative!important;margin:0!important;z-index:60!important}
+#as5 .asProfileMenu>summary{list-style:none!important;width:48px!important;height:48px!important;min-width:48px!important;padding:2px!important;border-radius:50%!important;border:1px solid rgba(89,127,177,.55)!important;background:linear-gradient(180deg,rgba(15,31,52,.98),rgba(8,19,35,.98))!important;display:grid!important;place-items:center!important;cursor:pointer!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 9px 24px rgba(0,0,0,.25)!important;overflow:visible!important;font-size:0!important;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease!important}
+#as5 .asProfileMenu>summary::-webkit-details-marker{display:none!important}
+#as5 .asProfileMenu>summary::marker{display:none!important;content:""!important}
+#as5 .asProfileMenu>summary:hover,#as5 .asProfileMenu>summary:focus-visible,#as5 .asProfileMenu[open]>summary{border-color:#5f9cff!important;box-shadow:0 0 0 3px rgba(55,132,255,.13),0 10px 26px rgba(0,0,0,.3)!important;outline:none!important}
+#as5 .asProfileMenu>summary:active{transform:scale(.97)!important}
+#as5 .asProfileAvatarShell{position:relative!important;width:42px!important;height:42px!important;border-radius:50%!important;display:grid!important;place-items:center!important;overflow:visible!important}
+#as5 .asProfileAvatarShell img,#as5 .asProfileMenuAvatar img{width:100%!important;height:100%!important;border-radius:50%!important;object-fit:cover!important;display:block!important;background:#0b1423!important}
+#as5 .asProfileAvatarFallback{width:100%!important;height:100%!important;border-radius:50%!important;display:grid!important;place-items:center!important;color:#d9e8fb!important;background:radial-gradient(circle at 50% 28%,rgba(95,156,255,.16),rgba(9,22,39,.95) 72%)!important;font-size:15px!important;font-weight:900!important;line-height:1!important}
+#as5 .asProfileAvatarFallback svg{width:25px!important;height:25px!important}
+#as5 .asProfileCameraBadge{position:absolute!important;right:-2px!important;bottom:-2px!important;width:17px!important;height:17px!important;border-radius:50%!important;display:grid!important;place-items:center!important;background:#2f7dff!important;color:white!important;border:2px solid #07101d!important;font-size:13px!important;font-weight:900!important;line-height:1!important;box-shadow:0 2px 8px rgba(0,0,0,.4)!important}
+#as5 .asProfileDropdown{right:0!important;left:auto!important;width:270px!important;padding:12px!important;border-radius:18px!important;border:1px solid rgba(74,111,158,.45)!important;background:linear-gradient(180deg,rgba(10,25,44,.985),rgba(5,14,28,.99))!important;box-shadow:0 24px 58px rgba(0,0,0,.48),inset 0 1px 0 rgba(255,255,255,.04)!important;backdrop-filter:blur(24px)!important;-webkit-backdrop-filter:blur(24px)!important}
+#as5 .asProfileHead{display:grid!important;grid-template-columns:46px minmax(0,1fr)!important;gap:10px!important;align-items:center!important;padding:2px 2px 10px!important;margin-bottom:8px!important;border-bottom:1px solid rgba(75,107,148,.28)!important}
+#as5 .asProfileHead>span:last-child{min-width:0!important}
+#as5 .asProfileHead strong{display:block!important;color:#f4f8ff!important;font-size:13px!important;line-height:1.15!important}
+#as5 .asProfileHead small{display:block!important;margin-top:4px!important;color:#8298b4!important;font-size:10px!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+#as5 .asProfileMenuAvatar{width:46px!important;height:46px!important;border-radius:50%!important;display:grid!important;place-items:center!important;border:1px solid rgba(91,144,206,.5)!important;background:#0a1728!important;overflow:hidden!important}
+#as5 .asProfileMenuFallback{width:100%!important;height:100%!important;display:grid!important;place-items:center!important;font-size:16px!important;font-weight:900!important;color:#d7e7fa!important;background:radial-gradient(circle at 50% 28%,rgba(95,156,255,.18),rgba(8,21,38,.96) 72%)!important}
+#as5 .asProfileDropdown .asBtn{width:100%!important;justify-content:flex-start!important;text-align:left!important;margin-top:5px!important}
+#as5 .asProfileDropdown .asAvatarEdit{border-color:rgba(55,132,255,.52)!important;background:rgba(33,104,219,.14)!important;color:#cfe2ff!important}
+#as5 .asAvatarEditor{display:grid!important;gap:14px!important}
+#as5 .asAvatarPreviewWrap{width:128px!important;height:128px!important;margin:2px auto 4px!important;border-radius:50%!important;border:1px solid rgba(88,143,210,.6)!important;background:radial-gradient(circle at 50% 25%,rgba(89,151,255,.18),#091426 72%)!important;display:grid!important;place-items:center!important;overflow:hidden!important;box-shadow:0 14px 34px rgba(0,0,0,.28)!important}
+#as5 .asAvatarPreviewWrap img{width:100%!important;height:100%!important;object-fit:cover!important}
+#as5 .asAvatarPreviewFallback{font-size:30px!important;font-weight:900!important;color:#cfe0f5!important}
+#as5 .asAvatarEditor p{margin:0!important;color:#8ea4bf!important;font-size:11px!important;line-height:1.45!important;text-align:center!important}
+#as5 .asAvatarActions{display:grid!important;grid-template-columns:1fr 1fr!important;gap:8px!important}
+#as5 .asAvatarActions .asBtn{height:40px!important}
+#as5 .asAvatarChoose{display:grid!important;place-items:center!important;cursor:pointer!important}
+#as5 .asAvatarDanger{border-color:rgba(255,104,120,.38)!important;color:#ffadb7!important;background:rgba(142,34,49,.13)!important}
+#as5 .asAvatarSave{grid-column:1/-1!important;background:linear-gradient(145deg,#1686ff,#1763f0)!important;border-color:#2f91ff!important;color:white!important}
+#as5 .asAvatarSave:disabled{opacity:.45!important;cursor:not-allowed!important}
+@media(max-width:700px){
+ #as5 .asProfileMenu>summary{width:42px!important;height:42px!important;min-width:42px!important;padding:2px!important}
+ #as5 .asProfileAvatarShell{width:36px!important;height:36px!important}
+ #as5 .asProfileCameraBadge{width:15px!important;height:15px!important;font-size:11px!important}
+ #as5 .asProfileDropdown{position:fixed!important;top:62px!important;right:10px!important;width:min(290px,calc(100vw - 20px))!important}
+}
+`;
+  (document.head || document.documentElement).appendChild(style);
+
+  function initial() {
+    var email = account && account.authenticated && account.user && account.user.email ? account.user.email : '';
+    return email ? email.charAt(0).toUpperCase() : '';
+  }
+
+  function setFallback(fallback, signedIn) {
+    if (!fallback) return;
+    var value = signedIn ? initial() : '';
+    if (value) fallback.textContent = value;
+    else fallback.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4.5 21c.7-4.5 3.2-7 7.5-7s6.8 2.5 7.5 7" stroke-linecap="round"/></svg>';
+    fallback.hidden = false;
+  }
+
+  function sync(forceStamp) {
+    var signedIn = !!(account && account.authenticated);
+    var emailEl = document.getElementById('asProfileEmail');
+    if (emailEl) emailEl.textContent = signedIn && account.user && account.user.email ? account.user.email : 'Sign in to personalize';
+    var edit = document.getElementById('asAvatarEdit');
+    if (edit && edit.onclick !== openEditor) edit.onclick = openEditor;
+    var pairs = [
+      [document.getElementById('asProfileAvatarImg'), document.getElementById('asProfileAvatarFallback')],
+      [document.getElementById('asProfileMenuImg'), document.getElementById('asProfileMenuFallback')],
+    ];
+    pairs.forEach(function(pair) {
+      var img = pair[0], fallback = pair[1];
+      if (!img) return;
+      img.hidden = true;
+      setFallback(fallback, signedIn);
+      if (!signedIn) {
+        img.removeAttribute('src');
+        return;
+      }
+      img.onload = function() { img.hidden = false; if (fallback) fallback.hidden = true; };
+      img.onerror = function() { img.hidden = true; setFallback(fallback, true); };
+      img.src = '/api/account/avatar?v=' + encodeURIComponent(String(forceStamp || Date.now()));
+    });
+  }
+  window.__syncProfileAvatar = sync;
+
+  function processedAvatar(file) {
+    return new Promise(function(resolve, reject) {
+      if (!file || !/^image\//i.test(file.type || '')) return reject(new Error('Choose an image file.'));
+      if (file.size > 10 * 1024 * 1024) return reject(new Error('Choose an image smaller than 10 MB.'));
+      var objectUrl = URL.createObjectURL(file);
+      var image = new Image();
+      image.onload = function() {
+        try {
+          var width = Number(image.naturalWidth || image.width || 0);
+          var height = Number(image.naturalHeight || image.height || 0);
+          if (width < 32 || height < 32) throw new Error('That image is too small.');
+          var crop = Math.min(width, height);
+          var sx = Math.max(0, (width - crop) / 2);
+          var sy = Math.max(0, (height - crop) / 2);
+          function encode(size, type, quality) {
+            var canvas = document.createElement('canvas');
+            canvas.width = canvas.height = size;
+            var ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Image processing is unavailable in this browser.');
+            ctx.drawImage(image, sx, sy, crop, crop, 0, 0, size, size);
+            return canvas.toDataURL(type, quality);
+          }
+          var dataUrl = encode(384, 'image/webp', .86);
+          if (!/^data:image\/webp;base64,/.test(dataUrl)) dataUrl = encode(384, 'image/jpeg', .86);
+          if (dataUrl.length > 690000) dataUrl = encode(320, 'image/jpeg', .78);
+          if (dataUrl.length > 690000) throw new Error('That image is still too large after resizing. Try another photo.');
+          resolve(dataUrl);
+        } catch (error) {
+          reject(error);
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+      image.onerror = function() { URL.revokeObjectURL(objectUrl); reject(new Error('That photo could not be opened. Try JPEG, PNG, or WebP.')); };
+      image.src = objectUrl;
+    });
+  }
+
+  function openEditor() {
+    if (!(account && account.authenticated)) {
+      accountPanel();
+      return;
+    }
+    utility('Profile photo',
+      '<div class="asAvatarEditor">'
+      + '<div class="asAvatarPreviewWrap"><img id="asAvatarPreview" alt="Profile photo preview"><span class="asAvatarPreviewFallback" id="asAvatarPreviewFallback">' + initial() + '</span></div>'
+      + '<p>Choose a photo from this device. Oblige Props crops it to a square and stores only the resized profile image for this account.</p>'
+      + '<input id="asAvatarFile" type="file" accept="image/jpeg,image/png,image/webp,image/*" hidden>'
+      + '<div class="asAvatarActions"><label class="asBtn asAvatarChoose" for="asAvatarFile">Choose photo</label><button class="asBtn asAvatarDanger" id="asAvatarRemove" type="button">Remove photo</button><button class="asBtn asAvatarSave" id="asAvatarSave" type="button" disabled>Save photo</button></div>'
+      + '</div>');
+
+    var preview = document.getElementById('asAvatarPreview');
+    var previewFallback = document.getElementById('asAvatarPreviewFallback');
+    if (preview) {
+      preview.onload = function() { preview.hidden = false; if (previewFallback) previewFallback.hidden = true; };
+      preview.onerror = function() { preview.hidden = true; if (previewFallback) previewFallback.hidden = false; };
+      preview.src = '/api/account/avatar?edit=' + Date.now();
+    }
+
+    var prepared = null;
+    var fileInput = document.getElementById('asAvatarFile');
+    var save = document.getElementById('asAvatarSave');
+    if (fileInput) fileInput.onchange = async function() {
+      prepared = null;
+      if (save) save.disabled = true;
+      var file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      try {
+        prepared = await processedAvatar(file);
+        if (preview) { preview.hidden = false; preview.src = prepared; }
+        if (previewFallback) previewFallback.hidden = true;
+        if (save) save.disabled = false;
+      } catch (error) {
+        toast(String(error && error.message || 'That photo could not be prepared.'));
+      }
+    };
+
+    if (save) save.onclick = async function() {
+      if (!prepared) return;
+      save.disabled = true;
+      var result = await accountPost('/api/account/avatar', { image: prepared });
+      if (result.status === 200 && result.data && result.data.ok) {
+        sync(Date.now());
+        toast('Profile photo updated.');
+        var dialog = document.getElementById('asUtility');
+        if (dialog && dialog.open) dialog.close();
+      } else {
+        save.disabled = false;
+        toast(result.data && result.data.message ? result.data.message : 'Profile photo could not be saved.');
+      }
+    };
+
+    var remove = document.getElementById('asAvatarRemove');
+    if (remove) remove.onclick = async function() {
+      remove.disabled = true;
+      var result = await accountPost('/api/account/avatar', { remove: true });
+      if (result.status === 200 && result.data && result.data.ok) {
+        sync(Date.now());
+        toast('Profile photo removed.');
+        var dialog = document.getElementById('asUtility');
+        if (dialog && dialog.open) dialog.close();
+      } else {
+        remove.disabled = false;
+        toast(result.data && result.data.message ? result.data.message : 'Profile photo could not be removed.');
+      }
+    };
+  }
+
+  function init() {
+    var edit = document.getElementById('asAvatarEdit');
+    if (edit) edit.onclick = openEditor;
+    sync();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
+  else init();
+})();
+
 async function accountJson(path,options){try{var response=await nativeFetch(path,options||{headers:{'accept':'application/json'}});var data=await response.json().catch(function(){return null;});return {status:response.status,data:data};}catch{return {status:0,data:null};}}
 function accountPost(path,body){return accountJson(path,{method:'POST',headers:Object.assign({'content-type':'application/json'},account.csrfToken?{'x-csrf-token':account.csrfToken}:{}),body:JSON.stringify(body||{})});}
 async function loadAccount(){
@@ -1515,7 +1852,7 @@ async function loadAccount(){
  var plan=await accountJson('/api/account/entitlement');entitlement=plan.data&&plan.data.ok?plan.data.entitlement:null;
  var record=await accountJson('/api/props/accuracy');accuracy=record.data&&record.data.ok?record.data.accuracy:null;
  var button=document.getElementById('asAccount');
- if(button){button.textContent=account.authenticated?'Account':'Sign in';button.classList.toggle('asPrimary',!account.authenticated);}
+ if(button){button.textContent=account.authenticated?'Account':'Sign in';button.classList.toggle('asPrimary',!account.authenticated);}if(window.__syncProfileAvatar)window.__syncProfileAvatar();
 }
 function remainingText(remaining,limit){if(!Number.isFinite(limit))return 'Unavailable';return (Number.isFinite(remaining)?remaining:limit)+' of '+limit+' left today';}
 function planBlock(){
@@ -1700,7 +2037,12 @@ setInterval(hydrateML,30000);
 setInterval(()=>removeExpiredTacoBadges(document),1000);
 document.addEventListener('visibilitychange',()=>removeExpiredTacoBadges(document));
 if(propRoute()){sport=propRoute().sport;restoreFilters();}shell();reportSigninRedirect();loadAccount();loadSaved().then(()=>{savedRouteReady=true;if(!loading){renderListLight();syncPropRoute();}});load();setInterval(function(){if(!document.hidden&&!drawerState&&!loading)load();},30000);
+(function(){})();
 })().catch(function(){var root=document.getElementById('as5')||document.querySelector('main')||document.body;root.replaceChildren();var message=document.createElement('p');message.textContent='Auto Scout could not load. Please refresh to try again.';message.setAttribute('role','alert');root.appendChild(message);var retry=document.createElement('button');retry.textContent='Refresh';retry.onclick=function(){location.reload();};root.appendChild(retry);});
+
+;(function installRecentFiveStyle(){if(typeof document==='undefined')return;if(document.getElementById('oblige-recent-five-style'))return;var style=document.createElement('style');style.id='oblige-recent-five-style';style.textContent="\n#as5 .asRecentFive{margin:9px 12px 2px;padding:10px 11px 9px;border:1px solid rgba(72,91,127,.55);border-radius:12px;background:linear-gradient(180deg,rgba(12,18,31,.92),rgba(8,13,23,.96));overflow:hidden}\n#as5 .asRecentFiveHead,#as5 .asRecentFiveFoot{display:flex;align-items:center;justify-content:space-between;gap:8px}\n#as5 .asRecentFiveHead>span:first-child{display:flex;align-items:baseline;gap:7px;min-width:0}\n#as5 .asRecentFiveHead b{font-size:11px;letter-spacing:.01em;color:#f8fafc}\n#as5 .asRecentFiveHead em{font-style:normal;font-size:8px;font-weight:800;color:#8391a8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n#as5 .asRecentFiveTarget{flex:0 0 auto;padding:4px 7px;border:1px solid rgba(68,230,166,.24);border-radius:999px;background:rgba(20,90,67,.22);color:#8ef0c3;font-size:8px;font-weight:900}\n#as5 .asRecentFiveChart{display:grid;grid-template-columns:repeat(var(--recent-count,5),minmax(0,1fr));gap:7px;align-items:end;margin-top:8px;min-height:107px}\n#as5 .asRecentFiveGame{display:grid;grid-template-rows:18px 62px 16px 13px;min-width:0;text-align:center;align-items:end}\n#as5 .asRecentFiveGame strong{align-self:center;font-size:10px;line-height:1;color:#e5e7eb}\n#as5 .asRecentFiveBar{height:62px;display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid rgba(148,163,184,.3);background:linear-gradient(180deg,rgba(255,255,255,.018),rgba(255,255,255,.004));border-radius:5px 5px 0 0;overflow:hidden}\n#as5 .asRecentFiveBar i{display:block;width:min(82%,44px);min-height:5px;border-radius:6px 6px 2px 2px;background:#64748b;box-shadow:0 0 16px rgba(100,116,139,.12)}\n#as5 .asRecentFiveGame.hit .asRecentFiveBar i{background:#23e29b;box-shadow:0 0 18px rgba(35,226,155,.15)}\n#as5 .asRecentFiveGame.miss .asRecentFiveBar i{background:#f05263;box-shadow:0 0 18px rgba(240,82,99,.12)}\n#as5 .asRecentFiveGame.push .asRecentFiveBar i{background:#a3a8b5}\n#as5 .asRecentFiveGame span{align-self:end;font-size:8px;font-weight:950;color:#dce3ed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n#as5 .asRecentFiveGame small{align-self:start;font-size:7px;color:#6f7e94;white-space:nowrap}\n#as5 .asRecentFiveFoot{margin-top:6px;padding-top:6px;border-top:1px solid rgba(63,78,105,.35);font-size:8px;color:#77869d}\n#as5 .asRecentFiveFoot b{font-size:11px;color:#eef3f8}\n#as5 .asRecentFiveEmpty{min-height:58px;display:grid;align-content:center;gap:6px}\n#as5 .asRecentFiveEmpty p{margin:0;color:#718096;font-size:8px}\n@media(max-width:540px){#as5 .asRecentFive{margin-left:8px;margin-right:8px;padding:9px 8px 8px}#as5 .asRecentFiveChart{gap:4px;min-height:99px}#as5 .asRecentFiveGame{grid-template-rows:17px 57px 15px 12px}#as5 .asRecentFiveBar{height:57px}#as5 .asRecentFiveHead em{max-width:132px}#as5 .asRecentFiveFoot{font-size:7px}}\n";(document.head||document.documentElement).appendChild(style);})();
+
+;(function installOpponentStyle(){if(typeof document==='undefined')return;if(document.getElementById('oblige-opponent-style'))return;var style=document.createElement('style');style.id='oblige-opponent-style';style.textContent="\n#as5 .asOpponentBadge{display:inline-flex;align-items:center;gap:3px;margin-left:2px;padding:3px 6px;border:1px solid rgba(106,139,188,.34);border-radius:999px;background:rgba(20,35,59,.72);color:#b9cce4;font-size:9px;font-weight:850;white-space:nowrap}\n#as5 .asOpponentBadge:before{content:\"vs\";color:#6f88a8;font-size:7px;font-weight:900;text-transform:uppercase;letter-spacing:.04em}\n@media(max-width:540px){#as5 .asOpponentBadge{padding:2px 5px;font-size:8px}}\n";(document.head||document.documentElement).appendChild(style);})();
 
 ;(function premiumAutoScoutCards(){
   function numeric(text){var m=String(text||'').match(/-?\d+(?:\.\d+)?/);return m?Number(m[0]):null;}

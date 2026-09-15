@@ -27,15 +27,23 @@ if (existsSync('package.json')) {
     const ringEnd = '</svg><div class="asRingText">';
     const ringEndReplacement = '</svg><span class="asRingCenter" aria-hidden="true" style="position:absolute;inset:0;display:grid;place-items:center;color:#f8fafc;font:800 15px/1 Inter,system-ui,sans-serif;z-index:2;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.35)">\'+Math.round(over)+\'%</span></span><div class="asRingText">';
 
-    if (!source.includes(ringStart)) throw new Error('Oblige Props ring start anchor not found.');
-    if (!source.includes(svgText)) throw new Error('Oblige Props SVG percentage anchor not found.');
-    if (!source.includes(ringEnd)) throw new Error('Oblige Props ring end anchor not found.');
+    // Parallel UI work may already carry the exact HTML overlay. Treat that as
+    // the desired end state instead of failing the image build on an old anchor.
+    // Unknown partial markup still fails closed below.
+    const alreadyPatched = source.includes(ringStartReplacement)
+      && source.includes(ringEndReplacement)
+      && !source.includes(svgText);
+    if (!alreadyPatched) {
+      if (!source.includes(ringStart)) throw new Error('Oblige Props ring start anchor not found.');
+      if (!source.includes(svgText)) throw new Error('Oblige Props SVG percentage anchor not found.');
+      if (!source.includes(ringEnd)) throw new Error('Oblige Props ring end anchor not found.');
 
-    const output = source
-      .replace(ringStart, ringStartReplacement)
-      .replace(svgText, '')
-      .replace(ringEnd, ringEndReplacement);
-    if (output !== source) writeFileSync(file, output);
+      const output = source
+        .replace(ringStart, ringStartReplacement)
+        .replace(svgText, '')
+        .replace(ringEnd, ringEndReplacement);
+      if (output !== source) writeFileSync(file, output);
+    }
   }
 }
 

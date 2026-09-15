@@ -31,7 +31,7 @@ test('owner console is absent from customer navigation', () => {
 
 test('owner console files return ordinary 404 to non-owners', async () => {
   const gateway = createEdgeGateway({ currentAccount: async () => ({ user: { id: 'm1', role: 'member' } }), sessions: {} });
-  for (const pathname of ['/owner', '/owner.html', '/owner.css', '/owner.js']) {
+  for (const pathname of ['/owner', '/owner.html', '/owner.css', '/owner-integrated.css', '/owner.js']) {
     const res = responseRecorder();
     assert.equal(await gateway(request(pathname), res), true);
     assert.equal(res.status, 404, pathname);
@@ -45,6 +45,9 @@ test('owner console is served only to the owner session', async () => {
   assert.equal(await gateway(request('/owner'), res), true);
   assert.equal(res.status, 200);
   assert.match(res.body, /OBLIGE PROPS/);
+  for (const tab of ['Overview', 'Users', 'Support', 'Access', 'System', 'Logs', 'Settings']) {
+    assert.match(res.body, new RegExp(`>${tab}<`), `owner panel should include ${tab}`);
+  }
   assert.match(String(res.headers['x-robots-tag'] || ''), /noindex/i);
 });
 

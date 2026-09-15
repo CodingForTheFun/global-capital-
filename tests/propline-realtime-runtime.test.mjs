@@ -65,3 +65,127 @@ test('realtime store ingests, filters and deduplicates single and batched events
   const disk = readFileSync(path.join(temp, 'propline-realtime.json'), 'utf8');
   assert.doesNotMatch(disk, /test-master-key-not-production/);
 });
+
+test('webhook creation retries one validation 422 without the giant market filter', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'propline-webhook-create-'));
+  const previous = {
+    DATA_DIR: process.env.DATA_DIR,
+    PROPLINE_API_KEY: process.env.PROPLINE_API_KEY,
+    AUTOPROP_MASTER_KEY: process.env.AUTOPROP_MASTER_KEY,
+    PUBLIC_SITE_ORIGIN: process.env.PUBLIC_SITE_ORIGIN,
+    PROPLINE_WEBHOOK_SECRET: process.env.PROPLINE_WEBHOOK_SECRET,
+  };
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  process.env.DATA_DIR = temp;
+  process.env.PROPLINE_API_KEY = 'test-propline-api-key';
+  process.env.AUTOPROP_MASTER_KEY = 'test-master-key-not-production';
+  process.env.PUBLIC_SITE_ORIGIN = 'https://www.obligeprops.com';
+  delete process.env.PROPLINE_WEBHOOK_SECRET;
+
+  globalThis.fetch = async (url, init = {}) => {
+    requests.push({ url: String(url), method: init.method || 'GET', headers: init.headers || {}, body: init.body || null });
+    const parsed = new URL(String(url));
+    if (parsed.pathname === '/v1/webhooks' && (init.method || 'GET') === 'GET') {
+      return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (parsed.pathname === '/v1/webhooks' && init.method === 'POST') {
+      const postNo = requests.filter((row) => row.method === 'POST').length;
+      if (postNo === 1) {
+        return new Response(JSON.stringify({
+          detail: [{ loc: ['body', 'filter_market_key'], msg: 'value is not valid for this subscription', type: 'value_error' }],
+        }), { status: 422, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response(JSON.stringify({ id: 41, secret: 'test-signing-secret', active: true }), {
+        status: 201, headers: { 'content-type': 'application/json' },
+      });
+    }
+    if (parsed.pathname === '/v1/webhooks/41/replay') {
+      return new Response(JSON.stringify({
+        webhook_id: 41, since_seq: 0, events: [], next_seq: 0, has_more: false,
+        oldest_available_seq: 0, latest_seq: 0, truncated: false,
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    throw new Error(`unexpected request ${init.method || 'GET'} ${parsed.pathname}`);
+  };
+
+  try {
+    const href = pathToFileURL(new URL('../lib/data-sources/propline/realtime.mjs', import.meta.url).pathname).href + `?create=${Date.now()}-${Math.random()}`;
+    const realtime = await import(href);
+    realtime.__resetProplineRealtimeForTests();
+    const result = await realtime.ensureProplineRealtimeSubscription();
+    assert.equal(result.configured, true);
+    assert.equal(result.id, 41);
+
+    const posts = requests.filter((row) => row.method === 'POST');
+    assert.equal(posts.length, 2);
+    const first = JSON.parse(posts[0].body);
+    const second = JSON.parse(posts[1].body);
+    assert.ok(first.filter_market_key, 'the narrow market filter is attempted first');
+    assert.ok(first.filter_sport_key);
+    assert.equal(first.format, 'json');
+    assert.equal(first.batch_max, 100);
+    assert.equal(Object.hasOwn(second, 'filter_market_key'), false, 'fallback removes only the rejected market filter');
+    assert.equal(second.filter_sport_key, first.filter_sport_key);
+    assert.equal(second.format, 'json');
+    assert.equal(second.batch_max, 100);
+    assert.ok(requests.every((row) => !row.url.includes('test-propline-api-key')), 'API key never enters a URL');
+
+    const disk = readFileSync(path.join(temp, 'propline-realtime.json'), 'utf8');
+    assert.doesNotMatch(disk, /test-signing-secret|test-master-key-not-production|test-propline-api-key/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});
+
+test('webhook capacity 422 fails closed without a second create attempt', async () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'propline-webhook-capacity-'));
+  const previous = {
+    DATA_DIR: process.env.DATA_DIR,
+    PROPLINE_API_KEY: process.env.PROPLINE_API_KEY,
+    AUTOPROP_MASTER_KEY: process.env.AUTOPROP_MASTER_KEY,
+    PUBLIC_SITE_ORIGIN: process.env.PUBLIC_SITE_ORIGIN,
+    PROPLINE_WEBHOOK_SECRET: process.env.PROPLINE_WEBHOOK_SECRET,
+  };
+  const originalFetch = globalThis.fetch;
+  let postCount = 0;
+  process.env.DATA_DIR = temp;
+  process.env.PROPLINE_API_KEY = 'test-propline-api-key';
+  process.env.AUTOPROP_MASTER_KEY = 'test-master-key-not-production';
+  process.env.PUBLIC_SITE_ORIGIN = 'https://www.obligeprops.com';
+  delete process.env.PROPLINE_WEBHOOK_SECRET;
+
+  globalThis.fetch = async (url, init = {}) => {
+    const parsed = new URL(String(url));
+    if (parsed.pathname === '/v1/webhooks' && (init.method || 'GET') === 'GET') {
+      return new Response(JSON.stringify([]), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (parsed.pathname === '/v1/webhooks' && init.method === 'POST') {
+      postCount += 1;
+      return new Response(JSON.stringify({ detail: 'Maximum active webhook limit reached for this subscription.' }), {
+        status: 422, headers: { 'content-type': 'application/json' },
+      });
+    }
+    throw new Error(`unexpected request ${init.method || 'GET'} ${parsed.pathname}`);
+  };
+
+  try {
+    const href = pathToFileURL(new URL('../lib/data-sources/propline/realtime.mjs', import.meta.url).pathname).href + `?capacity=${Date.now()}-${Math.random()}`;
+    const realtime = await import(href);
+    realtime.__resetProplineRealtimeForTests();
+    const result = await realtime.ensureProplineRealtimeSubscription();
+    assert.equal(result.configured, false);
+    assert.equal(result.reason, 'PROPLINE_WEBHOOK_HTTP_422');
+    assert.equal(postCount, 1, 'capacity rejection must not retry or hammer webhook creation');
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+});

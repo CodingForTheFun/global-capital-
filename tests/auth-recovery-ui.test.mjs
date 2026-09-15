@@ -22,9 +22,14 @@ test('signed-out landing exposes complete verification and password recovery flo
   assert.match(html, /data\.requiresVerification/);
   assert.match(html, /Password updated\. Signing you in/);
   assert.ok(html.includes('a[href="/reset-password.html"]'));
+  assert.ok(original.includes('RESEND_COOLDOWN_SECONDS=60'));
+  assert.ok(html.includes('Resend code in '));
 
   const script = original.slice(original.indexOf('<script>') + '<script>'.length, original.indexOf('</script>'));
   new vm.Script(script);
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match => match[1]);
+  assert.ok(scripts.length >= 1);
+  for (const source of scripts) new vm.Script(source);
 });
 
 test('unsafe external next target still falls back to the local root', () => {

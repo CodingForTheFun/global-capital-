@@ -1,4 +1,4 @@
-name: Auto Scout production smoke
+name: Oblige Props production smoke
 
 on:
   pull_request:
@@ -21,18 +21,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Set up Node 20
+      - name: Set up Node 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
       - name: Install dependencies
         run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Verify public production pipeline and rendered prop card
+      - name: Verify customer domain, account gate, and live pipeline
         env:
           AUTOSCOUT_EXPECTED_SHA: ${{ github.sha }}
           AUTOSCOUT_SMOKE_SPORTS: NFL,MLB
-          AUTOSCOUT_PUBLIC_URL: https://autoprop-live-production.up.railway.app
-        run: node scripts/public-production-smoke-v2.mjs
+          AUTOSCOUT_PUBLIC_URL: https://www.obligeprops.com
+        run: node scripts/public-production-smoke-driver.mjs

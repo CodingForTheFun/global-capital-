@@ -93,15 +93,40 @@ test('isAccessCodeActive rejects unknown and empty subjects', async () => {
   assert.equal(await codes.isAccessCodeActive(undefined), false);
 });
 
-test('generation clamps caller-supplied limits', async () => {
-  const huge = await codes.generateAccessCode({ expiresInDays: 9999, maxUses: 9999 });
-  assert.equal(huge.maxUses, 20);
+test('finite generation supports long custom grants and still clamps extreme input', async () => {
+  const year = await codes.generateAccessCode({ expiresInDays: 365, maxUses: 1 });
+  const yearDays = (Date.parse(year.expiresAt) - Date.parse(year.createdAt)) / 86_400_000;
+  assert.ok(yearDays >= 364.9 && yearDays <= 365.1, `expected one year, got ${yearDays} days`);
+
+  const huge = await codes.generateAccessCode({ expiresInDays: 9999, maxUses: 9999999 });
+  assert.equal(huge.maxUses, 100000);
   const days = (Date.parse(huge.expiresAt) - Date.parse(huge.createdAt)) / 86_400_000;
-  assert.ok(days <= 90.1, `expiry clamped to 90 days, got ${days}`);
+  assert.ok(days <= 3650.1, `expiry clamped to ten years, got ${days}`);
 
   const tiny = await codes.generateAccessCode({ expiresInDays: -5, maxUses: 0 });
   assert.equal(tiny.maxUses, 5, 'invalid maxUses falls back to the default');
   assert.ok(Date.parse(tiny.expiresAt) > Date.now());
+});
+
+test('owner can issue a lifetime code with unlimited redemptions', async () => {
+  const created = await codes.generateAccessCode({
+    label: 'Lifetime guest',
+    neverExpires: true,
+    unlimitedUses: true,
+  });
+  assert.equal(created.expiresAt, null);
+  assert.equal(created.neverExpires, true);
+  assert.equal(created.maxUses, null);
+  assert.equal(created.unlimitedUses, true);
+  assert.equal(created.usesRemaining, null);
+
+  for (let i = 1; i <= 3; i++) {
+    const redeemed = await codes.redeemAccessCode(created.code);
+    assert.ok(redeemed, `redemption ${i} should succeed`);
+    assert.equal(redeemed.uses, i);
+    assert.equal(redeemed.maxUses, null);
+  }
+  assert.equal(await codes.isAccessCodeActive(created.id), true);
 });
 
 test('generated codes are unique and drawn from an unambiguous alphabet', async () => {

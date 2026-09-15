@@ -21,7 +21,7 @@ test('signed-out landing exposes complete verification and password recovery flo
 
   assert.match(html, /data\.requiresVerification/);
   assert.match(html, /Password updated\. Signing you in/);
-  assert.match(html, /a\[href="\\\/reset-password\.html"\]/);
+  assert.ok(html.includes('a[href="/reset-password.html"]'));
 
   const script = original.slice(original.indexOf('<script>') + '<script>'.length, original.indexOf('</script>'));
   new vm.Script(script);
@@ -29,5 +29,5 @@ test('signed-out landing exposes complete verification and password recovery flo
 
 test('unsafe external next target still falls back to the local root', () => {
   const html = landingPage({ passwordSignup: true, next: 'https://evil.invalid' });
-  assert.match(html, /next="\/"/);
+  assert.match(html, /mode='signup', next="\/"/);
 });

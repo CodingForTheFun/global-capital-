@@ -15,7 +15,6 @@ import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-ru
 import { patchMobileNavDockUi } from './lib/autoscout/mobile-nav-dock-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
 import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs';
-import { patchObligePublicBrandFrontdoor } from './lib/auth/oblige-public-brand-runtime-patch.mjs';
 
 // Preserve the owner's disabled legacy provider and the single data-core scheduler.
 process.env.AUTOSCOUT_DISABLE_SPORTSDATAIO = 'true';
@@ -100,7 +99,6 @@ let runtimeSource = source
   .replace(researchSports, researchSportsWithTennis);
 runtimeSource = patchEdgeFrontdoor(runtimeSource);
 runtimeSource = patchProfileAvatarFrontdoor(runtimeSource);
-runtimeSource = patchObligePublicBrandFrontdoor(runtimeSource);
 runtimeSource = patchProplineRealtimeFrontdoor(runtimeSource);
 if (!runtimeSource.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the edge-patched Auto Scout UI source.');
 runtimeSource = runtimeSource.replace(uiRead, uiRuntimeRead);

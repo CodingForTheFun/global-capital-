@@ -2,13 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { backfillH2H } from '../lib/data-sources/espn/h2h-backfill.mjs';
+import { researchOpponentMatches } from '../lib/analytics/research.mjs';
 import { fantasySpec, fantasyScoringSupported, scoreFantasyRow } from '../lib/props/fantasy-scoring.mjs';
 import { patchResearchUi } from '../lib/autoscout/research-ui-runtime-patch.mjs';
 import { patchFantasyH2HUi } from '../lib/autoscout/fantasy-h2h-runtime-patch.mjs';
 
 const nfl2025 = JSON.parse(readFileSync(new URL('./fixtures/espn-nfl-gamelog.json', import.meta.url), 'utf8'));
 
-test('H2H backfill reaches a prior season only when the ordinary history has no meeting', async () => {
+test('H2H backfill reaches a prior season until it has a verified multi-game sample', async () => {
   const history = {
     available: true,
     season: 2026,
@@ -29,20 +30,33 @@ test('H2H backfill reaches a prior season only when the ordinary history has no 
   });
   assert.equal(calls, 1);
   assert.equal(result.coverage.h2hHistoryBackfilled, true);
-  assert.ok(result.gameLog.some(row => row.opponentId === 'NFL:33'));
+  assert.equal(result.coverage.h2hHistoryGames, 2);
+  assert.equal(result.coverage.h2hHistoryTarget, 2);
+  assert.equal(result.gameLog.filter(row => row.opponentId === 'NFL:33').length, 2);
   assert.ok(result.gameLog.every(row => row.gameId));
 });
 
-test('H2H backfill spends no request when a verified meeting is already present', async () => {
+test('H2H backfill spends no request once two verified meetings are already present', async () => {
   const history = {
     available:true, season:2026, opponent:'BAL', opponentId:'NFL:33',
     player:{providerPlayerId:'history:NFL:123'}, coverage:{},
-    gameLog:[{gameId:'nfl:1',date:'2026-01-01T00:00:00Z',season:2026,seasonType:2,opponent:'BAL',opponentId:'NFL:33',value:1}],
+    gameLog:[
+      {gameId:'nfl:1',date:'2026-01-01T00:00:00Z',season:2026,seasonType:2,opponent:'BAL',opponentId:'NFL:33',value:1},
+      {gameId:'nfl:2',date:'2025-12-01T00:00:00Z',season:2025,seasonType:2,opponent:'BAL',opponentId:'NFL:33',value:2},
+    ],
   };
   let calls=0;
   const result=await backfillH2H(history,{sport:'NFL',market:'Passing Yards'},{fetchImpl:async()=>{calls++;throw Error('should not fetch');}});
   assert.equal(result,history);
   assert.equal(calls,0);
+});
+
+test('H2H opponent matching prefers verified IDs and falls back only when a row has no ID', () => {
+  const matchup={opponent:'BAL',opponentId:'NFL:33'};
+  assert.equal(researchOpponentMatches({opponent:'BAL',opponentId:'NFL:33'},matchup),true);
+  assert.equal(researchOpponentMatches({opponent:'BAL',opponentId:'NFL:8'},matchup),false);
+  assert.equal(researchOpponentMatches({opponent:'BAL'},matchup),true);
+  assert.equal(researchOpponentMatches({opponent:'SEA'},matchup),false);
 });
 
 test('PrizePicks NBA fantasy score uses the verified six-component chart exactly', () => {

@@ -27,6 +27,7 @@ test('public persistence uses bounded production write tuning', () => {
       historyBatchSize: 100,
       storeTimeoutMs: 35000,
       fallbackDelayMs: 750,
+      directPrimary: false,
     });
   } finally {
     restoreEnv(restore);

@@ -7,15 +7,22 @@ data/*
 *.zip
 
 # Retired sportsbook/guest frontend retained in Git history only, never in runtime.
+# The validation stage needs the one source-contract file below; the final
+# runtime stage explicitly removes the entire retired app before it is shipped.
 apps/guest-dashboard
+!apps/guest-dashboard/
+apps/guest-dashboard/*
+!apps/guest-dashboard/components/
+apps/guest-dashboard/components/*
+!apps/guest-dashboard/components/SportsWorkspace.tsx
 public/edge-workspace-*
 public/edge-theme.css
 artifacts
 test-results
 
 # Development, audit and coordination files never needed by the live service.
-# Keep tests in the production image so Railway's pre-deploy `npm run check`
-# executes the real suite instead of silently reporting zero tests.
+# Keep tests in the build context so the Docker validation stage executes the
+# real suite before runtime assets are mutated.
 .claude
 .github
 docs

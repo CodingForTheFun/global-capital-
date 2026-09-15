@@ -126,7 +126,7 @@ test('production UI sends source-qualified fantasy research and distinguishes tr
   assert.match(patched,/WNBA/);
   assert.match(patched,/NCAAF/);
   assert.match(patched,/Kicker Fantasy Score/);
-  assert.match(patched,/Goal(?:ie|keeper) Fantasy Score/);
+  assert.match(patched,/player_goalie_fantasy_score/);
   assert.match(patched,/H2H','0g'/);
   assert.match(patched,/FANTASY_COMPONENTS_INCOMPLETE/);
   assert.doesNotThrow(()=>new Function(patched));

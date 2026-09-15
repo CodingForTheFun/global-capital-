@@ -6,10 +6,10 @@ const sql = postgres(dbUrl, {
   prepare: false,
   max: 1,
   connect_timeout: 10,
-  idle_timeout: 20,
+  idle_timeout: 2,
 });
 
-const allowedFunctions = new Set([
+const transientSafeFunctions = new Set([
   "autoscout_ingest_board",
   "autoscout_line_history",
   "autoscout_public_store",
@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
   const args = body?.args && typeof body.args === "object" ? body.args : {};
   const token = String(args?.p_token || "");
   const headerToken = String(req.headers.get("x-autoscout-ingest-token") || "");
-  if (!allowedFunctions.has(name)) return json({ error: "unsupported_function" }, 400);
+  if (!transientSafeFunctions.has(name)) return json({ error: "unsupported_function" }, 400);
   if (!token || !headerToken || token !== headerToken) return json({ error: "unauthorized" }, 401);
 
   try {
@@ -63,8 +63,12 @@ Deno.serve(async (req) => {
     const limit = Math.max(1, Math.min(1000, Number(args?.p_limit) || 250));
     const rows = await sql`select * from public.autoscout_line_history(${token}, ${propId}, ${bookmaker}, ${side}, ${limit})`;
     return json(rows);
-  } catch (error) {
+  } catch (error: any) {
     console.error("autoscout-db-direct", name, error);
-    return json({ error: "database_operation_failed" }, 500);
+    const pgCode = String(error?.code || "").slice(0, 32);
+    let message = String(error?.message || "database operation failed").slice(0, 240);
+    if (token) message = message.split(token).join("[redacted]");
+    if (headerToken) message = message.split(headerToken).join("[redacted]");
+    return json({ error: "database_operation_failed", code: pgCode || null, message }, 500);
   }
 });

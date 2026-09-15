@@ -84,12 +84,12 @@ test('fantasy scoring stays fail-closed for an unverified platform or sport', ()
   assert.equal(fantasyScoringSupported({sport:'WNBA',market:'Fantasy Score',providerMarketKey:'prizepicks:player_fantasy_score'}),false);
 });
 
-test('production UI sends source-qualified fantasy research and distinguishes true zero H2H', () => {
+test('production UI sends source-qualified fantasy research and does not present zero H2H games like a result', () => {
   const source=readFileSync(new URL('../apex-v2/scout-ui-v5.js',import.meta.url),'utf8');
   const patched=patchFantasyH2HUi(patchResearchUi(source));
   assert.match(patched,/function researchMarketKey/);
   assert.match(patched,/prizepicks.*marketId/s);
-  assert.match(patched,/H2H','0g'/);
+  assert.match(patched,/H2H','N\/A','','0 prior games'/);
   assert.match(patched,/FANTASY_COMPONENTS_INCOMPLETE/);
   assert.doesNotThrow(()=>new Function(patched));
 });

@@ -15,7 +15,15 @@ test('production image keeps tests available for the Railway pre-deploy gate', (
   assert.ok(!activePatterns.includes('tests/'));
 });
 
-test('npm run check still executes the test suite', () => {
+test('npm run check executes the hermetic test suite', () => {
   const pkg = JSON.parse(readText('../package.json'));
-  assert.match(pkg.scripts?.check || '', /npm test/);
+  assert.match(pkg.scripts?.check || '', /npm run test:clean/);
+  assert.equal(pkg.scripts?.['test:clean'], 'node scripts/run-tests-clean-env.mjs');
+});
+
+test('the hermetic runner refuses zero tests and does not inherit app configuration', () => {
+  const runner = readText('../scripts/run-tests-clean-env.mjs');
+  assert.match(runner, /refusing to pass with zero test files/);
+  assert.match(runner, /NODE_ENV: 'test'/);
+  assert.doesNotMatch(runner, /\.\.\.process\.env/);
 });

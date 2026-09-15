@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const items = [
-    ['Sports', '/sportsbooks#sports'], ['Live', '/sportsbooks#live'],
+    ['Sports', '/sportsbooks#sports'], ['Live', '/sportsbooks#live'], ['News', '/news.html'],
     ['My Research', '/sportsbooks#research'], ['Analytics', '/sportsbooks#analytics'],
     ['Tools', '/sportsbooks#tools'], ['Auto Scout', '/apex'],
   ];

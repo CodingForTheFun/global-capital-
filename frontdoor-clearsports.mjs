@@ -4,6 +4,7 @@ import { patchEdgeFrontdoor } from './lib/edge/frontdoor-patch.mjs';
 import { patchResearchUi } from './lib/autoscout/research-ui-runtime-patch.mjs';
 import { patchFantasyH2HUi } from './lib/autoscout/fantasy-h2h-runtime-patch.mjs';
 import { patchNavAndRingUi } from './lib/autoscout/nav-ring-runtime-patch.mjs';
+import { patchPropBookSelectorUi } from './lib/autoscout/prop-book-selector-runtime-patch.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
 
 // Preserve the owner's disabled legacy provider and the single data-core scheduler.
@@ -50,7 +51,8 @@ if (!source.includes(researchSports)) throw new Error('ClearSports bootstrap cou
 const patchedResearchUi = patchResearchUi(readFileSync(uiSourcePath, 'utf8'));
 const patchedFantasyH2HUi = patchFantasyH2HUi(patchedResearchUi);
 const patchedNavAndRingUi = patchNavAndRingUi(patchedFantasyH2HUi);
-writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedNavAndRingUi), 'utf8');
+const patchedPropBookSelectorUi = patchPropBookSelectorUi(patchedNavAndRingUi);
+writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedPropBookSelectorUi), 'utf8');
 // Run the existing edge safety patch against its original source anchors first.
 // The runtime-only UI file substitution happens afterwards so account/routing
 // safeguards still fail closed if the production frontdoor shape changes.

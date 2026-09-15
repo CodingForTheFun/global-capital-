@@ -7,6 +7,8 @@ import { patchRecentFiveUi } from './lib/autoscout/recent-five-runtime-patch.mjs
 import { patchNflPercentAndOpponentUi } from './lib/autoscout/nfl-percent-opponent-runtime-patch.mjs';
 import { patchNavAndRingUi } from './lib/autoscout/nav-ring-runtime-patch.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
+import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
+import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs';
 
 // Preserve the owner's disabled legacy provider and the single data-core scheduler.
 process.env.AUTOSCOUT_DISABLE_SPORTSDATAIO = 'true';
@@ -34,10 +36,22 @@ function makeClientSafeVisualUi(source) {
     /<style id="oblige-props-pixel-target">([\s\S]*?)<\/style>/,
     (_match, css) => `\n;(function(){var s=document.getElementById('oblige-props-pixel-target');if(!s){s=document.createElement('style');s.id='oblige-props-pixel-target';s.textContent=${JSON.stringify(css)};(document.head||document.documentElement).appendChild(s);}})();\n`,
   );
-  const client = withStyle.replace(
+  const visualClient = withStyle.replace(
     /<script id="oblige-props-pixel-target-runtime">([\s\S]*?)<\/script>/,
     (_match, js) => `\n${js}\n`,
   );
+  // The current client closes its async bootstrap with `})().catch(...)`, while
+  // the avatar patch intentionally inserts before the last classic `})();`.
+  // Put a no-op IIFE immediately before the bootstrap closes so the avatar
+  // runtime is injected inside the account scope instead of at top level.
+  const scopedVisualClient = visualClient.replace(
+    '\n})().catch(function(){',
+    '\n(function(){})();\n})().catch(function(){',
+  );
+  if (scopedVisualClient === visualClient) throw new Error('Profile avatar bootstrap could not locate the client scope boundary.');
+  // Avatar styling is applied after the screenshot-target layer so its compact
+  // profile ring wins over older generic account-button sizing.
+  const client = patchProfileAvatarUi(scopedVisualClient);
   // Fail the container before Railway cuts traffic over if a future runtime
   // presentation patch ever generates invalid client JavaScript again.
   try { new Function(client); }
@@ -62,6 +76,7 @@ let runtimeSource = source
   .replace(oldImport, newImport)
   .replace(researchSports, researchSportsWithTennis);
 runtimeSource = patchEdgeFrontdoor(runtimeSource);
+runtimeSource = patchProfileAvatarFrontdoor(runtimeSource);
 if (!runtimeSource.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the edge-patched Auto Scout UI source.');
 runtimeSource = runtimeSource.replace(uiRead, uiRuntimeRead);
 writeFileSync(runtimePath, runtimeSource, 'utf8');

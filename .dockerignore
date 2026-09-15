@@ -14,10 +14,10 @@ artifacts
 test-results
 
 # Development, audit and coordination files never needed by the live service.
+# Keep tests in the production image so Railway's pre-deploy gate executes them.
 .claude
 .github
 docs
-tests
 coverage
 playwright-report
 .cache

@@ -171,9 +171,51 @@ function mergePersistedPublic(board, rows, sport) {
   };
 }
 
+// The customer board reads persisted props with a 900ms budget and no direct
+// fallback, because a page load must not wait on the database. When that read
+// times out the rows come back empty, and on a fresh container - every deploy -
+// the in-memory feed cache is cold too, so the board renders with nothing on it.
+// That is how a single slow read empties the whole product.
+//
+// Holding the last good read per sport means a database blip costs freshness
+// rather than the entire board. Two rules make that safe rather than merely
+// convenient:
+//
+//   * it is capped by age. A stale betting line someone acts on is worse than
+//     no line, so beyond the cap the board goes back to showing nothing.
+//   * it is labelled. The board already carries meta.stale for exactly this,
+//     and falling back sets it, so nothing presents an old number as live.
+const lastGoodPersisted = new Map();
+const PERSISTED_FALLBACK_MAX_AGE_MS = 15 * 60_000;
+
+function rememberPersisted(sport, rows) {
+  if (Array.isArray(rows) && rows.length) lastGoodPersisted.set(sport, { rows, at: Date.now() });
+}
+
+function recallPersisted(sport, now = Date.now()) {
+  const hit = lastGoodPersisted.get(sport);
+  if (!hit) return null;
+  if (now - hit.at > PERSISTED_FALLBACK_MAX_AGE_MS) { lastGoodPersisted.delete(sport); return null; }
+  return hit;
+}
+
+export function __persistedFallbackState() {
+  return { sports: [...lastGoodPersisted.keys()], maxAgeMs: PERSISTED_FALLBACK_MAX_AGE_MS };
+}
+
 async function fetchPublicFirstBoard(sport, options) {
   let persisted = [];
-  try { persisted = await readPublicProps(sport); } catch {}
+  let servedFromLastGood = null;
+  try {
+    persisted = await readPublicProps(sport);
+    rememberPersisted(sport, persisted);
+  } catch {
+    const recalled = recallPersisted(sport);
+    if (recalled) {
+      persisted = recalled.rows;
+      servedFromLastGood = new Date(recalled.at).toISOString();
+    }
+  }
 
   let cached = null;
   try {
@@ -185,6 +227,11 @@ async function fetchPublicFirstBoard(sport, options) {
   // PropLine is cache-only on the customer path. Existing direct/public rows
   // win identity collisions; PropLine only fills missing book/market coverage.
   board = mergeCachedPropline(board, sport);
+  // Say so when any of these rows came from the held copy rather than the
+  // database. The board renders meta.stale; nothing shows an old price as live.
+  if (servedFromLastGood) {
+    board = { ...board, meta: { ...board.meta, stale: true, staleSince: servedFromLastGood, staleReason: 'PERSISTED_READ_UNAVAILABLE' } };
+  }
   if (board.props.length || options.cacheOnly || options.allowPaidRefresh !== true) return board;
 
   // Metered network access is opt-in only in public-first mode. Browser page loads,

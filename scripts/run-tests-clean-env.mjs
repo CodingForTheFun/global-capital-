@@ -31,7 +31,11 @@ const cleanEnv = {
   NODE_ENV: 'test',
 };
 
-const result = spawnSync(process.execPath, ['--test', ...testFiles], {
+// Several persistence/auth tests deliberately replace process.env entries and
+// global fetch while asserting fail-closed behavior. Run test files one at a
+// time so those process-global mocks cannot race each other and turn the
+// production gate into a timing-dependent pass/fail signal.
+const result = spawnSync(process.execPath, ['--test', '--test-concurrency=1', ...testFiles], {
   cwd: root,
   env: cleanEnv,
   stdio: 'inherit',

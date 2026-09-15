@@ -9,6 +9,8 @@ import { fetchUnifiedBoard, providerHealth, providerDiagnostics } from './provid
 import { SUPPORTED_SPORTS, AUTOMATIC_SPORTS } from '../lib/autoscout/models.mjs';
 import { decorateBoardWithScoutAudit } from '../lib/autoscout/scout-rules.mjs';
 import { persistNormalizedBoard, getLineHistory, persistenceHealth, persistenceConfigured } from '../lib/autoscout/supabase-persistence.mjs';
+import { handleProplineWebhook, WEBHOOK_PATH as PROPLINE_WEBHOOK_PATH } from '../lib/data-sources/propline/webhook-route.mjs';
+import { webhookHealth as proplineWebhookHealth } from '../lib/data-sources/propline/webhooks.mjs';
 import { startIngestWorker, ingestHealth } from '../lib/autoscout/ingest-worker.mjs';
 import { createSessionCodec, createRateLimiter, parseCookies, clientKey, SESSION_COOKIE, OWNER } from '../lib/session.mjs';
 import { installProcessGuards } from '../lib/web/process-guards.mjs';
@@ -135,7 +137,7 @@ async function e2eStatus() {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, { ok: true, service: 'autoscout-apex', revision:process.env.RAILWAY_GIT_COMMIT_SHA||null, startedAt, supportedSports: SUPPORTED_SPORTS, ...providerHealth(), persistence: persistenceHealth(), mail: mailHealth() });
+    return json(res, 200, { ok: true, service: 'autoscout-apex', revision:process.env.RAILWAY_GIT_COMMIT_SHA||null, startedAt, supportedSports: SUPPORTED_SPORTS, ...providerHealth(), persistence: persistenceHealth(), mail: mailHealth(), proplineWebhook: proplineWebhookHealth() });
   }
   if (url.pathname === '/api/game-markets' || url.pathname === '/api/taco-offers') {
     if(req.method !== 'GET') return json(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'});
@@ -145,6 +147,9 @@ const server = http.createServer(async (req, res) => {
     try{return json(res,200,await(url.pathname==='/api/game-markets'?fetchGameBoard(sport):fetchTacoBoard(sport)));}
     catch{return json(res,503,{ok:false,code:'FEED_UNAVAILABLE',message:'This feed is temporarily unavailable.'});}
   }
+  // PropLine pushes line moves, resolutions and steam here. Verified by HMAC
+  // inside the handler; this route is deliberately reachable without a session.
+  if (url.pathname === PROPLINE_WEBHOOK_PATH) return handleProplineWebhook(req, res);
   if (req.method === 'GET' && url.pathname === '/api/props') return propsResponse(req, url, res);
   if(req.method==='GET'&&url.pathname==='/api/active-props'){
     const sport=String(url.searchParams.get('sport')||'NFL').toUpperCase();

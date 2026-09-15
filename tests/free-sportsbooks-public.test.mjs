@@ -4,6 +4,7 @@ import { fetchFanDuelPublic } from '../lib/ingestion/fanduel-public.mjs';
 import { fetchPinnaclePublic } from '../lib/ingestion/pinnacle-public.mjs';
 import { fetchBetRiversPublic } from '../lib/ingestion/betrivers-public.mjs';
 import { fetchBovadaPublic } from '../lib/ingestion/bovada-public.mjs';
+import { createPersistenceLimiter } from '../lib/ingestion/free-sportsbooks-worker.mjs';
 
 function response(body, status = 200) {
   const bodyText = JSON.stringify(body);
@@ -132,4 +133,29 @@ test('Bovada coupon collector keeps full-game two-sided player props', async () 
   assert.equal(result.records[0].line, 1.5);
   assert.equal(result.records[0].overOdds, -115);
   assert.equal(result.records[0].underOdds, -105);
+});
+
+test('multi-book persistence is globally bounded instead of flooding the database', async () => {
+  const limit = createPersistenceLimiter(2);
+  let active = 0;
+  let peak = 0;
+  const completed = [];
+
+  await Promise.all(Array.from({ length: 10 }, (_, index) => limit(async () => {
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    completed.push(index);
+    active -= 1;
+  })));
+
+  assert.equal(peak, 2);
+  assert.equal(completed.length, 10);
+});
+
+test('a failed snapshot releases its persistence slot for the next sportsbook', async () => {
+  const limit = createPersistenceLimiter(1);
+  await assert.rejects(limit(async () => { throw new Error('write failed'); }), /write failed/);
+  const result = await limit(async () => 'next-book-wrote');
+  assert.equal(result, 'next-book-wrote');
 });

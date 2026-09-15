@@ -66,7 +66,9 @@ test('top-right account control exposes security actions without granting client
 test('native sign-in form and safe redirects survive the research-only landing decoration',()=>{
  for(const options of [{passwordSignup:true,googleSignup:true,next:'/apex'},{passwordSignup:false,googleSignup:false,next:'https://evil.invalid'}]){
   const original=landingPage(options), decorated=researchLanding(original);
-  assert.equal(decorated.slice(decorated.indexOf('<script>')),original.slice(original.indexOf('<script>')),'auth code unchanged');
+  const authStart='<script>\n(function(){';
+  assert.ok(original.includes(authStart)&&decorated.includes(authStart),'auth script anchor is present');
+  assert.equal(decorated.slice(decorated.indexOf(authStart)),original.slice(original.indexOf(authStart)),'auth code unchanged');
   assert.doesNotMatch(decorated,/Betslip with Kelly|Stake suggestions|ObligePay|Pushes excluded|Auto Scout/);
   assert.match(decorated,/Oblige Props/);assert.match(decorated,/asResearchGate/);
   assert.equal(decorated.includes('id="authForm"'),original.includes('id="authForm"'));

@@ -17,6 +17,11 @@ if (existsSync('package.json')) {
 // Safari/iOS can paint the donut circles while dropping SVG <text>. Render the
 // real computed percentage as an HTML overlay so it remains visible in the
 // installed iPhone web app without changing the underlying calculation.
+//
+// Railway builds the image first and then runs the full pre-deploy suite from
+// that same image. Some tests intentionally execute this build command again,
+// so this transform must accept the exact already-patched form as a no-op while
+// still failing closed if the ring markup drifts to an unknown shape.
 {
   const file = 'apex-v2/scout-ui-v5.js';
   if (existsSync(file)) {
@@ -27,15 +32,21 @@ if (existsSync('package.json')) {
     const ringEnd = '</svg><div class="asRingText">';
     const ringEndReplacement = '</svg><span class="asRingCenter" aria-hidden="true" style="position:absolute;inset:0;display:grid;place-items:center;color:#f8fafc;font:800 15px/1 Inter,system-ui,sans-serif;z-index:2;pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.35)">\'+Math.round(over)+\'%</span></span><div class="asRingText">';
 
-    if (!source.includes(ringStart)) throw new Error('Oblige Props ring start anchor not found.');
-    if (!source.includes(svgText)) throw new Error('Oblige Props SVG percentage anchor not found.');
-    if (!source.includes(ringEnd)) throw new Error('Oblige Props ring end anchor not found.');
+    const alreadyPatched = source.includes(ringStartReplacement)
+      && source.includes(ringEndReplacement)
+      && !source.includes(svgText);
 
-    const output = source
-      .replace(ringStart, ringStartReplacement)
-      .replace(svgText, '')
-      .replace(ringEnd, ringEndReplacement);
-    if (output !== source) writeFileSync(file, output);
+    if (!alreadyPatched) {
+      if (!source.includes(ringStart)) throw new Error('Oblige Props ring start anchor not found.');
+      if (!source.includes(svgText)) throw new Error('Oblige Props SVG percentage anchor not found.');
+      if (!source.includes(ringEnd)) throw new Error('Oblige Props ring end anchor not found.');
+
+      const output = source
+        .replace(ringStart, ringStartReplacement)
+        .replace(svgText, '')
+        .replace(ringEnd, ringEndReplacement);
+      if (output !== source) writeFileSync(file, output);
+    }
   }
 }
 
@@ -59,7 +70,9 @@ if (existsSync('package.json')) {
 
     let output = source;
     for (const [legacy, current] of replacements) {
-      if (!output.includes(legacy)) throw new Error(`Oblige Props landing identity anchor not found: ${legacy}`);
+      if (!output.includes(legacy) && !output.includes(current)) {
+        throw new Error(`Oblige Props landing identity anchor not found: ${legacy}`);
+      }
       output = output.replace(legacy, current);
     }
     if (output !== source) writeFileSync(file, output);
@@ -82,7 +95,9 @@ if (existsSync('package.json')) {
     ];
     let output = source;
     for (const [legacy, current] of replacements) {
-      if (!output.includes(legacy)) throw new Error(`Oblige Props core identity anchor not found: ${legacy}`);
+      if (!output.includes(legacy) && !output.includes(current)) {
+        throw new Error(`Oblige Props core identity anchor not found: ${legacy}`);
+      }
       output = output.replace(legacy, current);
     }
     if (output !== source) writeFileSync(file, output);
@@ -96,7 +111,11 @@ if (existsSync('package.json')) {
   const file = 'lib/autoscout/oblige-props-visual-runtime-patch.mjs';
   if (existsSync(file)) {
     const source = readFileSync(file, 'utf8');
-    if (!source.includes('asPay') || !source.includes('>pay</span>')) {
+    const legacyClass = source.includes('asPay');
+    const legacyText = source.includes('>pay</span>');
+    const currentClass = source.includes('asProps');
+    const currentText = source.includes('>props</span>');
+    if ((!legacyClass && !currentClass) || (!legacyText && !currentText)) {
       throw new Error('Oblige Props signed-in wordmark anchor not found.');
     }
     const output = source

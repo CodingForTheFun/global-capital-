@@ -25,13 +25,13 @@ function clearAuthEnv() {
 
 // --- the gate --------------------------------------------------------------
 
-test('the gate never engages when nobody could get through it', () => {
+test('the gate fails closed when signup is temporarily unavailable', () => {
   clearAuthEnv();
   assert.equal(signupPossible(), false);
-  // This is the whole point: a gate in front of a broken sign-up is an outage,
-  // not a funnel. It stands down and says so rather than locking everyone out.
-  assert.equal(gateActive(), false);
-  assert.equal(gateHealth().active, false);
+  // A provider outage or missing signup configuration must never expose the
+  // dashboard. Visitors stay on the account surface until signup is restored.
+  assert.equal(gateActive(), true);
+  assert.equal(gateHealth().active, true);
 });
 
 test('beta mode alone is enough to open the gate', () => {
@@ -62,15 +62,14 @@ test('a mail provider or Google also opens it', () => {
   } finally { clearAuthEnv(); }
 });
 
-test('REQUIRE_ACCOUNT=false turns it off even when sign-up works', () => {
-  clearAuthEnv();
-  process.env.ACCOUNT_BETA_OPEN = 'true';
-  process.env.REQUIRE_ACCOUNT = 'false';
-  try { assert.equal(gateActive(), false); } finally { clearAuthEnv(); }
+test('REQUIRE_ACCOUNT=false is a non-production override only', () => {
+  assert.equal(gateActive({ REQUIRE_ACCOUNT: 'false', ACCOUNT_BETA_OPEN: 'true', NODE_ENV: 'test' }), false);
+  assert.equal(gateActive({ REQUIRE_ACCOUNT: 'false', ACCOUNT_BETA_OPEN: 'true', NODE_ENV: 'production' }), true);
+  resetGateWarning();
 });
 
 test('the gate covers the board but never the routes needed to get in', () => {
-  for (const path of ['/', '/props', '/research', '/apex', '/apex/board']) {
+  for (const path of ['/', '/props', '/research', '/apex', '/apex/board', '/apex-next', '/apex-next/board']) {
     assert.equal(gatedPath(path), true, `${path} should be gated`);
   }
   for (const path of [
@@ -229,9 +228,9 @@ test('the gate covers the prop data, not just the page that renders it', async (
   const { gatedApi } = await import('../lib/auth/gate.mjs');
   // Gating only the HTML would be cosmetic: the board is built from these.
   for (const path of [
-    '/api/apex/props', '/api/apex/props?sport=NFL', '/api/apex/research',
-    '/api/apex/research-batch', '/api/apex/line-history', '/api/props/predict',
-    '/api/props/ask', '/api/props/teammates',
+    '/api/apex/props', '/api/apex/props?sport=NFL', '/api/apex/active-props',
+    '/api/apex-next/props', '/api/apex/research', '/api/apex/research-batch',
+    '/api/apex/line-history', '/api/props/predict', '/api/props/ask', '/api/props/teammates',
   ]) {
     assert.equal(gatedApi(path), true, `${path} must require an account`);
   }

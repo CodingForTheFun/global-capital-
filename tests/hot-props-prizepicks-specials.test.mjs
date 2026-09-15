@@ -31,66 +31,74 @@ const regularBoard = {
   data: { events: [], players: [], props: [], lines: [] },
 };
 
-test('projection-level odds_type alone never guesses More or Less', () => {
+test('projection-level odds_type is preserved as a line-level variant without guessing More or Less', () => {
   const rows = normalizePrizePicksSpecials(raw({ odds_type: 'goblin' }));
-  assert.equal(rows.length, 0);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].specialType, 'goblin');
+  assert.equal(rows[0].side, null);
+  assert.equal(rows[0].specialSideVerified, false);
+  assert.equal(rows[0].specialTypeSource, 'projection_odds_type');
 });
 
 test('outcome-level metadata binds red/green variants to the exact More/Less side', () => {
   const rows = normalizePrizePicksSpecials(raw({ odds_type: 'demon', more_odds_type: 'demon', less_odds_type: 'goblin' }));
   assert.deepEqual(rows.map(row => [row.side,row.specialType]), [['OVER','demon'],['UNDER','goblin']]);
-  assert.ok(rows.every(row => row.isAlternate === true && row.specialVerified === true && row.specialTypeSource === 'outcome_metadata'));
+  assert.ok(rows.every(row => row.isAlternate === true && row.specialVerified === true && row.specialSideVerified === true && row.specialTypeSource === 'outcome_metadata'));
 });
 
 test('Taco/flash-sale and unknown promotions never masquerade as Goblin or Demon', () => {
-  assert.equal(normalizePrizePicksSpecials(raw({ more_odds_type: 'goblin', flash_sale_line_score: 22.5 })).length, 0);
-  assert.equal(normalizePrizePicksSpecials(raw({ more_odds_type: 'demon', label: 'Taco Tuesday' })).length, 0);
+  assert.equal(normalizePrizePicksSpecials(raw({ odds_type: 'goblin', flash_sale_line_score: 22.5 })).length, 0);
+  assert.equal(normalizePrizePicksSpecials(raw({ odds_type: 'demon', label: 'Taco Tuesday' })).length, 0);
   assert.equal(normalizePrizePicksSpecials(raw({ odds_type: 'standard' })).length, 0);
 });
 
-test('special rows attach without entering normalized line data', () => {
-  const special = normalizePrizePicksSpecials(raw({ more_odds_type: 'goblin', less_odds_type: 'demon' }));
-  const board = attachPrizePicksSpecialRows(regularBoard, special, '2026-09-15T12:00:00.000Z');
+test('line-level and exact-side specials attach without entering normalized line data', () => {
+  const lineOnly = normalizePrizePicksSpecials(raw({ odds_type: 'goblin' }, 'line-only'));
+  const exact = normalizePrizePicksSpecials(raw({ more_odds_type: 'demon' }, 'exact'));
+  const board = attachPrizePicksSpecialRows(regularBoard, [...lineOnly,...exact], '2026-09-15T12:00:00.000Z');
   const alternates = board.props.filter(row => row.isAlternate);
   assert.equal(alternates.length, 2);
-  assert.deepEqual(alternates.map(row => [row.side,row.specialType]), [['OVER','goblin'],['UNDER','demon']]);
+  assert.deepEqual(alternates.map(row => [row.side,row.specialType]), [[null,'goblin'],['OVER','demon']]);
   assert.ok(alternates.every(row => row.eventId === 'event-1' && row.playerId === 'normalized-player' && row.marketId === 'player_points'));
   assert.equal(board.data.lines.length, 0, 'alternates must not become Best Line/consensus line records');
   assert.equal(regularBoard.props.filter(row => !row.isAlternate).length, 2);
 });
 
-test('many alternate rows collapse to the closest exact-side variant per type', () => {
+test('many projection-level alternates collapse to the closest line per special type', () => {
   const specials = [
-    ...normalizePrizePicksSpecials(raw({ line_score: 19.5, more_odds_type: 'goblin' }, 'far')),
-    ...normalizePrizePicksSpecials(raw({ line_score: 25.5, more_odds_type: 'goblin' }, 'near')),
+    ...normalizePrizePicksSpecials(raw({ line_score: 19.5, odds_type: 'goblin' }, 'far')),
+    ...normalizePrizePicksSpecials(raw({ line_score: 25.5, odds_type: 'goblin' }, 'near')),
   ];
   const board = attachPrizePicksSpecialRows(regularBoard, specials, '2026-09-15T12:00:00.000Z');
-  const goblins = board.props.filter(row => row.isAlternate && row.specialType === 'goblin' && row.side === 'OVER');
+  const goblins = board.props.filter(row => row.isAlternate && row.specialType === 'goblin' && row.side == null);
   assert.equal(goblins.length, 1);
   assert.equal(goblins[0].line, 25.5);
   assert.equal(goblins[0].specialSourceId, 'near');
 });
 
-test('face badges are original red/green SVG faces and expire with the source snapshot', () => {
+test('face badges are original red/green SVG faces and distinguish exact side from line-level metadata', () => {
   const now = Date.parse('2026-09-15T12:05:00.000Z');
-  const base = { sportsbookKey: 'prizepicks', isAlternate: true, specialVerified: true, specialSourceId: 's1', side: 'OVER', line: 24.5, gameStartTime: start, ingestedAt: '2026-09-15T12:00:00.000Z' };
-  const green = prizePicksSpecialFaceHtml({ ...base, specialType: 'goblin' }, now);
-  const red = prizePicksSpecialFaceHtml({ ...base, specialType: 'demon' }, now);
+  const common = { sportsbookKey: 'prizepicks', isAlternate: true, specialVerified: true, specialSourceId: 's1', line: 24.5, gameStartTime: start, ingestedAt: '2026-09-15T12:00:00.000Z' };
+  const greenOffer = { ...common, side: null, specialType: 'goblin', specialSideVerified: false, specialTypeSource: 'projection_odds_type' };
+  const redOffer = { ...common, side: 'OVER', specialType: 'demon', specialSideVerified: true, specialTypeSource: 'outcome_metadata' };
+  const green = prizePicksSpecialFaceHtml(greenOffer, now);
+  const red = prizePicksSpecialFaceHtml(redOffer, now);
   assert.match(green, /asPpFace goblin/);
-  assert.match(green, /currentColor/);
+  assert.match(green, /direction not claimed/);
   assert.match(red, /asPpFace demon/);
+  assert.match(red, /More variant/);
   assert.doesNotMatch(green + red, /😈|🟢|🔴/);
-  assert.equal(verifiedPrizePicksSpecial({ ...base, specialType: 'goblin' }, Date.parse('2026-09-15T12:16:00.000Z')), null);
+  assert.equal(verifiedPrizePicksSpecial(greenOffer, Date.parse('2026-09-15T12:16:00.000Z')), null);
 });
 
-test('board patch keeps special variants outside regular rows and adds the selective hot flame', () => {
+test('board patch never labels an unverified line-level variant More or Less', () => {
   const source = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
   const patched = patchRecentFiveUi(source);
   assert.match(patched, /specialRows:specials\.get\(g\.key\)\|\|\[\]/);
   assert.match(patched, /comparisonOffers:g\.rows,rows:dedupeOffers\(g\.rows\)/);
   assert.match(patched, /r5<80\|\|r10<70/);
   assert.match(patched, /🔥/);
-  assert.match(patched, /prizePicksSpecialStrip\(g\)/);
+  assert.match(patched, /row\.side==='UNDER'\?'Less':row\.side==='OVER'\?'More':''/);
+  assert.match(patched, /direction\|\|\(row\.specialType==='demon'\?'Demon':'Goblin'\)/);
   assert.match(patched, /prizePicksSpecialFaceHtml/);
-  assert.doesNotMatch(patched, /prizepicks-special-lines\.mjs/);
 });

@@ -76,19 +76,18 @@ test('many projection-level alternates collapse to the closest line per special 
   assert.equal(goblins[0].specialSourceId, 'near');
 });
 
-test('face badges are original red/green SVG faces and distinguish exact side from line-level metadata', () => {
+test('face badges render only exact source-verified sides and never expose line-only metadata', () => {
   const now = Date.parse('2026-09-15T12:05:00.000Z');
   const common = { sportsbookKey: 'prizepicks', isAlternate: true, specialVerified: true, specialSourceId: 's1', line: 24.5, gameStartTime: start, ingestedAt: '2026-09-15T12:00:00.000Z' };
-  const greenOffer = { ...common, side: null, specialType: 'goblin', specialSideVerified: false, specialTypeSource: 'projection_odds_type' };
-  const redOffer = { ...common, side: 'OVER', specialType: 'demon', specialSideVerified: true, specialTypeSource: 'outcome_metadata' };
-  const green = prizePicksSpecialFaceHtml(greenOffer, now);
-  const red = prizePicksSpecialFaceHtml(redOffer, now);
-  assert.match(green, /asPpFace goblin/);
-  assert.match(green, /direction not claimed/);
+  const lineOnly = { ...common, side: null, specialType: 'goblin', specialSideVerified: false, specialTypeSource: 'projection_odds_type' };
+  const exact = { ...common, side: 'OVER', specialType: 'demon', specialSideVerified: true, specialTypeSource: 'outcome_metadata' };
+  assert.equal(prizePicksSpecialFaceHtml(lineOnly, now), '');
+  assert.equal(verifiedPrizePicksSpecial(lineOnly, now), null);
+  const red = prizePicksSpecialFaceHtml(exact, now);
   assert.match(red, /asPpFace demon/);
   assert.match(red, /More variant/);
-  assert.doesNotMatch(green + red, /😈|🟢|🔴/);
-  assert.equal(verifiedPrizePicksSpecial(greenOffer, Date.parse('2026-09-15T12:16:00.000Z')), null);
+  assert.doesNotMatch(red, /😈|🟢|🔴/);
+  assert.equal(verifiedPrizePicksSpecial(exact, Date.parse('2026-09-15T12:16:00.000Z')), null);
 });
 
 test('board patch never labels an unverified line-level variant More or Less', () => {

@@ -39,6 +39,33 @@ if (existsSync('package.json')) {
   }
 }
 
+// Signed-out visitors should see the current product identity without changing
+// any registration, verification, session, or account-gate behavior.
+{
+  const file = 'lib/auth/landing.mjs';
+  if (existsSync(file)) {
+    const source = readFileSync(file, 'utf8');
+    const replacements = [
+      [
+        '<title>Auto Scout — Prop Intelligence &amp; Line Discrepancies</title>',
+        '<title>Oblige Props — Prop Intelligence &amp; Line Discrepancies</title>',
+      ],
+      [
+        '<div class="logo">A</div><span class="brand">AUTOSCOUT</span>',
+        '<div class="logo">O</div><span class="brand">OBLIGE PROPS</span>',
+      ],
+      ['Auto Scout is a research tool.', 'Oblige Props is a research tool.'],
+    ];
+
+    let output = source;
+    for (const [legacy, current] of replacements) {
+      if (!output.includes(legacy)) throw new Error(`Oblige Props landing identity anchor not found: ${legacy}`);
+      output = output.replace(legacy, current);
+    }
+    if (output !== source) writeFileSync(file, output);
+  }
+}
+
 for (const file of ['public/index.html', 'public/checkout.html']) {
   if (!existsSync(file)) continue;
   const source = readFileSync(file, 'utf8');
@@ -52,4 +79,4 @@ for (const file of ['public/index.html', 'public/checkout.html']) {
     .replace(/<link[^>]+href="\/assets\/edge-theme\.css"[^>]*>/g, '');
   if (output !== source) writeFileSync(file, output);
 }
-console.log('[oblige-props] research identity ready; donut percentage rendered as HTML overlay; existing accounts and data retained');
+console.log('[oblige-props] research identity ready; signed-out identity current; donut percentage rendered as HTML overlay; existing accounts and data retained');

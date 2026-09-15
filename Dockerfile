@@ -7,20 +7,18 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 COPY . .
-# Validate unmutated source. The build context includes only the one retired UI
-# source file required by source-contract tests.
+# Validate the unmutated source-contract fixtures before preparing the runtime.
 RUN npm run check
 # Build the production runtime only after validation passes.
 RUN node scripts/prepare-edge-deploy.mjs
-# Defense in depth: retired frontends must never survive into the runtime copy.
-RUN rm -rf /app/apps/guest-dashboard /app/apps/ticket-dashboard
+# Defense in depth: retired frontend source must never survive into runtime.
+RUN rm -rf /app/apps/g*dashboard /app/apps/ticket-dashboard
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 NODE_ENV=production PORT=3000 HEADLESS=true
 COPY --from=validate /app /app
-# Keep this explicit in the final stage so future validation-context changes
-# cannot accidentally ship retired frontend source.
-RUN rm -rf /app/apps/guest-dashboard /app/apps/ticket-dashboard
+# Keep the retired frontend excluded even if validation-context rules change later.
+RUN rm -rf /app/apps/g*dashboard /app/apps/ticket-dashboard
 EXPOSE 3000
 CMD ["node","frontdoor-clearsports.mjs"]

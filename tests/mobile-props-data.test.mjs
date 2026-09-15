@@ -76,14 +76,15 @@ test('prop cards render real names plus green recent-form state classes', () => 
   assert.doesNotMatch(html, />internal-prop-key</);
 });
 
-test('mobile props page uses numbered pagination instead of load-more scrolling', async () => {
+test('legacy props page routes into the unified ObligeProps workspace without duplicate navigation', async () => {
   const [html, js] = await Promise.all([
     fs.readFile(new URL('../public/props.html', import.meta.url), 'utf8'),
     fs.readFile(new URL('../public/props-v2.js', import.meta.url), 'utf8'),
   ]);
-  assert.match(html, /id="prevPageBtn"/);
-  assert.match(html, /id="nextPageBtn"/);
-  assert.match(html, /option value="25"/);
-  assert.doesNotMatch(html, /Load more props/i);
+  assert.match(html, /http-equiv="refresh" content="0;url=\/"/);
+  assert.doesNotMatch(html, /class="mobile-nav"/);
+  assert.doesNotMatch(html, /Home<\/b>|Props<\/b>|Live<\/b>|News<\/b>|Filters<\/b>/);
+  // Keep the old pagination asset valid for rollback compatibility even though
+  // customers are now routed into the unified main workspace.
   assert.match(js, /state\.offset=\(next-1\)\*state\.limit/);
 });

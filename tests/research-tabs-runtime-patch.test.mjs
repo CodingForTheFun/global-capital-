@@ -36,7 +36,7 @@ test('Trends ranks verified recent form first and falls back to live market cove
   const client = productionResearchClient();
   assert.match(client, /xw=xr\?\.windows\?\.l5/);
   assert.match(client, /yr5-xr5\|\|yg-xg\|\|books\(y\)\.length-books\(x\)\.length/);
-  assert.match(client, /trend history is still loading, props fall back to strongest live book coverage/i);
+  assert.match(client, /notes=\{[^}]*popular:'[^']+'/, 'Trends must carry an explanatory note');
 });
 
 test('Best Lines and Compare keep live rows visible when a special signal is absent', () => {
@@ -44,7 +44,7 @@ test('Best Lines and Compare keep live rows visible when a special signal is abs
   assert.match(client, /Number\(Boolean\(staleFor\(y\)\)\)-Number\(Boolean\(staleFor\(x\)\)\)/);
   assert.match(client, /bestLineSpreads/);
   assert.match(client, /if\(multiBook\.length\)a=multiBook/);
-  assert.match(client, /if only one book is available, the live quote still remains visible instead of a blank page/i);
+  assert.match(client, /notes=\{[^}]*discrepancies:'[^']+'/, 'Compare must carry an explanatory note');
   assert.doesNotThrow(() => new Function(client));
 });
 
@@ -52,4 +52,19 @@ test('production bootstrap applies the research-tabs patch after the sportsbook 
   const frontdoor = readFileSync(new URL('../frontdoor-clearsports.mjs', import.meta.url), 'utf8');
   assert.match(frontdoor, /patchResearchTabsUi/);
   assert.ok(frontdoor.indexOf('patchPropBookSelectorUi(patchedNavAndRingUi)') < frontdoor.indexOf('patchResearchTabsUi(patchedPropBookSelectorUi)'));
+});
+
+// The note under each tab is product copy, not a contract, so no test pins its
+// wording. What is worth pinning is length: these grew into paragraphs that
+// explained the ranking implementation to people who only wanted to know what
+// they were looking at.
+test('every view note is short enough to actually be read', () => {
+  const client = productionResearchClient();
+  const block = client.match(/notes=\{(.+?)\};/s);
+  assert.ok(block, 'the view notes must exist');
+  const notes = [...block[1].matchAll(/(\w+):'((?:[^'\\]|\\.)*)'/g)].map(([, view, copy]) => ({ view, copy }));
+  assert.ok(notes.length >= 4, `expected a note per view, found ${notes.length}`);
+  for (const { view, copy } of notes) {
+    assert.ok(copy.length <= 90, `${view} note is ${copy.length} chars: "${copy}"`);
+  }
 });

@@ -67,6 +67,23 @@ if (existsSync('package.json')) {
   }
 }
 
+// The signed-in header still carried an obsolete lowercase "obligepay" wordmark
+// in the visual runtime patch. Normalize only that presentation layer; payment
+// descriptors, storage keys, account data and billing behavior are untouched.
+{
+  const file = 'lib/autoscout/oblige-props-visual-runtime-patch.mjs';
+  if (existsSync(file)) {
+    const source = readFileSync(file, 'utf8');
+    if (!source.includes('asPay') || !source.includes('>pay</span>')) {
+      throw new Error('Oblige Props signed-in wordmark anchor not found.');
+    }
+    const output = source
+      .replaceAll('asPay', 'asProps')
+      .replaceAll('>pay</span>', '>props</span>');
+    if (output !== source) writeFileSync(file, output);
+  }
+}
+
 for (const file of ['public/index.html', 'public/checkout.html']) {
   if (!existsSync(file)) continue;
   const source = readFileSync(file, 'utf8');
@@ -80,4 +97,4 @@ for (const file of ['public/index.html', 'public/checkout.html']) {
     .replace(/<link[^>]+href="\/assets\/edge-theme\.css"[^>]*>/g, '');
   if (output !== source) writeFileSync(file, output);
 }
-console.log('[oblige-props] research identity ready; signed-out identity current; donut percentage rendered as HTML overlay; existing accounts and data retained');
+console.log('[oblige-props] research identity ready; signed-in and signed-out identity current; donut percentage rendered as HTML overlay; existing accounts and data retained');

@@ -18,8 +18,21 @@ export function patchPublicSportsbookHosts(root = process.cwd()) {
   source = source.replaceAll('BASE_ORIGIN', 'WEB_ORIGIN');
   source = source.replace('endpoint: `www.${STATE}.betmgm.com`', 'endpoint: `sports.${STATE}.betmgm.com`');
 
+  // BetMGM's grid-view endpoint currently expects the legacy lowercase
+  // `usercountry` parameter. Fixture requests continue to use `userCountry`.
+  // Without the grid response the adapter falls back to generic fixtures, which
+  // return HTTP 200 but omit player-prop optionMarkets and look like a healthy
+  // zero-row feed.
+  const oldGridParams = "Object.entries({ 'x-bwin-accessid': accessId, lang: 'en-us', country: 'US', userCountry: 'US' })) url.searchParams.set(key, value);";
+  const newGridParams = "Object.entries({ 'x-bwin-accessid': accessId, lang: 'en-us', country: 'US', usercountry: 'US' })) url.searchParams.set(key, value);";
+  if (!source.includes(newGridParams)) {
+    if (!source.includes(oldGridParams)) throw new Error('[sportsbook-hosts] BetMGM grid-country parameter anchor not found.');
+    source = source.replace(oldGridParams, newGridParams);
+  }
+
   if (!source.includes('const API_ORIGIN = `https://sports.${STATE}.betmgm.com`;')) throw new Error('[sportsbook-hosts] BetMGM API origin patch missing.');
   if (!source.includes('const CONFIG_URL = `${WEB_ORIGIN}/en/api/clientconfig`;')) throw new Error('[sportsbook-hosts] BetMGM web config patch missing.');
+  if (!source.includes(newGridParams)) throw new Error('[sportsbook-hosts] BetMGM grid usercountry patch missing.');
   if (source.includes('BASE_ORIGIN')) throw new Error('[sportsbook-hosts] BetMGM legacy origin reference remains.');
   if (source !== original) writeFileSync(file, source, 'utf8');
   return source !== original;

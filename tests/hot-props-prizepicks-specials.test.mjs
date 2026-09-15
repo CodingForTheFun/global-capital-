@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { normalizePrizePicksSpecials, attachPrizePicksSpecialRows } from '../lib/ingestion/prizepicks-specials.mjs';
-import { prizePicksSpecialFaceHtml, verifiedPrizePicksSpecial } from '../lib/ui/prizepicks-special-lines.mjs';
+import { prizePicksSpecialFaceHtml, verifiedPrizePicksSpecial } from '../lib/ui/offer-promotion.mjs';
 import { patchRecentFiveUi } from '../lib/autoscout/recent-five-runtime-patch.mjs';
 
 const start = '2026-09-16T20:00:00.000Z';
@@ -70,7 +70,7 @@ test('face badges are original red/green SVG faces and expire with the source sn
   const green = prizePicksSpecialFaceHtml({ ...base, specialType: 'goblin' }, now);
   const red = prizePicksSpecialFaceHtml({ ...base, specialType: 'demon' }, now);
   assert.match(green, /asPpFace goblin/);
-  assert.match(green, /#22c55e|currentColor/);
+  assert.match(green, /currentColor/);
   assert.match(red, /asPpFace demon/);
   assert.doesNotMatch(green + red, /😈|🟢|🔴/);
   assert.equal(verifiedPrizePicksSpecial({ ...base, specialType: 'goblin' }, Date.parse('2026-09-15T12:16:00.000Z')), null);
@@ -84,5 +84,6 @@ test('board patch keeps special variants outside regular rows and adds the selec
   assert.match(patched, /r5<80\|\|r10<70/);
   assert.match(patched, /🔥/);
   assert.match(patched, /prizePicksSpecialStrip\(g\)/);
-  assert.match(patched, /prizepicks-special-lines\.mjs/);
+  assert.match(patched, /prizePicksSpecialFaceHtml/);
+  assert.doesNotMatch(patched, /prizepicks-special-lines\.mjs/);
 });

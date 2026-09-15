@@ -19,10 +19,10 @@ import { changedSnapshots, persistenceHealth } from '../lib/autoscout/supabase-p
 const quote = (over = {}) => ({ propId: 'p1', bookmakerKey: 'pinnacle', side: 'OVER', line: 250.5, price: -110,
   providerUpdatedAt: '2026-09-15T12:00:00.000Z', ingestedAt: '2026-09-15T12:00:00.000Z', ...over });
 
-test('an unchanged quote is recorded once, not every cycle', () => {
+test('an unchanged quote seeds once and is not recorded as movement', () => {
   const seen = new Map();
-  assert.equal(changedSnapshots([quote()], seen).length, 1, 'the first sighting is history');
-  assert.equal(changedSnapshots([quote()], seen).length, 0, 'the same number again is not');
+  assert.equal(changedSnapshots([quote()], seen).length, 0, 'the first sighting seeds the restart cache');
+  assert.equal(changedSnapshots([quote()], seen).length, 0, 'the same number again is not history');
   // A fresh provider timestamp on an unchanged number is exactly the noise
   // that filled the table; it must not create a row.
   assert.equal(changedSnapshots([quote({ providerUpdatedAt: '2026-09-15T12:05:00.000Z' })], seen).length, 0);
@@ -38,11 +38,17 @@ test('a moved line or a moved price is recorded', () => {
 
 test('each book and side is tracked on its own', () => {
   const seen = new Map();
-  const rows = changedSnapshots([
+  const first = changedSnapshots([
     quote(), quote({ bookmakerKey: 'fanduel' }), quote({ side: 'UNDER' }),
   ], seen);
-  assert.equal(rows.length, 3, 'one book moving does not mask another');
-  assert.equal(changedSnapshots([quote({ bookmakerKey: 'fanduel' })], seen).length, 0);
+  assert.equal(first.length, 0, 'first sightings seed each independent quote');
+  const moved = changedSnapshots([
+    quote({ line: 251.5 }),
+    quote({ bookmakerKey: 'fanduel', line: 252.5 }),
+    quote({ side: 'UNDER', line: 249.5 }),
+  ], seen);
+  assert.equal(moved.length, 3, 'each book and side records its own movement');
+  assert.equal(changedSnapshots([quote({ bookmakerKey: 'fanduel', line: 252.5 })], seen).length, 0);
 });
 
 test('a row that cannot identify a quote is never written', () => {
@@ -59,12 +65,14 @@ test('the tracking map stays bounded in a long-running process', () => {
   assert.ok(seen.size <= 60_000, `expected the map to stay bounded, saw ${seen.size}`);
 });
 
-test('the snapshot row carries what the history table needs', () => {
-  const [row] = changedSnapshots([quote()], new Map());
+test('a movement snapshot carries what the history table needs', () => {
+  const seen = new Map();
+  changedSnapshots([quote()], seen);
+  const [row] = changedSnapshots([quote({ line: 251.5 })], seen);
   assert.deepEqual(Object.keys(row).sort(),
     ['bookmaker_key', 'ingested_at', 'line', 'price', 'prop_id', 'provider_updated_at', 'side']);
   assert.equal(row.prop_id, 'p1');
-  assert.equal(row.line, 250.5);
+  assert.equal(row.line, 251.5);
 });
 
 // The scheduler is the only thing writing continuously; if it stops sending

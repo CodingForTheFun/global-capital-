@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { SUPPORTED_SPORTS, AUTOMATIC_SPORTS } from '../lib/autoscout/models.mjs';
 import { canonicalSport, marketContract } from '../lib/data-sources/espn/stat-contract.mjs';
 import { normalizedFeedBoard, record } from '../lib/ingestion/normalize.mjs';
 import { researchClient } from '../lib/ui/research-home.mjs';
 
 const gameStartTime = '2026-09-14T18:00:00.000Z';
+const researchSource = () => readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
 
 test('ATP and WTA normalize into TENNIS without widening automatic paid polling', () => {
   assert.equal(canonicalSport('ATP'), 'TENNIS');
@@ -33,15 +35,15 @@ test('public DFS tennis rows normalize into active tennis props', () => {
 });
 
 test('research presentation exposes TENNIS in the sport selector', () => {
-  const source = '<div class="as5" id="as5"></div>\nvar SPORTS=[\'NFL\',\'NBA\',\'MLB\',\'NHL\',\'WNBA\',\'NCAAF\',\'NCAAB\',\'MLS\',\'EPL\',\'UCL\'];';
-  assert.match(researchClient(source), /'NCAAB','SOCCER','TENNIS'/);
+  const client = researchClient(researchSource());
+  assert.match(client, /'NCAAB','SOCCER','TENNIS'/);
 });
 
 // The DFS feeds tag club football "SOCCER" and have never posted MLS, EPL or
 // UCL as a sport, so those three tabs could only ever show an empty board.
 test('the selector offers no sport the feeds never post', () => {
-  const source = '<div class="as5" id="as5"></div>\nvar SPORTS=[\'NFL\',\'NBA\',\'MLB\',\'NHL\',\'WNBA\',\'NCAAF\',\'NCAAB\',\'MLS\',\'EPL\',\'UCL\'];';
-  const list = researchClient(source).match(/var SPORTS=\[[^\]]*\]/)[0];
+  const client = researchClient(researchSource());
+  const list = client.match(/var SPORTS=\[[^\]]*\]/)[0];
   for (const empty of ['MLS', 'EPL', 'UCL']) assert.ok(!list.includes(empty), `${empty} has no props to show`);
   assert.ok(list.includes('SOCCER'));
 });

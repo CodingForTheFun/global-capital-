@@ -10,6 +10,7 @@ import { SUPPORTED_SPORTS, AUTOMATIC_SPORTS } from '../lib/autoscout/models.mjs'
 import { decorateBoardWithScoutAudit } from '../lib/autoscout/scout-rules.mjs';
 import { persistNormalizedBoard, getLineHistory, persistenceHealth, persistenceConfigured } from '../lib/autoscout/supabase-persistence.mjs';
 import { handleProplineWebhook, WEBHOOK_PATH as PROPLINE_WEBHOOK_PATH } from '../lib/data-sources/propline/webhook-route.mjs';
+import { publicStoreHealth } from '../lib/ingestion/public-persistence.mjs';
 import { webhookHealth as proplineWebhookHealth } from '../lib/data-sources/propline/webhooks.mjs';
 import { startIngestWorker, ingestHealth } from '../lib/autoscout/ingest-worker.mjs';
 import { createSessionCodec, createRateLimiter, parseCookies, clientKey, SESSION_COOKIE, OWNER } from '../lib/session.mjs';
@@ -137,7 +138,7 @@ async function e2eStatus() {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, { ok: true, service: 'autoscout-apex', revision:process.env.RAILWAY_GIT_COMMIT_SHA||null, startedAt, supportedSports: SUPPORTED_SPORTS, ...providerHealth(), persistence: persistenceHealth(), mail: mailHealth(), proplineWebhook: proplineWebhookHealth() });
+    return json(res, 200, { ok: true, service: 'autoscout-apex', revision:process.env.RAILWAY_GIT_COMMIT_SHA||null, startedAt, supportedSports: SUPPORTED_SPORTS, ...providerHealth(), persistence: persistenceHealth(), publicStore: publicStoreHealth(), mail: mailHealth(), proplineWebhook: proplineWebhookHealth() });
   }
   if (url.pathname === '/api/game-markets' || url.pathname === '/api/taco-offers') {
     if(req.method !== 'GET') return json(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'});

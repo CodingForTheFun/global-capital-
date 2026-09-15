@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { me: null, members: [], access: new Map(), csrf: '', busy: new Set() };
+const state = { me: null, members: [], access: new Map(), audit: [], csrf: '', busy: new Set() };
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -131,6 +131,70 @@ function renderMembers() {
   }).join('');
 }
 
+// The audit endpoint has existed and been owner-gated since the console was
+// built, and nothing ever called it. The access guide promises every action is
+// logged; until now there was no way to read that log.
+function actionLabel(action) {
+  const map = {
+    'owner.session.revoke':'Signed out a device', 'owner.member.disable':'Banned an account',
+    'owner.member.enable':'Restored an account', 'owner.member.role':'Changed a role',
+    'owner.access.grant':'Granted Pro access', 'owner.access.extend':'Extended Pro access',
+    'owner.access.revoke':'Removed Pro access',
+  };
+  return map[action] || String(action || 'Action').replace(/^owner\./, '').replace(/[._]/g, ' ');
+}
+function emailFor(userId) {
+  const member = state.members.find((m) => m.id === userId);
+  return member?.email || null;
+}
+function renderAudit() {
+  const root = $('auditList');
+  if (!root) return;
+  const entries = state.audit;
+  $('auditSummary').textContent = entries.length ? `${entries.length} recorded` : 'Nothing recorded yet';
+  if (!entries.length) {
+    // An empty log is a real state, not a failure: no owner action has been
+    // taken since logging began.
+    root.innerHTML = '<div class="empty">No owner actions recorded yet. Actions you take here will appear immediately.</div>';
+    return;
+  }
+  root.innerHTML = entries.slice(0, 40).map((row) => {
+    const failed = row.outcome && row.outcome !== 'success';
+    const target = emailFor(row.targetId);
+    return `<div class="feed-row${failed ? ' feed-row-bad' : ''}">
+      <div class="feed-main">
+        <b>${esc(actionLabel(row.action))}</b>
+        <span>${esc(target || row.targetId || 'No target')}</span>
+      </div>
+      <div class="feed-side">
+        <span class="pill${failed ? ' banned' : ''}">${esc(String(row.outcome || 'success').toUpperCase())}</span>
+        <span>${esc(when(row.at))}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Built from accounts already loaded, so it costs no extra request.
+function renderRecentSignups() {
+  const root = $('recentSignups');
+  if (!root) return;
+  const rows = state.members
+    .filter((m) => Number.isFinite(Date.parse(m.createdAt)))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, 6);
+  if (!rows.length) { root.innerHTML = '<div class="empty">No accounts yet.</div>'; return; }
+  root.innerHTML = rows.map((m) => {
+    const access = activeAccess(m.id);
+    const status = m.disabled ? '<span class="pill banned">BANNED</span>'
+      : isOnline(m) ? '<span class="pill online">ONLINE</span>'
+      : '<span class="pill">OFFLINE</span>';
+    return `<div class="feed-row">
+      <div class="feed-main"><b>${esc(m.email)}</b><span>Joined ${esc(shortWhen(m.createdAt))}</span></div>
+      <div class="feed-side">${isPro(access) ? '<span class="pill pro">PRO</span>' : '<span class="pill">FREE</span>'}${status}</div>
+    </div>`;
+  }).join('');
+}
+
 async function loadHealth() {
   const [app, account] = await Promise.all([
     request('/api/health').catch(() => null),
@@ -162,15 +226,20 @@ async function loadDashboard({ quiet = false } = {}) {
   $('accessDenied').classList.add('hidden');
   $('dashboard').classList.remove('hidden');
 
-  const [overview, memberData, entitlementData] = await Promise.all([
+  const [overview, memberData, entitlementData, auditData] = await Promise.all([
     request('/api/admin/overview'),
     request('/api/admin/members'),
     request('/api/admin/entitlements'),
+    // The log is useful but never worth blanking the console over.
+    request('/api/admin/audit').catch(() => null),
   ]);
   state.members = Array.isArray(memberData.members) ? memberData.members : [];
   state.access = new Map((entitlementData.entitlements || []).map((row) => [row.userId, row.access]));
+  state.audit = Array.isArray(auditData?.entries) ? auditData.entries : [];
   renderKpis(overview);
   renderMembers();
+  renderRecentSignups();
+  renderAudit();
   $('lastRefresh').textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })}`;
   await loadHealth();
 }
@@ -209,6 +278,15 @@ async function runMemberAction(button) {
 $('members').addEventListener('click', (event) => {
   const button = event.target.closest('button[data-action]');
   if (button) runMemberAction(button);
+});
+document.querySelectorAll('[data-quick]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const preset = button.dataset.quick;
+    $('statusFilter').value = preset === 'pro' ? 'all' : preset;
+    $('searchInput').value = '';
+    renderMembers();
+    document.getElementById('members')?.scrollIntoView({ behavior:'smooth', block:'start' });
+  });
 });
 $('searchInput').addEventListener('input', renderMembers);
 $('statusFilter').addEventListener('change', renderMembers);

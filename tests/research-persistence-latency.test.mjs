@@ -7,7 +7,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 test('production research runtime uses the verified v2 research service', () => {
   const bootstrap = read('../frontdoor-clearsports.mjs');
   assert.match(bootstrap, /const newImport = '\.\/lib\/autoscout\/research-service-v2\.mjs';/);
-  assert.match(bootstrap, /\.replace\(oldImport, newImport\)/);
+  assert.match(bootstrap, /\.replace\(oldImport,\s*newImport\)/);
 });
 
 test('verified public history persistence never blocks trend hydration', () => {

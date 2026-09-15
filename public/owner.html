@@ -42,6 +42,7 @@
         <a href="#members">Users</a>
         <a href="/support">Support</a>
         <a href="#system">System</a>
+        <a href="#audit">Audit log</a>
         <a href="#safety">Security</a>
       </nav>
 
@@ -78,6 +79,25 @@
           </article>
         </section>
 
+        <div class="split">
+          <section class="panel glass">
+            <div class="panel-head">
+              <div><p class="eyebrow">GROWTH</p><h2>Recent signups</h2></div>
+              <a class="muted" href="#members">View all</a>
+            </div>
+            <div id="recentSignups" class="feed"><div class="loading">Loading…</div></div>
+          </section>
+          <section class="panel glass">
+            <div class="panel-head"><div><p class="eyebrow">SHORTCUTS</p><h2>Quick actions</h2></div></div>
+            <div class="quick">
+              <button class="quick-btn" type="button" data-quick="pro"><i aria-hidden="true">◈</i><span><b>Grant Pro access</b><small>Jump to accounts and extend</small></span></button>
+              <button class="quick-btn" type="button" data-quick="online"><i aria-hidden="true">●</i><span><b>Who is online</b><small>Live sessions right now</small></span></button>
+              <button class="quick-btn" type="button" data-quick="banned"><i aria-hidden="true">!</i><span><b>Review banned</b><small>Restore or keep disabled</small></span></button>
+              <a class="quick-btn" href="#audit"><i aria-hidden="true">▤</i><span><b>Audit log</b><small>Every owner action taken</small></span></a>
+            </div>
+          </section>
+        </div>
+
         <section id="system" class="panel glass system-panel">
           <div class="panel-head">
             <div><p class="eyebrow">SYSTEM</p><h2>Production health</h2></div>
@@ -106,6 +126,14 @@
             </div>
           </div>
           <div id="members" class="members"><div class="loading">Loading accounts…</div></div>
+        </section>
+
+        <section id="audit" class="panel glass">
+          <div class="panel-head">
+            <div><p class="eyebrow">ACCOUNTABILITY</p><h2>Audit log</h2><p class="section-copy">Every owner and support action, newest first.</p></div>
+            <span id="auditSummary" class="muted">—</span>
+          </div>
+          <div id="auditList" class="feed"><div class="loading">Loading…</div></div>
         </section>
 
         <section id="safety" class="panel glass safety-panel">

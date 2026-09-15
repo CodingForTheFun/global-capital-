@@ -62,6 +62,38 @@ const quote = (book, side, line, price) => ({
   sportsbookKey: book, sportsbook: book, updatedAt: new Date().toISOString(),
 });
 
+// Player Index used to be props sorted A-Z: the tab named an index of players
+// and listed one card per prop, which is why it read as Props again.
+test('Player Index renders one entry per player, not one per prop', () => {
+  const s = source();
+  assert.match(s, /function playerIndexUnits\(list\)\{/);
+  assert.match(s, /playerIndex\?shown\.map\(playerIndexHtml\):shown\.map\(rowHtml\)/,
+    'the player view must render its own body');
+});
+
+// A player's markets must never be split across two pages, so the page size
+// has to count whatever is actually listed rather than always counting props.
+test('pagination counts the units actually listed', () => {
+  const s = source();
+  assert.match(s, /renderPagination\(units\.length\)/);
+  assert.match(s, /Math\.ceil\(units\.length\/PAGE_SIZE\)/);
+  assert.ok(!/renderPagination\(a\.length\)/.test(s), 'must not page props while listing players');
+});
+
+// Each market keeps the key the existing row binding opens, so a market opens
+// that prop's drawer without any new click wiring.
+test('every market in the index opens its own prop drawer', () => {
+  const s = source();
+  const fn = s.slice(s.indexOf('function playerIndexHtml(p){'), s.indexOf('function researchParams'));
+  assert.match(fn, /data-open="'\+esc\(g\.key\)\+'"/, 'markets must carry the drawer key');
+});
+
+test('Player Index survives the production patch chain', () => {
+  const client = productionClient();
+  assert.ok(client.includes('function playerIndexHtml(p){'));
+  assert.match(client, /players:'Player Index'/);
+});
+
 test('a lone quote is never marked best; two comparable books are', () => {
   const group = { sport: 'NFL', eventId: 'e1', marketId: 'player_pass_yds', playerId: 'p1', playerName: 'A B', entityType: 'player', period: 'game' };
   const solo = compareResearchQuotes({ ...group, rows: [quote('bookA', 'OVER', 250.5, -110)] }, { line: 250.5, side: 'OVER' });

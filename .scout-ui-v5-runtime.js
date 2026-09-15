@@ -464,6 +464,36 @@ function compareTable(g){
   +'<table class="asCompareTable"><thead><tr><th>Book</th><th>Line</th><th>Over</th><th>Under</th></tr></thead>'
   +'<tbody>'+body+'</tbody></table></div>';
 }
+// Player Index promised an index of players and delivered one card per prop,
+// alphabetised - the same body every other tab rendered. These collapse a
+// player's props into a single entry: who they are, who they play, and every
+// market they are quoted in. Each market keeps its own data-open key, so the
+// existing row binding opens that prop's research drawer with no new wiring.
+function playerIndexUnits(list){
+ var byPlayer=new Map();
+ list.forEach(function(g){
+  var key=g.playerId||g.playerName;
+  if(!byPlayer.has(key))byPlayer.set(key,{key:key,name:g.playerName,team:g.team,homeTeam:g.homeTeam,awayTeam:g.awayTeam,gameStartTime:g.gameStartTime,props:[]});
+  byPlayer.get(key).props.push(g);
+ });
+ return Array.from(byPlayer.values());
+}
+function playerIndexHtml(p){
+ var markets=p.props.slice().sort(function(x,y){return String(x.market).localeCompare(String(y.market));}).map(function(g){
+  var line=boardLine(g),n=books(g).length;
+  return '<button class="asPiMarket" type="button" data-open="'+esc(g.key)+'" aria-label="Research '+esc(p.name+' '+g.market)+'">'
+   +'<span class="asPiMarketName">'+esc(g.market)+'</span>'
+   +'<span class="asPiMarketLine">'+esc(num(line)!=null?dec(line):'—')+'</span>'
+   +'<span class="asPiMarketBooks">'+n+(n===1?' book':' books')+'</span></button>';
+ }).join('');
+ var matchup=(p.awayTeam||p.homeTeam)?displayTeam(p.awayTeam)+' @ '+displayTeam(p.homeTeam):(p.team||'');
+ var meta=[matchup,when(p.gameStartTime)].filter(Boolean).join(' · ');
+ return '<article class="asPiPlayer" aria-label="'+esc(p.name)+'">'
+  +'<div class="asPiHead"><span class="asPiName">'+esc(p.name)+'</span>'
+  +(meta?'<span class="asPiMeta">'+esc(meta)+'</span>':'')
+  +'<span class="asPiCount">'+p.props.length+(p.props.length===1?' market':' markets')+'</span></div>'
+  +'<div class="asPiMarkets">'+markets+'</div></article>';
+}
 function researchMarketKey(g,line,side){
  var id=g.marketId||'',label=String(g.market||'')+' '+id;
  if(!/\bfantasy(?:\s+(?:score|points?))?\b/i.test(label))return id;
@@ -1229,12 +1259,19 @@ function renderListLight(){
  viewNote.hidden=!notes[activeView];viewNote.textContent=notes[activeView]||'';
  renderPropTypes();
  var list=document.getElementById('asList'),a=cardList(),focused=(list.contains(document.activeElement)||document.querySelector('.asHeaderRow').contains(document.activeElement))?focusToken(document.activeElement):null,origin=focusToken(lastFocus);
+ // Player Index pages over players; every other view pages over props, so the
+ // count and the pagination have to agree with whichever is actually listed.
+ var playerIndex=activeView==='players',units=playerIndex?playerIndexUnits(a):a;
  applyColumnHeaders();document.getElementById('asResultCount').textContent=a.length+' players · '+(marketFilter==='all'?'grouped props':marketFilter)+' · '+(activeView==='saved'?(saveLoadError?'Saved props unavailable':serverSaves?'Saved to access profile':'Saved on this device'):'Available board');
+ // Left as its own statement: the image build anchors on the line above to
+ // route Best Lines to its own table, so that line stays byte-identical.
+ if(playerIndex)document.getElementById('asResultCount').textContent=units.length+(units.length===1?' player · ':' players · ')+a.length+(a.length===1?' market':' markets')+' · Available board';
  if(!a.length){list.innerHTML='<div class="asEmpty"><b>'+esc(activeView==='saved'?'No saved props in this view.':payload.meta?.warning?'Props could not load.':(payload.props||[]).length?'No props match your filters.':'No live props available for '+sport+'.')+'</b><p>'+esc(activeView==='saved'?'Save a prop to return to it here.':(payload.props||[]).length?'Clear filters or try another market.':'Try another sport or refresh shortly.')+'</p><button class="asBtn" id="asResetEmpty">'+((payload.props||[]).length?'Clear filters':'Refresh')+'</button></div>';document.getElementById('asResetEmpty').onclick=()=>{query='';marketFilter=bookFilter=sideFilter='all';selectedBooks=null;storeLocal('autoscout-selected-books',null);advanced={};document.getElementById('asSearch').value='';document.getElementById('asSide').value='all';renderAdvanced();renderControls();(payload.props||[]).length?renderList():load();};}
- else{var pages=Math.max(1,Math.ceil(a.length/PAGE_SIZE));if(page>pages)page=pages;if(page<1)page=1;
-  list.innerHTML=a.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE).map(rowHtml).join('');bindRows();}
+ else{var pages=Math.max(1,Math.ceil(units.length/PAGE_SIZE));if(page>pages)page=pages;if(page<1)page=1;
+  var shown=units.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
+  list.innerHTML=(playerIndex?shown.map(playerIndexHtml):shown.map(rowHtml)).join('');bindRows();}
  hydrateML();
- renderPagination(a.length);
+ renderPagination(units.length);
  renderBatchControl();
  if(!hydrateFailed)hydrateBoard();
  renderSummary();renderQuick();lastFocus=focusElement(origin)||lastFocus;if(focused&&!drawerState)restoreFocus(focused);

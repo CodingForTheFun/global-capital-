@@ -16,6 +16,8 @@ test('nav/ring runtime patch keeps research basis and installs compact glass nav
   assert.match(output, /class="asNavBrand"[^>]*>obligeprops\.com<\/a>/, 'Oblige Props capsule must be installed');
   assert.match(output, /class="asNavNews" href="\/news\.html"[^>]*>[\s\S]*?<span>News<\/span><\/a>/, 'Sports News must be available from the floating navigation');
   assert.match(output, /grid-template-columns:repeat\(7,minmax\(0,1fr\)\)!important/, 'mobile nav must make room for all seven customer tabs');
+  assert.match(output, /fitNewsNav/, 'runtime nav fitting must preserve the News tab after later visual overrides');
+  assert.match(output, /setProperty\('grid-template-columns','repeat\(7,minmax\(0,1fr\)\)','important'\)/, 'mobile runtime must force a seven-tab grid');
   assert.doesNotMatch(output, /obligepay\.com/, 'the retired public identity must not appear in the app nav');
   assert.match(output, /backdrop-filter:blur\(\d+px\) saturate\(\d+%\)/, 'current premium glass treatment must be installed');
   assert.match(output, /height:44px!important/, 'base mobile nav must stay compact before the screenshot-target override');

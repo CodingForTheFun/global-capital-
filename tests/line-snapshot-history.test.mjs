@@ -76,11 +76,16 @@ test('a movement snapshot carries what the history table needs', () => {
 });
 
 // The scheduler is the only thing writing continuously; if it stops sending
-// snapshots again, history stops again.
+// snapshots again, history stops again. Snapshots are throttled to their own
+// interval rather than every cycle, so what matters is that the interval is
+// bounded and reached - never that it can be switched off.
 test('the persistence scheduler still asks for snapshots', () => {
   const source = readFileSync(new URL('../lib/autoscout/persistence-scheduler.mjs', import.meta.url), 'utf8');
-  assert.match(source, /persistNormalizedBoard\(board, \{ includeSnapshots: true \}\)/);
+  assert.match(source, /includeSnapshots: snapshotsDue/, 'the scheduler must still send snapshots');
   assert.ok(!/includeSnapshots: false/.test(source), 'the scheduler must not disable line history');
+  const [, fallback, , max] = source.match(/AUTOSCOUT_SNAPSHOT_INTERVAL_SECONDS, (\d+), (\d+), (\d+)\)/) || [];
+  assert.ok(Number(fallback) > 0, 'snapshots must default to an interval that actually fires');
+  assert.ok(Number(max) <= 3600, 'the snapshot interval must stay bounded to at most an hour');
 });
 
 // Health said configured/lastError-null for two days while writing nothing.

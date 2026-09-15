@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { me: null, members: [], access: new Map(), csrf: '', busy: new Set() };
+const state = { me: null, members: [], access: new Map(), codes: [], csrf: '', busy: new Set(), codeBusy: new Set(), generatedCode: '' };
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -41,7 +41,7 @@ function processorManaged(access) { return isPro(access) && Boolean(access?.sour
 function isOnline(member) { return member?.presence === 'ONLINE'; }
 function accessLabel(access) {
   if (!isPro(access)) return 'Free';
-  return access.expiresAt ? `Pro until ${shortWhen(access.expiresAt)}` : 'Pro';
+  return access.expiresAt ? `Pro until ${shortWhen(access.expiresAt)}` : 'Pro · Unlimited';
 }
 function sourceLabel(source) {
   if (!source) return 'No paid access';
@@ -103,9 +103,11 @@ function renderMembers() {
       </div>`).join('') : '<div class="device"><b>No active devices</b><span>This account has no live sessions.</span></div>';
     const accessButtons = managed
       ? '<span class="pill pro">MANAGED BY BILLING</span>'
-      : `<button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="7" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+7d</button>
+      : `<button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="3" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+3d</button>
         <button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="30" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+30d</button>
-        <button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="90" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+90d</button>
+        <button class="btn small good" data-action="access" data-mode="${accessAction}" data-days="365" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>+1y</button>
+        <button class="btn small good" data-action="access" data-mode="${accessAction}" data-unlimited="true" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>Unlimited</button>
+        <button class="btn small" data-action="access" data-mode="${accessAction}" data-days="custom" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>Custom</button>
         ${isPro(access) ? `<button class="btn small" data-action="revoke-access" data-user="${esc(m.id)}" ${busy ? 'disabled' : ''}>Remove Pro</button>` : ''}`;
     const roleButton = own
       ? '<button class="btn small" disabled>Protected owner</button>'
@@ -127,6 +129,39 @@ function renderMembers() {
         ${roleButton}
       </div>
       <details class="more"><summary>${devices.length} active device${devices.length === 1 ? '' : 's'} · account details</summary><div class="more-grid">${deviceHtml}</div></details>
+    </article>`;
+  }).join('');
+}
+
+function codeExpiry(code) {
+  if (code?.neverExpires || !code?.expiresAt) return 'Unlimited';
+  return shortWhen(code.expiresAt, 'Unknown');
+}
+function codeUsage(code) {
+  if (code?.unlimitedUses || code?.maxUses === null) return `${Number(code?.uses || 0)} used · unlimited`;
+  return `${Number(code?.uses || 0)} / ${Number(code?.maxUses || 0)} used`;
+}
+function renderCodes() {
+  const root = $('accessCodes');
+  const active = state.codes.filter((code) => code.active !== false).length;
+  $('codeCount').textContent = `${active} active · ${state.codes.length} total`;
+  if (!state.codes.length) {
+    root.innerHTML = '<div class="empty">No access codes yet. Generate the first one above.</div>';
+    return;
+  }
+  root.innerHTML = state.codes.map((code) => {
+    const busy = state.codeBusy.has(code.id);
+    const status = code.active === false ? '<span class="pill banned">INACTIVE</span>' : '<span class="pill online">ACTIVE</span>';
+    return `<article class="code-row">
+      <div class="code-main">
+        <strong>${esc(code.label || 'Access')}</strong>
+        <code>${esc(code.hint || '••••')}</code>
+        <div class="status-line">${status}${code.neverExpires ? '<span class="pill pro">UNLIMITED TIME</span>' : ''}${code.unlimitedUses ? '<span class="pill pro">UNLIMITED USES</span>' : ''}</div>
+      </div>
+      <div class="metric"><span>Expires</span><strong>${esc(codeExpiry(code))}</strong></div>
+      <div class="metric"><span>Redemptions</span><strong>${esc(codeUsage(code))}</strong></div>
+      <div class="metric"><span>Last used</span><strong>${esc(when(code.lastUsedAt, 'Never'))}</strong></div>
+      <div class="actions"><button class="btn small danger" data-code-action="revoke" data-code="${esc(code.id)}" ${busy || code.active === false ? 'disabled' : ''}>Revoke</button></div>
     </article>`;
   }).join('');
 }
@@ -162,15 +197,18 @@ async function loadDashboard({ quiet = false } = {}) {
   $('accessDenied').classList.add('hidden');
   $('dashboard').classList.remove('hidden');
 
-  const [overview, memberData, entitlementData] = await Promise.all([
+  const [overview, memberData, entitlementData, codeData] = await Promise.all([
     request('/api/admin/overview'),
     request('/api/admin/members'),
     request('/api/admin/entitlements'),
+    request('/api/admin/access-codes'),
   ]);
   state.members = Array.isArray(memberData.members) ? memberData.members : [];
   state.access = new Map((entitlementData.entitlements || []).map((row) => [row.userId, row.access]));
+  state.codes = Array.isArray(codeData.codes) ? codeData.codes : [];
   renderKpis(overview);
   renderMembers();
+  renderCodes();
   $('lastRefresh').textContent = `Updated ${new Date().toLocaleTimeString([], { hour:'numeric', minute:'2-digit' })}`;
   await loadHealth();
 }
@@ -184,7 +222,20 @@ async function runMemberAction(button) {
     const action = button.dataset.action;
     let result;
     if (action === 'access') {
-      result = await post('/api/admin/member/access', { userId, action:button.dataset.mode || 'grant', days:Number(button.dataset.days) });
+      let days = button.dataset.days;
+      const unlimited = button.dataset.unlimited === 'true';
+      if (!unlimited && days === 'custom') {
+        const entered = window.prompt('How many days of complimentary Pro access? Enter 1–3650.', '14');
+        if (entered === null) return;
+        const parsed = Math.trunc(Number(entered));
+        if (!Number.isFinite(parsed) || parsed < 1 || parsed > 3650) throw new Error('Enter a whole number from 1 to 3650 days.');
+        days = parsed;
+      }
+      result = await post('/api/admin/member/access', {
+        userId,
+        action:button.dataset.mode || 'grant',
+        ...(unlimited ? { unlimited:true } : { days:Number(days) }),
+      });
     } else if (action === 'revoke-access') {
       result = await post('/api/admin/member/access', { userId, action:'revoke' });
     } else if (action === 'ban') {
@@ -206,13 +257,114 @@ async function runMemberAction(button) {
   }
 }
 
+function syncCodeCustomFields() {
+  $('customDurationWrap').classList.toggle('hidden', $('codeDuration').value !== 'custom');
+  $('customUsesWrap').classList.toggle('hidden', $('codeUses').value !== 'custom');
+}
+
+async function generateCode(event) {
+  event.preventDefault();
+  const button = $('generateCodeBtn');
+  if (button.disabled) return;
+  const duration = $('codeDuration').value;
+  const uses = $('codeUses').value;
+  let expiresInDays = null;
+  let maxUses = null;
+  const neverExpires = duration === 'unlimited';
+  const unlimitedUses = uses === 'unlimited';
+
+  if (!neverExpires) {
+    expiresInDays = Math.trunc(Number(duration === 'custom' ? $('codeCustomDays').value : duration));
+    if (!Number.isFinite(expiresInDays) || expiresInDays < 1 || expiresInDays > 3650) {
+      notice('Choose a duration from 1 to 3650 days, or Unlimited.', 'error');
+      return;
+    }
+  }
+  if (!unlimitedUses) {
+    maxUses = Math.trunc(Number(uses === 'custom' ? $('codeCustomUses').value : uses));
+    if (!Number.isFinite(maxUses) || maxUses < 1 || maxUses > 100000) {
+      notice('Choose between 1 and 100000 redemptions, or Unlimited.', 'error');
+      return;
+    }
+  }
+
+  button.disabled = true;
+  notice('');
+  try {
+    const result = await post('/api/admin/access-codes/generate', {
+      label:$('codeLabel').value.trim() || 'Trial access',
+      expiresInDays,
+      neverExpires,
+      maxUses,
+      unlimitedUses,
+    });
+    state.generatedCode = String(result.code || '');
+    $('generatedCodeValue').textContent = state.generatedCode;
+    $('generatedCode').classList.toggle('hidden', !state.generatedCode);
+    notice(result.message || 'Access code generated.', 'success');
+    const codeData = await request('/api/admin/access-codes');
+    state.codes = Array.isArray(codeData.codes) ? codeData.codes : [];
+    renderCodes();
+  } catch (error) {
+    notice(error.message || 'Could not generate the access code.', 'error');
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function copyGeneratedCode() {
+  if (!state.generatedCode) return;
+  try {
+    await navigator.clipboard.writeText(state.generatedCode);
+    notice('Access code copied.', 'success');
+  } catch {
+    const area = document.createElement('textarea');
+    area.value = state.generatedCode;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand('copy');
+    area.remove();
+    notice(ok ? 'Access code copied.' : 'Copy the code manually.', ok ? 'success' : 'error');
+  }
+}
+
+async function runCodeAction(button) {
+  const id = button.dataset.code;
+  if (!id || state.codeBusy.has(id)) return;
+  state.codeBusy.add(id);
+  renderCodes();
+  try {
+    const result = await post('/api/admin/access-codes/revoke', { id });
+    notice(result.message || 'Access code revoked.', 'success');
+    const codeData = await request('/api/admin/access-codes');
+    state.codes = Array.isArray(codeData.codes) ? codeData.codes : [];
+  } catch (error) {
+    notice(error.message || 'Could not revoke that access code.', 'error');
+  } finally {
+    state.codeBusy.delete(id);
+    renderCodes();
+  }
+}
+
 $('members').addEventListener('click', (event) => {
   const button = event.target.closest('button[data-action]');
   if (button) runMemberAction(button);
 });
+$('accessCodes').addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-code-action]');
+  if (button) runCodeAction(button);
+});
 $('searchInput').addEventListener('input', renderMembers);
 $('statusFilter').addEventListener('change', renderMembers);
+$('codeDuration').addEventListener('change', syncCodeCustomFields);
+$('codeUses').addEventListener('change', syncCodeCustomFields);
+$('codeForm').addEventListener('submit', generateCode);
+$('copyGeneratedCode').addEventListener('click', copyGeneratedCode);
 $('refreshBtn').addEventListener('click', () => loadDashboard().catch((e) => notice(e.message, 'error')));
+syncCodeCustomFields();
 
 loadDashboard().catch((error) => {
   $('dashboard').classList.add('hidden');

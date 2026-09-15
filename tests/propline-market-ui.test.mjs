@@ -53,3 +53,13 @@ test('PropLine rail preserves the per-prop sportsbook selector and excludes alte
   assert.match(patched, /specialRows:specials\.get\(g\.key\)\|\|\[\]/);
   assert.match(patched, /prizePicksSpecialStrip\(g\)/);
 });
+
+test('mobile available-lines rail uses the full width without pushing research stats farther down', () => {
+  const patched = productionChain();
+
+  // Two books fill one row; additional books remain horizontally scrollable.
+  assert.match(patched, /flex:0 0 calc\(50% - 4px\)!important/);
+  assert.match(patched, /min-height:76px!important/);
+  assert.match(patched, /overflow-x:auto!important/);
+  assert.doesNotMatch(patched, /@media\(max-width:540px\)[^`]*flex-basis:148px!important/);
+});

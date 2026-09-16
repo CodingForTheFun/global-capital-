@@ -55,6 +55,16 @@ test('the slice grows with the tier rather than being a fixed guess', () => {
   }
 });
 
+test('a cycle cannot wrap and schedule one configured sport twice', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../lib/ingestion/propline-supplement.mjs', import.meta.url), 'utf8');
+  assert.match(
+    source,
+    /const perCycle = Math\.min\(sports\.length, Math\.max\(1, Number\(policy\.sportsPerCycle\) \|\| 1\)\);/,
+    'the effective slice must be capped to the number of configured sports',
+  );
+});
+
 test('one sport failing does not abandon the rest of the slice', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../lib/ingestion/propline-supplement.mjs', import.meta.url), 'utf8');

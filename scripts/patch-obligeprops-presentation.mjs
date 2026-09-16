@@ -85,8 +85,8 @@ export function applyObligePropsPresentationPatch(root = process.cwd()) {
   return { applied: source !== before, file: TARGET };
 }
 
+const autoResult = applyObligePropsPresentationPatch();
 const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
-  const result = applyObligePropsPresentationPatch();
-  console.log(`[oblige-props-presentation] applied=${result.applied} file=${result.file || TARGET}`);
+  console.log(`[oblige-props-presentation] applied=${autoResult.applied} file=${autoResult.file || TARGET}`);
 }

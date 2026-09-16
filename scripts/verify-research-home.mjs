@@ -33,10 +33,10 @@ try{
  check(healthy,'Original server starts without a Next.js child process');
  const accountHealth=await(await fetch(base+'/api/account/health')).json();
  check(accountHealth.features?.sportsbook===false,'Account health no longer advertises the retired sportsbook');
- const gate=await(await fetch(base)).text();check(gate.includes('asResearchGate')&&gate.includes('id="authForm"'),'Root uses original Auto Scout account form');
+ const gate=await(await fetch(base)).text();check(gate.includes('asResearchGate')&&gate.includes('id="authForm"'),'Root uses original research account form');
  check(!gate.includes('ObligePay')&&!gate.includes('Betslip with Kelly'),'Signed-out branding and features are research-only');
  for(const api of ['/api/apex/props','/api/apex/research','/api/apex/research-batch','/api/apex/line-history','/api/props/ml'])check((await fetch(base+api)).status===401,api+' remains account protected');
- for(const url of ['/sportsbooks','/sportsbooks/','/preview']){const r=await fetch(base+url,{redirect:'manual'});check(r.status===302&&r.headers.get('location')==='/apex',url+' redirects to existing Auto Scout');}
+ for(const url of ['/sportsbooks','/sportsbooks/','/preview']){const r=await fetch(base+url,{redirect:'manual'});check(r.status===302&&r.headers.get('location')==='/apex',url+' redirects to existing ObligeProps research');}
  check((await fetch(base+'/api/apex/game-markets')).status===410,'Retired game endpoint cannot request sportsbook odds');
  browser=await chromium.launch({headless:true});
  for(const [name,viewport] of [['desktop',{width:1600,height:1100}],['mobile',{width:390,height:844}]]){
@@ -46,9 +46,9 @@ try{
   if(name==='mobile')await page.locator('#tabIn').click();
   await page.locator('#email').fill(email);await page.locator('#password').fill(password);await page.locator('#submit').click();await ready();
   check(true,name+' signs in through the native account form');
-  check((await page.title()).startsWith('Auto Scout'),name+' uses Auto Scout product identity');
-  check(!(await page.locator('#as5').innerText()).includes('ObligePay'),name+' has no ObligePay product wording');
-  check(await page.locator('.edge-workspace-nav,#asSlip,.asSlipAdd').count()===0,name+' has no sportsbook navigation or bet slip');
+  check((await page.title()).startsWith('ObligeProps'),name+' uses ObligeProps product identity');
+  check(!(await page.locator('#as5').innerText()).includes('ObligePay'),name+' has no retired ObligePay product wording');
+  check(await page.locator('.edge-workspace-nav,#asSlip,.asSlipAdd').count()===0,name+' has no retired sportsbook navigation or bet slip');
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),name+' root has no horizontal overflow');
   check(await page.locator('.asIdentity').getAttribute('href')==='/',name+' brand opens same-domain research home');
   await page.screenshot({path:`${out}/${name}-research.png`,fullPage:true});
@@ -73,7 +73,7 @@ try{
   await page.locator('#asProfileMenu>summary').click();
   await page.locator('#asSettings').click();check(await page.locator('#asUtility').evaluate(e=>e.open),name+' original settings open');await page.keyboard.press('Escape');
   await page.goto(base+'/sportsbooks#tacos',{waitUntil:'domcontentloaded'});await page.waitForURL('**/apex#tacos');
-  await page.getByRole('heading',{name:'🌮 Taco-only props',exact:true}).waitFor();check(true,name+' old Taco bookmark opens Auto Scout-only promotion view');
+  await page.getByRole('heading',{name:'🌮 Taco-only props',exact:true}).waitFor();check(true,name+' old Taco bookmark opens research-only promotion view');
   await page.getByRole('button',{name:'Back to regular props',exact:true}).click();check(await page.locator('#asRules').getAttribute('aria-checked')==='true',name+' regular-line protections remain on');
   await page.goto(base);await ready();
   await ctx.close();

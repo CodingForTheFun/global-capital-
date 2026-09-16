@@ -34,7 +34,7 @@ const ARTWORK_SPORTS = new Set(['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB'])
 const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL']);
 const researchLimits = new Map();
 // One board load hydrates at most this many cards, resolved this many at a time.
-const MAX_BATCH_PROPS = 60;
+const MAX_BATCH_PROPS = 100;
 const BATCH_CONCURRENCY = 8;
 // Every projection call costs money, so this route gets its own much
 // tighter budget than the research routes rather than sharing theirs.

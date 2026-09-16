@@ -46,7 +46,7 @@ export function applyObligePropsPresentationPatch(root = process.cwd()) {
     );
   }
 
-  if (!source.includes('/* Oblige Props research-terminal desktop density pass. */')) {
+  if (!source.includes('/* Oblige Props research-terminal desktop density pass.')) {
     const anchor = '/* Save becomes the small star in the card corner instead of a giant full-width row. */';
     const count = source.split(anchor).length - 1;
     if (count !== 1) throw new Error(`[oblige-props-presentation] research terminal anchor count=${count}`);

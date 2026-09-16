@@ -93,7 +93,7 @@ runtimeSource = patchEdgeFrontdoor(runtimeSource);
 runtimeSource = patchProfileAvatarFrontdoor(runtimeSource);
 runtimeSource = patchProplineRealtimeFrontdoor(runtimeSource);
 runtimeSource = patchProplineFullFrontdoor(runtimeSource);
-if (!runtimeSource.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the edge-patched Auto Scout UI source.');
+if (!runtimeSource.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the edge-patched Oblige Props UI source.');
 runtimeSource = runtimeSource.replace(uiRead, uiRuntimeRead);
 writeFileSync(runtimePath, runtimeSource, 'utf8');
 await import(pathToFileURL(runtimePath).href);

@@ -3,8 +3,14 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { applySoccerPublicFeedPatches } from './patch-soccer-public-feeds.mjs';
 import { patchPublicSportsbookHosts } from './patch-public-sportsbook-hosts.mjs';
+import { applyObligePropsNeonVioletTheme } from './patch-obligeprops-neon-violet-theme.mjs';
 import './patch-real-snipe-table.mjs';
 import './patch-obligeprops-presentation.mjs';
+
+// The existing presentation patch establishes the responsive component system.
+// This final, token-only pass makes neon violet the Oblige Props brand color
+// without touching calculations, providers, auth, billing, or request cadence.
+applyObligePropsNeonVioletTheme();
 
 // Public feed compatibility is applied at image-build time so it composes cleanly
 // with parallel ingestion work. A real application checkout always includes
@@ -141,4 +147,4 @@ for (const file of ['public/index.html', 'public/checkout.html']) {
     .replace(/<link[^>]+href="\/assets\/edge-theme\.css"[^>]*>/g, '');
   if (output !== source) writeFileSync(file, output);
 }
-console.log('[oblige-props] research identity ready; signed-in and signed-out identity current; core loading/title identity current; intelligence identity current; donut percentage rendered as HTML overlay; existing accounts and data retained');
+console.log('[oblige-props] research identity ready; signed-in and signed-out identity current; core loading/title identity current; intelligence identity current; donut percentage rendered as HTML overlay; neon-violet brand palette ready; existing accounts and data retained');

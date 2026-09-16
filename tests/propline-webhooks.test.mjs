@@ -143,6 +143,74 @@ test('the route accepts a signed delivery and hands it to the consumer', async (
   assert.equal(seen.length, 1);
   assert.equal(seen[0].type, 'line_movement');
   assert.equal(seen[0].payload.outcome_id, 'o1');
+  assert.equal(seen[0].sequence, 7);
+  delete process.env.PROPLINE_WEBHOOK_SECRET;
+});
+
+test('a signed batch forwards every child but commits the envelope sequence only on the last child', async () => {
+  __resetWebhookState();
+  process.env.PROPLINE_WEBHOOK_SECRET = SECRET;
+  const body = JSON.stringify({
+    batch: true,
+    event_type: 'batch',
+    events: [
+      { delivery_id: 'd1', event_type: 'line_movement', data: { outcome_id: 'o1' } },
+      { delivery_id: 'd2', event_type: 'steam', data: { outcome_id: 'o2' } },
+      { delivery_id: 'd3', event_type: 'resolution', data: { outcome_id: 'o3' } },
+    ],
+  });
+  const res = collector();
+  const seen = [];
+  await handleProplineWebhook(request({ body, event: 'batch', sequence: '42' }), res, { onEvent: (e) => { seen.push(e); } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.batch, true);
+  assert.equal(res.body.count, 3);
+  assert.deepEqual(seen.map((row) => row.type), ['line_movement', 'steam', 'resolution']);
+  assert.deepEqual(seen.map((row) => row.deliveryId), ['d1', 'd2', 'd3']);
+  assert.deepEqual(seen.map((row) => row.sequence), [null, null, 42], 'the durable replay cursor must advance only after all siblings run');
+  delete process.env.PROPLINE_WEBHOOK_SECRET;
+});
+
+test('a failed batch child prevents the envelope replay cursor from advancing', async () => {
+  __resetWebhookState();
+  process.env.PROPLINE_WEBHOOK_SECRET = SECRET;
+  const body = JSON.stringify({
+    batch: true,
+    events: [
+      { delivery_id: 'd1', event_type: 'line_movement', data: { outcome_id: 'o1' } },
+      { delivery_id: 'd2', event_type: 'steam', data: { outcome_id: 'o2' } },
+      { delivery_id: 'd3', event_type: 'resolution', data: { outcome_id: 'o3' } },
+    ],
+  });
+  const res = collector();
+  const seen = [];
+  await handleProplineWebhook(request({ body, event: 'batch', sequence: '55' }), res, {
+    onEvent: (e) => {
+      seen.push(e);
+      if (e.deliveryId === 'd2') throw Object.assign(new Error('test failure'), { code: 'TEST_FAILURE' });
+    },
+  });
+  assert.equal(res.statusCode, 200, 'the signed delivery is acknowledged before downstream work');
+  assert.deepEqual(seen.map((row) => row.sequence), [null, null, null], 'a failed sibling must leave the batch replayable');
+  delete process.env.PROPLINE_WEBHOOK_SECRET;
+});
+
+test('a malformed child rejects the entire signed batch instead of partially acknowledging it', async () => {
+  __resetWebhookState();
+  process.env.PROPLINE_WEBHOOK_SECRET = SECRET;
+  const body = JSON.stringify({
+    batch: true,
+    events: [
+      { delivery_id: 'd1', event_type: 'line_movement', data: { outcome_id: 'o1' } },
+      { delivery_id: 'd2', event_type: 'steam' },
+    ],
+  });
+  const res = collector();
+  let called = false;
+  await handleProplineWebhook(request({ body, event: 'batch', sequence: '56' }), res, { onEvent: () => { called = true; } });
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(res.body, { ok: false, error: 'invalid_batch' });
+  assert.equal(called, false);
   delete process.env.PROPLINE_WEBHOOK_SECRET;
 });
 

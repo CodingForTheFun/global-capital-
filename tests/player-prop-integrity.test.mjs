@@ -11,9 +11,27 @@ test('rejects event team names masquerading as players', () => {
   }), false);
 });
 
+test('rejects abbreviated event team names masquerading as players', () => {
+  assert.equal(isVerifiedPlayerPropRow({
+    playerName: 'ATL Falcons', homeTeam: 'Atlanta Falcons', awayTeam: 'Carolina Panthers', team: '',
+  }), false);
+  assert.equal(isVerifiedPlayerPropRow({
+    playerName: 'NY Jets', homeTeam: 'New York Jets', awayTeam: 'Buffalo Bills', team: '',
+  }), false);
+  assert.equal(isVerifiedPlayerPropRow({
+    playerName: 'GB Packers', homeTeam: 'Green Bay Packers', awayTeam: 'Detroit Lions', team: '',
+  }), false);
+});
+
 test('rejects rows whose player equals participant team metadata', () => {
   assert.equal(isVerifiedPlayerPropRow({
     playerName: 'New York Giants', homeTeam: '', awayTeam: '', team: 'New York Giants',
+  }), false);
+});
+
+test('rejects generic non-player market labels', () => {
+  assert.equal(isVerifiedPlayerPropRow({
+    playerName: 'Moneyline Parlay', homeTeam: 'Florida Panthers', awayTeam: 'Tampa Bay Lightning', team: '',
   }), false);
 });
 
@@ -23,6 +41,9 @@ test('keeps real player names even when team metadata is present', () => {
   }), true);
   assert.equal(isVerifiedPlayerPropRow({
     playerName: 'Odell Beckham Jr.', homeTeam: 'New York Giants', awayTeam: 'Dallas Cowboys', team: '',
+  }), true);
+  assert.equal(isVerifiedPlayerPropRow({
+    playerName: 'Kirk Cousins', homeTeam: 'Atlanta Falcons', awayTeam: 'Carolina Panthers', team: 'Atlanta Falcons',
   }), true);
 });
 

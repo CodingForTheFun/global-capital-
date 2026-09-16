@@ -63,7 +63,6 @@ test('a tampered body invalidates a real signature', () => {
 
 test('a signature of the wrong length is rejected without throwing', () => {
   const body = '{}'; const ts = nowSeconds();
-  // timingSafeEqual throws on unequal lengths; this must be a clean rejection.
   const out = verifyDelivery({ signature: 'abc', timestamp: ts, rawBody: body, secret: SECRET });
   assert.equal(out.ok, false);
   assert.equal(out.reason, 'BAD_SIGNATURE');
@@ -96,13 +95,14 @@ test('without a configured secret nothing verifies', () => {
   assert.equal(out.reason, 'WEBHOOK_NOT_CONFIGURED');
 });
 
-test('a sequence gap is recorded so replay knows where to resume', () => {
+test('sequence skips are normal and advance the replay watermark', () => {
   __resetWebhookState();
   noteDelivery('line_movement', 10);
   noteDelivery('line_movement', 11);
   const { gap } = noteDelivery('line_movement', 20);
-  assert.deepEqual({ from: gap.from, to: gap.to, missed: gap.missed }, { from: 11, to: 20, missed: 8 });
-  assert.equal(replayCursor(), 11, 'replay resumes from the last sequence actually received');
+  assert.equal(gap, null, 'PropLine sequence numbers are monotonic but not guaranteed dense');
+  assert.equal(replayCursor(), 20, 'replay resumes from the highest processed sequence');
+  assert.deepEqual(webhookHealth().gaps, []);
 });
 
 test('consecutive deliveries record no gap', () => {

@@ -10,6 +10,7 @@ import { patchPropBookSelectorUi } from './lib/autoscout/prop-book-selector-runt
 import { patchResearchTabsUi } from './lib/autoscout/research-tabs-runtime-patch.mjs';
 import { patchLiveMainViewUi } from './lib/autoscout/live-main-view-runtime-patch.mjs';
 import { patchProplineRealtimeCore, patchProplineRealtimeFrontdoor, patchProplineRealtimeUi } from './lib/autoscout/propline-realtime-runtime-patch.mjs';
+import { patchProplinePushBoardCore, patchProplinePushBoardUi } from './lib/autoscout/propline-push-board-runtime-patch.mjs';
 import { patchProplineMarketUi } from './lib/autoscout/propline-market-runtime-patch.mjs';
 import { patchProplineInsightsUi } from './lib/autoscout/propline-insights-runtime-patch.mjs';
 import { patchProplineFullFrontdoor, patchProplineFullUi } from './lib/autoscout/propline-full-runtime-patch.mjs';
@@ -32,17 +33,10 @@ const newImport = './lib/autoscout/research-service-v2.mjs';
 const uiRead = "readFileSync('./apex-v2/scout-ui-v5.js', 'utf8')";
 const uiRuntimeRead = "readFileSync('./.scout-ui-v5-runtime.js', 'utf8')";
 const researchSports = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL']);";
-// The DFS feeds tag every club competition "SOCCER" and never MLS, EPL or UCL,
-// so the research API refused the only soccer props that actually arrive.
 const researchSportsWithTennis = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL','SOCCER','TENNIS']);";
 
 function makeClientSafeVisualUi(source) {
   const patched = patchObligePropsVisualUi(source);
-  // The visual patch is authored as HTML fragments because it is also useful in
-  // screenshot review tooling. The production Auto Scout shell, however, is
-  // injected inside an existing <script>. Convert those fragments into real
-  // JavaScript before the frontdoor serves them. Raw <style>/<script> tags in
-  // JavaScript make Safari stop at the first '<' and leave "Loading Auto Scout…".
   const withStyle = patched.replace(
     /<style id="oblige-props-pixel-target">([\s\S]*?)<\/style>/,
     (_match, css) => `\n;(function(){var s=document.getElementById('oblige-props-pixel-target');if(!s){s=document.createElement('style');s.id='oblige-props-pixel-target';s.textContent=${JSON.stringify(css)};(document.head||document.documentElement).appendChild(s);}})();\n`,
@@ -51,23 +45,13 @@ function makeClientSafeVisualUi(source) {
     /<script id="oblige-props-pixel-target-runtime">([\s\S]*?)<\/script>/,
     (_match, js) => `\n${js}\n`,
   );
-  // The current client closes its async bootstrap with `})().catch(...)`, while
-  // the avatar patch intentionally inserts before the last classic `})();`.
-  // Put a no-op IIFE immediately before the bootstrap closes so the avatar
-  // runtime is injected inside the account scope instead of at top level.
   const scopedVisualClient = visualClient.replace(
     '\n})().catch(function(){',
     '\n(function(){})();\n})().catch(function(){',
   );
   if (scopedVisualClient === visualClient) throw new Error('Profile avatar bootstrap could not locate the client scope boundary.');
-  // Avatar styling is applied after the screenshot-target layer so its compact
-  // profile ring wins over older generic account-button sizing.
   const avatarClient = patchProfileAvatarUi(scopedVisualClient);
-  // The mobile dock is intentionally last so its compact side-rail geometry
-  // wins over the older full-width floating navigation without changing routes.
   const client = patchMobileNavDockUi(avatarClient);
-  // Fail the container before Railway cuts traffic over if a future runtime
-  // presentation patch ever generates invalid client JavaScript again.
   try { new Function(client); }
   catch (error) { throw new Error(`Auto Scout client bundle is invalid: ${error?.message || error}`); }
   return client;
@@ -87,21 +71,21 @@ const patchedResearchTabsUi = patchResearchTabsUi(patchedPropBookSelectorUi);
 const patchedLiveMainViewUi = patchLiveMainViewUi(patchedResearchTabsUi);
 const patchedRealtimeUi = patchProplineRealtimeUi(patchedLiveMainViewUi);
 const patchedProplineMarketUi = patchProplineMarketUi(patchedRealtimeUi);
-// Last in the chain on purpose: it anchors on renderDrawer and the drawer body,
-// which earlier patches rewrite. Running after them means it matches the text
-// that actually ships rather than the text this file started with.
 const patchedProplineInsightsUi = patchProplineInsightsUi(patchedProplineMarketUi);
 const patchedProplineFullUi = patchProplineFullUi(patchedProplineInsightsUi);
-writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedProplineFullUi), 'utf8');
+const patchedProplinePushBoardUi = patchProplinePushBoardUi(patchedProplineFullUi);
+writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedProplinePushBoardUi), 'utf8');
 
-// Keep PropLine real-time behavior as a runtime layer over the stable data core.
-// That avoids forking the large server while still making the signed webhook and
-// customer market-moves API part of the production process.
-writeFileSync(coreRuntimePath, patchProplineRealtimeCore(readFileSync(coreSourcePath, 'utf8')), 'utf8');
+// Compose the core patches inline. The release suite deliberately treats every
+// named `patched*` variable as a UI stage that must be validated by the client
+// safety pass before it is written. Keeping the server-core composition inline
+// preserves that invariant while still applying the push overlay after realtime.
+writeFileSync(
+  coreRuntimePath,
+  patchProplinePushBoardCore(patchProplineRealtimeCore(readFileSync(coreSourcePath, 'utf8'))),
+  'utf8',
+);
 
-// Run the existing edge safety patch against its original source anchors first.
-// The runtime-only UI file substitution happens afterwards so account/routing
-// safeguards still fail closed if the production frontdoor shape changes.
 let runtimeSource = source
   .replace(oldImport, newImport)
   .replace(researchSports, researchSportsWithTennis);

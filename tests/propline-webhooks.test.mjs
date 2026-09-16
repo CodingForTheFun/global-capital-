@@ -147,7 +147,7 @@ test('the route accepts a signed delivery and hands it to the consumer', async (
   delete process.env.PROPLINE_WEBHOOK_SECRET;
 });
 
-test('a signed batch forwards every child but commits the envelope sequence only on the last child', async () => {
+test('a signed batch reaches the batch-aware consumer once with ordered independently typed children', async () => {
   __resetWebhookState();
   process.env.PROPLINE_WEBHOOK_SECRET = SECRET;
   const body = JSON.stringify({
@@ -165,13 +165,19 @@ test('a signed batch forwards every child but commits the envelope sequence only
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.batch, true);
   assert.equal(res.body.count, 3);
-  assert.deepEqual(seen.map((row) => row.type), ['line_movement', 'steam', 'resolution']);
-  assert.deepEqual(seen.map((row) => row.deliveryId), ['d1', 'd2', 'd3']);
-  assert.deepEqual(seen.map((row) => row.sequence), [null, null, 42], 'the durable replay cursor must advance only after all siblings run');
+  assert.equal(seen.length, 1, 'one signed batch must cause one consumer flush, not one disk write per child');
+  assert.equal(seen[0].type, '');
+  assert.equal(seen[0].sequence, 42, 'the envelope watermark commits after the consumer finishes the whole batch');
+  assert.equal(seen[0].payload.batch, true);
+  assert.equal(seen[0].payload.event_type, '');
+  assert.deepEqual(seen[0].payload.events.map((row) => row.delivery_id), ['d1', 'd2', 'd3']);
+  assert.deepEqual(seen[0].payload.events.map((row) => row.event_type), ['line_movement', 'steam', 'resolution']);
+  assert.deepEqual(seen[0].payload.events.map((row) => row.data.event_type), ['line_movement', 'steam', 'resolution']);
+  assert.deepEqual(seen[0].payload.events.map((row) => row.data.outcome_id), ['o1', 'o2', 'o3']);
   delete process.env.PROPLINE_WEBHOOK_SECRET;
 });
 
-test('a failed batch child prevents the envelope replay cursor from advancing', async () => {
+test('a failing batch consumer is not invoked repeatedly and the signed envelope remains answered 200', async () => {
   __resetWebhookState();
   process.env.PROPLINE_WEBHOOK_SECRET = SECRET;
   const body = JSON.stringify({
@@ -187,11 +193,12 @@ test('a failed batch child prevents the envelope replay cursor from advancing', 
   await handleProplineWebhook(request({ body, event: 'batch', sequence: '55' }), res, {
     onEvent: (e) => {
       seen.push(e);
-      if (e.deliveryId === 'd2') throw Object.assign(new Error('test failure'), { code: 'TEST_FAILURE' });
+      throw Object.assign(new Error('test failure'), { code: 'TEST_FAILURE' });
     },
   });
   assert.equal(res.statusCode, 200, 'the signed delivery is acknowledged before downstream work');
-  assert.deepEqual(seen.map((row) => row.sequence), [null, null, null], 'a failed sibling must leave the batch replayable');
+  assert.equal(seen.length, 1, 'the batch consumer must not be retried child-by-child inside the HTTP request');
+  assert.equal(seen[0].sequence, 55);
   delete process.env.PROPLINE_WEBHOOK_SECRET;
 });
 

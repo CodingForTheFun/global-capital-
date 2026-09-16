@@ -1,11 +1,14 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "build": { "builder": "DOCKERFILE" },
+  "build": {
+    "builder": "RAILPACK",
+    "buildCommand": "cd apps/oblige-web && npm ci && npm run build"
+  },
   "deploy": {
-    "startCommand": "node frontdoor-clearsports.mjs",
-    "healthcheckPath": "/api/health",
+    "startCommand": "cd apps/oblige-web && npm run start",
+    "healthcheckPath": "/",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 5
+    "restartPolicyMaxRetries": 3
   }
 }

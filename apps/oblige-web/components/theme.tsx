@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 export const DIRECTIONS = [
@@ -11,7 +12,12 @@ export const DIRECTIONS = [
 
 export type DirectionId = (typeof DIRECTIONS)[number]['id'];
 
-const STORAGE_KEY = 'oblige-direction';
+function directionForPath(pathname: string): DirectionId {
+  if (pathname.startsWith('/research')) return 'c';
+  if (pathname.startsWith('/board')) return 'b';
+  return 'a';
+}
+
 const DirectionContext = React.createContext<{
   direction: DirectionId;
   setDirection: (id: DirectionId) => void;
@@ -22,30 +28,24 @@ export function useDirection() {
 }
 
 export function DirectionProvider({ children }: { children: React.ReactNode }) {
-  const [direction, setDirectionState] = React.useState<DirectionId>('a');
+  const pathname = usePathname();
+  const automatic = directionForPath(pathname);
+  const [direction, setDirectionState] = React.useState<DirectionId>(automatic);
 
+  // The approved visual set uses one deliberate direction per primary surface:
+  // Midnight Terminal for landing, Broadcast for the board, Daylight Ledger for
+  // player research. A manual direction choice lasts for the current surface,
+  // then navigation resets to the approved direction for the next surface.
   React.useEffect(() => {
-    // Storage can throw in a private window or when site data is blocked, and
-    // a remembered theme is a convenience, never something to fail a render on.
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved && DIRECTIONS.some((d) => d.id === saved)) setDirectionState(saved as DirectionId);
-    } catch {
-      /* keep the default */
-    }
-  }, []);
+    setDirectionState(automatic);
+  }, [automatic]);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     document.documentElement.dataset.direction = direction;
   }, [direction]);
 
   const setDirection = React.useCallback((id: DirectionId) => {
     setDirectionState(id);
-    try {
-      localStorage.setItem(STORAGE_KEY, id);
-    } catch {
-      /* the theme still applies for this visit */
-    }
   }, []);
 
   const value = React.useMemo(() => ({ direction, setDirection }), [direction, setDirection]);
@@ -59,8 +59,6 @@ export function DirectionSwitcher({ className }: { className?: string }) {
       role="group"
       aria-label="Visual direction"
       className={cn(
-        // The labels are long enough to outgrow a narrow phone, so the group
-        // scrolls inside itself rather than widening the page.
         'flex max-w-full gap-0.5 overflow-x-auto rounded-full border border-[var(--line)]',
         'bg-[var(--surface-2)] p-[3px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         className,

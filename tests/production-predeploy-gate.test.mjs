@@ -15,6 +15,14 @@ test('production image keeps tests available for the Railway pre-deploy gate', (
   assert.ok(!activePatterns.includes('tests/'));
 });
 
+test('the Docker image validates pristine source before build-time patching', () => {
+  const dockerfile = readText('../Dockerfile');
+  const checkIndex = dockerfile.indexOf('RUN npm run check');
+  const prepareIndex = dockerfile.indexOf('RUN node scripts/prepare-edge-deploy.mjs');
+  assert.ok(checkIndex >= 0, 'Dockerfile must execute the release check');
+  assert.ok(prepareIndex > checkIndex, 'release check must run before prepare-edge-deploy mutates source anchors');
+});
+
 test('npm run check executes the hermetic test suite', () => {
   const pkg = JSON.parse(readText('../package.json'));
   assert.match(pkg.scripts?.check || '', /npm run test:clean/);

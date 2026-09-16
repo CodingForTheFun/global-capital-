@@ -20,7 +20,13 @@ async function proxy(request: NextRequest, context: RouteContext) {
   });
 
   const incomingUrl = new URL(request.url);
-  headers.set('x-forwarded-host', incomingUrl.host);
+  // Preserve the actual browser-facing Host when proxying to the backend.
+  // Railway/Next can canonicalize request.url to an internal or generated host;
+  // using that value for x-forwarded-host makes the backend's same-origin guard
+  // reject legitimate browser login/register POSTs with 403.
+  const requestHost = request.headers.get('host')?.trim();
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim();
+  headers.set('x-forwarded-host', requestHost || forwardedHost || incomingUrl.host);
   headers.set('x-forwarded-proto', incomingUrl.protocol.replace(':', '') || 'https');
 
   const init: RequestInit = {

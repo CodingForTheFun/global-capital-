@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { BarChart3, Home, LayoutGrid, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { DirectionSwitcher } from '@/components/theme';
 
 const NAV = [
   { href: '/board', label: 'Prop Board' },
@@ -110,6 +111,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <DirectionSwitcher className="hidden xl:flex" />
           <Button asChild size="sm" variant="ghost" className="max-[519px]:hidden">
             <Link href="/account">Account</Link>
           </Button>
@@ -167,6 +169,7 @@ export function SiteFooter() {
             <p className="mt-4 max-w-[36ch] text-[length:var(--fs-sm)] leading-relaxed text-[var(--text-3)]">
               Player prop research with the line history attached. obligeprops.com
             </p>
+            <DirectionSwitcher className="mt-6 xl:hidden" />
           </div>
           <FooterColumn
             title="Product"

@@ -54,12 +54,17 @@ test('PropLine rail preserves the per-prop sportsbook selector and excludes alte
   assert.match(patched, /prizePicksSpecialStrip\(g\)/);
 });
 
-test('mobile available-lines rail uses the full width without pushing research stats farther down', () => {
+test('available lines stays compact and the header search icon is font-independent', () => {
   const patched = productionChain();
 
-  // Two books fill one row; additional books remain horizontally scrollable.
-  assert.match(patched, /flex:0 0 calc\(50% - 4px\)!important/);
-  assert.match(patched, /min-height:76px!important/);
-  assert.match(patched, /overflow-x:auto!important/);
-  assert.doesNotMatch(patched, /@media\(max-width:540px\)[^`]*flex-basis:148px!important/);
+  // The sportsbook dropdown already exposes every live book, so the duplicate
+  // PrizePicks/Underdog chip rail must not consume a second large mobile row.
+  assert.match(patched, /#as5 \.asOddsRail\{display:none!important\}/);
+
+  // The previous text glyph rendered as a boxed question mark on some iPhones.
+  // Hide the glyph and draw the magnifier with CSS geometry instead of a font.
+  assert.match(patched, /#as5 \.asHeaderSearchIcon\{[^}]*font-size:0!important/);
+  assert.match(patched, /#as5 \.asHeaderSearchIcon:before\{[^}]*border:2px solid #9ebce2!important/);
+  assert.match(patched, /#as5 \.asHeaderSearchIcon:after\{[^}]*transform:rotate\(45deg\)!important/);
+  assert.doesNotThrow(() => new Function(patched));
 });

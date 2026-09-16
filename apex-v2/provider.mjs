@@ -1,4 +1,5 @@
 import {appendPublicFeeds,publicFeeds} from '../lib/ingestion/public-feeds.mjs';
+import {normalizedDataFromBoardRows} from '../lib/ingestion/normalize.mjs';
 import { publicPersistenceConfigured, readPublicProps } from '../lib/ingestion/public-persistence.mjs';
 import { mergeCachedPropline, proplineSupplementHealth } from '../lib/ingestion/propline-supplement.mjs';
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
@@ -151,9 +152,23 @@ function mergePersistedPublic(board, rows, sport) {
   const props = [...new Map([...(board.props || []), ...accepted].map((row) => [row.id, row])).values()];
   const books = [...new Set(props.map((row) => text(row.sportsbookKey).toLowerCase()).filter(Boolean))].sort();
   const events = new Set(props.map((row) => row.eventId).filter(Boolean)).size;
+  // Merging into board.props alone put these rows in front of customers but
+  // left them out of persistence: mapBoard() writes board.data, never
+  // board.props. That is why sportsbook lines were served on the board yet
+  // never reached prop_lines, and why Compare, snipes and line history saw
+  // only the two in-memory DFS feeds.
+  //
+  // The persisted rows are the newer observation, so they win an id collision
+  // here for the same reason they already win for props above.
+  const rebuilt = normalizedDataFromBoardRows(accepted);
+  const data = {};
+  for (const key of ['events', 'players', 'props', 'lines']) {
+    data[key] = [...new Map([...(board.data?.[key] || []), ...(rebuilt[key] || [])].map((row) => [row.id, row])).values()];
+  }
   return {
     ...board,
     props,
+    data,
     meta: {
       ...(board.meta || {}),
       provider: board.props?.length ? board.meta?.provider || 'Cached provider + public database' : 'Public feed database',

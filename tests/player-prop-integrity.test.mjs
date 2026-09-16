@@ -35,6 +35,15 @@ test('rejects generic non-player market labels', () => {
   }), false);
 });
 
+test('rejects BetMGM soccer combined-scored match outcomes', () => {
+  assert.equal(isVerifiedPlayerPropRow({
+    playerName: 'FK Smederevo 1924 and combined scored', homeTeam: 'FK Smederevo 1924', awayTeam: 'FK Vozdovac', team: '',
+  }), false);
+  assert.equal(isVerifiedPlayerPropRow({
+    playerName: 'Tie and combined scored', homeTeam: 'FC Zbrojovka Brno', awayTeam: 'SK Slavia Praha B', team: '',
+  }), false);
+});
+
 test('keeps real player names even when team metadata is present', () => {
   assert.equal(isVerifiedPlayerPropRow({
     playerName: "A'ja Wilson", homeTeam: 'Las Vegas Aces', awayTeam: 'Phoenix Mercury', team: 'Las Vegas Aces',
@@ -44,6 +53,9 @@ test('keeps real player names even when team metadata is present', () => {
   }), true);
   assert.equal(isVerifiedPlayerPropRow({
     playerName: 'Kirk Cousins', homeTeam: 'Atlanta Falcons', awayTeam: 'Carolina Panthers', team: 'Atlanta Falcons',
+  }), true);
+  assert.equal(isVerifiedPlayerPropRow({
+    playerName: 'Lionel Messi', homeTeam: 'Inter Miami CF', awayTeam: 'Orlando City SC', team: 'Inter Miami CF',
   }), true);
 });
 

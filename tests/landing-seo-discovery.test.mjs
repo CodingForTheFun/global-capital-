@@ -6,10 +6,11 @@ import { patchEdgeFrontdoor } from '../lib/edge/frontdoor-patch.mjs';
 const source = readFileSync(new URL('../frontdoor-prod.mjs', import.meta.url), 'utf8');
 const patched = patchEdgeFrontdoor(source);
 
-test('signed-out landing exposes the Oblige Props search identity in raw HTML', () => {
-  assert.ok(patched.includes('Oblige Props — Player Prop Research & Sportsbook Line Comparison'));
+test('signed-out landing exposes the Oblige Props search identity in served HTML transform', () => {
+  assert.ok(patched.includes("const optimizePublicLanding = html => html"));
+  assert.ok(patched.includes(".replace('<title>Oblige Props — Prop Intelligence &amp; Line Discrepancies</title>', '<title>Oblige Props — Player Prop Research & Sportsbook Line Comparison</title>')"));
   assert.ok(patched.includes('Research NFL, NBA, WNBA, NCAAF and MLB player props with verified game logs, hit rates and sportsbook line comparison in Oblige Props.'));
-  assert.doesNotMatch(patched, /const optimizePublicLanding[\s\S]*?<title>Auto Scout/i);
+  assert.ok(patched.includes("const landingPage = options => optimizePublicLanding(rememberSigninLanding(researchLanding(originalLandingPage(options))));"));
 });
 
 test('signed-out landing links crawlers into the public research cluster', () => {
@@ -27,5 +28,4 @@ test('SEO landing transform does not move or weaken the account gate', () => {
   const publicSurface = patched.indexOf('if (servePublicSurface(req, res, { origin: SITE_ORIGIN })) return;');
   const gate = patched.indexOf('if (await maybeServeGate(req, res)) return;');
   assert.ok(publicSurface >= 0 && gate > publicSurface, 'public crawler surfaces stay before the existing account gate');
-  assert.ok(patched.includes("const landingPage = options => optimizePublicLanding(rememberSigninLanding(researchLanding(originalLandingPage(options))));"));
 });

@@ -43,6 +43,22 @@ test('final presentation hardening removes the sloppy search glyph and legacy bo
   }
 });
 
+test('desktop prop board is patched into a denser research-terminal layout without replacing the book selector', () => {
+  const dir = fixture();
+  try {
+    run(dir);
+    const source = readFileSync(path.join(dir, 'lib/autoscout/oblige-props-visual-runtime-patch.mjs'), 'utf8');
+    assert.match(source, /Oblige Props research-terminal desktop density pass/);
+    assert.match(source, /#as5 \.asGrid,#as5 \.asList\{display:grid!important;grid-template-columns:1fr!important/);
+    assert.match(source, /#as5 \.asPropBookStrip\{display:grid!important;grid-template-columns:minmax\(210px,300px\)/);
+    assert.match(source, /#as5 \.asBadge\{min-height:54px!important/);
+    assert.match(source, /@media\(min-width:1051px\)/);
+    assert.doesNotMatch(source, /@media\(max-width:700px\)\{[^}]*\.asPropBookStrip\{display:grid!important;grid-template-columns:minmax\(210px,300px\)/s);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('late customer copy is normalized to Oblige Props and the patch is idempotent', () => {
   const dir = fixture();
   try {

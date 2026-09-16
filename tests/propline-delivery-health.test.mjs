@@ -50,3 +50,52 @@ test('delivery monitor fails closed while the webhook subscription is unavailabl
     else process.env.PROPLINE_API_KEY = previous;
   }
 });
+
+// Production read this ledger one second after each event was queued and saw
+// fifty rows still marked "pending" with no HTTP status. Counting those as
+// failures reported the pipeline unhealthy while it was accepting every single
+// event, so a not-yet-attempted delivery must count towards neither column.
+test('queued deliveries are pending, not failures', async () => {
+  __resetProplineDeliveryHealth();
+  const previous = process.env.PROPLINE_API_KEY;
+  process.env.PROPLINE_API_KEY = 'test-delivery-health-key';
+  try {
+    const out = await refreshProplineDeliveryHealth({
+      subscriptionId: 580,
+      fetcher: async () => new Response(JSON.stringify({ deliveries: [
+        { id: 3, status: 'pending', http_status: null, attempt_count: 0, created_at: '2026-09-16T10:01:54Z' },
+        { id: 2, status: 'queued', http_status: null, attempt_count: 0, created_at: '2026-09-16T10:01:53Z' },
+        { id: 1, status: 'delivered', http_status: 200, attempt_count: 1, created_at: '2026-09-16T10:01:00Z' },
+      ] }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    });
+    assert.equal(out.deliveries, 3);
+    assert.equal(out.successful, 1);
+    assert.equal(out.pending, 2);
+    assert.equal(out.failed, 0, 'a delivery that has not been attempted has not failed');
+    assert.equal(out.healthy, true, 'a pipeline with no terminal failure is healthy');
+  } finally {
+    if (previous === undefined) delete process.env.PROPLINE_API_KEY;
+    else process.env.PROPLINE_API_KEY = previous;
+  }
+});
+
+test('a terminal failure with no HTTP status still counts against health', async () => {
+  __resetProplineDeliveryHealth();
+  const previous = process.env.PROPLINE_API_KEY;
+  process.env.PROPLINE_API_KEY = 'test-delivery-health-key';
+  try {
+    const out = await refreshProplineDeliveryHealth({
+      subscriptionId: 580,
+      fetcher: async () => new Response(JSON.stringify({ deliveries: [
+        { id: 2, status: 'exhausted', http_status: null, attempt_count: 5, created_at: '2026-09-16T10:01:54Z' },
+        { id: 1, status: 'pending', http_status: null, attempt_count: 0, created_at: '2026-09-16T10:01:53Z' },
+      ] }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    });
+    assert.equal(out.failed, 1);
+    assert.equal(out.pending, 1);
+    assert.equal(out.healthy, false);
+  } finally {
+    if (previous === undefined) delete process.env.PROPLINE_API_KEY;
+    else process.env.PROPLINE_API_KEY = previous;
+  }
+});

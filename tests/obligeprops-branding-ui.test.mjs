@@ -7,7 +7,7 @@ test('Oblige Props board patch keeps customer-facing identity current', () => {
   const patched = patchObligePropsVisualUi('const ui = true;');
   assert.match(patched, /function obligeCopy/);
   assert.match(patched, /function normalizeBrand/);
-  assert.match(patched, /aria-label='Oblige Props research'/);
+  assert.match(patched, /setAttribute\\('aria-label','Oblige Props research'\\)/);
   assert.match(patched, /asHeaderSearchIcon" aria-hidden="true"><\/span>/);
   assert.doesNotMatch(patched, />⌕<\/span>/);
   assert.match(patched, /asBookRail\{display:none!important\}/);

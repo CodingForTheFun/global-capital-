@@ -89,6 +89,27 @@ if (existsSync('package.json')) {
   }
 }
 
+// The Intelligence Studio is mounted inside the signed-in customer board. Keep
+// its customer-facing labels aligned with the public Oblige Props identity while
+// leaving internal AUTOSCOUT module, storage and environment contracts untouched.
+{
+  const file = 'lib/ui/intelligence-studio.mjs';
+  if (existsSync(file)) {
+    const source = readFileSync(file, 'utf8');
+    const replacements = [
+      ["boardRoot.setAttribute('aria-label','Auto Scout intelligence studio');", "boardRoot.setAttribute('aria-label','Oblige Props intelligence studio');"],
+      ['<p class="asi-eyebrow">Auto Scout / Intelligence studio</p>', '<p class="asi-eyebrow">Oblige Props / Intelligence studio</p>'],
+      ['without leaving Auto Scout.</p>', 'without leaving Oblige Props.</p>'],
+    ];
+    let output = source;
+    for (const [legacy, current] of replacements) {
+      if (!output.includes(legacy)) throw new Error(`Oblige Props intelligence identity anchor not found: ${legacy}`);
+      output = output.replace(legacy, current);
+    }
+    if (output !== source) writeFileSync(file, output);
+  }
+}
+
 // The signed-in header still carried an obsolete lowercase "obligepay" wordmark
 // in the visual runtime patch. Normalize only that presentation layer; payment
 // descriptors, storage keys, account data and billing behavior are untouched.
@@ -119,4 +140,4 @@ for (const file of ['public/index.html', 'public/checkout.html']) {
     .replace(/<link[^>]+href="\/assets\/edge-theme\.css"[^>]*>/g, '');
   if (output !== source) writeFileSync(file, output);
 }
-console.log('[oblige-props] research identity ready; signed-in and signed-out identity current; core loading/title identity current; donut percentage rendered as HTML overlay; existing accounts and data retained');
+console.log('[oblige-props] research identity ready; signed-in and signed-out identity current; core loading/title identity current; intelligence identity current; donut percentage rendered as HTML overlay; existing accounts and data retained');

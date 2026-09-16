@@ -23,6 +23,21 @@ test('rejects abbreviated event team names masquerading as players', () => {
   }), false);
 });
 
+test('rejects parser-damaged team labels with event qualifiers', () => {
+  assert.equal(isVerifiedPlayerPropRow({
+    playerName: 'Chicago W e Sox',
+    homeTeam: 'Cleveland Guardians (P Messick)',
+    awayTeam: 'Chicago White Sox (A Kay)',
+    team: '',
+  }), false);
+  assert.equal(isVerifiedPlayerPropRow({
+    playerName: 'Jordan White',
+    homeTeam: 'Cleveland Guardians (P Messick)',
+    awayTeam: 'Chicago White Sox (A Kay)',
+    team: 'Chicago White Sox',
+  }), true);
+});
+
 test('rejects rows whose player equals participant team metadata', () => {
   assert.equal(isVerifiedPlayerPropRow({
     playerName: 'New York Giants', homeTeam: '', awayTeam: '', team: 'New York Giants',

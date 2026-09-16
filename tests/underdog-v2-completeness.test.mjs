@@ -34,6 +34,20 @@ test('Underdog v2 fallback rejects a snapshot when any selected sport request fa
   );
 });
 
+test('Underdog v2 fallback rejects sport results that hit the unpaginated search cap', async () => {
+  const fetchJson = async (url) => {
+    if (url.includes('/v2/sports')) return { sports };
+    const sportId = new URL(url).searchParams.get('sport_id');
+    if (sportId === 'sport-nfl') return payload(Array.from({ length: 100 }, (_, i) => line(`nfl-${i}`)));
+    return payload([]);
+  };
+
+  await assert.rejects(
+    fetchUnderdogV2Payload({ maxSports: 2, fetchJson }),
+    (error) => error?.code === 'UNDERDOG_V2_TRUNCATED_SPORTS' && error?.saturatedSports === 1 && error?.limitGuard === 100,
+  );
+});
+
 test('Underdog v2 fallback allows valid empty sport responses when every selected request completes', async () => {
   const fetchJson = async (url) => {
     if (url.includes('/v2/sports')) return { sports };

@@ -10,6 +10,7 @@ import { patchPropBookSelectorUi } from './lib/autoscout/prop-book-selector-runt
 import { patchResearchTabsUi } from './lib/autoscout/research-tabs-runtime-patch.mjs';
 import { patchLiveMainViewUi } from './lib/autoscout/live-main-view-runtime-patch.mjs';
 import { patchProplineRealtimeCore, patchProplineRealtimeFrontdoor, patchProplineRealtimeUi } from './lib/autoscout/propline-realtime-runtime-patch.mjs';
+import { patchProplinePushBoardCore, patchProplinePushBoardUi } from './lib/autoscout/propline-push-board-runtime-patch.mjs';
 import { patchProplineMarketUi } from './lib/autoscout/propline-market-runtime-patch.mjs';
 import { patchProplineInsightsUi } from './lib/autoscout/propline-insights-runtime-patch.mjs';
 import { patchProplineFullFrontdoor, patchProplineFullUi } from './lib/autoscout/propline-full-runtime-patch.mjs';
@@ -92,12 +93,16 @@ const patchedProplineMarketUi = patchProplineMarketUi(patchedRealtimeUi);
 // that actually ships rather than the text this file started with.
 const patchedProplineInsightsUi = patchProplineInsightsUi(patchedProplineMarketUi);
 const patchedProplineFullUi = patchProplineFullUi(patchedProplineInsightsUi);
-writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedProplineFullUi), 'utf8');
+const patchedProplinePushBoardUi = patchProplinePushBoardUi(patchedProplineFullUi);
+writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedProplinePushBoardUi), 'utf8');
 
 // Keep PropLine real-time behavior as a runtime layer over the stable data core.
 // That avoids forking the large server while still making the signed webhook and
-// customer market-moves API part of the production process.
-writeFileSync(coreRuntimePath, patchProplineRealtimeCore(readFileSync(coreSourcePath, 'utf8')), 'utf8');
+// customer market-moves API part of the production process. The push-board layer
+// then applies accepted deliveries to the cached customer board without causing
+// another upstream PropLine request.
+const patchedRealtimeCore = patchProplineRealtimeCore(readFileSync(coreSourcePath, 'utf8'));
+writeFileSync(coreRuntimePath, patchProplinePushBoardCore(patchedRealtimeCore), 'utf8');
 
 // Run the existing edge safety patch against its original source anchors first.
 // The runtime-only UI file substitution happens afterwards so account/routing

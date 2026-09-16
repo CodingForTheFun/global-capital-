@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import { DirectionProvider } from '@/components/theme';
 import { MobileNav, SiteFooter, SiteHeader } from '@/components/site-chrome';
 
 export const metadata: Metadata = {
@@ -19,19 +18,18 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   themeColor: '#07090e',
+  colorScheme: 'dark',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    // The direction is set here so the very first paint already has one, and
-    // the provider swaps it on the client once a saved choice is read.
-    <html lang="en" data-direction="a" suppressHydrationWarning>
+    <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Archivo:wght@600;700;800;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
         />
       </head>
       <body>
@@ -41,14 +39,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           Skip to content
         </a>
-        <DirectionProvider>
-          <SiteHeader />
-          <main id="main" className="pb-14 lg:pb-0">
-            {children}
-          </main>
-          <SiteFooter />
-          <MobileNav />
-        </DirectionProvider>
+        <SiteHeader />
+        <main id="main" className="pb-14 lg:pb-0">
+          {children}
+        </main>
+        <SiteFooter />
+        <MobileNav />
       </body>
     </html>
   );

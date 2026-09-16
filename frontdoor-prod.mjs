@@ -285,6 +285,75 @@ function batchEntry(raw) {
  * and game-log caches serve the second prop for a player from the first one's
  * fetch, and returns the finished hit rates with the list.
  */
+// PropLine's analytical endpoints, behind one route.
+//
+// Ten separate routes for ten readers would be ten things to authenticate, rate
+// limit and keep consistent. One route with a `kind` keeps the surface small and
+// the guards in a single place.
+//
+// Everything here is enrichment. A reader that fails returns available:false and
+// the page carries on, because none of this should be able to break a board.
+const PROPLINE_INSIGHTS = Object.freeze({
+  movement: (insights, q) => insights.fetchMovement(q.sport, q.eventId, { markets: q.markets }),
+  'best-line': (insights, q) => insights.fetchBestLine(q.sport, q.eventId),
+  ev: (insights, q) => insights.fetchExpectedValue(q.sport, q.eventId, { markets: q.markets, bookmakers: q.bookmakers }),
+  history: (insights, q) => insights.fetchOddsHistory(q.sport, q.eventId, { markets: q.markets }),
+  closing: (insights, q) => insights.fetchClosingLines(q.sport, q.eventId),
+  results: (insights, q) => insights.fetchResults(q.sport, q.eventId),
+  trends: (insights, q) => insights.fetchPlayerTrends(q.sport, q.playerName),
+  games: (insights, q) => insights.fetchPlayerGames(q.sport, q.playerName),
+  context: (insights, q) => insights.fetchEventContext(q.sport, q.eventId),
+  projections: (insights, q) => insights.fetchProjections(q.sport, q.eventId, { markets: q.markets }),
+});
+
+async function maybeServePropLineInsights(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/apex/propline') return false;
+  if (req.method !== 'GET') {
+    directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
+    return true;
+  }
+  // Shares the research budget rather than opening a second unmetered path.
+  if (!researchRateAllowed(req)) {
+    directJson(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many research requests. Try again shortly.' }, { 'retry-after': '60' });
+    return true;
+  }
+
+  const kind = String(url.searchParams.get('kind') || '').trim().toLowerCase();
+  const reader = PROPLINE_INSIGHTS[kind];
+  if (!reader) {
+    directJson(res, 400, { ok: false, code: 'UNKNOWN_KIND', message: 'Unknown insight requested.', kinds: Object.keys(PROPLINE_INSIGHTS) });
+    return true;
+  }
+
+  const query = {
+    sport: String(url.searchParams.get('sport') || '').trim(),
+    eventId: String(url.searchParams.get('eventId') || '').trim(),
+    playerName: String(url.searchParams.get('playerName') || '').trim(),
+    markets: String(url.searchParams.get('markets') || '').trim(),
+    bookmakers: String(url.searchParams.get('bookmakers') || '').trim(),
+  };
+  if (!query.sport) {
+    directJson(res, 400, { ok: false, code: 'SPORT_REQUIRED', message: 'A sport is required.' });
+    return true;
+  }
+
+  try {
+    const insights = await import('./lib/data-sources/propline/insights.mjs');
+    const data = await reader(insights, query);
+    if (!data) {
+      // Not an error. PropLine may be unconfigured, the sport unsupported, or
+      // the answer simply absent - all of which read the same to a customer.
+      directJson(res, 200, { ok: true, kind, available: false, data: null });
+      return true;
+    }
+    directJson(res, 200, { ok: true, kind, available: true, data });
+  } catch (error) {
+    directJson(res, 200, { ok: true, kind, available: false, data: null, code: String(error?.code || 'PROPLINE_INSIGHT_FAILED').slice(0, 60) });
+  }
+  return true;
+}
+
 async function maybeServeResearchBatch(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   if (url.pathname !== '/api/apex/research-batch') return false;
@@ -652,6 +721,7 @@ const server = http.createServer(async (req, res) => {
   if (await maybeServeAccount(req, res)) return;
   if (await maybeServeResearch(req, res)) return;
   if (await maybeServeResearchBatch(req, res)) return;
+  if (await maybeServePropLineInsights(req, res)) return;
   if (await maybeServeML(req, res)) return;
   if (await maybeServeAccuracy(req, res)) return;
   if (await maybeServeProjection(req, res)) return;

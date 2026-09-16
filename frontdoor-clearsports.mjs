@@ -12,6 +12,8 @@ import { patchLiveMainViewUi } from './lib/autoscout/live-main-view-runtime-patc
 import { patchProplineRealtimeCore, patchProplineRealtimeFrontdoor, patchProplineRealtimeUi } from './lib/autoscout/propline-realtime-runtime-patch.mjs';
 import { patchProplineMarketUi } from './lib/autoscout/propline-market-runtime-patch.mjs';
 import { patchProplineInsightsUi } from './lib/autoscout/propline-insights-runtime-patch.mjs';
+import { patchProplineFullFrontdoor, patchProplineFullUi } from './lib/autoscout/propline-full-runtime-patch.mjs';
+import { startProplineFreshnessMonitor } from './lib/data-sources/propline/full.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
 import { patchMobileNavDockUi } from './lib/autoscout/mobile-nav-dock-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
@@ -89,7 +91,8 @@ const patchedProplineMarketUi = patchProplineMarketUi(patchedRealtimeUi);
 // which earlier patches rewrite. Running after them means it matches the text
 // that actually ships rather than the text this file started with.
 const patchedProplineInsightsUi = patchProplineInsightsUi(patchedProplineMarketUi);
-writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedProplineInsightsUi), 'utf8');
+const patchedProplineFullUi = patchProplineFullUi(patchedProplineInsightsUi);
+writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedProplineFullUi), 'utf8');
 
 // Keep PropLine real-time behavior as a runtime layer over the stable data core.
 // That avoids forking the large server while still making the signed webhook and
@@ -105,7 +108,10 @@ let runtimeSource = source
 runtimeSource = patchEdgeFrontdoor(runtimeSource);
 runtimeSource = patchProfileAvatarFrontdoor(runtimeSource);
 runtimeSource = patchProplineRealtimeFrontdoor(runtimeSource);
+runtimeSource = patchProplineFullFrontdoor(runtimeSource);
 if (!runtimeSource.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the edge-patched Auto Scout UI source.');
 runtimeSource = runtimeSource.replace(uiRead, uiRuntimeRead);
 writeFileSync(runtimePath, runtimeSource, 'utf8');
 await import(pathToFileURL(runtimePath).href);
+startProplineFreshnessMonitor();
+console.log('[PropLine full] extended stats/history/markets/futures/EV/DFS/freshness/SGP surfaces ready');

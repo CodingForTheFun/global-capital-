@@ -5,27 +5,27 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, TriangleAlert } from 'lucide-react';
 import type { PropGroup, ResearchResponse } from '@/lib/types';
-import { ApiError, fetchAccount, fetchBoard, fetchResearch, playedGames } from '@/lib/api';
+import {
+  ApiError,
+  fetchAccount,
+  fetchBoard,
+  fetchLineHistory,
+  fetchResearch,
+  playedGames,
+} from '@/lib/api';
 import { teamFor } from '@/lib/teams';
-import type { Side } from '@/lib/analytics';
-import { cn, odds, shortTime } from '@/lib/utils';
+import { cn, shortTime, signed } from '@/lib/utils';
 import { Badge, Dot } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CardPanel } from '@/components/ui/card';
+import { CardPanel, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PlayerAvatar, TeamScene } from '@/components/face-card';
+import { PlayerAvatar } from '@/components/face-card';
 import { BookPrices } from '@/components/book-prices';
-import { GameLog } from '@/components/research';
+import { GameLog, PropChart, Splits, StatStrip } from '@/components/research';
 import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
 import { Reveal } from '@/components/motion';
 
-/**
- * A market whose number cannot honestly be rebuilt from a full-game box score.
- * The backend refuses to derive these (lib/data-sources/espn/stat-contract.mjs),
- * so they are priced live and carry no history — and this page says so rather
- * than showing an empty chart and letting the reader assume a provider outage.
- */
 const DERIVED_MARKET =
   /(?:\b(?:1q|2q|3q|4q|1h|2h)\b)|quarter|first half|second half|first inning|1st inning|fantasy/i;
 
@@ -53,6 +53,7 @@ export function PlayerView() {
   const [checking, setChecking] = React.useState(true);
   const [markets, setMarkets] = React.useState<PropGroup[]>([]);
   const [research, setResearch] = React.useState<ResearchResponse | null>(null);
+  const [lineHistory, setLineHistory] = React.useState<Awaited<ReturnType<typeof fetchLineHistory>>>([]);
   const [loadingBoard, setLoadingBoard] = React.useState(true);
   const [loadingResearch, setLoadingResearch] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -67,9 +68,6 @@ export function PlayerView() {
     return () => controller.abort();
   }, []);
 
-  /* The board carries the quotes, so it is what turns a URL back into a prop —
-     and it also carries every other market this player has posted, which is
-     what the market tabs are built from. */
   React.useEffect(() => {
     if (checking || !account || !player) {
       setLoadingBoard(false);
@@ -106,10 +104,8 @@ export function PlayerView() {
   }, [markets, market, postedLine]);
 
   const derived = group ? DERIVED_MARKET.test(group.market) : false;
-
   const [state, setState] = React.useState<ExplorerState>({ line: 0, side: 'OVER', book: null });
 
-  // A new market is a new line, a new book list and a fresh reading.
   React.useEffect(() => {
     if (!group) return;
     setState({ line: group.line, side: 'OVER', book: null });
@@ -129,10 +125,22 @@ export function PlayerView() {
       .catch(() => setResearch(null))
       .finally(() => setLoadingResearch(false));
     return () => controller.abort();
-    // The side is part of the request, but the sample it returns is the same
-    // set of games either way, so only the group drives a refetch.
+    // Research samples are the same games for either side. The selected side
+    // changes the local reading of those games without spending another request.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group?.key, derived]);
+
+  React.useEffect(() => {
+    if (!group?.propId) {
+      setLineHistory([]);
+      return;
+    }
+    const controller = new AbortController();
+    fetchLineHistory(group.propId, controller.signal)
+      .then(setLineHistory)
+      .catch(() => setLineHistory([]));
+    return () => controller.abort();
+  }, [group?.propId]);
 
   function selectMarket(next: PropGroup) {
     const search = new URLSearchParams({
@@ -150,7 +158,7 @@ export function PlayerView() {
       try {
         localStorage.setItem(FAVOURITES_KEY, JSON.stringify(next));
       } catch {
-        /* a followed prop is a per-device convenience, never required */
+        /* following a prop is a convenience, not a rendering dependency */
       }
       return next;
     });
@@ -159,7 +167,7 @@ export function PlayerView() {
   if (checking) {
     return (
       <Shell>
-        <Skeleton className="mt-4 h-40 rounded-[var(--radius-lg)]" />
+        <Skeleton className="mt-4 h-32 rounded-[var(--radius-lg)]" />
       </Shell>
     );
   }
@@ -183,19 +191,20 @@ export function PlayerView() {
   if (loadingBoard && !group) {
     return (
       <Shell>
-        <Skeleton className="mt-4 h-40 rounded-[var(--radius-lg)]" />
-        <Skeleton className="mt-4 h-12 rounded-full" />
-        <Skeleton className="mt-4 h-[460px] rounded-[var(--radius)]" />
+        <Skeleton className="mt-4 h-32 rounded-[var(--radius-lg)]" />
+        <div className="mt-4 grid grid-cols-4 gap-2 md:grid-cols-7">
+          {Array.from({ length: 7 }).map((_, index) => (
+            <Skeleton key={index} className="h-20 rounded-[var(--radius)]" />
+          ))}
+        </div>
+        <Skeleton className="mt-4 h-[420px] rounded-[var(--radius)]" />
       </Shell>
     );
   }
   if (!group) {
     return (
       <Shell>
-        <Empty
-          title="That prop is no longer posted"
-          body={error || 'The market may have settled or been pulled from the board.'}
-        />
+        <Empty title="That prop is no longer posted" body={error || 'The market may have settled or been pulled.'} />
       </Shell>
     );
   }
@@ -204,42 +213,39 @@ export function PlayerView() {
   const kickoff = shortTime(group.startsAt);
   const games = playedGames(research);
   const favourite = favourites.includes(group.key);
+  const displayLine = state.line === 0 && group.line !== 0 ? group.line : state.line;
+  const movement = [...lineHistory]
+    .map((point) => ({
+      line: Number(point.line),
+      time: point.recordedAt || point.capturedAt || '',
+      book: point.bookmakerKey || '',
+    }))
+    .filter((point) => Number.isFinite(point.line))
+    .sort((a, b) => Date.parse(a.time || '1970-01-01') - Date.parse(b.time || '1970-01-01'));
+  const openLine = movement.length ? movement[0].line : null;
+  const lineDelta = openLine === null ? null : displayLine - openLine;
 
   return (
     <Shell>
-      {/* ---------------------------------------------------------- hero */}
       <Reveal>
-        <div className="face mt-4 p-5 md:p-6">
-          <TeamScene team={group.team} tall />
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="relative flex-none">
-              <PlayerAvatar
-                name={group.player}
-                sport={group.sport}
-                team={group.team}
-                providerPlayerId={group.providerPlayerId}
-                size={76}
-              />
-              {/* the club badge, in that club's own colour */}
-              <span
-                aria-hidden="true"
-                className="absolute -right-1 -bottom-1 grid size-7 place-items-center rounded-full border-2 border-[var(--face-1)] text-[9px] font-extrabold text-white"
-                style={{ background: club.c1 }}
-              >
-                {(group.team || '—').slice(0, 3)}
-              </span>
-            </span>
+        <CardPanel className="mt-4 p-5 sm:p-6">
+          <div className="grid items-center gap-5 sm:grid-cols-[auto_minmax(0,1fr)_auto]">
+            <PlayerAvatar
+              name={group.player}
+              sport={group.sport}
+              team={group.team}
+              providerPlayerId={group.providerPlayerId}
+              size={78}
+            />
 
-            <div className="min-w-0 flex-1">
-              <h1
-                className="text-[length:var(--fs-xl)] text-balance sm:text-[length:var(--fs-2xl)]"
-                style={{ textTransform: 'var(--display-case)' as 'none' }}
-              >
+            <div className="min-w-0">
+              <h1 className="font-display text-[length:var(--fs-2xl)] tracking-tight normal-case">
                 {group.player}
               </h1>
-              <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-xs)] text-[var(--face-text-2)] sm:text-[length:var(--fs-sm)]">
-                <span className="truncate font-semibold">{club.name}</span>
-                <span aria-hidden="true">·</span>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[length:var(--fs-sm)] text-[var(--text-3)]">
+                <Badge>{group.sport}</Badge>
+                {group.team && <span>{group.team}</span>}
+                {group.team && <span aria-hidden="true">·</span>}
                 <span>{group.matchup}</span>
                 {kickoff && (
                   <>
@@ -247,91 +253,117 @@ export function PlayerView() {
                     <span>{kickoff}</span>
                   </>
                 )}
-              </p>
+                {group.live && (
+                  <Badge variant="live">
+                    <Dot pulse /> Live
+                  </Badge>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              {group.live && (
-                <Badge variant="live" size="md">
-                  <Dot pulse />
-                  Live
-                </Badge>
+            <div className="border-t border-[var(--line)] pt-4 text-left sm:border-0 sm:pt-0 sm:text-right">
+              <div className="text-[length:var(--fs-micro)] font-medium uppercase tracking-[.14em] text-[var(--text-3)]">
+                {group.market}
+              </div>
+              <div className="num mt-1 text-[length:var(--fs-2xl)] font-bold tracking-tight">{displayLine}</div>
+              {lineDelta !== null && lineDelta !== 0 && (
+                <div className={cn('num mt-1 text-[length:var(--fs-xs)]', lineDelta > 0 ? 'text-[var(--pos)]' : 'text-[var(--neg)]')}>
+                  {lineDelta > 0 ? '▲' : '▼'} {Math.abs(lineDelta).toFixed(1)} since open
+                </div>
               )}
-              <Badge size="md">{group.sport}</Badge>
             </div>
           </div>
-
-          {/* best price on the board, at a glance */}
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius)] border border-[var(--face-line)] bg-[color-mix(in_srgb,var(--face-1)_72%,transparent)] p-4">
-            <div className="min-w-0">
-              <p className="truncate text-[length:var(--fs-sm)] font-semibold">{group.market}</p>
-              <p className="text-[length:var(--fs-micro)] text-[var(--face-text-3)]">
-                Best of {new Set(group.quotes.map((q) => q.sportsbookKey || q.sportsbook)).size} books
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="num text-[length:var(--fs-2xl)] font-bold tracking-tight">
-                {group.line}
-              </span>
-              <span className="grid gap-1 text-right">
-                <span className="num text-[length:var(--fs-sm)] font-semibold text-[var(--face-pos)]">
-                  O {odds(group.bestOver?.price)}
-                </span>
-                <span className="num text-[length:var(--fs-sm)] font-semibold text-[var(--face-neg)]">
-                  U {odds(group.bestUnder?.price)}
-                </span>
-              </span>
-            </div>
-          </div>
-        </div>
+        </CardPanel>
       </Reveal>
 
-      {/* --------------------------------------------------- market tabs */}
-      {markets.length > 1 && (
-        <div className="mt-4">
-          <div className="rail" role="tablist" aria-label="Markets for this player">
-            {markets.map((candidate) => {
-              const active = candidate.key === group.key;
-              return (
-                <button
-                  key={candidate.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => selectMarket(candidate)}
-                  className={cn(
-                    'flex min-h-11 flex-none items-center gap-2 rounded-full border px-4',
-                    'text-[length:var(--fs-xs)] font-semibold whitespace-nowrap',
-                    'transition-[color,background-color,border-color,transform] duration-200 ease-[var(--ease-out)] active:scale-[.97]',
-                    active
-                      ? 'border-transparent bg-[var(--accent)] text-[var(--accent-ink)]'
-                      : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)]',
-                  )}
-                >
-                  {candidate.market}
-                  <span className={cn('num', active ? 'opacity-80' : 'text-[var(--text-3)]')}>
-                    {candidate.line}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      <StatStrip research={research} line={displayLine} loading={loadingResearch && !derived} />
+
+      {research?.available === false && !derived && !loadingResearch && (
+        <p className="mt-4 flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_36%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
+          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          {research.message || 'No verified history is available for this player and market yet.'}
+        </p>
       )}
 
-      {/* ----------------------------------------------------- explorer */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(330px,.95fr)] lg:items-start">
+        <div className="min-w-0">
+          <Reveal>
+            <PropChart
+              games={games}
+              line={displayLine}
+              side={state.side}
+              market={group.market}
+              loading={loadingResearch && !derived}
+            />
+          </Reveal>
+          <Reveal delay={60}>
+            <GameLog
+              games={games}
+              line={displayLine}
+              market={group.market}
+              loading={loadingResearch && !derived}
+            />
+          </Reveal>
+        </div>
+
+        <div className="min-w-0">
+          <Reveal>
+            <BookPrices group={group} />
+          </Reveal>
+          <Reveal delay={60}>
+            <LineMovement points={movement} currentLine={displayLine} />
+          </Reveal>
+          <Reveal delay={100}>
+            <Splits research={research} />
+          </Reveal>
+        </div>
+      </div>
+
       <Reveal>
         <CardPanel className="mt-4 p-4 sm:p-5">
-          <h2 className="mb-4 text-[length:var(--fs-lg)] tracking-tight normal-case">
-            {group.market}
-          </h2>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[length:var(--fs-lg)] tracking-tight normal-case">Research controls</h2>
+              <p className="mt-1 text-[length:var(--fs-xs)] text-[var(--text-3)]">
+                Adjust the line, side, sportsbook and filters without changing the verified sample.
+              </p>
+            </div>
+          </div>
+
+          {markets.length > 1 && (
+            <div className="rail mb-4" role="tablist" aria-label="Markets for this player">
+              {markets.map((candidate) => {
+                const active = candidate.key === group.key;
+                return (
+                  <button
+                    key={candidate.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => selectMarket(candidate)}
+                    className={cn(
+                      'flex min-h-10 flex-none items-center gap-2 rounded-full border px-4',
+                      'text-[length:var(--fs-xs)] font-semibold whitespace-nowrap',
+                      active
+                        ? 'border-transparent bg-[var(--accent)] text-[var(--accent-ink)]'
+                        : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)]',
+                    )}
+                  >
+                    {candidate.market}
+                    <span className="num opacity-75">{candidate.line}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <PropExplorer
             group={group}
             games={games}
             loading={loadingResearch}
             unavailableReason={
               derived
-                ? 'A first-half, quarter or fantasy-score number cannot be rebuilt from a full-game box score, so Oblige does not try. This market is priced live, and every book above is real — there is simply no verified history behind it.'
+                ? 'This market cannot be rebuilt honestly from a full-game box score, so Oblige keeps the live price but does not invent historical results.'
                 : research && research.available === false
                   ? research.message || 'No verified game log is available for this player and market yet.'
                   : null
@@ -343,42 +375,67 @@ export function PlayerView() {
           />
         </CardPanel>
       </Reveal>
-
-      {research?.available === false && !derived && !loadingResearch && (
-        <p className="mt-4 flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_36%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-          {research.message || 'No verified history is available for this player and market yet.'}
-        </p>
-      )}
-
-      {/* ------------------------------------------------ detail columns */}
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,.8fr)] lg:items-start">
-        <div className="min-w-0">
-          <Reveal>
-            <GameLog
-              games={games}
-              line={state.line}
-              market={group.market}
-              loading={loadingResearch && !derived}
-            />
-          </Reveal>
-        </div>
-        <div className="min-w-0">
-          <Reveal>
-            <BookPrices group={group} />
-          </Reveal>
-        </div>
-      </div>
     </Shell>
+  );
+}
+
+function LineMovement({
+  points,
+  currentLine,
+}: {
+  points: { line: number; time: string; book: string }[];
+  currentLine: number;
+}) {
+  const shown = points.slice(-6).reverse();
+  return (
+    <CardPanel className="mt-4">
+      <CardHeader>
+        <CardTitle>Line movement</CardTitle>
+        <span className="text-[length:var(--fs-xs)] text-[var(--text-3)]">Since open</span>
+      </CardHeader>
+      {!shown.length ? (
+        <p className="py-7 text-center text-[length:var(--fs-sm)] text-[var(--text-3)]">
+          No verified line history is available for this prop yet.
+        </p>
+      ) : (
+        <div className="grid gap-2">
+          {shown.map((point, index) => {
+            const label = index === shown.length - 1 ? 'Open' : index === 0 ? 'Latest' : 'Move';
+            const when = point.time ? shortTime(point.time) : '';
+            const delta = point.line - currentLine;
+            return (
+              <div
+                key={`${point.time}-${point.line}-${index}`}
+                className="flex items-center justify-between gap-4 rounded-[var(--radius-sm)] border border-[var(--line)] bg-[var(--surface-2)] px-3 py-3"
+              >
+                <div className="min-w-0 text-[length:var(--fs-xs)] text-[var(--text-3)]">
+                  <span>{label}</span>
+                  {when && <span> · {when}</span>}
+                  {point.book && <span> · {point.book}</span>}
+                </div>
+                <div className="num shrink-0 font-semibold">
+                  {point.line}
+                  {delta !== 0 && (
+                    <span className={cn('ml-2 text-[length:var(--fs-micro)]', delta < 0 ? 'text-[var(--pos)]' : 'text-[var(--neg)]')}>
+                      {signed(point.line - currentLine)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </CardPanel>
   );
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-[var(--maxw)] px-4 pt-6 pb-16 md:px-8">
+    <div className="mx-auto w-full max-w-[var(--maxw)] px-4 pt-4 pb-16 md:px-8">
       <Link
         href="/board"
-        className="inline-flex min-h-10 items-center gap-2 text-[length:var(--fs-sm)] text-[var(--text-2)] transition-colors duration-200 ease-[var(--ease-out)] hover:text-[var(--text)]"
+        className="inline-flex min-h-9 items-center gap-2 text-[length:var(--fs-xs)] text-[var(--text-3)] transition-colors duration-200 hover:text-[var(--text)]"
       >
         <ChevronLeft className="size-4" aria-hidden="true" />
         Back to board

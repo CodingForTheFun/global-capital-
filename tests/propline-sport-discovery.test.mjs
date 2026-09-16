@@ -31,8 +31,21 @@ test('every other soccer competition lands on the generic soccer board', () => {
   }
 });
 
-test('sports this product does not model return null rather than a wrong home', () => {
-  for (const key of ['darts', 'snooker', 'cycling', 'badminton', 'volleyball']) {
+test('the long tail PropLine actually covers is mapped, not discarded', () => {
+  // These were unmapped on the assumption the product did not model them. It
+  // serves every one of them today from a single DFS book, so mapping them is
+  // what turns a PrizePicks-only line into a comparable one.
+  assert.equal(matchProplineSport('darts'), 'DARTS');
+  assert.equal(matchProplineSport('cricket'), 'CRICKET');
+  assert.equal(matchProplineSport('esports'), 'ESPORTS');
+  assert.equal(matchProplineSport('golf'), 'PGA');
+  assert.equal(matchProplineSport('mma_ufc'), 'MMA');
+  assert.equal(matchProplineSport('football_cfl'), 'CFL');
+  assert.equal(matchProplineSport('aussie_rules_afl'), 'AFL');
+});
+
+test('a key PropLine does not publish still returns null rather than a wrong home', () => {
+  for (const key of ['quidditch', 'not_a_sport', 'basketball_fantasy']) {
     assert.equal(matchProplineSport(key), null, `${key} must not be forced onto a board`);
   }
   assert.equal(matchProplineSport(''), null);

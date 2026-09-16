@@ -82,15 +82,19 @@ test('a graded result carries the actual box-score value', () => {
 });
 
 test('a hit rate is never reported without its sample size', () => {
-  const { windows } = normalizeTrends({ trends: { l5: { games: 5, over: 4 }, l10: { games: 10, over: 7, hit_rate: 0.7 } } });
-  assert.equal(windows.l5.hitRate, 0.8);
-  assert.equal(windows.l5.games, 5, 'a rate without a sample is not a fact');
-  assert.equal(windows.l10.hitRate, 0.7);
+  // Shape verified against a live response: one row per market, snake_case
+  // windows. The flat {l5, l10} object this originally asserted never existed.
+  const { markets } = normalizeTrends({ markets: [
+    { market: 'player_points', last_5: { games: 5, over: 4 }, last_10: { games: 10, over: 7, hit_rate: 0.7 } },
+  ] });
+  assert.equal(markets[0].windows.l5.hitRate, 0.8);
+  assert.equal(markets[0].windows.l5.games, 5, 'a rate without a sample is not a fact');
+  assert.equal(markets[0].windows.l10.hitRate, 0.7);
 });
 
-test('a malformed trends payload yields no windows rather than throwing', () => {
-  for (const input of [null, 'nonsense', { trends: { notawindow: {} } }]) {
-    assert.deepEqual(normalizeTrends(input).windows, {});
+test('a malformed trends payload yields no markets rather than throwing', () => {
+  for (const input of [null, 'nonsense', { markets: [{ notamarket: true }] }, { markets: 'no' }]) {
+    assert.deepEqual(normalizeTrends(input).markets, []);
   }
 });
 

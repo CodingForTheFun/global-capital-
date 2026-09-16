@@ -2,7 +2,20 @@ name: Auto Scout integrated release
 on:
   pull_request:
     branches: [production-stable]
-    paths: ['lib/edge/**', 'lib/ui/research-home.mjs', 'public/autoscout-home*', 'scripts/prepare-edge-deploy.mjs', 'scripts/verify-research-home.mjs', 'frontdoor-clearsports.mjs', 'Dockerfile', '.github/workflows/edge-release.yml']
+    paths:
+      - 'lib/edge/**'
+      - 'lib/ui/research-home.mjs'
+      - 'lib/autoscout/propline-*-runtime-patch.mjs'
+      - 'lib/data-sources/propline/**'
+      - 'public/autoscout-home*'
+      - 'scripts/prepare-edge-deploy.mjs'
+      - 'scripts/verify-research-home.mjs'
+      - 'scripts/test-intelligence-browser.mjs'
+      - 'scripts/qa-prop-ml.mjs'
+      - 'tests/propline-*.test.mjs'
+      - 'frontdoor-clearsports.mjs'
+      - 'Dockerfile'
+      - '.github/workflows/edge-release.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,10 +36,14 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Account, research, saved-prop and legacy-link regression
         run: node scripts/verify-research-home.mjs
-      - name: Intelligence and ML/Taco regression
+      - name: Intelligence browser regression
+        run: node scripts/test-intelligence-browser.mjs
+      - name: ML and Taco browser regression
+        shell: bash
         run: |
-          node scripts/test-intelligence-browser.mjs
-          node scripts/qa-prop-ml.mjs
+          mkdir -p validation-output/ml
+          set -o pipefail
+          node scripts/qa-prop-ml.mjs 2>&1 | tee validation-output/ml/qa.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -34,4 +51,5 @@ jobs:
           path: |
             artifacts/
             test-results/intelligence/
+            validation-output/ml/
           retention-days: 3

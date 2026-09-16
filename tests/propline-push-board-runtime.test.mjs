@@ -8,12 +8,16 @@ test('push-board core patch records webhook events and overlays customer props',
     "if (url.pathname === PROPLINE_WEBHOOK_PATH) return handleProplineWebhook(req, res, { onEvent: handleProplineRealtimeEvent });",
     "const rawBoard = await fetchUnifiedBoard(sport, { signal: controller.signal, includeAlternates });",
     "const health = { proplineWebhook: proplineWebhookHealth(), proplineRealtime: proplineRealtimeHealth() };",
+    "startProplineRealtime();",
   ].join('\n');
   const patched = patchProplinePushBoardCore(source);
   assert.match(patched, /live-board-overlay\.mjs/);
+  assert.match(patched, /delivery-health\.mjs/);
   assert.match(patched, /recordProplineLiveBoardEvent\(event\)/);
   assert.match(patched, /applyProplineLiveBoardOverlay\(await fetchUnifiedBoard/);
   assert.match(patched, /proplinePushBoard: proplineLiveBoardOverlayHealth\(\)/);
+  assert.match(patched, /proplineDeliveries: proplineDeliveryHealth\(\)/);
+  assert.match(patched, /startProplineDeliveryHealthMonitor\(\)/);
 });
 
 test('push-board UI watcher only watches local live-move state and refreshes the existing board', () => {

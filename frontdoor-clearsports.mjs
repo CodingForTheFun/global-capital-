@@ -53,13 +53,13 @@ function makeClientSafeVisualUi(source) {
   const avatarClient = patchProfileAvatarUi(scopedVisualClient);
   const client = patchMobileNavDockUi(avatarClient);
   try { new Function(client); }
-  catch (error) { throw new Error(`Auto Scout client bundle is invalid: ${error?.message || error}`); }
+  catch (error) { throw new Error(`Oblige Props client bundle is invalid: ${error?.message || error}`); }
   return client;
 }
 
 const source = readFileSync(sourcePath, 'utf8');
 if (!source.includes(oldImport)) throw new Error('ClearSports bootstrap could not locate the research-service import.');
-if (!source.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the Auto Scout v5 UI source.');
+if (!source.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the Oblige Props v5 UI source.');
 if (!source.includes(researchSports)) throw new Error('ClearSports bootstrap could not locate the research sport allowlist.');
 const patchedResearchUi = patchResearchUi(readFileSync(uiSourcePath, 'utf8'));
 const patchedFantasyH2HUi = patchFantasyH2HUi(patchedResearchUi);

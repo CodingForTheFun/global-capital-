@@ -1,0 +1,1 @@
+premium-deploy-after-service-setup

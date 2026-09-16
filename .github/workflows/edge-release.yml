@@ -39,7 +39,11 @@ jobs:
       - name: Intelligence browser regression
         run: node scripts/test-intelligence-browser.mjs
       - name: ML and Taco browser regression
-        run: node scripts/qa-prop-ml.mjs
+        shell: bash
+        run: |
+          mkdir -p validation-output/ml
+          set -o pipefail
+          node scripts/qa-prop-ml.mjs 2>&1 | tee validation-output/ml/qa.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

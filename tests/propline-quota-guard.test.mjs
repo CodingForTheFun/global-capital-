@@ -17,6 +17,11 @@ test('the shared PropLine client protects the daily reserve before another reque
     __resetProplineClient();
     process.env.PROPLINE_API_KEY = 'test-key';
     process.env.PROPLINE_RESERVE_PERCENT = '10';
+    // Relative to now, never absolute. This previously hardcoded 1789516800,
+    // which was a future reset when the test was written and became a past one
+    // at 2026-09-16T00:00:00Z. Once the reset is in the past the guard correctly
+    // reopens, the expected rejection never comes, and the test fails for good.
+    const resetSeconds = Math.floor(Date.now() / 1000) + 3600;
     let calls = 0;
     const fetcher = async () => {
       calls += 1;
@@ -24,7 +29,7 @@ test('the shared PropLine client protects the daily reserve before another reque
         'x-daily-limit': '250000',
         'x-daily-used': '225000',
         'x-daily-remaining': '25000',
-        'x-daily-reset': '1789516800',
+        'x-daily-reset': String(resetSeconds),
       });
     };
 

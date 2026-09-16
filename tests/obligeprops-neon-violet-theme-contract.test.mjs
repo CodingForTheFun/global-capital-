@@ -22,6 +22,7 @@ test('neon violet is the Oblige Props brand color while data semantics stay dist
   assert.match(themeSource, /@media\(max-width:700px\)/);
   assert.match(themeSource, /Oblige Props neon-violet landing palette/);
   assert.match(themeSource, /Oblige Props neon-violet public-home palette/);
+  assert.match(themeSource, /lib\/web\/public-surface\.mjs/);
 });
 
 test('production preparation applies the violet pass after the existing presentation system', () => {
@@ -34,16 +35,18 @@ test('production preparation applies the violet pass after the existing presenta
 test('violet theme patch is idempotent and only changes presentation surfaces', () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'oblige-violet-'));
   try {
-    for (const dir of ['lib/autoscout', 'lib/auth', 'public']) mkdirSync(path.join(root, dir), { recursive: true });
+    for (const dir of ['lib/autoscout', 'lib/auth', 'lib/web', 'public']) mkdirSync(path.join(root, dir), { recursive: true });
 
     const runtime = path.join(root, 'lib/autoscout/oblige-props-visual-runtime-patch.mjs');
     const landing = path.join(root, 'lib/auth/landing.mjs');
+    const publicSurface = path.join(root, 'lib/web/public-surface.mjs');
     const homeCss = path.join(root, 'public/home-v2.css');
     const homeHtml = path.join(root, 'public/index.html');
     const manifest = path.join(root, 'public/manifest.webmanifest');
 
     writeFileSync(runtime, 'export const css = `<style>BASE</style>`;\n');
     writeFileSync(landing, 'export const html = `<style>BASE</style></head><body>`;\n');
+    writeFileSync(publicSurface, 'const tags = [`<meta name="theme-color" content="#070d18">`];\nconst manifest = {\n  background_color: \'#070d18\',\n  theme_color: \'#070d18\',\n};\n');
     writeFileSync(homeCss, ':root{--green:#62e6c8}\n');
     writeFileSync(homeHtml, '<meta name="theme-color" content="#07111f" />\n');
     writeFileSync(manifest, '{\n  "background_color": "#0a101b",\n  "theme_color": "#0a101b"\n}\n');
@@ -57,6 +60,9 @@ test('violet theme patch is idempotent and only changes presentation surfaces', 
     assert.match(readFileSync(homeHtml, 'utf8'), /#090313/);
     assert.match(readFileSync(manifest, 'utf8'), /"background_color": "#05020b"/);
     assert.match(readFileSync(manifest, 'utf8'), /"theme_color": "#090313"/);
+    assert.match(readFileSync(publicSurface, 'utf8'), /<meta name="theme-color" content="#090313">/);
+    assert.match(readFileSync(publicSurface, 'utf8'), /background_color: '#05020b'/);
+    assert.match(readFileSync(publicSurface, 'utf8'), /theme_color: '#090313'/);
 
     const second = applyObligePropsNeonVioletTheme(root);
     assert.equal(second.applied, false);

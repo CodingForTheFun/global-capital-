@@ -6,6 +6,7 @@ const LANDING = 'lib/auth/landing.mjs';
 const HOME_CSS = 'public/home-v2.css';
 const HOME_HTML = 'public/index.html';
 const MANIFEST = 'public/manifest.webmanifest';
+const PUBLIC_SURFACE = 'lib/web/public-surface.mjs';
 
 const RUNTIME_MARKER = '/* Oblige Props neon-violet brand palette. */';
 const LANDING_MARKER = '/* Oblige Props neon-violet landing palette. */';
@@ -142,6 +143,18 @@ footer{border-color:rgba(157,94,215,.29);color:#a894bd}`;
     output = replaceRequired(output, '"theme_color": "#0a101b"', '"theme_color": "#090313"', 'manifest theme color');
     if (output !== source) {
       writeFileSync(manifestFile, output, 'utf8');
+      changed = true;
+    }
+  }
+
+  const publicSurfaceFile = path.join(root, PUBLIC_SURFACE);
+  if (existsSync(publicSurfaceFile)) {
+    const source = readFileSync(publicSurfaceFile, 'utf8');
+    let output = replaceRequired(source, '<meta name="theme-color" content="#070d18">', '<meta name="theme-color" content="#090313">', 'public surface theme meta');
+    output = replaceRequired(output, "background_color: '#070d18',", "background_color: '#05020b',", 'public surface manifest background');
+    output = replaceRequired(output, "theme_color: '#070d18',", "theme_color: '#090313',", 'public surface manifest theme');
+    if (output !== source) {
+      writeFileSync(publicSurfaceFile, output, 'utf8');
       changed = true;
     }
   }

@@ -1,14 +1,26 @@
-// Stripe exists here for the one thing PayPal cannot cover: hosted Checkout
-// renders Apple Pay and Google Pay natively. The money-safety rules are
-// identical to the PayPal path, and these tests pin them.
+// Stripe exists here for hosted Checkout, including native Apple Pay and Google
+// Pay when supported. The money-safety rules are identical to the PayPal path,
+// and these tests pin them.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { stripeConfig, stripeConfigured, verifyWebhookSignature, ACTIVE_SUBSCRIPTION_STATUSES } from '../payments/stripe.mjs';
+import {
+  stripeConfig,
+  stripeConfigured,
+  stripePriceIdForPlan,
+  normalizeStripeBillingPlan,
+  verifyWebhookSignature,
+  ACTIVE_SUBSCRIPTION_STATUSES,
+} from '../payments/stripe.mjs';
 
 const SECRET = 'whsec_testsecretvalue';
-const clear = () => { for (const k of ['STRIPE_SECRET_KEY','STRIPE_PRICE_ID','STRIPE_WEBHOOK_SECRET','BILLING_ENABLED']) delete process.env[k]; };
+const clear = () => {
+  for (const k of [
+    'STRIPE_SECRET_KEY','STRIPE_PRICE_ID','STRIPE_PRICE_MONTHLY_ID',
+    'STRIPE_PRICE_QUARTERLY_ID','STRIPE_PRICE_ANNUAL_ID','STRIPE_WEBHOOK_SECRET','BILLING_ENABLED',
+  ]) delete process.env[k];
+};
 const sign = (ts, body, secret = SECRET) => crypto.createHmac('sha256', secret).update(`${ts}.${body}`).digest('hex');
 const nowSec = () => Math.floor(Date.now() / 1000);
 
@@ -17,6 +29,7 @@ test('with nothing configured Stripe is inert', () => {
   const c = stripeConfig();
   assert.equal(c.enabled, false);
   assert.equal(c.credentialsConfigured, false);
+  assert.equal(c.launchConfigured, false);
   assert.equal(stripeConfigured(), false);
 });
 
@@ -30,6 +43,32 @@ test('credentials alone can never start charging', () => {
   assert.equal(c.enabled, false, 'BILLING_ENABLED must be a separate deliberate act');
   process.env.BILLING_ENABLED = 'true';
   assert.equal(stripeConfig().enabled, true);
+  clear();
+});
+
+test('the legacy price id remains the monthly fallback during migration', () => {
+  clear();
+  process.env.STRIPE_PRICE_ID = 'price_legacy';
+  assert.equal(stripePriceIdForPlan('monthly'), 'price_legacy');
+  process.env.STRIPE_PRICE_MONTHLY_ID = 'price_monthly';
+  assert.equal(stripePriceIdForPlan('monthly'), 'price_monthly');
+  clear();
+});
+
+test('three configured cadences are explicit and client input cannot become a price id', () => {
+  clear();
+  process.env.STRIPE_SECRET_KEY = 'sk_live_abc';
+  process.env.STRIPE_WEBHOOK_SECRET = SECRET;
+  process.env.STRIPE_PRICE_MONTHLY_ID = 'price_monthly';
+  process.env.STRIPE_PRICE_QUARTERLY_ID = 'price_quarterly';
+  process.env.STRIPE_PRICE_ANNUAL_ID = 'price_annual';
+  const c = stripeConfig();
+  assert.equal(c.launchConfigured, true);
+  assert.deepEqual(c.configuredPlans, ['monthly', 'quarterly', 'annual']);
+  assert.equal(stripePriceIdForPlan('quarterly'), 'price_quarterly');
+  assert.equal(stripePriceIdForPlan('price_attacker'), null);
+  assert.equal(normalizeStripeBillingPlan('annual', null), 'annual');
+  assert.equal(normalizeStripeBillingPlan('price_attacker', null), null);
   clear();
 });
 
@@ -63,6 +102,7 @@ test('config never leaks the secret key', () => {
   process.env.STRIPE_WEBHOOK_SECRET = SECRET;
   const serialized = JSON.stringify(stripeConfig());
   assert.ok(!serialized.includes('SUPERSECRETVALUE'), 'the key must never reach a response body');
+  assert.ok(!serialized.includes(SECRET), 'the webhook secret must never reach a response body');
   clear();
 });
 
@@ -88,7 +128,6 @@ test('a replayed old delivery is rejected even with a real signature', () => {
 
 test('a short signature is rejected without throwing', () => {
   const ts = nowSec();
-  // timingSafeEqual throws on mismatched lengths; that would crash the endpoint.
   assert.equal(verifyWebhookSignature({ header: `t=${ts},v1=abc`, rawBody: '{}', secret: SECRET }).reason, 'BAD_SIGNATURE');
 });
 
@@ -114,11 +153,26 @@ test('the account is taken from the signed session, never the request body', () 
   const routes = readFileSync(new URL('../lib/billing/stripe-routes.mjs', import.meta.url), 'utf8');
   assert.match(routes, /accountId: auth\.user\.id/);
   assert.match(stripe, /form\.set\('client_reference_id', id\)/);
+  assert.match(stripe, /subscription_data\[metadata\]\[accountId\]/,
+    'subscription lifecycle events must retain the server-derived account reference');
+});
+
+test('checkout uses the real session token for CSRF and blocks duplicate Pro checkout', () => {
+  const routes = readFileSync(new URL('../lib/billing/stripe-routes.mjs', import.meta.url), 'utf8');
+  assert.match(routes, /csrfValid\(auth\.token, req\.headers\['x-csrf-token'\], secret\)/);
+  assert.doesNotMatch(routes, /csrfValid\(req, secret\)/);
+  assert.match(routes, /current\?\.plan\?\.id === 'pro'/);
+  assert.match(routes, /SUBSCRIPTION_EXISTS/);
+});
+
+test('checkout accepts only a cadence key and never a browser-supplied Stripe price id', () => {
+  const routes = readFileSync(new URL('../lib/billing/stripe-routes.mjs', import.meta.url), 'utf8');
+  assert.match(routes, /normalizeStripeBillingPlan\(body\?\.plan, null\)/);
+  assert.match(routes, /config\.configuredPlans\.includes\(plan\)/);
+  assert.doesNotMatch(routes, /body\?\.priceId|body\.priceId/);
 });
 
 test('the frontdoor patch does not reference bindings before they exist', () => {
-  // A forward reference in the generated header crashes the container at boot.
-  // That failure mode has taken this site down twice.
   const patch = readFileSync(new URL('../lib/edge/frontdoor-patch.mjs', import.meta.url), 'utf8');
   const header = JSON.parse('"' + patch.match(/let output = "(.*?)" \+ source;/s)[1] + '"');
   assert.match(header, /import \{ createStripeBillingHandler \}/, 'the handler must be imported');

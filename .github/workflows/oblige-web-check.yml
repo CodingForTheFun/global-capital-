@@ -1,0 +1,40 @@
+name: Oblige Props Vercel frontend
+
+on:
+  pull_request:
+    branches: [production-stable]
+    paths:
+      - 'apps/oblige-web/**'
+      - '.github/workflows/oblige-web-check.yml'
+  push:
+    branches: [production-stable]
+    paths:
+      - 'apps/oblige-web/**'
+      - '.github/workflows/oblige-web-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
+        working-directory: apps/oblige-web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Set up Node 20
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+      - name: Install frontend dependencies
+        run: npm install --no-audit --no-fund
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build Next.js frontend
+        env:
+          OBLIGE_BACKEND_ORIGIN: https://autoprop-live-production.up.railway.app
+        run: npm run build

@@ -77,18 +77,58 @@ function setHealthValue(id, healthy, text) {
   el.classList.toggle('health-bad', healthy === false);
 }
 
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function probeHealth(path, retries = 2) {
+  let last = { reachable: false, healthy: false, data: null };
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store' });
+      const data = await response.json().catch(() => null);
+      last = {
+        reachable: true,
+        healthy: response.ok && data?.ok !== false,
+        data,
+      };
+      if (last.healthy || response.status < 500 || attempt === retries) return last;
+    } catch {
+      last = { reachable: false, healthy: false, data: null };
+      if (attempt === retries) return last;
+    }
+    await wait(350 * (attempt + 1));
+  }
+  return last;
+}
+
 async function loadHealth() {
-  const [app, acct] = await Promise.all([
-    request('/api/health').catch(() => null),
-    request('/api/account/health').catch(() => null),
+  const [appProbe, accountProbe] = await Promise.all([
+    probeHealth('/api/health'),
+    probeHealth('/api/account/health'),
   ]);
-  const ok = Boolean(app?.ok);
-  $('systemBadge').className = `system-badge ${ok ? 'ok' : 'bad'}`;
-  $('systemBadge').querySelector('span').textContent = ok ? 'SYSTEM ONLINE' : 'NEEDS ATTENTION';
-  setHealthValue('healthApp', ok, ok ? 'Healthy' : 'Unavailable');
-  setHealthValue('healthAccounts', Boolean(acct?.ok), acct?.ok ? 'Ready' : 'Unavailable');
-  setHealthValue('healthAsk', acct?.features?.ask !== false, acct?.features?.ask ? 'Enabled' : 'Not enabled');
-  setHealthValue('healthProjections', acct?.features?.projections !== false, acct?.features?.projections ? 'Enabled' : 'Not enabled');
+  const app = appProbe.data;
+  const acct = accountProbe.data;
+  const badge = $('systemBadge');
+
+  if (appProbe.healthy) {
+    badge.className = 'system-badge ok';
+    badge.querySelector('span').textContent = 'SYSTEM ONLINE';
+  } else if (appProbe.reachable) {
+    badge.className = 'system-badge bad';
+    badge.querySelector('span').textContent = 'NEEDS ATTENTION';
+  } else {
+    // A missing health response is unknown, not proof that production is down.
+    // Keep the badge neutral and retry on the normal dashboard refresh cycle.
+    badge.className = 'system-badge';
+    badge.querySelector('span').textContent = 'STATUS UNAVAILABLE';
+  }
+
+  setHealthValue('healthApp', appProbe.healthy, appProbe.healthy ? 'Healthy' : appProbe.reachable ? 'Unavailable' : 'Status unavailable');
+  setHealthValue('healthAccounts', accountProbe.healthy, accountProbe.healthy ? 'Ready' : accountProbe.reachable ? 'Unavailable' : 'Status unavailable');
+
+  const askState = acct?.features?.ask;
+  const projectionsState = acct?.features?.projections;
+  setHealthValue('healthAsk', askState === true ? true : askState === false ? false : null, askState === true ? 'Enabled' : askState === false ? 'Not enabled' : 'Unknown');
+  setHealthValue('healthProjections', projectionsState === true ? true : projectionsState === false ? false : null, projectionsState === true ? 'Enabled' : projectionsState === false ? 'Not enabled' : 'Unknown');
 }
 
 async function loadAudit(quiet = false) {

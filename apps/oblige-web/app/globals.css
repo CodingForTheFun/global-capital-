@@ -25,11 +25,13 @@
 
   --maxw: 1240px;
 
-  /* Two families, loaded in the document head with display=swap. Each names a
-     real system fallback, so the page is readable at first paint and stays
-     readable if the font never arrives. */
+  /* Families are loaded from Google Fonts in the document head with
+     display=swap. Each one names a real system fallback, so the page is
+     readable at first paint and stays readable if the font never arrives. */
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+  --font-display-face: 'Archivo', system-ui, sans-serif;
 
   /* ---- player face cards -------------------------------------------------
      A card carrying a player's face keeps one identity in every direction, so
@@ -41,17 +43,16 @@
   --face-ring: linear-gradient(135deg, #C026D3, #6366F1 46%, #22D3EE);
   --face-glow: rgba(99, 102, 241, .45);
   --face-pos: #00E39B; --face-neg: #FF4D6D; --face-warn: #FFC53D;
+}
 
-  /* ---- surface ----
-     Midnight Terminal. One direction, so these live on :root rather than
-     behind a data attribute. The accent is the same green the face cards
-     use, so a card and the page around it read as one system. */
+/* ---------- A · MIDNIGHT TERMINAL ---------- */
+[data-direction="a"] {
   --bg: #07090E; --bg-deep: #04050A;
   --surface: #0D1017; --surface-2: #131926; --surface-3: #1A2130;
   --line: #1E2634; --line-strong: #2C3648;
   --text: #E9EEF6; --text-2: #A9B6CA; --text-3: #6F7E95;
-  --accent: #00E39B; --accent-ink: #00140C; --accent-soft: rgb(0 227 155 / .13);
-  --pos: #00E39B; --neg: #FF4D6D; --warn: #FFC53D; --info: #5B8BFF;
+  --accent: #3DE8A8; --accent-ink: #04150E; --accent-soft: rgb(61 232 168 / .12);
+  --pos: #3DE8A8; --neg: #FF6B6B; --warn: #FFC53D; --info: #5AA9FF;
   --radius: 10px; --radius-sm: 7px; --radius-lg: 14px;
   --bw: 1px;
   --font-display: var(--font-sans); --font-body: var(--font-sans);
@@ -61,11 +62,56 @@
   --shadow-2: 0 8px 28px -10px rgb(0 0 0 / .75);
   --shadow-glow: 0 0 0 1px var(--accent-soft);
   --hero-wash:
-    radial-gradient(880px 520px at 80% -10%, rgb(0 227 155 / .10), transparent 62%),
-    radial-gradient(820px 460px at 8% 2%, rgb(99 102 241 / .16), transparent 62%),
-    radial-gradient(620px 380px at 46% 108%, rgb(192 38 211 / .07), transparent 64%);
+    radial-gradient(900px 520px at 78% -8%, rgb(61 232 168 / .10), transparent 62%),
+    radial-gradient(760px 420px at 6% 4%, rgb(90 169 255 / .08), transparent 60%);
   --grain: .035;
   color-scheme: dark;
+}
+
+/* ---------- B · BROADCAST ---------- */
+[data-direction="b"] {
+  --bg: #0A0910; --bg-deep: #060509;
+  --surface: #15131D; --surface-2: #1F1C2B; --surface-3: #2A2639;
+  --line: #2C2839; --line-strong: #413A57;
+  --text: #FFFFFF; --text-2: #B6AECB; --text-3: #7D7595;
+  --accent: #FF4D2E; --accent-ink: #20050A; --accent-soft: rgb(255 77 46 / .16);
+  --pos: #4ADE80; --neg: #FF5A5A; --warn: #FFC53D; --info: #8B7CFF;
+  --radius: 16px; --radius-sm: 11px; --radius-lg: 22px;
+  --bw: 1px;
+  --font-display: var(--font-display-face); --font-body: var(--font-sans);
+  --font-num: var(--font-display-face);
+  --display-weight: 900; --display-tracking: -.035em; --display-case: uppercase;
+  --shadow-1: 0 2px 6px rgb(0 0 0 / .45);
+  --shadow-2: 0 22px 48px -18px rgb(0 0 0 / .85);
+  --shadow-glow: 0 0 40px -12px rgb(255 77 46 / .5);
+  --hero-wash:
+    radial-gradient(820px 480px at 88% -12%, rgb(255 77 46 / .20), transparent 60%),
+    radial-gradient(700px 520px at 2% 10%, rgb(139 124 255 / .16), transparent 62%);
+  --grain: .06;
+  color-scheme: dark;
+}
+
+/* ---------- C · DAYLIGHT LEDGER ---------- */
+[data-direction="c"] {
+  --bg: #F6F8FB; --bg-deep: #EEF2F7;
+  --surface: #FFFFFF; --surface-2: #F4F7FA; --surface-3: #E9EEF5;
+  --line: #DDE4EE; --line-strong: #C3CEDE;
+  --text: #0E1726; --text-2: #4A576B; --text-3: #78869B;
+  --accent: #1D4ED8; --accent-ink: #FFFFFF; --accent-soft: rgb(29 78 216 / .09);
+  --pos: #047857; --neg: #B42318; --warn: #B45309; --info: #1D4ED8;
+  --radius: 8px; --radius-sm: 6px; --radius-lg: 12px;
+  --bw: 1px;
+  --font-display: var(--font-serif); --font-body: var(--font-sans);
+  --font-num: var(--font-mono);
+  --display-weight: 600; --display-tracking: -.015em; --display-case: none;
+  --shadow-1: 0 1px 2px rgb(16 24 40 / .06);
+  --shadow-2: 0 12px 32px -14px rgb(16 24 40 / .22);
+  --shadow-glow: 0 0 0 3px var(--accent-soft);
+  --hero-wash:
+    radial-gradient(900px 500px at 82% -10%, rgb(29 78 216 / .10), transparent 60%),
+    radial-gradient(640px 420px at 4% 2%, rgb(180 83 9 / .07), transparent 60%);
+  --grain: 0;
+  color-scheme: light;
 }
 
 /* Expose the tokens to Tailwind so utilities such as bg-surface, text-muted

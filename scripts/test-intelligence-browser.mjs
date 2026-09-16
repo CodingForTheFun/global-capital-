@@ -104,7 +104,7 @@ try{
   await page.locator('#asAdvancedToggle').click();
   assert.equal(await page.locator('[data-threshold="l20"]').count(),1);
   await page.locator('#asFilterDone').click();
-  assert.equal(await page.locator('.asTop #asProfileMenu').count(),0,'circular account control removed from Props header');
+  assert.equal(await page.locator('.asTop #asProfileMenu').count(),1,'profile/account control remains in the Props header beside search');
   assert.equal(await page.locator('.asCardGauge').first().isVisible(),true,'historical gauge remains visible on mobile');
   assert.equal(await page.locator('.asLeagueBadge').first().textContent(),'NBA');
   const expectedSeason=analyzeResearch(base,24.5+revision,'OVER').windows.season;

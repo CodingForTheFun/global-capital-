@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import './premium.css';
+import './premium-surfaces.css';
 import { DirectionProvider } from '@/components/theme';
 import { MobileNav, SiteFooter, SiteHeader } from '@/components/site-chrome';
 

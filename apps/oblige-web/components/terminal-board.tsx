@@ -548,7 +548,7 @@ export function TerminalBoard() {
             </div>
             <div>
               <span>Books</span>
-              <b>{meta.sportsbookCount ?? books.length || '—'}</b>
+              <b>{(meta.sportsbookCount ?? books.length) || '—'}</b>
             </div>
           </div>
         </header>

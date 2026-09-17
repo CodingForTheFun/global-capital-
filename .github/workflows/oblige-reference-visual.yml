@@ -60,6 +60,8 @@ jobs:
           REFERENCE_VISUAL_BASE: http://localhost:3000
           REFERENCE_VISUAL_OUT: reference-visual-artifacts
           REFERENCE_VISUAL_SPORTS: MLB,NFL,NBA,NHL,WNBA,NCAAF
+          REFERENCE_VISUAL_EMAIL: ${{ secrets.REFERENCE_VISUAL_EMAIL }}
+          REFERENCE_VISUAL_PASSWORD: ${{ secrets.REFERENCE_VISUAL_PASSWORD }}
         run: node scripts/reference-visual-driver.mjs
 
       - name: Upload reference render artifacts

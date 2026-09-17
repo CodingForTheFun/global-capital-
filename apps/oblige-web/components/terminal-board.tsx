@@ -550,6 +550,10 @@ export function TerminalBoard() {
               <span>Books</span>
               <b>{(meta.sportsbookCount ?? books.length) || '—'}</b>
             </div>
+            <div>
+              <span>AI Engine</span>
+              <b className={styles.engineText}>Gemini 3.8 Flash High</b>
+            </div>
           </div>
         </header>
 
@@ -801,8 +805,13 @@ function DesktopMatrix({
                     <span className={styles.loadingDot}>…</span>
                   ) : projection !== null ? (
                     <>
-                      <b>{projection.toFixed(1)}</b>
-                      <small>{projection > group.line ? 'OVER lean' : projection < group.line ? 'UNDER lean' : 'at line'}</small>
+                      <div className={styles.modelValWrap}>
+                        <b>{projection.toFixed(1)}</b>
+                        <span className={projection > group.line ? styles.leanOver : projection < group.line ? styles.leanUnder : styles.leanNeutral}>
+                          {projection > group.line ? 'OVER' : projection < group.line ? 'UNDER' : 'EVEN'}
+                        </span>
+                      </div>
+                      <small className={styles.modelEngineSub}>Gemini 3.8 Flash</small>
                     </>
                   ) : (
                     <span className={styles.unavailable}>—</span>
@@ -910,10 +919,25 @@ function MobileMatrix({
 
 function RateCell({ window }: { window: RateWindow | null | undefined }) {
   const sample = hitSample(window);
+  const rate = window?.rate;
+  const isHigh = rate !== null && rate !== undefined && rate >= 70;
+  const isModerate = rate !== null && rate !== undefined && rate >= 50 && rate < 70;
   return (
-    <td className={styles.rateCell} data-high={window?.rate !== null && window?.rate !== undefined && window.rate >= 60 ? 'true' : 'false'}>
+    <td
+      className={styles.rateCell}
+      data-high={isHigh ? 'true' : 'false'}
+      data-moderate={isModerate ? 'true' : 'false'}
+    >
       <b>{rateLabel(window)}</b>
       {sample ? <small>{sample}</small> : null}
+      {rate !== null && rate !== undefined ? (
+        <div className={styles.miniMeter}>
+          <div
+            className={styles.miniMeterFill}
+            style={{ width: `${Math.min(100, Math.max(0, rate))}%` }}
+          />
+        </div>
+      ) : null}
     </td>
   );
 }
@@ -968,6 +992,44 @@ function Inspector({
           <div><span>Model</span><b>{projection !== null ? projection.toFixed(1) : '—'}</b></div>
           <div><span>Best EV</span><b data-positive={ev && ev.ev > 0 ? 'true' : 'false'}>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}%` : '—'}</b></div>
         </div>
+
+        <section className={styles.drawerSection}>
+          <div className={styles.sectionHeading}>
+            <span className={styles.aiHeaderTitle}>
+              <Sparkles size={13} className="text-[#3DE8A8]" />
+              Gemini 3.8 Flash High AI Analysis
+            </span>
+            <small>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}% EV advantage` : 'Grounded model'}</small>
+          </div>
+          <div className={styles.aiInspectorCard}>
+            <div className={styles.aiInspectorRow}>
+              <div>
+                <span>Projected Line</span>
+                <b className={styles.aiProjVal}>{projection !== null ? projection.toFixed(1) : '—'}</b>
+                {projection !== null && (
+                  <small className={projection > group.line ? styles.leanOver : styles.leanUnder}>
+                    {projection > group.line ? `+${(projection - group.line).toFixed(1)} OVER` : `${(projection - group.line).toFixed(1)} UNDER`}
+                  </small>
+                )}
+              </div>
+              <div>
+                <span>Win Probability</span>
+                <b className={styles.aiProbVal}>
+                  {prediction?.probabilityOver ? `${(prediction.probabilityOver * 100).toFixed(1)}%` : '—'}
+                </b>
+                <small>Over Likelihood</small>
+              </div>
+              <div>
+                <span>Reasoning Engine</span>
+                <b className={styles.aiModelBadge}>Gemini 3.8 Flash</b>
+                <small>Thinking Budget Active</small>
+              </div>
+            </div>
+            {prediction?.message && (
+              <p className={styles.aiContextMessage}>&ldquo;{prediction.message}&rdquo;</p>
+            )}
+          </div>
+        </section>
 
         <section className={styles.drawerSection}>
           <div className={styles.sectionHeading}>

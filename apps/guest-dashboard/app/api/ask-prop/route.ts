@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
     const resolved = sample.recent.length - pushes;
     const card = { sample: true, player: sample.player, stat: sample.stat, line: p.line, direction: p.pickDirection, recent: sample.recent,
       summary: { hits, pushes, misses: resolved - hits, hitRate: resolved ? hits / resolved : null, average: sample.recent.reduce((a, b) => a + b, 0) / sample.recent.length } };
-    const model = process.env.EDGE_GEMINI_MODEL || process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+    const model = process.env.EDGE_GEMINI_MODEL || process.env.GEMINI_MODEL || 'gemini-3.8-flash';
     if (!/^[a-zA-Z0-9._-]+$/.test(model)) throw new Error('MODEL_CONFIGURATION');
     const upstream = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: 'POST', headers: { 'x-goog-api-key': key, 'content-type': 'application/json' }, signal: AbortSignal.timeout(25000), cache: 'no-store',

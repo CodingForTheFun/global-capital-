@@ -30,14 +30,20 @@ const MOBILE_MENU = [
 
 function Wordmark({ footer = false }: { footer?: boolean }) {
   return (
-    <span
-      className={cn(
-        'op-wordmark font-display',
-        footer ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-md)] max-[519px]:text-[length:var(--fs-base)]',
-      )}
-    >
-      Oblige<span className="op-wordmark__accent">Props</span>
-    </span>
+    <div className="flex items-center gap-2">
+      <span
+        className={cn(
+          'op-wordmark font-display tracking-tight font-black',
+          footer ? 'text-[length:var(--fs-md)]' : 'text-lg max-[519px]:text-base',
+        )}
+      >
+        <span className="text-white">Oblige</span>
+        <span className="text-[#3DE8A8] ml-0.5">Props</span>
+      </span>
+      <span className="rounded border border-[rgba(61,232,168,0.3)] bg-[rgba(61,232,168,0.1)] px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#3DE8A8]">
+        v2
+      </span>
+    </div>
   );
 }
 
@@ -136,7 +142,15 @@ export function SiteHeader() {
           })}
         </nav>
 
-        <div className="relative ml-auto flex items-center gap-2" ref={menuRef}>
+        <div className="relative ml-auto flex items-center gap-3" ref={menuRef}>
+          <div className="hidden items-center gap-2 rounded-full border border-[rgba(61,232,168,0.22)] bg-[rgba(61,232,168,0.06)] px-3 py-1 text-[11px] font-bold text-[#3DE8A8] xl:flex">
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3DE8A8] opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-[#3DE8A8]" />
+            </span>
+            <span>Live Core · Gemini 3.8 Flash</span>
+          </div>
+
           {board && (
             <button
               type="button"

@@ -1383,6 +1383,163 @@
   }
 }
 
+.engineText {
+  color: #3DE8A8 !important;
+  text-shadow: 0 0 12px rgba(61, 232, 168, 0.4);
+}
+
+.modelValWrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.leanOver,
+.leanUnder,
+.leanNeutral {
+  display: inline-block;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.leanOver {
+  background: rgba(61, 232, 168, 0.15);
+  border: 1px solid rgba(61, 232, 168, 0.35);
+  color: #3DE8A8;
+}
+
+.leanUnder {
+  background: rgba(255, 107, 107, 0.15);
+  border: 1px solid rgba(255, 107, 107, 0.35);
+  color: #FF6B6B;
+}
+
+.leanNeutral {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #94A3B8;
+}
+
+.modelEngineSub {
+  display: block;
+  margin-top: 2px;
+  color: #6366F1 !important;
+  font-family: var(--font-mono);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.miniMeter {
+  width: 100%;
+  max-width: 48px;
+  height: 3px;
+  margin-top: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.miniMeterFill {
+  height: 100%;
+  border-radius: inherit;
+  background: #60A5FA;
+  transition: width 0.3s ease;
+}
+
+.rateCell[data-high="true"] .miniMeterFill {
+  background: linear-gradient(90deg, #10B981, #3DE8A8);
+  box-shadow: 0 0 6px rgba(61, 232, 168, 0.5);
+}
+
+.rateCell[data-moderate="true"] b {
+  color: #60A5FA;
+}
+
+.aiHeaderTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #C5CCFF;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.aiInspectorCard {
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  border-radius: 11px;
+  background: linear-gradient(145deg, rgba(129, 140, 248, 0.09), rgba(61, 232, 168, 0.04));
+  padding: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 12px 28px rgba(0, 0, 0, 0.25);
+}
+
+.aiInspectorRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.aiInspectorRow > div span,
+.aiInspectorRow > div b,
+.aiInspectorRow > div small {
+  display: block;
+}
+
+.aiInspectorRow > div span {
+  color: #7E8DA5;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.aiProjVal {
+  margin-top: 3px;
+  color: #FFFFFF;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.aiProbVal {
+  margin-top: 3px;
+  color: #3DE8A8;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.aiModelBadge {
+  margin-top: 3px;
+  color: #A5B4FC;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.aiInspectorRow > div small {
+  margin-top: 2px;
+  color: #56657B;
+  font-size: 7px;
+}
+
+.aiContextMessage {
+  margin: 10px 0 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 8px;
+  color: #A9B8CE;
+  font-size: 9px;
+  line-height: 1.5;
+  font-style: italic;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .inspector,
   .slipDrawer {

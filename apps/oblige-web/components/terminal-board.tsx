@@ -976,19 +976,16 @@ function Inspector({
           </div>
           <div className={styles.hitStrip}>
             {[
-              ['L5', research === undefined ? undefined : research?.l5 ?? null],
-              ['L10', research === undefined ? undefined : research?.l10 ?? null],
-              ['L20', research === undefined ? undefined : research?.l20 ?? null],
-            ].map(([label, window]) => {
-              const typed = window as RateWindow | null | undefined;
-              return (
-                <div key={String(label)}>
-                  <span>{label}</span>
-                  <b>{rateLabel(typed)}</b>
-                  <small>{hitSample(typed) || 'sample unavailable'}</small>
-                </div>
-              );
-            })}
+              { label: 'L5', window: research === undefined ? undefined : research?.l5 ?? null },
+              { label: 'L10', window: research === undefined ? undefined : research?.l10 ?? null },
+              { label: 'L20', window: research === undefined ? undefined : research?.l20 ?? null },
+            ].map(({ label, window }) => (
+              <div key={label}>
+                <span>{label}</span>
+                <b>{rateLabel(window)}</b>
+                <small>{hitSample(window) || 'sample unavailable'}</small>
+              </div>
+            ))}
           </div>
         </section>
 

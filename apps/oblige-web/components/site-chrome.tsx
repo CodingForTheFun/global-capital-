@@ -25,6 +25,7 @@ const MOBILE_MENU = [
   { href: '/account', label: 'Account / Profile' },
   { href: '/research', label: 'Research' },
   { href: '/#pricing', label: 'Pricing' },
+  { href: '/account', label: 'Help / Support' },
 ];
 
 function Wordmark({ footer = false }: { footer?: boolean }) {
@@ -154,9 +155,9 @@ export function SiteHeader() {
               id="board-mobile-menu"
               className="board-mobile-menu absolute right-0 top-[calc(100%+8px)] z-50 hidden min-w-[190px] overflow-hidden rounded-[12px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_97%,transparent)] p-1.5 shadow-2xl backdrop-blur-xl max-[767px]:grid"
             >
-              {MOBILE_MENU.map((item) => (
+              {MOBILE_MENU.map((item, index) => (
                 <Link
-                  key={item.href}
+                  key={`${item.href}-${item.label}-${index}`}
                   href={item.href}
                   onClick={() => setMenuOpen(false)}
                   className="rounded-[8px] px-3 py-2.5 text-[12px] font-semibold text-[var(--text-2)] transition-colors hover:bg-[color-mix(in_srgb,var(--text)_7%,transparent)] hover:text-[var(--text)]"
@@ -265,9 +266,6 @@ export function SiteFooter() {
   );
 }
 
-/** Routes this app has not taken over yet — the Next config rewrites them to
- * the existing service. They must be plain anchors: a next/link would be
- * prefetched as an app route and 404 before the rewrite ever runs. */
 const NOT_MIGRATED = new Set(['/terms', '/privacy', '/responsible-play']);
 
 function FooterColumn({

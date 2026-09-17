@@ -56,7 +56,7 @@ try{
   await page.locator('#asSearch').fill('No Matching Fixture');await page.waitForFunction(()=>document.querySelectorAll('.asCard').length===0);
   await page.locator('#asSearch').fill('');await page.locator('.asCard').first().waitFor();check(true,name+' existing player filter still works');
   await page.keyboard.press('Control+k');check(await page.locator('#asSearch').evaluate(e=>e===document.activeElement),name+' keyboard search shortcut works');
-  await page.locator('#asi-open').click();await page.locator('#asi-sensitivity').waitFor();
+  await page.locator('.asCard').first().click();await page.locator('#asTab-intelligence').click();await page.locator('#asi-sensitivity').waitFor();
   check(await page.locator('#asIntelligenceDetail details').count()===7,name+' retains the seven tools supported by this fixture');
   check(await page.locator('#asi-dependencies').count()===0,name+' does not invent teammate dependencies without participation data');
   await page.locator('#asLinePlus').click();await page.locator('#asLinePlus').click();await page.locator('[data-side="UNDER"]').click();

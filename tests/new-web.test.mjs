@@ -16,13 +16,34 @@ test('serves nothing unless an origin is configured', async () => {
   assert.equal(r.written, false);
 });
 
-test('claims only the pages the new front end implements', () => {
-  for (const p of ['/', '/board', '/research', '/account', '/_next/static/x.js', '/icon.svg']) {
+test('claims only the pages the new front end implements plus exact legacy customer entries', () => {
+  for (const p of ['/', '/board', '/research', '/account', '/apex', '/apex/', '/_next/static/x.js', '/icon.svg']) {
     assert.equal(ownsPath(p), true, p);
   }
-  for (const p of ['/terms', '/checkout', '/login', '/api/account/me', '/api/apex/props', '/apex-v2']) {
+  for (const p of ['/terms', '/checkout', '/login', '/api/account/me', '/api/apex/props', '/apex-v2', '/apex/diagnostics']) {
     assert.equal(ownsPath(p), false, p);
   }
+});
+
+test('legacy Apex customer entries redirect to the rebuilt board without proxying the old shell', async () => {
+  const r = res();
+  let fetched = false;
+  const served = await serveNewWeb(
+    { method: 'GET', url: '/apex?sport=MLB', headers: { host: 'www.obligeprops.com' } },
+    r,
+    {
+      origin: 'https://x',
+      fetchImpl: async () => {
+        fetched = true;
+        throw new Error('legacy redirect must not call the frontend fetch');
+      },
+    },
+  );
+  assert.equal(served, true);
+  assert.equal(fetched, false);
+  assert.equal(r.status, 307);
+  assert.equal(r.headers.location, '/board?sport=MLB');
+  assert.equal(r.headers['cache-control'], 'no-store, max-age=0');
 });
 
 test('an unreachable front end falls through having written nothing', async () => {

@@ -88,17 +88,17 @@
     height: 36px !important;
   }
 
-  /* Reduce dead space above the feed. */
-  main > div[class*="max-w-"] {
+  /* Reduce dead space above the feed, but only on the live board container. */
+  main > div[class*="max-w-"]:has(> .sticky.top-16) {
     padding-top: 14px !important;
     padding-bottom: 66px !important;
   }
 
-  main > div[class*="max-w-"] > div:first-child {
+  main > div[class*="max-w-"]:has(> .sticky.top-16) > div:first-child {
     margin-bottom: 10px !important;
   }
 
-  main > div[class*="max-w-"] > div:first-child h1 {
+  main > div[class*="max-w-"]:has(> .sticky.top-16) > div:first-child h1 {
     font-size: 26px !important;
   }
 
@@ -147,7 +147,6 @@
     line-height: 1.2 !important;
   }
 
-  .prop-card-v2__identity [class*="badge"],
   .prop-card-v2__identity > span:last-child {
     font-size: 9px !important;
   }
@@ -209,8 +208,9 @@
   }
 
   /* Tighten the feed rhythm and reclaim a little more viewport from the nav. */
-  main .grid.gap-3:has(> .prop-card-v2),
-  main .grid.gap-3:has(> .rv) {
+  main .mt-5.grid:has(> .prop-card-v2),
+  main .mt-5.grid:has(> .rv) {
+    margin-top: 10px !important;
     gap: 8px !important;
   }
 

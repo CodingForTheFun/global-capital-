@@ -29,6 +29,9 @@ export class ApiError extends Error {
 
 const GET_TIMEOUT_MS = 12_000;
 const RETRYABLE_GET_STATUSES = new Set([429, 502, 503, 504]);
+const RESEARCH_CACHE_TTL_MS = 60_000;
+const RESEARCH_CACHE_MAX = 256;
+const researchCache = new Map<string, { expiresAt: number; value: ResearchResponse }>();
 
 function retryAfterMs(response: Response, attempt: number) {
   const raw = response.headers.get('retry-after');
@@ -235,11 +238,21 @@ export async function fetchBoard(sport: string, signal?: AbortSignal) {
 
 /* --------------------------------------------------------------- research */
 
+function rememberResearch(key: string, value: ResearchResponse) {
+  if (researchCache.size >= RESEARCH_CACHE_MAX) {
+    const oldest = researchCache.keys().next().value as string | undefined;
+    if (oldest) researchCache.delete(oldest);
+  }
+  researchCache.set(key, { expiresAt: Date.now() + RESEARCH_CACHE_TTL_MS, value });
+}
+
 export async function fetchResearch(
   group: PropGroup,
   side: Side,
   signal?: AbortSignal,
 ): Promise<ResearchResponse> {
+  if (signal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
+
   const params = new URLSearchParams({
     sport: group.sport,
     playerName: group.player,
@@ -254,7 +267,15 @@ export async function fetchResearch(
   if (group.opponent) params.set('opponent', group.opponent);
   if (group.homeTeam) params.set('homeTeam', group.homeTeam);
   if (group.awayTeam) params.set('awayTeam', group.awayTeam);
-  return getJson<ResearchResponse>(`/api/apex/research?${params}`, signal);
+
+  const path = `/api/apex/research?${params}`;
+  const cached = researchCache.get(path);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) researchCache.delete(path);
+
+  const value = await getJson<ResearchResponse>(path, signal);
+  rememberResearch(path, value);
+  return value;
 }
 
 export async function fetchLineHistory(propId: string, signal?: AbortSignal) {

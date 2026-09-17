@@ -3,6 +3,8 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 
+/** Three directions still exist in tokens, but production ships Midnight Terminal.
+ *  B/C remain available via the switcher for internal comparison only. */
 export const DIRECTIONS = [
   { id: 'a', label: 'Midnight Terminal' },
   { id: 'b', label: 'Broadcast' },
@@ -22,16 +24,18 @@ export function useDirection() {
 }
 
 export function DirectionProvider({ children }: { children: React.ReactNode }) {
+  // Always start on production direction; only restore storage if it is a known id.
   const [direction, setDirectionState] = React.useState<DirectionId>('a');
 
   React.useEffect(() => {
-    // Storage can throw in a private window or when site data is blocked, and
-    // a remembered theme is a convenience, never something to fail a render on.
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
+      // Prefer a (terminal) for anyone without a saved preference.
+      // If they previously picked b/c, respect that once — power users only.
       if (saved && DIRECTIONS.some((d) => d.id === saved)) setDirectionState(saved as DirectionId);
+      else setDirectionState('a');
     } catch {
-      /* keep the default */
+      /* keep a */
     }
   }, []);
 
@@ -44,7 +48,7 @@ export function DirectionProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem(STORAGE_KEY, id);
     } catch {
-      /* the theme still applies for this visit */
+      /* theme still applies for this visit */
     }
   }, []);
 
@@ -52,6 +56,7 @@ export function DirectionProvider({ children }: { children: React.ReactNode }) {
   return <DirectionContext.Provider value={value}>{children}</DirectionContext.Provider>;
 }
 
+/** Optional. Not mounted in primary chrome so production stays one look. */
 export function DirectionSwitcher({ className }: { className?: string }) {
   const { direction, setDirection } = useDirection();
   return (
@@ -59,8 +64,6 @@ export function DirectionSwitcher({ className }: { className?: string }) {
       role="group"
       aria-label="Visual direction"
       className={cn(
-        // The labels are long enough to outgrow a narrow phone, so the group
-        // scrolls inside itself rather than widening the page.
         'flex max-w-full gap-0.5 overflow-x-auto rounded-full border border-[var(--line)]',
         'bg-[var(--surface-2)] p-[3px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
         className,

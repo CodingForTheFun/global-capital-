@@ -1,0 +1,227 @@
+/* Mobile density pass for the live prop board.
+   Presentation only: keep providers, research, auth, billing and routing untouched. */
+
+@media (max-width: 767px) {
+  /* The board controls were consuming too much of the usable iPhone viewport.
+     Let them scroll away instead of pinning a large tray above the feed. */
+  main .sticky.top-16 {
+    position: relative !important;
+    top: auto !important;
+    z-index: 10 !important;
+    gap: 6px !important;
+    margin-inline: 0 !important;
+    padding: 6px !important;
+    border-radius: 10px !important;
+  }
+
+  main .sticky.top-16 .rail {
+    display: flex !important;
+    gap: 6px !important;
+    margin-inline: 0 !important;
+    padding: 0 0 2px !important;
+    overflow-x: auto !important;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main .sticky.top-16 .rail::-webkit-scrollbar,
+  main .sticky.top-16 > div:nth-child(2)::-webkit-scrollbar {
+    display: none;
+  }
+
+  main .sticky.top-16 .rail button {
+    min-height: 32px !important;
+    padding-inline: 10px !important;
+    border-radius: 8px !important;
+    font-size: 11px !important;
+  }
+
+  /* Search, Filters and sort controls stay on one compact horizontal row.
+     The row scrolls sideways instead of wrapping into a second line. */
+  main .sticky.top-16 > div:nth-child(2) {
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main .sticky.top-16 > div:nth-child(2) > label {
+    flex: 0 0 clamp(170px, 49vw, 210px) !important;
+    min-width: 170px !important;
+  }
+
+  main .sticky.top-16 input[type="search"] {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding-left: 32px !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+  }
+
+  main .sticky.top-16 > div:nth-child(2) > button,
+  main .sticky.top-16 .board-filter-trigger {
+    min-height: 34px !important;
+    height: 34px !important;
+    padding-inline: 10px !important;
+    border-radius: 8px !important;
+    font-size: 11px !important;
+    white-space: nowrap;
+  }
+
+  .board-filter-panel {
+    gap: 6px !important;
+    padding: 8px !important;
+    border-radius: 9px !important;
+    max-height: min(46vh, 340px) !important;
+  }
+
+  .board-filter-field {
+    gap: 4px !important;
+  }
+
+  .board-filter-field select,
+  .board-filter-reset {
+    min-height: 36px !important;
+    height: 36px !important;
+  }
+
+  /* Reduce dead space above the feed. */
+  main > div[class*="max-w-"] {
+    padding-top: 14px !important;
+    padding-bottom: 66px !important;
+  }
+
+  main > div[class*="max-w-"] > div:first-child {
+    margin-bottom: 10px !important;
+  }
+
+  main > div[class*="max-w-"] > div:first-child h1 {
+    font-size: 26px !important;
+  }
+
+  .board-kicker {
+    margin-bottom: 3px !important;
+    font-size: 9px !important;
+  }
+
+  /* Dense feed cards: preserve all real data but fit materially more props
+     on one phone screen. */
+  main .face.prop-card-v2 {
+    border-radius: 11px !important;
+  }
+
+  .prop-card-v2__open {
+    gap: 7px !important;
+    padding: 9px 10px 6px !important;
+  }
+
+  .prop-card-v2__identity {
+    min-height: 44px !important;
+    gap: 9px !important;
+  }
+
+  .prop-card-v2__identity .ringavatar {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  .player-portrait-stack {
+    min-width: 46px !important;
+  }
+
+  .player-portrait-stack .ringavatar + .ringavatar {
+    margin-left: -14px !important;
+  }
+
+  .prop-card-v2__identity > span:nth-child(2) > span:first-child {
+    font-size: 14px !important;
+    line-height: 1.1 !important;
+  }
+
+  .prop-card-v2__meta {
+    margin-top: 2px !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+  }
+
+  .prop-card-v2__identity [class*="badge"],
+  .prop-card-v2__identity > span:last-child {
+    font-size: 9px !important;
+  }
+
+  .prop-card-v2__market-row {
+    gap: 10px !important;
+    padding-top: 7px !important;
+  }
+
+  .prop-card-v2__market-label {
+    gap: 0 !important;
+  }
+
+  .prop-card-v2__market-label > span:first-child {
+    font-size: 11px !important;
+  }
+
+  .prop-card-v2__market-label > span:last-child {
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+  }
+
+  .prop-card-v2__line {
+    font-size: 23px !important;
+  }
+
+  .prop-card-v2__hit {
+    padding: 0 10px 7px !important;
+  }
+
+  .prop-card-v2__hit > div,
+  .prop-card-v2__hit > span {
+    gap: 4px !important;
+  }
+
+  .prop-card-v2__hit > div > div:first-child {
+    font-size: 10px !important;
+  }
+
+  .prop-card-v2__hit > div > div:last-child {
+    height: 5px !important;
+  }
+
+  .prop-card-v2__quotes {
+    gap: 6px !important;
+    padding: 0 10px 9px !important;
+  }
+
+  .prop-card-v2__quote {
+    min-height: 38px !important;
+    padding-inline: 10px !important;
+    border-radius: 8px !important;
+    font-size: 11px !important;
+  }
+
+  .prop-card-v2__book {
+    margin-top: 0 !important;
+    font-size: 8px !important;
+  }
+
+  /* Tighten the feed rhythm and reclaim a little more viewport from the nav. */
+  main .grid.gap-3:has(> .prop-card-v2),
+  main .grid.gap-3:has(> .rv) {
+    gap: 8px !important;
+  }
+
+  nav[aria-label="Sections"] a {
+    min-height: 50px !important;
+    gap: 1px !important;
+    font-size: 9px !important;
+  }
+
+  nav[aria-label="Sections"] svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+}

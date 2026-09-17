@@ -3,59 +3,238 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#07111f" />
+  <meta name="theme-color" content="#080a0f" />
   <meta name="application-name" content="Oblige Props" />
-  <meta name="description" content="Oblige Props player-prop research with live line comparison, verified game logs, hit rates and evidence-backed projections." />
+  <meta name="description" content="Oblige Props — a fast, evidence-backed player prop research terminal." />
   <meta property="og:site_name" content="Oblige Props" />
   <meta property="og:title" content="Oblige Props — Player Prop Research" />
-  <meta property="og:description" content="Research player props, compare lines and inspect verified game-log evidence in one workspace." />
+  <meta property="og:description" content="Research live player prop lines, hit rates, game logs and provider-backed context in one terminal." />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/home-v2.css" />
-  <link rel="stylesheet" href="/news-nav.css" />
-  <title>Oblige Props — Player Prop Research</title>
+  <title>Oblige Props — Research Terminal</title>
 </head>
 <body>
-  <section id="authGate" class="home-auth hidden">
-    <div class="home-auth-card">
-      <div class="home-brand"><span class="home-mark">O</span><span><b>OBLIGE PROPS</b><small>Auto Scout Research Engine</small></span></div>
-      <span class="eyebrow">SECURE ACCESS</span>
-      <h1>Open your research desk.</h1>
-      <p>Use your owner password or a private member access code.</p>
-      <form id="loginForm" class="login-form"><label>Access credential<input id="credential" type="password" autocomplete="current-password" required /></label><button id="loginSubmit" class="primary-btn" type="submit">Enter Oblige Props</button></form>
-      <p id="loginError" class="form-error hidden"></p>
+  <section id="authGate" class="auth-gate hidden" aria-labelledby="authTitle">
+    <div class="auth-shell">
+      <div class="auth-brand">
+        <span class="brand-mark">O</span>
+        <div><strong>OBLIGE PROPS</strong><small>Research Terminal</small></div>
+      </div>
+      <div class="auth-copy">
+        <span class="eyebrow">SECURE WORKSPACE</span>
+        <h1 id="authTitle">Enter your research desk.</h1>
+        <p>Use your owner password or member access code. Your prop data and account permissions stay unchanged.</p>
+      </div>
+      <form id="loginForm" class="auth-form">
+        <label for="credential">Access credential</label>
+        <input id="credential" type="password" autocomplete="current-password" required />
+        <button id="loginSubmit" type="submit">Enter Oblige Props</button>
+      </form>
+      <p id="loginError" class="form-error hidden" role="alert"></p>
     </div>
   </section>
 
-  <div id="homeApp" class="home-app hidden">
-    <header class="home-topbar">
-      <a class="home-brand" href="/"><span class="home-mark">O</span><span><b>OBLIGE PROPS</b><small>Auto Scout Research Engine</small></span></a>
-      <nav class="home-nav" aria-label="Primary"><a class="active" href="/">Home</a><a href="/props">Props</a><a href="/live.html">Live</a><a href="/news.html">News</a><a id="adminNav" class="hidden" href="/admin.html">Admin</a></nav>
-      <div class="home-actions"><span id="rolePill" class="role-pill">MEMBER</span><button id="homeRefresh" class="icon-btn" type="button" aria-label="Refresh">↻</button><button id="logoutBtn" class="icon-btn" type="button" aria-label="Sign out">↪</button></div>
-    </header>
+  <div id="homeApp" class="app-shell hidden">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="/" aria-label="Oblige Props home">
+        <span class="brand-mark">O</span>
+        <span class="brand-copy"><strong>OBLIGE</strong><small>PROPS</small></span>
+      </a>
 
-    <main class="home-main">
-      <section class="welcome"><div><span class="eyebrow">OBLIGE PROPS</span><h1>Your sports research desk.</h1><p>Real prop lines, live game intelligence, provider-backed context, and explainable qualification—without the clutter.</p></div><div class="freshness-card"><span>Board updated</span><strong id="homeFreshness">—</strong><small id="homeFreshnessNote">Checking provider</small></div></section>
+      <nav class="side-nav">
+        <a class="active" href="/" aria-current="page">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
+          <span>Props</span>
+        </a>
+        <a href="/live.html">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12a7 7 0 0 1 12-4.9M19 12a7 7 0 0 1-12 4.9M8 4v4h4M16 20v-4h-4"/></svg>
+          <span>Live</span>
+        </a>
+        <a href="/news.html">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg>
+          <span>News</span>
+        </a>
+        <a id="adminNav" class="hidden" href="/admin.html">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2 2.2 3-.3.8 2.9 2.7 1.4-1.1 2.8 1.1 2.8-2.7 1.4-.8 2.9-3-.3L12 21l-2-2.2-3 .3-.8-2.9-2.7-1.4L4.6 12 3.5 9.2l2.7-1.4L7 4.9l3 .3z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span>Admin</span>
+        </a>
+      </nav>
 
-      <section class="home-kpis" aria-label="Oblige Props overview">
-        <article class="home-kpi"><span>Available props</span><strong id="availableKpi">—</strong><small>valid main lines</small></article>
-        <article class="home-kpi"><span>Rule-qualified</span><strong id="qualifiedKpi">—</strong><small>Scout Rules pass</small></article>
-        <article class="home-kpi"><span>Live games</span><strong id="liveKpi">—</strong><small>active now</small></article>
-        <article class="home-kpi"><span>Provider rows</span><strong id="sourceKpi">—</strong><small>native prop source</small></article>
-      </section>
-
-      <section class="home-grid">
-        <section class="home-panel"><div class="panel-head"><div><span class="eyebrow">PROP BOARD</span><h2>Current lines</h2></div><a href="/props">View all props →</a></div><div id="homeProps" class="mini-props"><div class="empty-mini">Loading current props…</div></div><div class="home-cta"><a class="primary-link" href="/props">Open Prop Board</a><a class="secondary-link" href="/props?mode=best">Auto Prop Finder</a></div></section>
-
-        <div>
-          <section class="home-panel"><div class="panel-head"><div><span class="eyebrow">LIVE CENTER</span><h2>Games now</h2></div><a href="/live.html">Open live →</a></div><div id="homeLive" class="mini-live"><div class="empty-mini">Checking live games…</div></div></section>
-          <section class="home-panel" style="margin-top:10px"><div class="panel-head"><div><span class="eyebrow">SYSTEM</span><h2>Data health</h2></div></div><div class="system-list"><div class="system-row"><span>Prop sources</span><b id="providerStatus">CHECKING</b></div><div class="system-row"><span>Prop board</span><b id="boardStatus">CHECKING</b></div><div class="system-row"><span>Live feeds</span><b id="liveStatus">CHECKING</b></div><div class="system-row"><span>Secrets</span><b id="securityStatus">SERVER-SIDE</b></div></div></section>
+      <div class="sidebar-foot">
+        <div class="account-chip">
+          <span class="account-dot"></span>
+          <div><b id="rolePill">MEMBER</b><small>Signed in</small></div>
         </div>
-      </section>
-    </main>
+        <button id="logoutBtn" class="quiet-button" type="button">Sign out</button>
+      </div>
+    </aside>
 
-    <nav class="home-mobile-nav" aria-label="Mobile navigation"><a class="active" href="/"><span>⌂</span><b>Home</b></a><a href="/props"><span>◆</span><b>Props</b></a><a href="/live.html"><span>●</span><b>Live</b></a><a href="/news.html"><span>▤</span><b>News</b></a><a id="adminMobile" class="hidden" href="/admin.html"><span>⚙</span><b>Admin</b></a></nav>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="mobile-brand">
+          <span class="brand-mark">O</span>
+          <strong>OBLIGE PROPS</strong>
+        </div>
+
+        <label class="global-search" for="searchInput">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg>
+          <input id="searchInput" type="search" placeholder="Search player, team or market" autocomplete="off" />
+          <kbd>/</kbd>
+        </label>
+
+        <div class="top-actions">
+          <div class="freshness">
+            <span class="live-dot"></span>
+            <span><b id="sourceStatus">Connecting</b><small id="lastScan">—</small></span>
+          </div>
+          <button id="openFiltersBtn" class="filter-button" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+            Filters <span id="filterCount">0</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="terminal">
+        <section class="page-head">
+          <div>
+            <span class="eyebrow">PLAYER PROP RESEARCH</span>
+            <h1>Today’s board</h1>
+          </div>
+          <div class="summary-strip" aria-label="Board summary">
+            <div><span>Available</span><strong id="availableKpi">—</strong></div>
+            <div><span>Qualified</span><strong id="qualifiedKpi">—</strong></div>
+            <div><span>Live games</span><strong id="liveKpi">—</strong></div>
+          </div>
+        </section>
+
+        <section class="sport-bar" aria-label="Sports">
+          <div id="sportChips" class="sport-chips">
+            <button class="sport-chip active" data-sport="" type="button">All</button>
+          </div>
+        </section>
+
+        <section class="board-toolbar">
+          <div class="mode-tabs" role="tablist" aria-label="Prop mode">
+            <button class="mode-tab active" data-mode="all" role="tab" type="button">All props</button>
+            <button class="mode-tab" data-mode="best" role="tab" type="button">Top board</button>
+          </div>
+          <div class="toolbar-right">
+            <label class="rules-switch">
+              <input id="rulesToggle" type="checkbox" />
+              <span></span>
+              <b>Scout Rules</b>
+            </label>
+            <label class="sort-control">
+              <span>Sort</span>
+              <select id="sortSelect">
+                <option value="score-desc">Scout score</option>
+                <option value="hit-rate-desc">Hit rate</option>
+                <option value="line-asc">Line</option>
+                <option value="start-time-asc">Game time</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <div id="activeChips" class="active-filters" hidden></div>
+        <div id="notice" class="notice" hidden></div>
+
+        <div class="terminal-grid">
+          <section class="board-panel" aria-labelledby="boardTitle">
+            <div class="section-head">
+              <div>
+                <span class="eyebrow" id="resultLabel">ALL PROPS</span>
+                <h2 id="boardTitle">Prop board</h2>
+              </div>
+              <div class="result-meta"><strong id="resultCount">Loading…</strong><span id="showingCount">—</span></div>
+            </div>
+            <div id="propGrid" class="prop-list" aria-live="polite">
+              <div class="skeleton-row"></div>
+              <div class="skeleton-row"></div>
+              <div class="skeleton-row"></div>
+            </div>
+            <div id="pagination" class="pagination" hidden>
+              <button id="prevPageBtn" type="button">Previous</button>
+              <span id="pageLabel">Page 1</span>
+              <button id="nextPageBtn" type="button">Next</button>
+            </div>
+          </section>
+
+          <aside class="intel-rail" aria-label="Slate intelligence">
+            <section class="rail-card live-card">
+              <div class="rail-head"><div><span class="eyebrow">LIVE CENTER</span><h3>Games now</h3></div><a href="/live.html">View all</a></div>
+              <div id="homeLive" class="live-list"><div class="rail-empty">Checking live games…</div></div>
+            </section>
+
+            <section class="rail-card">
+              <div class="rail-head"><div><span class="eyebrow">DATA QUALITY</span><h3>Board health</h3></div></div>
+              <div class="health-list">
+                <div><span>Primary source</span><b id="providerStatus">CHECKING</b></div>
+                <div><span>Board state</span><b id="boardStatus">CHECKING</b></div>
+                <div><span>Live coverage</span><b id="liveStatus">CHECKING</b></div>
+                <div><span>Security</span><b class="good">SERVER-SIDE</b></div>
+              </div>
+            </section>
+
+            <section class="rail-card compact-note">
+              <span class="eyebrow">WORKSPACE</span>
+              <p>Only verified provider fields are shown. Missing projections, hit rates, injuries or game logs stay unavailable rather than being fabricated.</p>
+            </section>
+          </aside>
+        </div>
+      </main>
+
+      <nav class="mobile-nav" aria-label="Mobile navigation">
+        <a class="active" href="/"><span>Props</span></a>
+        <a href="/live.html"><span>Live</span></a>
+        <button id="mobileFiltersBtn" type="button"><span>Filters</span><b id="mobileFilterCount">0</b></button>
+        <a href="/news.html"><span>News</span></a>
+        <a id="adminMobile" class="hidden" href="/admin.html"><span>Admin</span></a>
+      </nav>
+    </div>
   </div>
+
+  <div id="sheetBackdrop" class="sheet-backdrop" hidden></div>
+  <aside id="filterSheet" class="filter-sheet" aria-hidden="true" aria-labelledby="filterTitle">
+    <div class="sheet-head">
+      <div><span class="eyebrow">BOARD CONTROLS</span><h2 id="filterTitle">Filters</h2></div>
+      <button id="closeFiltersBtn" class="icon-close" type="button" aria-label="Close filters">×</button>
+    </div>
+    <div class="sheet-body">
+      <label>Side
+        <select id="sideFilter"><option value="ALL">All sides</option><option value="OVER">Over</option><option value="UNDER">Under</option></select>
+      </label>
+      <div class="two-col">
+        <label>Minimum Scout score<input id="minScoreFilter" type="number" inputmode="decimal" placeholder="Any" /></label>
+        <label>Minimum hit rate<input id="minHitRateFilter" type="number" inputmode="decimal" min="0" max="100" placeholder="Any" /></label>
+      </div>
+      <label>Hit-rate window
+        <select id="hitWindowFilter"><option value="l5">L5</option><option value="l10">L10</option><option value="l15">L15</option><option value="l20">L20</option><option value="season">Season</option><option value="h2h">H2H</option></select>
+      </label>
+      <div class="two-col">
+        <label>Projection edge<input id="minProjectionEdgeFilter" type="number" step="0.1" inputmode="decimal" placeholder="Any" /></label>
+        <label>Expected minutes<input id="minMinutesFilter" type="number" inputmode="numeric" placeholder="Any" /></label>
+      </div>
+      <label class="check-row"><input id="todayOnlyFilter" type="checkbox" checked /><span><b>Today only</b><small>Hide future slates</small></span></label>
+      <label class="check-row"><input id="startersOnlyFilter" type="checkbox" /><span><b>Starters only</b><small>When verified lineup data exists</small></span></label>
+      <label class="check-row"><input id="excludeInjuredFilter" type="checkbox" /><span><b>Exclude out / doubtful</b><small>Only when injury status is verified</small></span></label>
+    </div>
+    <div class="sheet-actions">
+      <button id="resetFiltersBtn" class="secondary-action" type="button">Reset</button>
+      <button id="applyFiltersBtn" class="primary-action" type="button">Apply filters</button>
+    </div>
+  </aside>
+
+  <div id="detailBackdrop" class="detail-backdrop" hidden></div>
+  <aside id="detailDrawer" class="detail-drawer" aria-hidden="true" aria-labelledby="detailTitle">
+    <div class="detail-top">
+      <span class="eyebrow">PLAYER INTELLIGENCE</span>
+      <button id="detailClose" class="icon-close" type="button" aria-label="Close player details">×</button>
+    </div>
+    <div id="detailBody"><div class="detail-loading">Select a prop to inspect its evidence.</div></div>
+  </aside>
+
   <script type="module" src="/home-v2.js"></script>
 </body>
 </html>

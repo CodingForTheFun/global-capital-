@@ -54,9 +54,6 @@ async function createLegitimateSession(context) {
   });
   const body = await response.json().catch(() => null);
   const token = sessionTokenFrom(response);
-
-  // Login follows the production contract: `ok: true` plus the signed session
-  // cookie. We then independently prove that cookie through /api/account/me.
   if (!response.ok() || body?.ok !== true || !token) {
     const code = body?.code || body?.message || 'unknown response';
     throw new Error(
@@ -64,9 +61,6 @@ async function createLegitimateSession(context) {
     );
   }
 
-  // The production cookie is Secure. This branch is served on localhost for
-  // visual QA, so copy only the already-signed production token into the local
-  // cookie jar. The backend still validates the signature and account state.
   await context.addCookies([
     {
       name: 'sp_account',
@@ -83,7 +77,6 @@ async function createLegitimateSession(context) {
   if (!me.ok() || meBody?.authenticated !== true || !meBody?.user?.id) {
     throw new Error(`Visual QA session was not accepted by /api/account/me: HTTP ${me.status()}`);
   }
-  return { authenticated: true };
 }
 
 async function findLiveSport(context) {
@@ -104,44 +97,30 @@ async function selectSport(page, sport) {
   const current = page.getByRole('button', { name: sport, exact: true }).first();
   await current.waitFor({ state: 'visible', timeout: 30_000 });
   if ((await current.getAttribute('aria-pressed')) !== 'true') await current.click();
-  await page.waitForSelector('.prop-card-v2', { timeout: 45_000 });
-  await page.waitForFunction(() => document.querySelectorAll('.prop-card-v2').length >= 2, null, { timeout: 45_000 });
+  await page.locator('.prop-card-v2, article').first().waitFor({ state: 'visible', timeout: 45_000 });
+  await page.waitForFunction(
+    () => document.querySelectorAll('.prop-card-v2').length >= 2 || document.querySelectorAll('article').length >= 2,
+    null,
+    { timeout: 45_000 },
+  );
 }
 
 async function settle(page, ms = 1200) {
-  await page
-    .evaluate(async () => {
-      if (document.fonts?.ready) await document.fonts.ready;
-    })
-    .catch(() => null);
-
-  await page
-    .waitForFunction(
-      () => {
-        const visibleImages = [...document.images].filter((image) => {
-          const rect = image.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight;
-        });
-        return visibleImages.every((image) => image.complete);
-      },
-      null,
-      { timeout: 5_000 },
-    )
-    .catch(() => null);
-
-  await page.evaluate(
-    () =>
-      new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      }),
-  );
+  await page.evaluate(async () => { if (document.fonts?.ready) await document.fonts.ready; }).catch(() => null);
+  await page.waitForFunction(() => {
+    const visibleImages = [...document.images].filter((image) => {
+      const rect = image.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight;
+    });
+    return visibleImages.every((image) => image.complete);
+  }, null, { timeout: 5_000 }).catch(() => null);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await sleep(ms);
 }
 
 async function boardMetrics(page) {
   return page.evaluate(() => {
-    const box = (selector) => {
-      const element = document.querySelector(selector);
+    const rectOf = (element) => {
       if (!element) return null;
       const rect = element.getBoundingClientRect();
       return {
@@ -153,7 +132,10 @@ async function boardMetrics(page) {
         height: Math.round(rect.height * 10) / 10,
       };
     };
-    const cards = [...document.querySelectorAll('.prop-card-v2')];
+    const box = (selector) => rectOf(document.querySelector(selector));
+    const propCards = [...document.querySelectorAll('.prop-card-v2')];
+    const articleCards = [...document.querySelectorAll('article')];
+    const cards = propCards.length ? propCards : articleCards;
     const visibleCards = cards.filter((card) => {
       const rect = card.getBoundingClientRect();
       return rect.top < innerHeight && rect.bottom > 0;
@@ -168,11 +150,12 @@ async function boardMetrics(page) {
     });
     return {
       viewport: { width: innerWidth, height: innerHeight },
+      implementation: propCards.length ? 'BoardView/PropCard' : articleCards.length ? 'BetHoopsBoard/PredictionCard' : 'unknown',
       header: box('header[data-board="true"]'),
       summary: box('.board-summary'),
       toolbar: box('.board-toolbar'),
       grid: box('.board-grid'),
-      firstCard: box('.prop-card-v2'),
+      firstCard: rectOf(cards[0]),
       cardCount: cards.length,
       cardsIntersectingViewport: visibleCards,
       cardsFullyVisible: fullyVisibleCards,
@@ -216,7 +199,7 @@ async function researchMetrics(page) {
   });
 }
 
-async function renderViewport(page, viewport, label, sport, researchUrlRef) {
+async function renderViewport(page, viewport, label, sport) {
   await page.setViewportSize(viewport);
   await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
   await page.goto(`${BASE}/board`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -227,17 +210,13 @@ async function renderViewport(page, viewport, label, sport, researchUrlRef) {
   await page.screenshot({ path: boardFile, fullPage: false, animations: 'disabled', caret: 'hide' });
   const board = await boardMetrics(page);
 
-  const researched = page.locator('.prop-card-v2').filter({ has: page.locator('[aria-label^="Last "]') });
-  let card = page.locator('.prop-card-v2').first();
-  try {
-    await researched.first().waitFor({ state: 'visible', timeout: 12_000 });
-    card = researched.first();
-  } catch {
-    // Honest fallback; no research data is synthesized for the screenshot.
+  let openButton = page.locator('.prop-card-v2__open').first();
+  if ((await openButton.count()) === 0) {
+    openButton = page.getByRole('button', { name: 'Open analysis', exact: true }).first();
   }
-  await card.locator('.prop-card-v2__open').click();
+  await openButton.waitFor({ state: 'visible', timeout: 20_000 });
+  await openButton.click();
   await page.waitForURL(/\/research\?/, { timeout: 20_000 });
-  researchUrlRef.value = page.url();
   await page.waitForSelector('.player-cinematic-hero', { timeout: 30_000 });
   await settle(page, 1600);
 
@@ -252,23 +231,16 @@ await waitForFrontend();
 const browser = await chromium.launch({ headless: true });
 let context;
 try {
-  context = await browser.newContext({
-    viewport: { width: 390, height: 844 },
-    deviceScaleFactor: 1,
-    colorScheme: 'dark',
-  });
+  context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, colorScheme: 'dark' });
   await createLegitimateSession(context);
   const live = await findLiveSport(context);
   const page = await context.newPage();
   const errors = [];
-  page.on('console', (message) => {
-    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
-  });
+  page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
 
-  const researchUrl = { value: null };
-  const mobile = await renderViewport(page, { width: 390, height: 844 }, 'iphone-390x844', live.sport, researchUrl);
-  const desktop = await renderViewport(page, { width: 1440, height: 1000 }, 'desktop-1440x1000', live.sport, researchUrl);
+  const mobile = await renderViewport(page, { width: 390, height: 844 }, 'iphone-390x844', live.sport);
+  const desktop = await renderViewport(page, { width: 1440, height: 1000 }, 'desktop-1440x1000', live.sport);
 
   const payload = {
     ok: true,

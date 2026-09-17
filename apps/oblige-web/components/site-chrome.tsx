@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Home, LayoutGrid, User } from 'lucide-react';
+import { BarChart3, Home, LayoutGrid, Menu, User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -21,9 +21,21 @@ const MOBILE_NAV = [
   { href: '/account', label: 'Profile', icon: User },
 ];
 
+const MOBILE_MENU = [
+  { href: '/account', label: 'Account / Profile' },
+  { href: '/research', label: 'Research' },
+  { href: '/#pricing', label: 'Pricing' },
+  { href: '/account', label: 'Help / Support' },
+];
+
 function Wordmark({ footer = false }: { footer?: boolean }) {
   return (
-    <span className={cn('op-wordmark font-display', footer ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-md)] max-[519px]:text-[length:var(--fs-base)]')}>
+    <span
+      className={cn(
+        'op-wordmark font-display',
+        footer ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-md)] max-[519px]:text-[length:var(--fs-base)]',
+      )}
+    >
       Oblige<span className="op-wordmark__accent">Props</span>
     </span>
   );
@@ -31,7 +43,10 @@ function Wordmark({ footer = false }: { footer?: boolean }) {
 
 export function SiteHeader() {
   const [stuck, setStuck] = React.useState(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
   const pathname = usePathname();
+  const board = pathname.startsWith('/board');
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     let ticking = false;
@@ -48,9 +63,32 @@ export function SiteHeader() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  React.useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  React.useEffect(() => {
+    if (!menuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen]);
+
   return (
     <header
       data-stuck={stuck}
+      data-board={board ? 'true' : 'false'}
       className={cn(
         'sticky top-0 z-30 border-b border-transparent',
         'bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] backdrop-blur-xl',
@@ -98,11 +136,47 @@ export function SiteHeader() {
           })}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
-          <Button asChild size="sm" variant="ghost" className="max-[519px]:hidden">
+        <div className="relative ml-auto flex items-center gap-2" ref={menuRef}>
+          {board && (
+            <button
+              type="button"
+              className="board-mobile-menu-trigger hidden size-8 items-center justify-center rounded-[8px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_88%,transparent)] text-[var(--text-2)] max-[767px]:inline-flex"
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={menuOpen}
+              aria-controls="board-mobile-menu"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              {menuOpen ? <X className="size-4" aria-hidden="true" /> : <Menu className="size-4" aria-hidden="true" />}
+            </button>
+          )}
+
+          {board && menuOpen && (
+            <div
+              id="board-mobile-menu"
+              className="board-mobile-menu absolute right-0 top-[calc(100%+8px)] z-50 hidden min-w-[190px] overflow-hidden rounded-[12px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_97%,transparent)] p-1.5 shadow-2xl backdrop-blur-xl max-[767px]:grid"
+            >
+              {MOBILE_MENU.map((item, index) => (
+                <Link
+                  key={`${item.href}-${item.label}-${index}`}
+                  href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-[8px] px-3 py-2.5 text-[12px] font-semibold text-[var(--text-2)] transition-colors hover:bg-[color-mix(in_srgb,var(--text)_7%,transparent)] hover:text-[var(--text)]"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          )}
+
+          <Button
+            asChild
+            size="sm"
+            variant="ghost"
+            className={cn('max-[519px]:hidden', board && 'max-[767px]:hidden')}
+          >
             <Link href="/account">Account</Link>
           </Button>
-          <Button asChild size="sm">
+          <Button asChild size="sm" className={cn(board && 'max-[767px]:hidden')}>
             <Link href="/board">Open Props</Link>
           </Button>
         </div>
@@ -111,17 +185,98 @@ export function SiteHeader() {
   );
 }
 
-/** Bottom bar on phones. Keep only routes that are already real and protected. */
+/** Bottom bar on phones. On the prop board it gets out of the way while the
+ *  customer scrolls down and returns immediately when they reverse direction. */
 export function MobileNav() {
   const pathname = usePathname();
+  const board = pathname.startsWith('/board');
+  const [hidden, setHidden] = React.useState(false);
+  const lastY = React.useRef(0);
+  const frame = React.useRef<number | null>(null);
+  const touchY = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    setHidden(false);
+    lastY.current = Math.max(0, window.scrollY || 0);
+    if (!board) return;
+
+    const updateFromY = (value: number) => {
+      const y = Math.max(0, value || 0);
+      const previous = lastY.current;
+
+      if (y <= 8) setHidden(false);
+      else if (y > previous + 6) setHidden(true);
+      else if (y < previous - 2) setHidden(false);
+
+      lastY.current = y;
+    };
+
+    const onScroll = () => {
+      if (frame.current !== null) return;
+      frame.current = requestAnimationFrame(() => {
+        frame.current = null;
+        updateFromY(window.scrollY);
+      });
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      touchY.current = event.touches[0]?.clientY ?? null;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      const nextY = event.touches[0]?.clientY;
+      const previousY = touchY.current;
+      if (nextY == null || previousY == null) return;
+
+      const delta = nextY - previousY;
+      if (Math.abs(delta) < 6) return;
+
+      if (delta < 0 && window.scrollY > 8) setHidden(true);
+      else if (delta > 0) setHidden(false);
+
+      touchY.current = nextY;
+    };
+
+    const onPageShow = () => {
+      setHidden(false);
+      lastY.current = Math.max(0, window.scrollY || 0);
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('pageshow', onPageShow, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('pageshow', onPageShow);
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      frame.current = null;
+      touchY.current = null;
+    };
+  }, [board]);
+
   return (
     <nav
       aria-label="Sections"
+      data-board={board ? 'true' : 'false'}
+      data-scroll-hidden={board && hidden ? 'true' : 'false'}
       className={cn(
         'fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 lg:hidden',
         'border-t border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_94%,transparent)] backdrop-blur-xl',
         'pb-[env(safe-area-inset-bottom)]',
+        'transition-[transform,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
       )}
+      style={{
+        transform:
+          board && hidden
+            ? 'translate3d(0, calc(100% + 24px + env(safe-area-inset-bottom)), 0)'
+            : 'translate3d(0, 0, 0)',
+        opacity: board && hidden ? 0 : 1,
+        pointerEvents: board && hidden ? 'none' : 'auto',
+      }}
     >
       {MOBILE_NAV.map((item) => {
         const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
@@ -190,9 +345,6 @@ export function SiteFooter() {
   );
 }
 
-/** Routes this app has not taken over yet — the Next config rewrites them to
- *  the existing service. They must be plain anchors: a next/link would be
- *  prefetched as an app route and 404 before the rewrite ever runs. */
 const NOT_MIGRATED = new Set(['/terms', '/privacy', '/responsible-play']);
 
 function FooterColumn({

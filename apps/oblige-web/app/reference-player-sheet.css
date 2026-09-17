@@ -1,0 +1,597 @@
+/*
+ * Player-analysis visual acceptance layer.
+ *
+ * The supplied mobile reference is the source of truth for hierarchy and density:
+ * compact identity, market rail, controls, filters, sample strip, chart, supporting
+ * context, and a bottom navigation that does not cover the data. Presentation only;
+ * no provider, auth, polling, research, or routing behavior is changed here.
+ */
+
+body:has(.player-app-shell) {
+  background:
+    radial-gradient(760px 240px at 50% 0%, rgba(66, 63, 206, .20), transparent 62%),
+    linear-gradient(180deg, #080b1d 0, #060816 230px, #050711 100%);
+}
+
+body:has(.player-app-shell) .player-cinematic-hero,
+body:has(.player-app-shell) .player-explorer-panel,
+body:has(.player-app-shell) .player-split-card {
+  box-shadow: none !important;
+}
+
+body:has(.player-app-shell) footer {
+  background: #050711;
+}
+
+.player-app-shell {
+  --player-sheet-line: rgba(154, 164, 207, .16);
+  --player-sheet-line-strong: rgba(154, 164, 207, .26);
+  --player-sheet-surface: #0a0e20;
+  --player-sheet-surface-2: #0f1429;
+  --player-sheet-muted: #8e98b7;
+}
+
+.player-market-rail {
+  scrollbar-width: none;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.player-market-rail::-webkit-scrollbar {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* ------------------------------------------------------------- page chrome */
+
+  body:has(.player-app-shell) header {
+    border-bottom-color: rgba(154, 164, 207, .10) !important;
+    background: rgba(5, 7, 17, .92) !important;
+    backdrop-filter: blur(18px) saturate(1.05) !important;
+  }
+
+  body:has(.player-app-shell) header > div {
+    height: 48px !important;
+    min-height: 48px !important;
+    justify-content: center;
+    gap: 0 !important;
+    padding-inline: 12px !important;
+  }
+
+  body:has(.player-app-shell) header > div > a:first-child {
+    gap: 7px !important;
+  }
+
+  body:has(.player-app-shell) header .op-mark {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    font-size: 8px !important;
+  }
+
+  body:has(.player-app-shell) header .op-wordmark {
+    font-size: 16px !important;
+    letter-spacing: -.025em !important;
+  }
+
+  body:has(.player-app-shell) header > div > div:last-child {
+    display: none !important;
+  }
+
+  .player-app-shell {
+    width: 100% !important;
+    max-width: 760px !important;
+    padding: 0 8px calc(78px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .player-back-link {
+    min-height: 36px !important;
+    margin: 0 2px !important;
+    gap: 5px !important;
+    font-size: 11px !important;
+    font-weight: 650 !important;
+    color: #9ba6c6 !important;
+    touch-action: manipulation;
+  }
+
+  .player-back-link svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  /* ---------------------------------------------------------- identity header */
+
+  .player-cinematic-hero {
+    min-height: 0 !important;
+    margin: 0 -8px !important;
+    padding: 10px 14px 11px !important;
+    border-width: 1px 0 !important;
+    border-color: rgba(154, 164, 207, .10) !important;
+    border-radius: 0 !important;
+    background:
+      radial-gradient(480px 150px at 70% -35%, rgba(80, 77, 218, .20), transparent 72%),
+      linear-gradient(180deg, rgba(13, 18, 46, .96), rgba(8, 11, 28, .98)) !important;
+  }
+
+  .player-cinematic-hero::before {
+    display: none !important;
+  }
+
+  .player-identity-row {
+    min-height: 58px !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  .player-cinematic-hero .ringavatar {
+    width: 54px !important;
+    height: 54px !important;
+    transform: none !important;
+    box-shadow: 0 0 0 1px rgba(177, 187, 225, .30) !important;
+  }
+
+  .player-cinematic-hero .player-identity-row > span:first-child > span:last-child {
+    width: 20px !important;
+    height: 20px !important;
+    right: -2px !important;
+    bottom: -2px !important;
+    border-width: 2px !important;
+    font-size: 7px !important;
+  }
+
+  .player-cinematic-hero .player-identity-row > div > div:first-child {
+    display: none !important;
+  }
+
+  .player-cinematic-hero h1 {
+    margin: 0 !important;
+    font-size: 21px !important;
+    line-height: 1.04 !important;
+    font-weight: 800 !important;
+    letter-spacing: -.042em !important;
+  }
+
+  .player-cinematic-hero h1 + p {
+    margin-top: 4px !important;
+    gap: 4px 7px !important;
+    font-size: 11px !important;
+    line-height: 1.28 !important;
+    color: #9aa5c4 !important;
+  }
+
+  .player-line-glance {
+    min-height: 48px !important;
+    margin-top: 9px !important;
+    padding: 7px 10px !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    align-items: center !important;
+    gap: 10px !important;
+    border: 1px solid rgba(64, 213, 148, .38) !important;
+    border-radius: 9px !important;
+    background: linear-gradient(180deg, rgba(14, 27, 37, .96), rgba(10, 17, 28, .98)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025) !important;
+    backdrop-filter: none !important;
+  }
+
+  .player-line-glance p:first-child {
+    font-size: 11px !important;
+    font-weight: 700 !important;
+  }
+
+  .player-line-glance p:last-child {
+    margin-top: 1px !important;
+    font-size: 8.5px !important;
+  }
+
+  .player-line-glance > div:last-child {
+    gap: 11px !important;
+  }
+
+  .player-line-glance > div:last-child > span:first-child {
+    font-size: 23px !important;
+  }
+
+  .player-line-glance > div:last-child > span:last-child {
+    gap: 0 !important;
+    line-height: 1.15 !important;
+  }
+
+  .player-line-glance > div:last-child > span:last-child > span {
+    font-size: 10px !important;
+  }
+
+  /* The reference uses the market rail as the primary local navigation. */
+  .player-section-nav {
+    display: none !important;
+  }
+
+  /* -------------------------------------------------------------- market rail */
+
+  #player-props {
+    margin: 0 -8px !important;
+  }
+
+  #player-props .player-section-heading {
+    display: none !important;
+  }
+
+  .player-market-rail {
+    display: flex !important;
+    gap: 0 !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    overflow-x: auto !important;
+    border-bottom: 1px solid var(--player-sheet-line) !important;
+    background: rgba(8, 11, 28, .97) !important;
+  }
+
+  .player-market-rail button {
+    position: relative;
+    min-height: 44px !important;
+    height: 44px !important;
+    margin: 0 !important;
+    padding: 0 13px !important;
+    gap: 5px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #8089a8 !important;
+    font-size: 11px !important;
+    font-weight: 720 !important;
+    letter-spacing: -.012em !important;
+    touch-action: manipulation;
+  }
+
+  .player-market-rail button::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 0;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: transparent;
+  }
+
+  .player-market-rail button[aria-selected='true'] {
+    color: #f7f8ff !important;
+    background: linear-gradient(180deg, rgba(85, 80, 225, .16), rgba(85, 80, 225, .07)) !important;
+  }
+
+  .player-market-rail button[aria-selected='true']::after {
+    background: linear-gradient(90deg, #7c66ff, #a55cff) !important;
+  }
+
+  .player-market-rail button .num {
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: rgba(148, 160, 207, .12);
+    color: #9ca7c4 !important;
+    font-size: 8px !important;
+  }
+
+  /* ---------------------------------------------------------- research sheet */
+
+  #player-trends {
+    margin: 0 -8px !important;
+    padding: 0 8px !important;
+  }
+
+  #player-trends > .player-section-heading {
+    display: none !important;
+  }
+
+  .player-explorer-panel {
+    margin: 0 -8px !important;
+    padding: 12px 12px 13px !important;
+    border-width: 0 0 1px !important;
+    border-color: var(--player-sheet-line) !important;
+    border-radius: 0 !important;
+    background:
+      radial-gradient(480px 190px at 50% 100%, rgba(18, 131, 94, .10), transparent 72%),
+      #080c1c !important;
+  }
+
+  .player-explorer-panel > div {
+    gap: 12px !important;
+  }
+
+  /* Stepper / side / book / favourite: compact, but retain usable hit areas. */
+  .player-explorer-panel output[aria-live='polite'] {
+    min-width: 64px !important;
+    padding: 9px 7px !important;
+    font-size: 18px !important;
+  }
+
+  .player-explorer-panel output[aria-live='polite'] + button,
+  .player-explorer-panel button:has(+ output[aria-live='polite']) {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+  }
+
+  .player-explorer-panel output[aria-live='polite'] + button svg,
+  .player-explorer-panel button:has(+ output[aria-live='polite']) svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  .player-explorer-panel [role='group'][aria-label='Side'] {
+    min-height: 40px !important;
+    border-radius: 9px !important;
+  }
+
+  .player-explorer-panel [role='group'][aria-label='Side'] button {
+    min-height: 40px !important;
+    padding-inline: 10px !important;
+    font-size: 10px !important;
+  }
+
+  .player-explorer-panel [aria-label='Sportsbook'] {
+    min-width: 142px !important;
+    min-height: 40px !important;
+    height: 40px !important;
+    border-radius: 9px !important;
+    padding-inline: 10px !important;
+    font-size: 10px !important;
+  }
+
+  .player-explorer-panel button[aria-label^='Follow'],
+  .player-explorer-panel button[aria-label^='Unfollow'] {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    border-radius: 9px !important;
+  }
+
+  .player-explorer-panel button[aria-label^='Follow'] svg,
+  .player-explorer-panel button[aria-label^='Unfollow'] svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  /* Filters are one short decision row instead of a tall block. */
+  .player-explorer-panel [class*='grid-cols-2'][class*='items-end'] {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  .player-explorer-panel [class*='grid-cols-2'][class*='items-end'] > div {
+    gap: 4px !important;
+  }
+
+  .player-explorer-panel [class*='grid-cols-2'][class*='items-end'] > div > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 8.5px !important;
+    font-weight: 650 !important;
+    color: #8f99b6 !important;
+  }
+
+  .player-explorer-panel [class*='grid-cols-2'][class*='items-end'] button[role='combobox'] {
+    min-height: 40px !important;
+    height: 40px !important;
+    border-radius: 9px !important;
+    padding-inline: 9px !important;
+    font-size: 10px !important;
+  }
+
+  .player-explorer-panel button:has(.lucide-rotate-ccw) {
+    grid-column: auto !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    width: 40px !important;
+    height: 40px !important;
+    padding: 0 !important;
+    border: 1px solid var(--player-sheet-line) !important;
+    border-radius: 9px !important;
+    overflow: hidden;
+    color: transparent !important;
+    background: #0d1225 !important;
+  }
+
+  .player-explorer-panel button:has(.lucide-rotate-ccw) svg {
+    position: absolute;
+    width: 16px !important;
+    height: 16px !important;
+    color: #8f99b6 !important;
+  }
+
+  /* Hit-rate strip: contiguous compact cards like the supplied reference. */
+  .player-explorer-panel .rail {
+    gap: 0 !important;
+    margin-inline: 0 !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    border-color: rgba(154, 164, 207, .11) !important;
+    border-radius: 9px !important;
+    background: #050816 !important;
+    scrollbar-width: none;
+  }
+
+  .player-explorer-panel .rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .player-explorer-panel .rail > button {
+    min-width: 78px !important;
+    min-height: 68px !important;
+    flex: 1 0 78px !important;
+    gap: 2px !important;
+    padding: 8px 9px !important;
+    border: 0 !important;
+    border-right: 1px solid rgba(154, 164, 207, .09) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .player-explorer-panel .rail > button:last-child {
+    border-right: 0 !important;
+  }
+
+  .player-explorer-panel .rail > button[aria-pressed='true'] {
+    background: linear-gradient(180deg, rgba(92, 84, 222, .16), rgba(92, 84, 222, .06)) !important;
+    box-shadow: inset 0 0 0 1px rgba(112, 103, 235, .22) !important;
+  }
+
+  .player-explorer-panel .rail > button > span:first-child {
+    font-size: 11px !important;
+  }
+
+  .player-explorer-panel .rail > button > span:nth-child(2) {
+    font-size: 10px !important;
+  }
+
+  .player-explorer-panel .rail > button > span:last-child {
+    font-size: 9px !important;
+  }
+
+  /* Chart region gets the visual weight; surrounding copy is intentionally quiet. */
+  .player-explorer-panel h3 {
+    font-size: 11px !important;
+  }
+
+  .player-explorer-panel h3 + div {
+    font-size: 9.5px !important;
+  }
+
+  .player-explorer-panel [title*=' · '] {
+    border-radius: 5px 5px 2px 2px !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12);
+  }
+
+  /* --------------------------------------------------------- supporting stats */
+
+  #player-splits {
+    margin: 10px 0 0 !important;
+  }
+
+  #player-splits .player-section-heading {
+    margin-bottom: 6px !important;
+    padding-inline: 1px !important;
+  }
+
+  #player-splits .player-section-kicker {
+    display: none !important;
+  }
+
+  #player-splits .player-section-heading h2 {
+    font-size: 13px !important;
+    letter-spacing: -.02em !important;
+  }
+
+  .player-split-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  .player-split-card {
+    min-height: 92px !important;
+    padding: 10px 9px !important;
+    border-color: var(--player-sheet-line) !important;
+    border-radius: 10px !important;
+    background: #0b1022 !important;
+  }
+
+  .player-split-topline {
+    font-size: 8.5px !important;
+  }
+
+  .player-split-card > strong {
+    margin-top: 8px !important;
+    font-size: 22px !important;
+  }
+
+  .player-split-meta {
+    margin-top: 7px !important;
+    display: grid !important;
+    gap: 1px !important;
+    font-size: 8px !important;
+  }
+
+  .player-split-card::after {
+    height: 2px !important;
+  }
+
+  .player-detail-grid {
+    margin-top: 10px !important;
+    gap: 9px !important;
+  }
+
+  /* ------------------------------------------------------------ bottom nav */
+
+  body:has(.player-app-shell) nav[aria-label='Sections'] {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: max(7px, env(safe-area-inset-bottom)) !important;
+    overflow: hidden;
+    border: 1px solid rgba(147, 158, 200, .24) !important;
+    border-radius: 16px !important;
+    background: rgba(10, 14, 29, .94) !important;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, .40) !important;
+    backdrop-filter: blur(22px) saturate(1.08) !important;
+    padding-bottom: 0 !important;
+  }
+
+  body:has(.player-app-shell) nav[aria-label='Sections'] a {
+    min-height: 56px !important;
+    gap: 2px !important;
+    border-radius: 12px !important;
+    margin: 4px !important;
+    font-size: 9px !important;
+    touch-action: manipulation;
+  }
+
+  body:has(.player-app-shell) nav[aria-label='Sections'] a[aria-current='page'] {
+    background: linear-gradient(180deg, rgba(76, 98, 238, .88), rgba(65, 79, 211, .88)) !important;
+    color: white !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18) !important;
+  }
+
+  body:has(.player-app-shell) nav[aria-label='Sections'] svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  body:has(.player-app-shell) footer {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  /* Desktop keeps the existing research architecture, but removes the oversized
+     marketing treatment so the visual language stays consistent with mobile. */
+  .player-cinematic-hero {
+    min-height: 220px !important;
+    border-color: var(--player-sheet-line) !important;
+    background:
+      radial-gradient(620px 230px at 88% -10%, rgba(79, 75, 205, .18), transparent 68%),
+      linear-gradient(145deg, #0c1027, #080b18) !important;
+  }
+
+  .player-section-nav {
+    border-color: var(--player-sheet-line) !important;
+    background: rgba(8, 11, 24, .90) !important;
+    box-shadow: none !important;
+  }
+
+  .player-explorer-panel,
+  .player-split-card {
+    border-color: var(--player-sheet-line) !important;
+    background-color: var(--player-sheet-surface) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-market-rail button,
+  .player-explorer-panel button,
+  body:has(.player-app-shell) nav[aria-label='Sections'] a {
+    transition: none !important;
+  }
+}

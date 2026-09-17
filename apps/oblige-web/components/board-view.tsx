@@ -22,7 +22,7 @@ const SORTS = [
 type SortId = (typeof SORTS)[number]['id'];
 
 /** Enough cards to fill a tall screen without asking the research route for
- *  hundreds of histories nobody scrolled to. */
+ * hundreds of histories nobody scrolled to. */
 const PAGE_SIZE = 24;
 const ALL = 'ALL';
 const AUTO_REFRESH_MS = 15_000;
@@ -55,7 +55,7 @@ export function BoardView() {
   const [bookFilter, setBookFilter] = React.useState(ALL);
 
   /** Hit rates arrive per card from the research route, so the board renders
-   *  immediately and each card fills in as its history lands. */
+   * immediately and each card fills in as its history lands. */
   const [stats, setStats] = React.useState<Record<string, PropCardStats>>({});
 
   React.useEffect(() => {
@@ -255,9 +255,9 @@ export function BoardView() {
 
   if (checking) {
     return (
-      <div className="mx-auto w-full max-w-[var(--maxw)] px-4 py-10 md:px-8">
-        <div className="grid gap-3 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
+      <div className="board-loading-shell mx-auto w-full max-w-[var(--maxw)] px-3 py-4 sm:px-4 md:px-8">
+        <div className="board-grid grid gap-2.5 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, index) => (
             <PropCardSkeleton key={index} />
           ))}
         </div>
@@ -274,38 +274,30 @@ export function BoardView() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[var(--maxw)] px-4 pt-6 pb-16 md:px-8">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div>
+    <div className="board-shell mx-auto w-full max-w-[var(--maxw)] px-3 pt-2 pb-16 sm:px-4 md:px-6 md:pt-5 lg:px-8">
+      <div className="board-summary mb-2.5 flex items-end justify-between gap-3 md:mb-4">
+        <div className="board-summary__title min-w-0">
           <div className="board-kicker">Live player prop research</div>
           <h1 className="text-[length:var(--fs-xl)]" style={{ textTransform: 'var(--display-case)' as 'none' }}>
             Props
           </h1>
-          <p className="mt-1.5 text-[length:var(--fs-sm)] text-[var(--text-3)]">
-            {loading
-              ? 'Loading the live board…'
-              : `${visible.length.toLocaleString()} props in view${
-                  meta.sportsbookCount ? ` · ${meta.sportsbookCount} books` : ''
-                }`}
-          </p>
         </div>
+        <p className="board-summary__meta shrink-0 text-right text-[length:var(--fs-xs)] text-[var(--text-3)] md:text-[length:var(--fs-sm)]">
+          {loading
+            ? 'Loading live board…'
+            : `${visible.length.toLocaleString()} props${meta.sportsbookCount ? ` · ${meta.sportsbookCount} books` : ''}`}
+        </p>
       </div>
 
       {meta.stale && (
-        <p className="mb-4 flex items-center gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_40%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
+        <p className="board-stale mb-2.5 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_srgb,var(--warn)_40%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] px-3 py-2 text-[length:var(--fs-xs)] text-[var(--warn)] md:mb-4 md:text-[length:var(--fs-sm)]">
           <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
           Live feed temporarily delayed. Showing the latest available prices.
         </p>
       )}
 
-      <div
-        className={cn(
-          '-mx-4 border-b border-[var(--line)] px-4 py-3 md:-mx-8 md:px-8',
-          'sticky top-16 z-20 grid gap-3',
-          'bg-[color-mix(in_srgb,var(--bg)_92%,transparent)] backdrop-blur-lg',
-        )}
-      >
-        <div className="rail" role="group" aria-label="League">
+      <div className="board-toolbar sticky top-14 z-20 grid gap-1.5 border-y border-[var(--line)] bg-[color-mix(in_srgb,var(--bg)_94%,transparent)] py-1.5 backdrop-blur-xl md:top-16 md:gap-2 md:rounded-[14px] md:border md:px-2.5 md:py-2.5">
+        <div className="board-leagues rail" role="group" aria-label="League">
           {SPORTS.map((option) => (
             <button
               key={option}
@@ -313,10 +305,10 @@ export function BoardView() {
               aria-pressed={option === sport}
               onClick={() => setSport(option)}
               className={cn(
-                'flex-none min-h-10 rounded-full border px-4 text-[length:var(--fs-xs)] font-semibold',
-                'transition-[color,background-color,border-color,transform] duration-200 ease-[var(--ease-out)] active:scale-[.96]',
+                'flex-none min-h-8 rounded-[8px] border px-2.5 text-[11px] font-semibold md:min-h-9 md:rounded-[9px] md:px-3 md:text-[length:var(--fs-xs)]',
+                'transition-[color,background-color,border-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[.97]',
                 option === sport
-                  ? 'border-transparent bg-[var(--accent)] text-[var(--accent-ink)]'
+                  ? 'border-[color-mix(in_srgb,var(--accent)_48%,transparent)] bg-[color-mix(in_srgb,var(--accent)_13%,var(--surface))] text-[var(--text)]'
                   : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)]',
               )}
             >
@@ -325,10 +317,10 @@ export function BoardView() {
           ))}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="relative flex min-w-[180px] flex-1 items-center">
+        <div className="board-control-row flex items-center gap-1.5">
+          <label className="board-search relative flex min-w-0 flex-1 items-center">
             <Search
-              className="pointer-events-none absolute left-3 size-4 text-[var(--text-3)]"
+              className="pointer-events-none absolute left-2.5 size-3.5 text-[var(--text-3)] md:left-3 md:size-4"
               aria-hidden="true"
             />
             <span className="sr-only">Search players or markets</span>
@@ -336,46 +328,59 @@ export function BoardView() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search players, teams, or stats…"
+              placeholder="Search players, teams…"
               autoComplete="off"
-              className="pl-9"
+              className="h-9 min-h-9 rounded-[9px] pl-8 text-xs md:h-10 md:min-h-10 md:rounded-[10px] md:pl-9"
             />
           </label>
+
           <button
             type="button"
             aria-expanded={filtersOpen}
             onClick={() => setFiltersOpen((open) => !open)}
             className={cn(
-              'board-filter-trigger min-h-10 flex-none items-center gap-2 rounded-full border px-4 text-[length:var(--fs-xs)] font-semibold',
+              'board-filter-trigger inline-flex h-9 min-h-9 flex-none items-center gap-1.5 rounded-[9px] border px-2.5 text-[11px] font-semibold md:h-10 md:min-h-10 md:px-3 md:text-[length:var(--fs-xs)]',
               activeFilterCount
                 ? 'border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-[var(--accent)]'
                 : 'border-[var(--line)] text-[var(--text-2)]',
             )}
           >
-            <SlidersHorizontal className="size-4" aria-hidden="true" />
-            Filters{activeFilterCount ? ` (${activeFilterCount})` : ''}
+            <SlidersHorizontal className="size-3.5 md:size-4" aria-hidden="true" />
+            <span>Filters{activeFilterCount ? ` ${activeFilterCount}` : ''}</span>
           </button>
-          {SORTS.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              aria-pressed={option.id === sort}
-              onClick={() => setSort(option.id)}
-              className={cn(
-                'min-h-10 flex-none rounded-full border px-4 text-[length:var(--fs-xs)] font-semibold',
-                'transition-colors duration-200 ease-[var(--ease-out)]',
-                option.id === sort
-                  ? 'border-transparent bg-[var(--accent)] text-[var(--accent-ink)]'
-                  : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)]',
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
+
+          <div className="board-sort-pills hidden items-center gap-1.5 md:flex" aria-label="Sort props">
+            {SORTS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={option.id === sort}
+                onClick={() => setSort(option.id)}
+                className={cn(
+                  'min-h-10 flex-none rounded-[9px] border px-3 text-[length:var(--fs-xs)] font-semibold transition-colors duration-150',
+                  option.id === sort
+                    ? 'border-[color-mix(in_srgb,var(--accent)_44%,transparent)] bg-[color-mix(in_srgb,var(--accent)_12%,var(--surface))] text-[var(--text)]'
+                    : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)]',
+                )}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {filtersOpen && (
           <div className="board-filter-panel" aria-label="Advanced prop filters">
+            <label className="board-filter-field board-filter-sort md:hidden">
+              <span>Sort</span>
+              <select value={sort} onChange={(event) => setSort(event.target.value as SortId)}>
+                {SORTS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <FilterSelect label="Market" value={marketFilter} onChange={setMarketFilter} options={filterOptions.markets} />
             <FilterSelect label="Team" value={teamFilter} onChange={setTeamFilter} options={filterOptions.teams} />
             <FilterSelect label="Opponent" value={opponentFilter} onChange={setOpponentFilter} options={filterOptions.opponents} />
@@ -396,8 +401,8 @@ export function BoardView() {
           </Button>
         </div>
       ) : loading && !groups.length ? (
-        <div className="mt-5 grid gap-3 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, index) => (
+        <div className="board-grid mt-2.5 grid gap-2.5 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:mt-4 md:gap-3">
+          {Array.from({ length: 8 }).map((_, index) => (
             <PropCardSkeleton key={index} />
           ))}
         </div>
@@ -422,9 +427,9 @@ export function BoardView() {
         </div>
       ) : (
         <>
-          <div className="mt-5 grid gap-3 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="board-grid mt-2.5 grid gap-2.5 [&>*]:min-w-0 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:mt-4 md:gap-3">
             {page.map((group, index) => (
-              <Reveal key={group.key} delay={Math.min(index * 40, 300)}>
+              <Reveal key={group.key} delay={Math.min(index * 30, 210)}>
                 <PropCard
                   group={group}
                   stats={stats[group.key] ?? null}
@@ -437,14 +442,14 @@ export function BoardView() {
                     }))
                   }
                   picked={picks[group.key] ?? null}
-                  delay={Math.min(index * 40, 300)}
+                  delay={Math.min(index * 30, 210)}
                 />
               </Reveal>
             ))}
           </div>
 
           {shown < visible.length && (
-            <div className="mt-8 grid justify-items-center gap-2">
+            <div className="mt-6 grid justify-items-center gap-2 md:mt-8">
               <Button variant="ghost" onClick={() => setShown((value) => value + PAGE_SIZE)}>
                 Show {Math.min(PAGE_SIZE, visible.length - shown)} more
               </Button>

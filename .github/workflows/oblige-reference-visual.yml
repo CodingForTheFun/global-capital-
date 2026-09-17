@@ -1,0 +1,101 @@
+name: Oblige Props reference visual acceptance
+
+on:
+  pull_request:
+    branches:
+      - production-stable
+    paths:
+      - 'apps/oblige-web/**'
+      - 'scripts/reference-visual-driver.mjs'
+      - '.github/workflows/oblige-reference-visual.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oblige-reference-visual-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  render-reference-targets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install browser driver dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix apps/oblige-web
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Typecheck branch frontend
+        run: npm run typecheck --prefix apps/oblige-web
+
+      - name: Build branch frontend
+        env:
+          OBLIGE_BACKEND_ORIGIN: https://www.obligeprops.com
+        run: npm run build --prefix apps/oblige-web
+
+      - name: Start branch frontend with production API proxy
+        env:
+          OBLIGE_BACKEND_ORIGIN: https://www.obligeprops.com
+        run: |
+          npm run start --prefix apps/oblige-web > reference-next.log 2>&1 &
+          echo $! > /tmp/oblige-reference-next.pid
+
+      - name: Classify visual credentials
+        id: credentials
+        env:
+          REFERENCE_VISUAL_EMAIL: ${{ secrets.REFERENCE_VISUAL_EMAIL }}
+          REFERENCE_VISUAL_PASSWORD: ${{ secrets.REFERENCE_VISUAL_PASSWORD }}
+        run: |
+          if [ -n "$REFERENCE_VISUAL_EMAIL" ] && [ -n "$REFERENCE_VISUAL_PASSWORD" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Render real-data iPhone and desktop screenshots
+        if: steps.credentials.outputs.configured == 'true'
+        env:
+          REFERENCE_VISUAL_BASE: http://localhost:3000
+          REFERENCE_VISUAL_OUT: reference-visual-artifacts
+          REFERENCE_VISUAL_SPORTS: MLB,NFL,NBA,NHL,WNBA,NCAAF
+          REFERENCE_VISUAL_EMAIL: ${{ secrets.REFERENCE_VISUAL_EMAIL }}
+          REFERENCE_VISUAL_PASSWORD: ${{ secrets.REFERENCE_VISUAL_PASSWORD }}
+        run: node scripts/reference-visual-driver.mjs
+
+      - name: Record unverifiable visual gate
+        if: steps.credentials.outputs.configured != 'true'
+        run: |
+          mkdir -p reference-visual-artifacts
+          cat > reference-visual-artifacts/summary.json <<'JSON'
+          {
+            "status": "UNVERIFIABLE",
+            "reason": "REFERENCE_VISUAL_EMAIL and REFERENCE_VISUAL_PASSWORD are not configured for this workflow. No authenticated reference screenshots were rendered."
+          }
+          JSON
+          echo "::warning::Authenticated visual acceptance is UNVERIFIABLE because reference credentials are not configured."
+
+      - name: Upload reference render artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oblige-reference-render-${{ github.sha }}
+          path: |
+            reference-visual-artifacts/
+            reference-next.log
+          if-no-files-found: warn
+          retention-days: 7

@@ -55,19 +55,31 @@ async function verifySignedOutBrowserGate() {
     const navigation = await page.goto(`${BASE}/apex`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     if (!navigation?.ok()) throw new Error(`Signed-out /apex returned HTTP ${navigation?.status() || 'unknown'}`);
 
-    await page.waitForFunction(() => (
-      Boolean(document.querySelector('#authForm'))
-      || Boolean(document.querySelector('.gBtn'))
-      || Boolean(document.querySelector('.note'))
-    ), null, { timeout: 30_000 });
+    await page.waitForFunction(() => {
+      const legacyGate = (
+        Boolean(document.querySelector('#authForm'))
+        || Boolean(document.querySelector('.gBtn'))
+        || Boolean(document.querySelector('.note'))
+      );
+      const heading = Array.from(document.querySelectorAll('h1'))
+        .some((node) => /Sign in to open the board|Create an account|Verify your email/i.test(node.textContent || ''));
+      const emailField = Boolean(document.querySelector('input[type="email"]'));
+      const credentialField = Boolean(document.querySelector('input[type="password"], input[inputmode="numeric"]'));
+      return legacyGate || (heading && emailField && credentialField);
+    }, null, { timeout: 30_000 });
 
-    if (await page.locator('.asRow').count()) throw new Error('Signed-out account gate exposed prop rows.');
+    if (await page.locator('.asRow').count()) throw new Error('Signed-out account gate exposed legacy prop rows.');
     const title = await page.title();
     const bodyText = (await page.locator('body').innerText()).replace(/\s+/g, ' ').trim();
     if (!/Oblige Props/i.test(title) || !/Oblige Props/i.test(bodyText)) {
       throw new Error('Signed-out customer surface is not branded as Oblige Props.');
     }
-    return { title, accountSurface: true, propRowsExposed: false };
+    return {
+      title,
+      accountSurface: true,
+      propRowsExposed: false,
+      path: new URL(page.url()).pathname,
+    };
   } finally {
     await browser.close();
   }

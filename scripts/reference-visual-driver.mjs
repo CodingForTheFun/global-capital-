@@ -48,9 +48,15 @@ async function createLegitimateSession(context) {
   });
   const body = await response.json().catch(() => null);
   const token = sessionTokenFrom(response);
-  if (!response.ok() || body?.ok !== true || !token) {
+  const authenticated = body?.authenticated === true;
+
+  // Match the real sign-in contract. Registration may return AUTH_REGISTERED
+  // without a legacy `ok` field; the customer UI treats `authenticated` as
+  // the canonical signal that registration also established a usable session.
+  if (!response.ok() || !authenticated || !token) {
+    const code = body?.code || body?.message || 'unknown response';
     throw new Error(
-      `Normal registration did not produce the QA session used by the production smoke path: HTTP ${response.status()} ${body?.code || body?.message || 'no session cookie'}`,
+      `Normal registration did not produce an authenticated QA session: HTTP ${response.status()} ${code} authenticated=${authenticated} sessionCookie=${Boolean(token)}`,
     );
   }
 
@@ -98,8 +104,35 @@ async function selectSport(page, sport) {
   await page.waitForFunction(() => document.querySelectorAll('.prop-card-v2').length >= 2, null, { timeout: 45_000 });
 }
 
-async function settle(page, ms = 1800) {
-  await page.evaluate(() => document.fonts?.ready).catch(() => null);
+async function settle(page, ms = 1200) {
+  await page
+    .evaluate(async () => {
+      if (document.fonts?.ready) await document.fonts.ready;
+    })
+    .catch(() => null);
+
+  // Player headshots and book marks should either finish loading or fail before
+  // the capture. Limit this wait so an unavailable remote image cannot hang QA.
+  await page
+    .waitForFunction(
+      () => {
+        const visibleImages = [...document.images].filter((image) => {
+          const rect = image.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight;
+        });
+        return visibleImages.every((image) => image.complete);
+      },
+      null,
+      { timeout: 5_000 },
+    )
+    .catch(() => null);
+
+  await page.evaluate(
+    () =>
+      new Promise((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(resolve));
+      }),
+  );
   await sleep(ms);
 }
 
@@ -127,6 +160,10 @@ async function boardMetrics(page) {
       const rect = card.getBoundingClientRect();
       return rect.top >= 0 && rect.bottom <= innerHeight;
     }).length;
+    const visibleImages = [...document.images].filter((image) => {
+      const rect = image.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight;
+    });
     return {
       viewport: { width: innerWidth, height: innerHeight },
       header: box('header[data-board="true"]'),
@@ -137,6 +174,8 @@ async function boardMetrics(page) {
       cardCount: cards.length,
       cardsIntersectingViewport: visibleCards,
       cardsFullyVisible: firstFullyVisible,
+      visibleImages: visibleImages.length,
+      loadedVisibleImages: visibleImages.filter((image) => image.complete && image.naturalWidth > 0).length,
       bodyScrollWidth: document.documentElement.scrollWidth,
       bodyClientWidth: document.documentElement.clientWidth,
     };
@@ -156,6 +195,10 @@ async function researchMetrics(page) {
         height: Math.round(rect.height * 10) / 10,
       };
     };
+    const visibleImages = [...document.images].filter((image) => {
+      const rect = image.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < innerHeight;
+    });
     return {
       viewport: { width: innerWidth, height: innerHeight },
       header: box('header'),
@@ -163,6 +206,8 @@ async function researchMetrics(page) {
       sectionNav: box('.player-section-nav'),
       explorer: box('.player-explorer-panel'),
       firstChart: box('[title*=" · "]'),
+      visibleImages: visibleImages.length,
+      loadedVisibleImages: visibleImages.filter((image) => image.complete && image.naturalWidth > 0).length,
       bodyScrollWidth: document.documentElement.scrollWidth,
       bodyClientWidth: document.documentElement.clientWidth,
     };
@@ -171,12 +216,13 @@ async function researchMetrics(page) {
 
 async function renderViewport(page, viewport, label, sport, researchUrlRef) {
   await page.setViewportSize(viewport);
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
   await page.goto(`${BASE}/board`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   await selectSport(page, sport);
-  await settle(page, 2600);
+  await settle(page, 1800);
 
   const boardFile = path.join(OUT, `board-${label}.png`);
-  await page.screenshot({ path: boardFile, fullPage: false });
+  await page.screenshot({ path: boardFile, fullPage: false, animations: 'disabled', caret: 'hide' });
   const board = await boardMetrics(page);
 
   // Prefer a card whose real L10 observations have landed. If verified
@@ -194,10 +240,10 @@ async function renderViewport(page, viewport, label, sport, researchUrlRef) {
   await page.waitForURL(/\/research\?/, { timeout: 20_000 });
   researchUrlRef.value = page.url();
   await page.waitForSelector('.player-cinematic-hero', { timeout: 30_000 });
-  await settle(page, 2200);
+  await settle(page, 1600);
 
   const researchFile = path.join(OUT, `research-${label}.png`);
-  await page.screenshot({ path: researchFile, fullPage: false });
+  await page.screenshot({ path: researchFile, fullPage: false, animations: 'disabled', caret: 'hide' });
   const research = await researchMetrics(page);
 
   return { board, research, files: { board: path.basename(boardFile), research: path.basename(researchFile) } };

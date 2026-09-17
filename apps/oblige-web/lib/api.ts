@@ -27,23 +27,90 @@ export class ApiError extends Error {
   }
 }
 
-async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', signal });
-  } catch (cause) {
-    if (signal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
-    throw new ApiError('Oblige Props could not be reached.', 0, 'NETWORK');
+const GET_TIMEOUT_MS = 12_000;
+const RETRYABLE_GET_STATUSES = new Set([429, 502, 503, 504]);
+
+function retryAfterMs(response: Response, attempt: number) {
+  const raw = response.headers.get('retry-after');
+  if (raw) {
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds)) return Math.min(Math.max(seconds * 1000, 250), 5_000);
+    const date = Date.parse(raw);
+    if (Number.isFinite(date)) return Math.min(Math.max(date - Date.now(), 250), 5_000);
   }
-  const body = (await response.json().catch(() => ({}))) as T & { message?: string; code?: string };
-  if (!response.ok) {
+  return Math.min(450 * 2 ** attempt, 1_800);
+}
+
+function wait(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new ApiError('The request was cancelled.', 0, 'ABORTED'));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new ApiError('The request was cancelled.', 0, 'ABORTED'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+async function fetchGet(path: string, parentSignal?: AbortSignal) {
+  if (parentSignal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
+
+  const controller = new AbortController();
+  const abortFromParent = () => controller.abort();
+  parentSignal?.addEventListener('abort', abortFromParent, { once: true });
+  const timeout = setTimeout(() => controller.abort(), GET_TIMEOUT_MS);
+
+  try {
+    return await fetch(path, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+  } catch {
+    if (parentSignal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
+    if (controller.signal.aborted) {
+      throw new ApiError('Oblige Props took too long to respond.', 0, 'TIMEOUT');
+    }
+    throw new ApiError('Oblige Props could not be reached.', 0, 'NETWORK');
+  } finally {
+    clearTimeout(timeout);
+    parentSignal?.removeEventListener('abort', abortFromParent);
+  }
+}
+
+/**
+ * GETs are idempotent, so one bounded retry is safe for transient gateway and
+ * rate-limit failures. The browser respects Retry-After when supplied and
+ * never retries auth/client errors. This gives the UI a calmer failure mode
+ * without increasing normal polling frequency or touching provider logic.
+ */
+async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const response = await fetchGet(path, signal);
+    const body = (await response.json().catch(() => ({}))) as T & { message?: string; code?: string };
+
+    if (response.ok) return body;
+
+    if (attempt === 0 && RETRYABLE_GET_STATUSES.has(response.status)) {
+      await wait(retryAfterMs(response, attempt), signal);
+      continue;
+    }
+
     throw new ApiError(
       body?.message || 'That request could not be completed.',
       response.status,
       body?.code || 'REQUEST_FAILED',
     );
   }
-  return body;
+
+  throw new ApiError('That request could not be completed.', 0, 'REQUEST_FAILED');
 }
 
 /* ---------------------------------------------------------------- account */

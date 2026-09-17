@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Home, LayoutGrid, User } from 'lucide-react';
+import { BarChart3, Home, LayoutGrid, Menu, User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
@@ -21,6 +21,12 @@ const MOBILE_NAV = [
   { href: '/account', label: 'Profile', icon: User },
 ];
 
+const MOBILE_MENU = [
+  { href: '/account', label: 'Account / Profile' },
+  { href: '/research', label: 'Research' },
+  { href: '/#pricing', label: 'Pricing' },
+];
+
 function Wordmark({ footer = false }: { footer?: boolean }) {
   return (
     <span
@@ -36,8 +42,10 @@ function Wordmark({ footer = false }: { footer?: boolean }) {
 
 export function SiteHeader() {
   const [stuck, setStuck] = React.useState(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
   const pathname = usePathname();
   const board = pathname.startsWith('/board');
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     let ticking = false;
@@ -53,6 +61,28 @@ export function SiteHeader() {
     onScroll();
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  React.useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
+  React.useEffect(() => {
+    if (!menuOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuOpen]);
 
   return (
     <header
@@ -105,16 +135,38 @@ export function SiteHeader() {
           })}
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="relative ml-auto flex items-center gap-2" ref={menuRef}>
           {board && (
-            <Link
-              href="/account"
-              className="board-mobile-account hidden size-8 items-center justify-center rounded-full border border-[var(--line)] text-[var(--text-2)] max-[767px]:inline-flex"
-              aria-label="Account"
+            <button
+              type="button"
+              className="board-mobile-menu-trigger hidden size-8 items-center justify-center rounded-[8px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_88%,transparent)] text-[var(--text-2)] max-[767px]:inline-flex"
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={menuOpen}
+              aria-controls="board-mobile-menu"
+              onClick={() => setMenuOpen((open) => !open)}
             >
-              <User className="size-4" aria-hidden="true" />
-            </Link>
+              {menuOpen ? <X className="size-4" aria-hidden="true" /> : <Menu className="size-4" aria-hidden="true" />}
+            </button>
           )}
+
+          {board && menuOpen && (
+            <div
+              id="board-mobile-menu"
+              className="board-mobile-menu absolute right-0 top-[calc(100%+8px)] z-50 hidden min-w-[190px] overflow-hidden rounded-[12px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_97%,transparent)] p-1.5 shadow-2xl backdrop-blur-xl max-[767px]:grid"
+            >
+              {MOBILE_MENU.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-[8px] px-3 py-2.5 text-[12px] font-semibold text-[var(--text-2)] transition-colors hover:bg-[color-mix(in_srgb,var(--text)_7%,transparent)] hover:text-[var(--text)]"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          )}
+
           <Button
             asChild
             size="sm"

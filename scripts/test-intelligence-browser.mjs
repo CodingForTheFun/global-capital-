@@ -149,7 +149,7 @@ try{
   await page.goBack();await page.waitForSelector('.asMain');assert.equal(await page.locator('#asDrawerBg').isVisible(),false);
   await page.goForward();await page.waitForSelector('.asAnalyticsPage .asChart');
   await page.locator('#asClose').click();await page.waitForSelector('.asMain');
-  await page.locator('#asi-open').click();await page.waitForSelector('#asi-sensitivity');console.log('BROWSER_STUDIO',name);
+  await page.locator('.asCard').first().click();await page.locator('#asTab-intelligence').click();await page.waitForSelector('#asi-sensitivity');console.log('BROWSER_STUDIO',name);
   assert.equal(await page.locator('#asIntelligenceDetail details').count(),8);
   assert.equal(await page.locator('#asi-sensitivity tbody tr').count(),7);
   const initialLine=24.5+revision;

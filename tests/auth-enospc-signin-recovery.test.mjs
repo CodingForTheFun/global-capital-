@@ -56,3 +56,16 @@ test('per-device validation remains in the account request path', () => {
   assert.match(routes, /session\.sessionId && !\(await isSessionActive\(session\.sessionId\)\)/,
     'sessions with a device id must still be checked server-side');
 });
+
+test('self sign-out always clears the account cookie even if presence cleanup fails', () => {
+  const routes = readFileSync(new URL('../lib/auth/routes.mjs', import.meta.url), 'utf8');
+  const logout = routes.match(/if \(path === '\/api\/account\/logout'\) \{([\s\S]*?)\n    \}\n\n    if \(path === '\/api\/account\/logout-all'\)/)?.[1] || '';
+  assert.match(logout, /try \{/,
+    'device-presence cleanup during self sign-out must be best effort');
+  assert.match(logout, /catch \(error\)/,
+    'a presence persistence failure must not escape the self sign-out route');
+  assert.match(logout, /clearAccountCookie\(req\)/,
+    'self sign-out must always expire the browser account cookie');
+  assert.ok(logout.indexOf('clearAccountCookie(req)') > logout.indexOf('catch (error)'),
+    'cookie clearing must happen after the best-effort cleanup boundary');
+});

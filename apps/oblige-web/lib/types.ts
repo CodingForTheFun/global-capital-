@@ -41,6 +41,20 @@ export type BoardMeta = {
   stale?: boolean;
   cacheHit?: boolean;
   fetchedAt?: string;
+  status?: string;
+  source?: string;
+  [key: string]: unknown;
+};
+
+export type SlipSelection = {
+  id: string;
+  groupKey: string;
+  player: string;
+  market: string;
+  line: number;
+  side: Side;
+  sportsbook: string;
+  price: number | null;
 };
 
 export type BoardResponse = {

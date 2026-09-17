@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Search, SlidersHorizontal, TriangleAlert } from 'lucide-react';
+import { Search, SlidersHorizontal, TriangleAlert } from 'lucide-react';
 import type { BoardMeta, PropGroup } from '@/lib/types';
 import { ApiError, fetchAccount, fetchBoard, fetchResearch, windowOf } from '@/lib/api';
 import { cn, pctValue } from '@/lib/utils';
@@ -25,6 +25,7 @@ type SortId = (typeof SORTS)[number]['id'];
  *  hundreds of histories nobody scrolled to. */
 const PAGE_SIZE = 24;
 const ALL = 'ALL';
+const AUTO_REFRESH_MS = 15_000;
 
 const bookName = (value: unknown) => String(value || '').trim();
 const sortedUnique = (values: Array<string | null | undefined>) =>
@@ -72,38 +73,71 @@ export function BoardView() {
 
   React.useEffect(() => {
     if (checking || !account) return;
-    const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 20000);
-    setLoading(true);
-    setError('');
-    fetchBoard(sport, controller.signal)
-      .then((board) => {
+
+    let cancelled = false;
+    let activeController: AbortController | null = null;
+
+    const loadBoard = async (initial: boolean) => {
+      if (activeController) return;
+      const controller = new AbortController();
+      activeController = controller;
+      const timeout = window.setTimeout(() => controller.abort(), 20000);
+
+      if (initial) {
+        setLoading(true);
+        setError('');
+      }
+
+      try {
+        const board = await fetchBoard(sport, controller.signal);
+        if (cancelled) return;
+
         setGroups(board.groups);
         setMeta(board.meta);
-        setShown(PAGE_SIZE);
-        setMarketFilter(ALL);
-        setTeamFilter(ALL);
-        setOpponentFilter(ALL);
-        setBookFilter(ALL);
-      })
-      .catch((cause: unknown) => {
-        if (controller.signal.aborted) {
-          setError('The prop board took too long to respond. Try again.');
-          return;
+        setError('');
+
+        if (initial) {
+          setShown(PAGE_SIZE);
+          setMarketFilter(ALL);
+          setTeamFilter(ALL);
+          setOpponentFilter(ALL);
+          setBookFilter(ALL);
         }
+      } catch (cause: unknown) {
+        if (cancelled) return;
         if (cause instanceof ApiError && cause.status === 401) {
           setAccount(null);
           return;
         }
-        setError(cause instanceof Error ? cause.message : 'The live prop board is unavailable.');
-      })
-      .finally(() => {
-        window.clearTimeout(timer);
-        setLoading(false);
-      });
+        if (initial) {
+          setError(
+            controller.signal.aborted
+              ? 'The prop board took too long to respond. Try again.'
+              : cause instanceof Error
+                ? cause.message
+                : 'The live prop board is unavailable.',
+          );
+        }
+      } finally {
+        window.clearTimeout(timeout);
+        if (activeController === controller) activeController = null;
+        if (!cancelled && initial) setLoading(false);
+      }
+    };
+
+    void loadBoard(true);
+
+    const refreshVisibleBoard = () => {
+      if (document.visibilityState === 'visible') void loadBoard(false);
+    };
+    const interval = window.setInterval(refreshVisibleBoard, AUTO_REFRESH_MS);
+    document.addEventListener('visibilitychange', refreshVisibleBoard);
+
     return () => {
-      controller.abort();
-      window.clearTimeout(timer);
+      cancelled = true;
+      activeController?.abort();
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshVisibleBoard);
     };
   }, [checking, account, sport, nonce]);
 
@@ -255,21 +289,12 @@ export function BoardView() {
                 }`}
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setNonce((value) => value + 1)}
-          disabled={loading}
-        >
-          <RefreshCw className={cn('size-4', loading && 'animate-spin')} aria-hidden="true" />
-          Refresh
-        </Button>
       </div>
 
       {meta.stale && (
         <p className="mb-4 flex items-center gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_40%,transparent)] bg-[color-mix(in_srgb,var(--warn)_10%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
           <TriangleAlert className="size-4 shrink-0" aria-hidden="true" />
-          These prices are from the last good refresh and may have moved since.
+          Live feed temporarily delayed. Showing the latest available prices.
         </p>
       )}
 

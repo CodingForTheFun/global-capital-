@@ -11,8 +11,9 @@
  *
  *   node scripts/line-history-report.mjs [--days 7] [--limit 50000] [--json]
  *
- * Needs AUTOSCOUT_SUPABASE_URL and AUTOSCOUT_SUPABASE_SERVICE_ROLE_KEY, the
- * same pair lib/autoscout/supabase-persistence.mjs uses. Neither is printed.
+ * Needs a Supabase URL plus either a service-role key or a publishable/anon key.
+ * The report accepts both the legacy AUTOSCOUT_* names and the current Railway
+ * SUPABASE_* publishable-key contract. Credential values are never printed.
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -21,7 +22,11 @@ import { analyzeLineHistory, formatLineHistoryReport } from '../lib/diagnostics/
 const text = (value) => String(value ?? '').trim();
 const SUPABASE_URL = text(process.env.AUTOSCOUT_SUPABASE_URL || process.env.SUPABASE_URL).replace(/\/$/, '');
 const SERVICE_KEY = text(process.env.AUTOSCOUT_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
-const PUBLIC_KEY = text(process.env.AUTOSCOUT_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY);
+const PUBLIC_KEY = text(
+  process.env.AUTOSCOUT_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  process.env.SUPABASE_ANON_KEY,
+);
 
 /**
  * Which credential we get to read with, and whether it is actually allowed to
@@ -106,11 +111,26 @@ async function appendLedger(report) {
   }
 }
 
+function printUnverifiable(reason) {
+  if (asJson) {
+    console.log(JSON.stringify({
+      verdict: 'UNVERIFIABLE',
+      ok: false,
+      unverifiable: true,
+      evaluatedAt: new Date().toISOString(),
+      failures: [reason],
+    }, null, 2));
+  } else {
+    console.error(`Line history — UNVERIFIABLE (evaluated ${new Date().toISOString()})`);
+    console.error(`\n  unverifiable because:\n    - ${reason}`);
+  }
+}
+
 async function main() {
   const cred = credential();
   if (!SUPABASE_URL || !cred.key) {
-    console.error('Set AUTOSCOUT_SUPABASE_URL plus either AUTOSCOUT_SUPABASE_SERVICE_ROLE_KEY or AUTOSCOUT_SUPABASE_PUBLISHABLE_KEY.');
-    process.exit(2);
+    printUnverifiable('Supabase URL or readable credential is not configured for the proof job');
+    process.exit(3);
   }
   const since = new Date(Date.now() - days * 24 * 3_600_000).toISOString();
   const rows = await fetchSnapshots(since, cred);
@@ -118,6 +138,7 @@ async function main() {
   const readable = cred.privileged || rows.length > 0;
   const report = analyzeLineHistory(rows, { windowDays: days, readable });
   report.credentialTier = cred.tier;
+  report.verdict = report.unverifiable ? 'UNVERIFIABLE' : report.ok ? 'HEALTHY' : 'FAILING';
   const ledger = await appendLedger(report);
 
   if (asJson) console.log(JSON.stringify(report, null, 2));
@@ -129,13 +150,13 @@ async function main() {
   // a failure it did not actually observe.
   if (report.unverifiable) {
     console.error('\n  Cannot distinguish "no history" from "not allowed to read it".');
-    console.error('  Set AUTOSCOUT_SUPABASE_SERVICE_ROLE_KEY, or grant select on line_snapshots to the reading role.');
+    console.error('  Use a service-role credential or grant select on line_snapshots to the reading role.');
     process.exit(3);
   }
   process.exit(report.ok ? 0 : 1);
 }
 
 main().catch((error) => {
-  console.error(`[line-history] ${error?.message || error}`);
-  process.exit(2);
+  printUnverifiable(error?.message || 'unexpected line-history read error');
+  process.exit(3);
 });

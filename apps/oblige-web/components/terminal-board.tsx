@@ -747,7 +747,7 @@ function DesktopMatrix({
             const prediction = predictions[group.key];
             const summary = research[group.key];
             const bestEv = evFor(group, prediction);
-            const hasProjection = prediction?.available && finite(prediction.projection);
+            const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
             const overSelected = slip.some((item) => item.id === selectionId(group.key, 'OVER'));
             const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
 
@@ -799,10 +799,10 @@ function DesktopMatrix({
                 <td className={styles.modelCell}>
                   {prediction === undefined ? (
                     <span className={styles.loadingDot}>…</span>
-                  ) : hasProjection ? (
+                  ) : projection !== null ? (
                     <>
-                      <b>{prediction.projection!.toFixed(1)}</b>
-                      <small>{prediction.projection! > group.line ? 'OVER lean' : prediction.projection! < group.line ? 'UNDER lean' : 'at line'}</small>
+                      <b>{projection.toFixed(1)}</b>
+                      <small>{projection > group.line ? 'OVER lean' : projection < group.line ? 'UNDER lean' : 'at line'}</small>
                     </>
                   ) : (
                     <span className={styles.unavailable}>—</span>
@@ -936,7 +936,7 @@ function Inspector({
   onSelect: (group: PropGroup, side: Side) => void;
 }) {
   const ev = evFor(group, prediction);
-  const hasProjection = prediction?.available && finite(prediction.projection);
+  const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
 
   return (
     <div className={styles.drawerBackdrop} onMouseDown={(event) => {
@@ -965,7 +965,7 @@ function Inspector({
         <div className={styles.inspectorLine}>
           <div><span>Market</span><b>{group.market}</b></div>
           <div><span>Line</span><b>{group.line}</b></div>
-          <div><span>Model</span><b>{hasProjection ? prediction.projection!.toFixed(1) : '—'}</b></div>
+          <div><span>Model</span><b>{projection !== null ? projection.toFixed(1) : '—'}</b></div>
           <div><span>Best EV</span><b data-positive={ev && ev.ev > 0 ? 'true' : 'false'}>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}%` : '—'}</b></div>
         </div>
 

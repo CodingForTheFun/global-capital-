@@ -1,0 +1,9 @@
+/* Final desktop visual-acceptance correction.
+ * The supplied Prop Board reference uses three desktop columns. Keep this
+ * presentation-only rule after reference-acceptance.css in the cascade.
+ */
+@media (min-width: 1280px) {
+  .board-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}

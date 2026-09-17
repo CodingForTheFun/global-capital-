@@ -61,11 +61,9 @@ async function verifySignedOutBrowserGate() {
         || Boolean(document.querySelector('.gBtn'))
         || Boolean(document.querySelector('.note'))
       );
-      const heading = Array.from(document.querySelectorAll('h1'))
-        .some((node) => /Sign in to open the board|Create an account|Verify your email/i.test(node.textContent || ''));
-      const emailField = Boolean(document.querySelector('input[type="email"]'));
-      const credentialField = Boolean(document.querySelector('input[type="password"], input[inputmode="numeric"]'));
-      return legacyGate || (heading && emailField && credentialField);
+      const emailField = Boolean(document.querySelector('#account-email, input[type="email"]'));
+      const credentialField = Boolean(document.querySelector('#account-password, #account-code, input[type="password"], input[inputmode="numeric"]'));
+      return legacyGate || (emailField && credentialField);
     }, null, { timeout: 30_000 });
 
     if (await page.locator('.asRow').count()) throw new Error('Signed-out account gate exposed legacy prop rows.');

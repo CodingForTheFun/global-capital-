@@ -3,6 +3,8 @@ import './globals.css';
 import './premium.css';
 import './premium-surfaces.css';
 import './player-shell.css';
+import './reference-shell.css';
+import './reference-filters.css';
 import { DirectionProvider } from '@/components/theme';
 import { MobileNav, SiteFooter, SiteHeader } from '@/components/site-chrome';
 
@@ -21,7 +23,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#050711',
+  themeColor: '#050b13',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

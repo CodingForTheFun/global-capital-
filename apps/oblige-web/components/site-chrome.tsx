@@ -6,21 +6,28 @@ import { usePathname } from 'next/navigation';
 import { BarChart3, Home, LayoutGrid, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { DirectionSwitcher } from '@/components/theme';
 
 const NAV = [
-  { href: '/board', label: 'Prop Board' },
+  { href: '/board', label: 'Props' },
   { href: '/research', label: 'Research' },
   { href: '/#pricing', label: 'Pricing' },
-  { href: '/account', label: 'Support' },
+  { href: '/account', label: 'Account' },
 ];
 
 const MOBILE_NAV = [
   { href: '/', label: 'Home', icon: Home },
-  { href: '/board', label: 'Board', icon: LayoutGrid },
+  { href: '/board', label: 'Props', icon: LayoutGrid },
   { href: '/research', label: 'Research', icon: BarChart3 },
-  { href: '/account', label: 'Account', icon: User },
+  { href: '/account', label: 'Profile', icon: User },
 ];
+
+function Wordmark({ footer = false }: { footer?: boolean }) {
+  return (
+    <span className={cn('op-wordmark font-display', footer ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-md)] max-[519px]:text-[length:var(--fs-base)]')}>
+      Oblige<span className="op-wordmark__accent">Props</span>
+    </span>
+  );
+}
 
 export function SiteHeader() {
   const [stuck, setStuck] = React.useState(false);
@@ -31,7 +38,6 @@ export function SiteHeader() {
     const onScroll = () => {
       if (ticking) return;
       ticking = true;
-      // Read layout inside the frame, never in the scroll handler itself.
       requestAnimationFrame(() => {
         setStuck(window.scrollY > 24);
         ticking = false;
@@ -59,27 +65,9 @@ export function SiteHeader() {
           stuck && 'h-14',
         )}
       >
-        <Link href="/" className="flex flex-none items-center gap-3">
-          <span
-            aria-hidden="true"
-            className={cn(
-              'grid size-8 place-items-center rounded-[var(--radius-sm)] max-[519px]:size-7',
-              'bg-[linear-gradient(140deg,var(--accent),color-mix(in_srgb,var(--accent)_45%,var(--info)))]',
-              'font-display text-sm font-extrabold text-[var(--accent-ink)] shadow-[var(--shadow-glow)]',
-            )}
-          >
-            OP
-          </span>
-          <span
-            className="font-display text-[length:var(--fs-md)] max-[519px]:text-[length:var(--fs-base)]"
-            style={{
-              fontWeight: 'var(--display-weight)' as unknown as number,
-              letterSpacing: 'var(--display-tracking)',
-              textTransform: 'var(--display-case)' as 'none',
-            }}
-          >
-            Oblige Props
-          </span>
+        <Link href="/" className="flex flex-none items-center gap-3" aria-label="Oblige Props home">
+          <span aria-hidden="true" className="op-mark">OP</span>
+          <Wordmark />
         </Link>
 
         <nav aria-label="Primary" className="ml-4 hidden gap-5 lg:flex">
@@ -111,12 +99,11 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <DirectionSwitcher className="hidden xl:flex" />
           <Button asChild size="sm" variant="ghost" className="max-[519px]:hidden">
             <Link href="/account">Account</Link>
           </Button>
           <Button asChild size="sm">
-            <Link href="/board">Open board</Link>
+            <Link href="/board">Open Props</Link>
           </Button>
         </div>
       </div>
@@ -124,7 +111,7 @@ export function SiteHeader() {
   );
 }
 
-/** Bottom bar on phones. Five items is the ceiling; this carries four. */
+/** Bottom bar on phones. Keep only routes that are already real and protected. */
 export function MobileNav() {
   const pathname = usePathname();
   return (
@@ -165,16 +152,15 @@ export function SiteFooter() {
       <div className="mx-auto w-full max-w-[var(--maxw)] px-4 md:px-8">
         <div className="grid gap-8 [&>*]:min-w-0 md:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
           <div>
-            <span className="font-display text-[length:var(--fs-md)]">Oblige Props</span>
+            <Wordmark footer />
             <p className="mt-4 max-w-[36ch] text-[length:var(--fs-sm)] leading-relaxed text-[var(--text-3)]">
               Player prop research with the line history attached. obligeprops.com
             </p>
-            <DirectionSwitcher className="mt-6 xl:hidden" />
           </div>
           <FooterColumn
             title="Product"
             links={[
-              { href: '/board', label: 'Prop board' },
+              { href: '/board', label: 'Props' },
               { href: '/research', label: 'Player research' },
               { href: '/#pricing', label: 'Pricing' },
             ]}

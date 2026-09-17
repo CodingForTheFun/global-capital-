@@ -4,7 +4,7 @@ import * as React from 'react';
 import { ART, teamFor } from '@/lib/teams';
 import { artworkUrl } from '@/lib/api';
 import type { PropGroup } from '@/lib/types';
-import { cn, initials, odds, rateTone } from '@/lib/utils';
+import { cn, initials, odds, rateTone, shortTime } from '@/lib/utils';
 import { Badge, Dot } from '@/components/ui/badge';
 
 /* ------------------------------------------------------------- team scene */
@@ -95,6 +95,61 @@ export function PlayerAvatar({
   );
 }
 
+/**
+ * Combo markets previously sent the entire display label to the artwork route,
+ * which guarantees an initials fallback for strings such as "A + B". Split the
+ * presentation identity only; research/player contracts still receive the
+ * original provider label untouched.
+ */
+function playerNames(label: string) {
+  const names = label
+    .split(/\s+(?:\+|&|\/)\s+|\s*\+\s*/g)
+    .map((name) => name.trim())
+    .filter(Boolean);
+  return names.length > 1 ? names.slice(0, 2) : [label];
+}
+
+export function PlayerPortraits({
+  name,
+  sport,
+  team,
+  providerPlayerId,
+  size = 52,
+}: {
+  name: string;
+  sport: string;
+  team?: string | null;
+  providerPlayerId?: string | null;
+  size?: number;
+}) {
+  const names = playerNames(name);
+  if (names.length === 1) {
+    return (
+      <PlayerAvatar
+        name={name}
+        sport={sport}
+        team={team}
+        providerPlayerId={providerPlayerId}
+        size={size}
+      />
+    );
+  }
+  return (
+    <span className="player-portrait-stack" aria-label={`${names.join(' and ')} portraits`}>
+      {names.map((playerName, index) => (
+        <PlayerAvatar
+          key={`${playerName}-${index}`}
+          name={playerName}
+          sport={sport}
+          team={index === 0 ? team : null}
+          providerPlayerId={index === 0 ? providerPlayerId : null}
+          size={size}
+        />
+      ))}
+    </span>
+  );
+}
+
 /* ------------------------------------------------------------- hit  meter */
 
 export function HitMeter({
@@ -152,10 +207,8 @@ export type PropCardStats = {
 } | null;
 
 /**
- * A player card. It keeps one identity in every direction — dark, lit, with a
- * gradient ring — so a player reads the same on the dark board and the light
- * one, and the club backdrop tells you who they play for before you read a
- * word.
+ * Dense mobile-first prop card inspired by the approved reference screens.
+ * Every displayed line, book, matchup and percentage is still provider-backed.
  */
 export function PropCard({
   group,
@@ -175,30 +228,33 @@ export function PropCard({
   delay?: number;
 }) {
   const club = teamFor(group.team);
+  const kickoff = shortTime(group.startsAt);
+  const bookCount = new Set(group.quotes.map((quote) => quote.sportsbookKey || quote.sportsbook).filter(Boolean)).size;
 
   return (
-    <div className="face">
+    <div className="face prop-card-v2">
       <TeamScene team={group.team} />
 
       <button
         type="button"
         onClick={() => onOpen(group)}
-        className="grid w-full gap-4 p-4 text-left"
+        className="prop-card-v2__open grid w-full text-left"
         aria-label={`Open ${group.player}, ${group.market} ${group.line}`}
       >
-        <span className="flex items-center gap-3">
-          <PlayerAvatar
+        <span className="prop-card-v2__identity flex items-center gap-3">
+          <PlayerPortraits
             name={group.player}
             sport={group.sport}
             team={group.team}
             providerPlayerId={group.providerPlayerId}
+            size={54}
           />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[length:var(--fs-base)] font-semibold tracking-tight">
               {group.player}
             </span>
-            <span className="mt-0.5 block truncate text-[length:var(--fs-xs)] text-[var(--text-3)]">
-              {club.name} · {group.matchup}
+            <span className="prop-card-v2__meta mt-0.5 block truncate">
+              {club.name} · {group.matchup}{kickoff ? ` · ${kickoff}` : ''}
             </span>
           </span>
           {group.live ? (
@@ -211,15 +267,18 @@ export function PropCard({
           )}
         </span>
 
-        <span className="flex items-baseline justify-between gap-3 border-t border-[var(--line)] pt-3">
-          <span className="min-w-0 truncate text-[length:var(--fs-sm)] text-[var(--text-2)]">
-            {group.market}
+        <span className="prop-card-v2__market-row border-t border-[var(--line)]">
+          <span className="prop-card-v2__market-label min-w-0">
+            <span className="truncate">{group.market}</span>
+            <span>{bookCount ? `${bookCount} book${bookCount === 1 ? '' : 's'} available` : 'Book unavailable'}</span>
           </span>
-          <span className="num shrink-0 text-[length:var(--fs-xl)] font-bold tracking-tight">
+          <span className="prop-card-v2__line num shrink-0 font-bold tracking-tight">
             {group.line}
           </span>
         </span>
+      </button>
 
+      <div className="prop-card-v2__hit">
         {loading ? (
           <span className="grid gap-[7px]">
             <span className="h-3 w-32 animate-pulse rounded bg-[var(--surface-3)]" />
@@ -227,37 +286,39 @@ export function PropCard({
           </span>
         ) : (
           <HitMeter
-            label="Last 10 · hit rate"
+            label="L10 hit rate"
             hits={stats?.hits ?? null}
             sample={stats?.sample ?? null}
             rate={stats?.rate ?? null}
             delay={delay + 180}
           />
         )}
-      </button>
+      </div>
 
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 px-4 pb-4">
+      <div className="prop-card-v2__quotes grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         {(['OVER', 'UNDER'] as const).map((side) => {
           const quote = side === 'OVER' ? group.bestOver : group.bestUnder;
           const isPicked = picked === side;
+          const book = String(quote?.sportsbook || quote?.sportsbookKey || 'Unavailable');
           return (
             <button
               key={side}
               type="button"
+              data-side={side}
               aria-pressed={isPicked}
               disabled={!quote}
               onClick={() => onPick?.(group, side)}
               className={cn(
-                'flex min-h-11 items-center justify-between rounded-[var(--radius-sm)] px-3',
+                'prop-card-v2__quote flex items-center justify-between px-3',
                 'border text-[length:var(--fs-xs)] font-semibold',
                 'transition-[border-color,background-color,color,transform] duration-200 ease-[var(--ease-out)]',
-                'active:scale-[.98] disabled:opacity-40 disabled:pointer-events-none',
-                isPicked
-                  ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] text-[var(--accent)]'
-                  : 'border-[var(--line)] bg-[var(--surface-2)] text-[var(--text-2)] hover:border-[var(--line-strong)] hover:bg-[var(--surface-3)] hover:text-[var(--text)]',
+                'active:scale-[.98] disabled:pointer-events-none disabled:opacity-40',
               )}
             >
-              <span className="truncate">{side === 'OVER' ? 'Over' : 'Under'}</span>
+              <span className="min-w-0 text-left">
+                <span className="block truncate">{side === 'OVER' ? 'Over' : 'Under'}</span>
+                <span className="prop-card-v2__book block max-w-[96px] truncate">{book}</span>
+              </span>
               <span className="num shrink-0 text-[var(--text)]">{quote ? odds(quote.price) : '—'}</span>
             </button>
           );
@@ -270,10 +331,10 @@ export function PropCard({
 /** Matches the real card's height so the grid does not jump when data lands. */
 export function PropCardSkeleton() {
   return (
-    <div className="face">
+    <div className="face prop-card-v2">
       <div className="grid gap-4 p-4">
         <div className="flex items-center gap-3">
-          <div className="size-[50px] shrink-0 animate-pulse rounded-full bg-[var(--face-surface-2)]" />
+          <div className="size-[54px] shrink-0 animate-pulse rounded-full bg-[var(--face-surface-2)]" />
           <div className="grid flex-1 gap-2">
             <div className="h-4 w-2/3 animate-pulse rounded bg-[var(--face-surface-2)]" />
             <div className="h-3 w-1/2 animate-pulse rounded bg-[var(--face-surface-2)]" />
@@ -283,8 +344,8 @@ export function PropCardSkeleton() {
         <div className="h-2 animate-pulse rounded-full bg-[var(--face-surface-2)]" />
       </div>
       <div className="grid grid-cols-2 gap-2 px-4 pb-4">
-        <div className="h-11 animate-pulse rounded-[var(--radius-sm)] bg-[var(--face-surface-2)]" />
-        <div className="h-11 animate-pulse rounded-[var(--radius-sm)] bg-[var(--face-surface-2)]" />
+        <div className="h-12 animate-pulse rounded-[var(--radius-sm)] bg-[var(--face-surface-2)]" />
+        <div className="h-12 animate-pulse rounded-[var(--radius-sm)] bg-[var(--face-surface-2)]" />
       </div>
     </div>
   );

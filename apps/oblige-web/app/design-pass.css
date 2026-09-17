@@ -1,0 +1,333 @@
+/* ==========================================================================
+   skill-build · terminal design pass
+   Presentation only. Locks the product onto Midnight Terminal (direction A):
+   mint accent, dark surfaces, dense cards, honest empty states.
+   Softens competing violet washes from earlier surface layers.
+   ========================================================================== */
+
+/* ---- force production brand surface under direction A -------------------- */
+[data-direction="a"] {
+  --bg: #050a10;
+  --bg-deep: #03060b;
+  --surface: #0a121c;
+  --surface-2: #0e1824;
+  --surface-3: #142030;
+  --line: #1a2a3c;
+  --line-strong: #2a3f55;
+  --text: #e8f0f7;
+  --text-2: #9aafc2;
+  --text-3: #6b8299;
+  --accent: #33e49b;
+  --accent-ink: #03140c;
+  --accent-soft: rgb(51 228 155 / .12);
+  --pos: #33e49b;
+  --neg: #ff6b7a;
+  --warn: #ffc53d;
+  --info: #5aa9ff;
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-lg: 14px;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / .55);
+  --shadow-2: 0 12px 36px -12px rgb(0 0 0 / .72);
+  --shadow-glow: 0 0 0 1px var(--accent-soft);
+  --hero-wash:
+    radial-gradient(900px 520px at 78% -8%, rgb(51 228 155 / .09), transparent 62%),
+    radial-gradient(760px 420px at 6% 4%, rgb(90 169 255 / .06), transparent 60%);
+}
+
+/* Face cards stay legible but lean cooler / less purple */
+[data-direction="a"] {
+  --face-1: #071018;
+  --face-2: #0c1a28;
+  --face-surface: #0e1a28;
+  --face-surface-2: #152536;
+  --face-line: #1e3348;
+  --face-line-strong: #2d4a64;
+  --face-text: #f0f6fb;
+  --face-text-2: #a8bdd0;
+  --face-text-3: #6d8499;
+  --face-ring: linear-gradient(135deg, #1a9b6c, #33e49b 42%, #5aa9ff);
+  --face-glow: rgba(51, 228, 155, .28);
+  --face-pos: #33e49b;
+  --face-neg: #ff6b7a;
+  --face-warn: #ffc53d;
+}
+
+/* ---- neutralize purple-heavy premium-surfaces layer ---------------------- */
+[data-direction="a"] header {
+  background: color-mix(in srgb, var(--bg) 88%, transparent) !important;
+  border-bottom-color: var(--line) !important;
+  box-shadow: 0 8px 32px rgb(0 0 0 / .22) !important;
+}
+
+[data-direction="a"] header a[href="/"] > span:first-child {
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent) !important;
+  background: linear-gradient(145deg, #2bc98a, #1a9b6c) !important;
+  box-shadow: 0 0 0 3px rgb(51 228 155 / .08), 0 8px 20px rgb(26 155 108 / .22) !important;
+}
+
+[data-direction="a"] header nav[aria-label="Primary"] {
+  border-color: var(--line) !important;
+  background: rgb(255 255 255 / .02) !important;
+}
+
+[data-direction="a"] header nav[aria-label="Primary"] a:hover,
+[data-direction="a"] header nav[aria-label="Primary"] a[aria-current="page"] {
+  color: var(--text) !important;
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+
+[data-direction="a"] main .sticky.top-16 {
+  border-color: var(--line) !important;
+  border-radius: 12px !important;
+  background:
+    radial-gradient(480px 100px at 8% -40%, rgb(51 228 155 / .07), transparent 70%),
+    color-mix(in srgb, var(--bg) 90%, transparent) !important;
+  box-shadow: 0 12px 40px rgb(0 0 0 / .28), inset 0 1px 0 rgb(255 255 255 / .03) !important;
+}
+
+[data-direction="a"] main .sticky.top-16 button[aria-pressed="true"] {
+  color: var(--accent-ink) !important;
+  background: var(--accent) !important;
+  border-color: transparent !important;
+  box-shadow: 0 6px 18px rgb(51 228 155 / .18) !important;
+}
+
+[data-direction="a"] main .face {
+  border-color: var(--face-line) !important;
+  border-radius: 12px !important;
+  background:
+    radial-gradient(380px 160px at 96% -10%, rgb(51 228 155 / .08), transparent 65%),
+    linear-gradient(165deg, var(--face-1), var(--face-2)) !important;
+  box-shadow: var(--shadow-1) !important;
+}
+
+[data-direction="a"] main .face:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--face-line)) !important;
+  box-shadow: 0 16px 40px rgb(0 0 0 / .4), 0 0 32px rgb(51 228 155 / .06) !important;
+}
+
+[data-direction="a"] main [role="tablist"].rail button[aria-selected="true"] {
+  background: var(--accent) !important;
+  border-color: transparent !important;
+  color: var(--accent-ink) !important;
+  box-shadow: 0 6px 18px rgb(51 228 155 / .2) !important;
+}
+
+[data-direction="a"] nav[aria-label="Sections"] {
+  border-color: var(--line) !important;
+  background: color-mix(in srgb, var(--bg-deep) 92%, transparent) !important;
+  box-shadow: 0 12px 40px rgb(0 0 0 / .4) !important;
+}
+
+[data-direction="a"] nav[aria-label="Sections"] a[aria-current="page"] {
+  color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+
+/* ---- OVER / UNDER -------------------------------------------------------- */
+.prop-card-v2__quote {
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+}
+
+.prop-card-v2__quote--over-picked {
+  border-color: color-mix(in srgb, var(--pos) 60%, transparent) !important;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--pos) 16%, transparent),
+    color-mix(in srgb, var(--pos) 5%, transparent)
+  ) !important;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--pos) 25%, transparent),
+    0 6px 18px color-mix(in srgb, var(--pos) 10%, transparent) !important;
+  color: var(--pos) !important;
+}
+
+.prop-card-v2__quote--under-picked {
+  border-color: color-mix(in srgb, var(--neg) 55%, transparent) !important;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--neg) 14%, transparent),
+    color-mix(in srgb, var(--neg) 4%, transparent)
+  ) !important;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--neg) 22%, transparent),
+    0 6px 18px color-mix(in srgb, var(--neg) 8%, transparent) !important;
+  color: var(--neg) !important;
+}
+
+.prop-card-v2__quote[data-side="OVER"]:hover:not(:disabled):not([aria-pressed="true"]) {
+  border-color: color-mix(in srgb, var(--pos) 32%, transparent) !important;
+  background: color-mix(in srgb, var(--pos) 6%, transparent) !important;
+}
+
+.prop-card-v2__quote[data-side="UNDER"]:hover:not(:disabled):not([aria-pressed="true"]) {
+  border-color: color-mix(in srgb, var(--neg) 28%, transparent) !important;
+  background: color-mix(in srgb, var(--neg) 5%, transparent) !important;
+}
+
+/* ---- card rhythm --------------------------------------------------------- */
+.prop-card-v2__quotes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 14px 14px;
+}
+
+.prop-card-v2__hit {
+  padding: 0 14px 10px;
+}
+
+.prop-card-v2__meta {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.prop-card-v2__market-label {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.prop-card-v2__market-label > span:last-child {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.prop-card-v2__line {
+  font-size: 28px;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.prop-card-v2__book {
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+/* ---- filter chips -------------------------------------------------------- */
+.board-active-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.board-active-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.board-active-chip:hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+}
+
+.board-active-chip__x {
+  opacity: 0.65;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.board-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+
+/* ---- desktop density ----------------------------------------------------- */
+@media (min-width: 1280px) {
+  main .mt-5.grid:has(.prop-card-v2),
+  main .mt-5.grid:has(.rv) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+}
+
+@media (min-width: 1536px) {
+  main .mt-5.grid:has(.prop-card-v2),
+  main .mt-5.grid:has(.rv) {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+  }
+}
+
+/* ---- landing: kill indigo pricing highlight, use mint -------------------- */
+.premium-landing article[class*="border-\[rgba\(124"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent) !important;
+  box-shadow:
+    0 24px 72px color-mix(in srgb, var(--accent) 12%, transparent),
+    inset 0 1px 0 rgb(255 255 255 / .04) !important;
+}
+
+.premium-landing .absolute.-top-3 {
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent) !important;
+  background: color-mix(in srgb, var(--bg-deep) 90%, transparent) !important;
+  color: var(--accent) !important;
+}
+
+/* ---- mobile: harder density ---------------------------------------------- */
+@media (max-width: 767px) {
+  .board-active-chips {
+    gap: 5px;
+  }
+
+  .board-active-chip {
+    min-height: 26px;
+    padding: 0 8px;
+    font-size: 10px;
+  }
+
+  .prop-card-v2__quotes {
+    gap: 6px !important;
+    padding: 0 10px 9px !important;
+  }
+
+  .prop-card-v2__quote {
+    min-height: 40px !important;
+  }
+
+  .prop-card-v2__line {
+    font-size: 22px !important;
+  }
+
+  /* One more card visible: shave chrome */
+  main > div[class*="max-w-"]:has(> .sticky.top-16) > div:first-child h1 {
+    font-size: 24px !important;
+    letter-spacing: -0.03em !important;
+  }
+
+  main .mt-5.grid:has(.prop-card-v2),
+  main .mt-5.grid:has(.rv) {
+    gap: 7px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prop-card-v2__quote,
+  .board-active-chip,
+  main .face {
+    transition: none !important;
+  }
+}

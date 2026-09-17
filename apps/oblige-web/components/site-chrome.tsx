@@ -148,7 +148,7 @@ export function SiteHeader() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3DE8A8] opacity-75" />
               <span className="relative inline-flex size-2 rounded-full bg-[#3DE8A8]" />
             </span>
-            <span>Live Core · Gemini 3.8 Flash</span>
+            <span>Live Core · Streaming Odds</span>
           </div>
 
           {board && (

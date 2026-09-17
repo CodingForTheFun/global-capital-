@@ -34,9 +34,9 @@ const LIVE_TICKER_PROPS = [
 const FEATURES = [
   {
     icon: BrainCircuit,
-    title: 'Grounded Gemini 3.8 Flash High AI',
-    body: 'Projections and questions powered by Gemini 3.8 Flash High with thinking reasoning, calibrated against the player’s verified game logs without hallucinations.',
-    tag: 'AI Intelligence',
+    title: 'Grounded Predictive Intelligence',
+    body: 'Algorithmic projections and research insights calibrated against verified game logs and historical distributions — no hallucinations, no black-box guesses.',
+    tag: 'Predictive Modeling',
   },
   {
     icon: LineChart,
@@ -94,7 +94,7 @@ const SHOWCASE_PROPS = [
       { name: 'PrizePicks', line: 265.5, over: 'MORE', under: 'LESS' },
     ],
     ai: {
-      model: 'Gemini 3.8 Flash High',
+      model: 'PropLine Adaptive Model',
       projection: 284.2,
       probabilityOver: '64.8%',
       ev: '+6.4%',
@@ -125,7 +125,7 @@ const SHOWCASE_PROPS = [
       { name: 'Underdog', line: 48.5, over: 'HIGHER', under: 'LOWER' },
     ],
     ai: {
-      model: 'Gemini 3.8 Flash High',
+      model: 'PropLine Adaptive Model',
       projection: 52.4,
       probabilityOver: '68.2%',
       ev: '+7.8%',
@@ -156,7 +156,7 @@ const SHOWCASE_PROPS = [
       { name: 'PrizePicks', line: 1.5, over: 'MORE', under: 'LESS' },
     ],
     ai: {
-      model: 'Gemini 3.8 Flash High',
+      model: 'PropLine Adaptive Model',
       projection: 2.2,
       probabilityOver: '56.4%',
       ev: '+9.2%',
@@ -193,7 +193,7 @@ const PLANS = [
       'Every major league (NFL, NBA, MLB, NHL, WNBA, College)',
       'Full verified history (L5, L10, L20, Season, H2H)',
       '9+ sportsbooks compared with EV calculations',
-      'Gemini 3.8 Flash High AI projections & questions',
+      'PropLine predictive model projections & analytics',
       'Real-time streaming odds with line movement timeline',
       'Custom prop slips and saved cross-device filters',
     ],
@@ -254,7 +254,7 @@ export default function LandingPage() {
             <Reveal>
               <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(61,232,168,0.25)] bg-[rgba(61,232,168,0.08)] px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-[#3DE8A8]">
                 <Cpu className="size-3.5 text-[#3DE8A8]" />
-                <span>Powered by Gemini 3.8 Flash High & PropLine</span>
+                <span>PropLine Realtime Intelligence Engine</span>
               </div>
             </Reveal>
 
@@ -268,7 +268,7 @@ export default function LandingPage() {
 
             <Reveal delay={120}>
               <p className="premium-lede">
-                The high-performance prop terminal for serious sports bettors. Stream live market odds across 9+ sportsbooks, inspect verified hit-rate distributions, and unlock grounded reasoning powered by Gemini 3.8 Flash High.
+                The high-performance prop terminal for serious sports bettors. Stream live market odds across 9+ sportsbooks, inspect verified hit-rate distributions, and unlock grounded predictive model projections.
               </p>
             </Reveal>
 
@@ -319,7 +319,7 @@ export default function LandingPage() {
               <span className="premium-eyebrow">Institutional-Grade Architecture</span>
               <h2>Built like a Bloomberg terminal for player props.</h2>
               <p>
-                Dense information hierarchy, zero fabricated numbers, real-time WebSocket feeds, and Gemini 3.8 Flash High intelligence that cites its sources directly from measured game logs.
+                Dense information hierarchy, zero fabricated numbers, real-time WebSocket feeds, and predictive model intelligence that cites its sources directly from measured game logs.
               </p>
             </div>
           </Reveal>
@@ -377,8 +377,8 @@ export default function LandingPage() {
                 },
                 {
                   number: '02',
-                  title: 'Gemini 3.8 Flash High Projection',
-                  body: 'Get instant AI projections with thinking reasoning, calculated win probabilities, and value delta.',
+                  title: 'PropLine Model Projection',
+                  body: 'Get instant algorithmic projections with calculated win probabilities and value delta.',
                   accent: 'text-[#60A5FA]',
                 },
                 {
@@ -419,7 +419,7 @@ export default function LandingPage() {
               <span className="premium-eyebrow justify-center">Transparent Membership</span>
               <h2>Designed for the edge that pays for itself.</h2>
               <p className="mx-auto max-w-xl">
-                Get full access to live streaming multi-book odds, verified hit-rate windows, and Gemini 3.8 Flash High projections.
+                Get full access to live streaming multi-book odds, verified hit-rate windows, and PropLine predictive model projections.
               </p>
             </div>
           </Reveal>
@@ -547,7 +547,7 @@ function InteractiveProductPreview() {
         </div>
       </div>
 
-      {/* Gemini 3.8 Flash High AI Intelligence Card */}
+      {/* PropLine Model Intelligence Card */}
       <div className="mt-4 rounded-xl border border-[rgba(129,140,248,0.3)] bg-[linear-gradient(135deg,rgba(129,140,248,0.1),rgba(61,232,168,0.05))] p-3.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">

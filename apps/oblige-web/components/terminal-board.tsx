@@ -551,8 +551,8 @@ export function TerminalBoard() {
               <b>{(meta.sportsbookCount ?? books.length) || '—'}</b>
             </div>
             <div>
-              <span>AI Engine</span>
-              <b className={styles.engineText}>Gemini 3.8 Flash High</b>
+              <span>Model</span>
+              <b className={styles.engineText}>PropLine v2</b>
             </div>
           </div>
         </header>
@@ -811,7 +811,7 @@ function DesktopMatrix({
                           {projection > group.line ? 'OVER' : projection < group.line ? 'UNDER' : 'EVEN'}
                         </span>
                       </div>
-                      <small className={styles.modelEngineSub}>Gemini 3.8 Flash</small>
+                      <small className={styles.modelEngineSub}>PropLine Model</small>
                     </>
                   ) : (
                     <span className={styles.unavailable}>—</span>
@@ -997,7 +997,7 @@ function Inspector({
           <div className={styles.sectionHeading}>
             <span className={styles.aiHeaderTitle}>
               <Sparkles size={13} className="text-[#3DE8A8]" />
-              Gemini 3.8 Flash High AI Analysis
+              PropLine Predictive Analysis
             </span>
             <small>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}% EV advantage` : 'Grounded model'}</small>
           </div>
@@ -1020,9 +1020,9 @@ function Inspector({
                 <small>Over Likelihood</small>
               </div>
               <div>
-                <span>Reasoning Engine</span>
-                <b className={styles.aiModelBadge}>Gemini 3.8 Flash</b>
-                <small>Thinking Budget Active</small>
+                <span>Model Engine</span>
+                <b className={styles.aiModelBadge}>PropLine Core</b>
+                <small>Adaptive Calibration</small>
               </div>
             </div>
             {prediction?.message && (

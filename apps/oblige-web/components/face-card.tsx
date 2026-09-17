@@ -174,22 +174,33 @@ export function HitMeter({
   const tone = rateTone(rate);
   const fill =
     tone === 'neg' ? 'var(--neg)' : tone === 'warn' ? 'var(--warn)' : 'var(--accent)';
+  const hasSample = sample !== null && hits !== null && sample > 0;
 
   return (
-    <div className="grid gap-[7px]">
-      <div className="flex items-center justify-between text-[length:var(--fs-micro)] text-[var(--text-3)]">
-        <span>{label}</span>
-        <span className="num text-[var(--text)]">
-          {sample === null || hits === null ? 'No sample' : `${hits}/${sample}`}
-          {rate === null ? '' : ` · ${rate}%`}
+    <div className="grid gap-[6px]">
+      <div className="flex items-center justify-between gap-2 text-[length:var(--fs-micro)] text-[var(--text-3)]">
+        <span className="font-semibold tracking-wide">{label}</span>
+        <span className="num flex items-center gap-1.5 text-[var(--text)]">
+          {!hasSample ? (
+            <span className="text-[var(--text-3)]">Unavailable</span>
+          ) : (
+            <>
+              <span className="font-bold" style={{ color: fill }}>
+                {rate === null ? '—' : `${rate}%`}
+              </span>
+              <span className="text-[var(--text-3)]">
+                {hits}/{sample}
+              </span>
+            </>
+          )}
         </span>
       </div>
-      <div className="block h-2 overflow-hidden rounded-full border border-[var(--line)] bg-[var(--surface-3)]">
+      <div className="block h-[6px] overflow-hidden rounded-full border border-[var(--line)] bg-[var(--surface-3)]">
         <div
           className="block h-full origin-left rounded-full transition-transform duration-[720ms] ease-[var(--ease-out)]"
           style={{
             background: fill,
-            transform: `scaleX(${grown && rate !== null ? rate / 100 : 0})`,
+            transform: `scaleX(${grown && rate !== null && hasSample ? Math.min(1, Math.max(0, rate / 100)) : 0})`,
             transitionDelay: `${delay}ms`,
           }}
         />
@@ -270,7 +281,7 @@ export function PropCard({
         <span className="prop-card-v2__market-row border-t border-[var(--line)]">
           <span className="prop-card-v2__market-label min-w-0">
             <span className="truncate">{group.market}</span>
-            <span>{bookCount ? `${bookCount} book${bookCount === 1 ? '' : 's'} available` : 'Book unavailable'}</span>
+            <span>{bookCount ? `${bookCount} book${bookCount === 1 ? '' : 's'}` : 'Book unavailable'}</span>
           </span>
           <span className="prop-card-v2__line num shrink-0 font-bold tracking-tight">
             {group.line}
@@ -280,9 +291,9 @@ export function PropCard({
 
       <div className="prop-card-v2__hit">
         {loading ? (
-          <span className="grid gap-[7px]">
+          <span className="grid gap-[6px]">
             <span className="h-3 w-32 animate-pulse rounded bg-[var(--surface-3)]" />
-            <span className="block h-2 animate-pulse rounded-full bg-[var(--surface-3)]" />
+            <span className="block h-[6px] animate-pulse rounded-full bg-[var(--surface-3)]" />
           </span>
         ) : (
           <HitMeter
@@ -311,15 +322,17 @@ export function PropCard({
               className={cn(
                 'prop-card-v2__quote flex items-center justify-between px-3',
                 'border text-[length:var(--fs-xs)] font-semibold',
-                'transition-[border-color,background-color,color,transform] duration-200 ease-[var(--ease-out)]',
+                'transition-[border-color,background-color,color,transform,box-shadow] duration-200 ease-[var(--ease-out)]',
                 'active:scale-[.98] disabled:pointer-events-none disabled:opacity-40',
+                isPicked && side === 'OVER' && 'prop-card-v2__quote--over-picked',
+                isPicked && side === 'UNDER' && 'prop-card-v2__quote--under-picked',
               )}
             >
               <span className="min-w-0 text-left">
-                <span className="block truncate">{side === 'OVER' ? 'Over' : 'Under'}</span>
+                <span className="block truncate font-bold tracking-wide">{side === 'OVER' ? 'Over' : 'Under'}</span>
                 <span className="prop-card-v2__book block max-w-[96px] truncate">{book}</span>
               </span>
-              <span className="num shrink-0 text-[var(--text)]">{quote ? odds(quote.price) : '—'}</span>
+              <span className="num shrink-0 text-[length:var(--fs-sm)] text-[var(--text)]">{quote ? odds(quote.price) : '—'}</span>
             </button>
           );
         })}
@@ -341,7 +354,7 @@ export function PropCardSkeleton() {
           </div>
         </div>
         <div className="h-8 animate-pulse rounded bg-[var(--face-surface-2)]" />
-        <div className="h-2 animate-pulse rounded-full bg-[var(--face-surface-2)]" />
+        <div className="h-[6px] animate-pulse rounded-full bg-[var(--face-surface-2)]" />
       </div>
       <div className="grid grid-cols-2 gap-2 px-4 pb-4">
         <div className="h-12 animate-pulse rounded-[var(--radius-sm)] bg-[var(--face-surface-2)]" />

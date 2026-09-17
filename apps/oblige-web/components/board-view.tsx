@@ -159,6 +159,15 @@ export function BoardView() {
 
   const activeFilterCount = [marketFilter, teamFilter, opponentFilter, bookFilter].filter((value) => value !== ALL).length;
 
+  const activeChips = React.useMemo(() => {
+    const chips: Array<{ key: string; label: string; clear: () => void }> = [];
+    if (marketFilter !== ALL) chips.push({ key: 'market', label: marketFilter, clear: () => setMarketFilter(ALL) });
+    if (teamFilter !== ALL) chips.push({ key: 'team', label: teamFilter, clear: () => setTeamFilter(ALL) });
+    if (opponentFilter !== ALL) chips.push({ key: 'opponent', label: `vs ${opponentFilter}`, clear: () => setOpponentFilter(ALL) });
+    if (bookFilter !== ALL) chips.push({ key: 'book', label: bookFilter, clear: () => setBookFilter(ALL) });
+    return chips;
+  }, [marketFilter, teamFilter, opponentFilter, bookFilter]);
+
   const visible = React.useMemo(() => {
     const filtered = groups.filter((group) => {
       if (debounced && !`${group.player} ${group.market} ${group.matchup}`.toLowerCase().includes(debounced)) return false;
@@ -383,6 +392,24 @@ export function BoardView() {
             <button type="button" onClick={resetFilters} disabled={!activeFilterCount} className="board-filter-reset">
               Reset filters
             </button>
+          </div>
+        )}
+
+        {activeChips.length > 0 && (
+          <div className="board-active-chips" aria-label="Active filters">
+            {activeChips.map((chip) => (
+              <button key={chip.key} type="button" className="board-active-chip" onClick={chip.clear}>
+                <span>{chip.label}</span>
+                <span className="board-active-chip__x" aria-hidden="true">
+                  ×
+                </span>
+              </button>
+            ))}
+            {activeChips.length > 1 && (
+              <button type="button" className="board-active-chip" onClick={resetFilters}>
+                Clear all
+              </button>
+            )}
           </div>
         )}
       </div>

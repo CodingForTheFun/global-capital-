@@ -8,6 +8,8 @@ const SPORTS = (process.env.REFERENCE_VISUAL_SPORTS || 'MLB,NFL,NBA,NHL,WNBA,NCA
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
+const QA_EMAIL = String(process.env.REFERENCE_VISUAL_EMAIL || '').trim();
+const QA_PASSWORD = String(process.env.REFERENCE_VISUAL_PASSWORD || '');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 await fs.mkdir(OUT, { recursive: true });
@@ -40,29 +42,31 @@ function sessionTokenFrom(response) {
 }
 
 async function createLegitimateSession(context) {
-  const email = `visual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@smoke.autoscout.test`;
-  const password = `Visual-${Math.random().toString(36).slice(2)}-${Date.now()}!Aa9`;
-  const response = await context.request.post(`${BASE}/api/account/register`, {
-    data: { email, password, rememberMe: false },
+  if (!QA_EMAIL || !QA_PASSWORD) {
+    throw new Error(
+      'Reference visual QA requires REFERENCE_VISUAL_EMAIL and REFERENCE_VISUAL_PASSWORD for a previously verified test account. Normal registration correctly requires email verification and cannot be used as a CI session shortcut.',
+    );
+  }
+
+  const response = await context.request.post(`${BASE}/api/account/login`, {
+    data: { email: QA_EMAIL, password: QA_PASSWORD, rememberMe: false },
     headers: { accept: 'application/json' },
   });
   const body = await response.json().catch(() => null);
   const token = sessionTokenFrom(response);
-  const authenticated = body?.authenticated === true;
 
-  // Match the real sign-in contract. Registration may return AUTH_REGISTERED
-  // without a legacy `ok` field; the customer UI treats `authenticated` as
-  // the canonical signal that registration also established a usable session.
-  if (!response.ok() || !authenticated || !token) {
+  // Login follows the production contract: `ok: true` plus the signed session
+  // cookie. We then independently prove that cookie through /api/account/me.
+  if (!response.ok() || body?.ok !== true || !token) {
     const code = body?.code || body?.message || 'unknown response';
     throw new Error(
-      `Normal registration did not produce an authenticated QA session: HTTP ${response.status()} ${code} authenticated=${authenticated} sessionCookie=${Boolean(token)}`,
+      `Verified QA login failed: HTTP ${response.status()} ${code} ok=${body?.ok === true} sessionCookie=${Boolean(token)}`,
     );
   }
 
-  // The upstream production customer domain marks its cookie Secure. We are
-  // rendering the branch through localhost, so copy only the already-signed
-  // normal session token into localhost's cookie jar; no auth rule is bypassed.
+  // The production cookie is Secure. This branch is served on localhost for
+  // visual QA, so copy only the already-signed production token into the local
+  // cookie jar. The backend still validates the signature and account state.
   await context.addCookies([
     {
       name: 'sp_account',
@@ -76,10 +80,10 @@ async function createLegitimateSession(context) {
 
   const me = await context.request.get(`${BASE}/api/account/me`);
   const meBody = await me.json().catch(() => null);
-  if (!me.ok() || meBody?.authenticated !== true) {
-    throw new Error(`Visual QA session did not authenticate through the normal account route: HTTP ${me.status()}`);
+  if (!me.ok() || meBody?.authenticated !== true || !meBody?.user?.id) {
+    throw new Error(`Visual QA session was not accepted by /api/account/me: HTTP ${me.status()}`);
   }
-  return { email };
+  return { authenticated: true };
 }
 
 async function findLiveSport(context) {
@@ -111,8 +115,6 @@ async function settle(page, ms = 1200) {
     })
     .catch(() => null);
 
-  // Player headshots and book marks should either finish loading or fail before
-  // the capture. Limit this wait so an unavailable remote image cannot hang QA.
   await page
     .waitForFunction(
       () => {
@@ -156,7 +158,7 @@ async function boardMetrics(page) {
       const rect = card.getBoundingClientRect();
       return rect.top < innerHeight && rect.bottom > 0;
     }).length;
-    const firstFullyVisible = cards.filter((card) => {
+    const fullyVisibleCards = cards.filter((card) => {
       const rect = card.getBoundingClientRect();
       return rect.top >= 0 && rect.bottom <= innerHeight;
     }).length;
@@ -173,7 +175,7 @@ async function boardMetrics(page) {
       firstCard: box('.prop-card-v2'),
       cardCount: cards.length,
       cardsIntersectingViewport: visibleCards,
-      cardsFullyVisible: firstFullyVisible,
+      cardsFullyVisible: fullyVisibleCards,
       visibleImages: visibleImages.length,
       loadedVisibleImages: visibleImages.filter((image) => image.complete && image.naturalWidth > 0).length,
       bodyScrollWidth: document.documentElement.scrollWidth,
@@ -225,16 +227,13 @@ async function renderViewport(page, viewport, label, sport, researchUrlRef) {
   await page.screenshot({ path: boardFile, fullPage: false, animations: 'disabled', caret: 'hide' });
   const board = await boardMetrics(page);
 
-  // Prefer a card whose real L10 observations have landed. If verified
-  // research is unavailable for every visible prop, open the first card and
-  // preserve the product's honest unavailable state.
   const researched = page.locator('.prop-card-v2').filter({ has: page.locator('[aria-label^="Last "]') });
   let card = page.locator('.prop-card-v2').first();
   try {
     await researched.first().waitFor({ state: 'visible', timeout: 12_000 });
     card = researched.first();
   } catch {
-    // Honest fallback; no data is synthesized for the screenshot.
+    // Honest fallback; no research data is synthesized for the screenshot.
   }
   await card.locator('.prop-card-v2__open').click();
   await page.waitForURL(/\/research\?/, { timeout: 20_000 });
@@ -251,13 +250,14 @@ async function renderViewport(page, viewport, label, sport, researchUrlRef) {
 
 await waitForFrontend();
 const browser = await chromium.launch({ headless: true });
+let context;
 try {
-  const context = await browser.newContext({
+  context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 1,
     colorScheme: 'dark',
   });
-  const account = await createLegitimateSession(context);
+  await createLegitimateSession(context);
   const live = await findLiveSport(context);
   const page = await context.newPage();
   const errors = [];
@@ -274,7 +274,7 @@ try {
     ok: true,
     renderedAt: new Date().toISOString(),
     source: 'real production backend through branch-local Next proxy',
-    account: { email: account.email },
+    auth: 'preverified QA account through normal login route',
     sport: live,
     mobile,
     desktop,
@@ -282,6 +282,16 @@ try {
   };
   await fs.writeFile(path.join(OUT, 'metrics.json'), `${JSON.stringify(payload, null, 2)}\n`);
   console.log(JSON.stringify(payload, null, 2));
+} catch (error) {
+  const failure = {
+    ok: false,
+    renderedAt: new Date().toISOString(),
+    source: 'real production backend through branch-local Next proxy',
+    error: error instanceof Error ? error.message : String(error),
+  };
+  await fs.writeFile(path.join(OUT, 'failure.json'), `${JSON.stringify(failure, null, 2)}\n`);
+  throw error;
 } finally {
+  await context?.close().catch(() => null);
   await browser.close();
 }

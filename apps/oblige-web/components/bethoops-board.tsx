@@ -35,10 +35,12 @@ import styles from './bethoops-board.module.css';
 
 const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'WNBA', 'SOCCER'];
 const PAGE_SIZE = 24;
-const AUTO_REFRESH_MS = 15_000;
+const FALLBACK_REFRESH_MS = 60_000;
+const STREAM_REFRESH_DEBOUNCE_MS = 500;
 const ALL = 'ALL';
 
 type Tab = 'predictions' | 'history';
+type FeedMode = 'connecting' | 'live' | 'fallback';
 
 type ModelPrediction = {
   available?: boolean;
@@ -186,6 +188,7 @@ export function BetHoopsBoard() {
   const [market, setMarket] = React.useState(ALL);
   const [predictions, setPredictions] = React.useState<Record<string, ModelPrediction>>({});
   const [research, setResearch] = React.useState<Record<string, ResearchSummary | null>>({});
+  const [feedMode, setFeedMode] = React.useState<FeedMode>('connecting');
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -199,6 +202,8 @@ export function BetHoopsBoard() {
     if (checking || !account) return;
     let cancelled = false;
     let activeController: AbortController | null = null;
+    let stream: EventSource | null = null;
+    let streamRefreshTimer: number | null = null;
 
     const load = async (initial: boolean) => {
       if (activeController) return;
@@ -233,18 +238,52 @@ export function BetHoopsBoard() {
       }
     };
 
+    const refreshQuietly = () => {
+      if (streamRefreshTimer !== null) return;
+      streamRefreshTimer = window.setTimeout(() => {
+        streamRefreshTimer = null;
+        if (!cancelled && document.visibilityState === 'visible') void load(false);
+      }, STREAM_REFRESH_DEBOUNCE_MS);
+    };
+
+    setFeedMode('connecting');
     void load(true);
-    const tick = () => {
+
+    if (typeof window.EventSource === 'function') {
+      stream = new EventSource(`/api/apex/stream?sport=${encodeURIComponent(sport)}`);
+      stream.onopen = () => {
+        if (!cancelled) setFeedMode('live');
+      };
+      stream.addEventListener('ready', () => {
+        if (!cancelled) setFeedMode('live');
+      });
+      stream.addEventListener('market', refreshQuietly);
+      stream.addEventListener('resync', refreshQuietly);
+      stream.onerror = () => {
+        if (!cancelled) setFeedMode('fallback');
+        // EventSource automatically reconnects with Last-Event-ID. The slower
+        // interval below is only a safety net while the stream is unavailable.
+      };
+    } else {
+      setFeedMode('fallback');
+    }
+
+    const fallbackTick = () => {
       if (document.visibilityState === 'visible') void load(false);
     };
-    const interval = window.setInterval(tick, AUTO_REFRESH_MS);
-    document.addEventListener('visibilitychange', tick);
+    const fallbackInterval = window.setInterval(fallbackTick, FALLBACK_REFRESH_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void load(false);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       cancelled = true;
       activeController?.abort();
-      window.clearInterval(interval);
-      document.removeEventListener('visibilitychange', tick);
+      stream?.close();
+      if (streamRefreshTimer !== null) window.clearTimeout(streamRefreshTimer);
+      window.clearInterval(fallbackInterval);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [checking, account, sport]);
 
@@ -370,6 +409,14 @@ export function BetHoopsBoard() {
     );
   }
 
+  const feedLabel = meta.stale
+    ? 'Latest cached feed'
+    : feedMode === 'live'
+      ? 'Live stream'
+      : feedMode === 'connecting'
+        ? 'Connecting live…'
+        : 'Live feed · fallback sync';
+
   return (
     <div className={styles.pageShell}>
       <section className={styles.appContainer}>
@@ -425,9 +472,9 @@ export function BetHoopsBoard() {
                 placeholder="Search players, teams, or props…"
               />
             </label>
-            <span className={styles.feedStatus} data-stale={meta.stale ? 'true' : 'false'}>
+            <span className={styles.feedStatus} data-stale={meta.stale || feedMode === 'fallback' ? 'true' : 'false'}>
               <span />
-              {meta.stale ? 'Latest cached feed' : 'Live feed'}
+              {feedLabel}
             </span>
           </div>
 

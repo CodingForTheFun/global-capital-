@@ -185,19 +185,98 @@ export function SiteHeader() {
   );
 }
 
-/** Bottom bar on phones. Keep only routes that are already real and protected. */
+/** Bottom bar on phones. On the prop board it gets out of the way while the
+ *  customer scrolls down and returns immediately when they reverse direction. */
 export function MobileNav() {
   const pathname = usePathname();
   const board = pathname.startsWith('/board');
+  const [hidden, setHidden] = React.useState(false);
+  const lastY = React.useRef(0);
+  const frame = React.useRef<number | null>(null);
+  const touchY = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    setHidden(false);
+    lastY.current = Math.max(0, window.scrollY || 0);
+    if (!board) return;
+
+    const updateFromY = (value: number) => {
+      const y = Math.max(0, value || 0);
+      const previous = lastY.current;
+
+      if (y <= 8) setHidden(false);
+      else if (y > previous + 6) setHidden(true);
+      else if (y < previous - 2) setHidden(false);
+
+      lastY.current = y;
+    };
+
+    const onScroll = () => {
+      if (frame.current !== null) return;
+      frame.current = requestAnimationFrame(() => {
+        frame.current = null;
+        updateFromY(window.scrollY);
+      });
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+      touchY.current = event.touches[0]?.clientY ?? null;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+      const nextY = event.touches[0]?.clientY;
+      const previousY = touchY.current;
+      if (nextY == null || previousY == null) return;
+
+      const delta = nextY - previousY;
+      if (Math.abs(delta) < 6) return;
+
+      if (delta < 0 && window.scrollY > 8) setHidden(true);
+      else if (delta > 0) setHidden(false);
+
+      touchY.current = nextY;
+    };
+
+    const onPageShow = () => {
+      setHidden(false);
+      lastY.current = Math.max(0, window.scrollY || 0);
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('pageshow', onPageShow, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('pageshow', onPageShow);
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      frame.current = null;
+      touchY.current = null;
+    };
+  }, [board]);
+
   return (
     <nav
       aria-label="Sections"
       data-board={board ? 'true' : 'false'}
+      data-scroll-hidden={board && hidden ? 'true' : 'false'}
       className={cn(
         'fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 lg:hidden',
         'border-t border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_94%,transparent)] backdrop-blur-xl',
         'pb-[env(safe-area-inset-bottom)]',
+        'transition-[transform,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
       )}
+      style={{
+        transform:
+          board && hidden
+            ? 'translate3d(0, calc(100% + 24px + env(safe-area-inset-bottom)), 0)'
+            : 'translate3d(0, 0, 0)',
+        opacity: board && hidden ? 0 : 1,
+        pointerEvents: board && hidden ? 'none' : 'auto',
+      }}
     >
       {MOBILE_NAV.map((item) => {
         const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);

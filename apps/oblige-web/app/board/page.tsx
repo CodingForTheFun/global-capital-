@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { BetHoopsBoard } from '@/components/bethoops-board';
+import { TerminalBoard } from '@/components/terminal-board';
 
 export const metadata: Metadata = {
-  title: 'Prop Board',
-  description: 'Live PropLine player props with verified model projections, recent performance, and sportsbook context.',
+  title: 'Research Terminal',
+  description: 'Live PropLine player props with multi-book pricing, verified hit-rate windows, model context, and streaming market updates.',
 };
 
 export default function BoardPage() {
-  return <BetHoopsBoard />;
+  return <TerminalBoard />;
 }

@@ -43,6 +43,26 @@ test('FanDuel football rejects generic team points masquerading as a player prop
   }), false);
 });
 
+test('generic home/away team sentinels are never accepted as player identities', () => {
+  assert.equal(isVerifiedPlayerPropRow({
+    ...base,
+    sport: 'WNBA',
+    marketId: 'player_points',
+    playerName: 'Home Team',
+    homeTeam: 'Minnesota Lynx',
+    awayTeam: 'New York Liberty',
+  }), false);
+
+  assert.equal(isVerifiedPlayerPropRow({
+    ...base,
+    sport: 'WNBA',
+    marketId: 'player_points',
+    playerName: 'Away Team',
+    homeTeam: 'Minnesota Lynx',
+    awayTeam: 'New York Liberty',
+  }), false);
+});
+
 test('valid football and baseball player markets remain allowed', () => {
   assert.equal(isVerifiedPlayerPropRow({
     ...base,

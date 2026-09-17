@@ -23,7 +23,12 @@ const MOBILE_NAV = [
 
 function Wordmark({ footer = false }: { footer?: boolean }) {
   return (
-    <span className={cn('op-wordmark font-display', footer ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-md)] max-[519px]:text-[length:var(--fs-base)]')}>
+    <span
+      className={cn(
+        'op-wordmark font-display',
+        footer ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-md)] max-[519px]:text-[length:var(--fs-base)]',
+      )}
+    >
       Oblige<span className="op-wordmark__accent">Props</span>
     </span>
   );
@@ -32,6 +37,7 @@ function Wordmark({ footer = false }: { footer?: boolean }) {
 export function SiteHeader() {
   const [stuck, setStuck] = React.useState(false);
   const pathname = usePathname();
+  const board = pathname.startsWith('/board');
 
   React.useEffect(() => {
     let ticking = false;
@@ -51,6 +57,7 @@ export function SiteHeader() {
   return (
     <header
       data-stuck={stuck}
+      data-board={board ? 'true' : 'false'}
       className={cn(
         'sticky top-0 z-30 border-b border-transparent',
         'bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] backdrop-blur-xl',
@@ -99,10 +106,24 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <Button asChild size="sm" variant="ghost" className="max-[519px]:hidden">
+          {board && (
+            <Link
+              href="/account"
+              className="board-mobile-account hidden size-8 items-center justify-center rounded-full border border-[var(--line)] text-[var(--text-2)] max-[767px]:inline-flex"
+              aria-label="Account"
+            >
+              <User className="size-4" aria-hidden="true" />
+            </Link>
+          )}
+          <Button
+            asChild
+            size="sm"
+            variant="ghost"
+            className={cn('max-[519px]:hidden', board && 'max-[767px]:hidden')}
+          >
             <Link href="/account">Account</Link>
           </Button>
-          <Button asChild size="sm">
+          <Button asChild size="sm" className={cn(board && 'max-[767px]:hidden')}>
             <Link href="/board">Open Props</Link>
           </Button>
         </div>
@@ -114,9 +135,11 @@ export function SiteHeader() {
 /** Bottom bar on phones. Keep only routes that are already real and protected. */
 export function MobileNav() {
   const pathname = usePathname();
+  const board = pathname.startsWith('/board');
   return (
     <nav
       aria-label="Sections"
+      data-board={board ? 'true' : 'false'}
       className={cn(
         'fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 lg:hidden',
         'border-t border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_94%,transparent)] backdrop-blur-xl',
@@ -191,8 +214,8 @@ export function SiteFooter() {
 }
 
 /** Routes this app has not taken over yet — the Next config rewrites them to
- *  the existing service. They must be plain anchors: a next/link would be
- *  prefetched as an app route and 404 before the rewrite ever runs. */
+ * the existing service. They must be plain anchors: a next/link would be
+ * prefetched as an app route and 404 before the rewrite ever runs. */
 const NOT_MIGRATED = new Set(['/terms', '/privacy', '/responsible-play']);
 
 function FooterColumn({

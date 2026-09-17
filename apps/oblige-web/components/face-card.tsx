@@ -2,8 +2,8 @@
 
 import * as React from 'react';
 import { ART, teamFor } from '@/lib/teams';
-import { artworkUrl } from '@/lib/api';
-import type { PropGroup } from '@/lib/types';
+import { artworkUrl, fetchResearch, playedGames } from '@/lib/api';
+import type { GameLogRow, PropGroup } from '@/lib/types';
 import { cn, initials, odds, rateTone, shortTime } from '@/lib/utils';
 import { Badge, Dot } from '@/components/ui/badge';
 
@@ -198,6 +198,96 @@ export function HitMeter({
   );
 }
 
+function gameResult(game: GameLogRow, line: number) {
+  const value = Number(game.value);
+  if (game.push === true || value === line) return 'push' as const;
+  if (game.hit === true || (game.hit == null && value > line)) return 'hit' as const;
+  return 'miss' as const;
+}
+
+function readableDate(value?: string) {
+  if (!value) return 'Date unavailable';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+}
+
+/**
+ * Compact, real-observation L10 visualization. Unlike a generic progress bar,
+ * every bar is one completed game from the research response. Hover/focus text
+ * carries the exact value, opponent, date and minutes without crowding mobile.
+ */
+function L10GameStrip({
+  games,
+  line,
+  hits,
+  sample,
+  rate,
+}: {
+  games: GameLogRow[];
+  line: number;
+  hits: number | null;
+  sample: number | null;
+  rate: number | null;
+}) {
+  const chronological = games.slice(0, 10).reverse();
+  const values = chronological.map((game) => Number(game.value)).filter(Number.isFinite);
+  const max = Math.max(line, ...values, 1);
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between text-[length:var(--fs-micro)] text-[var(--text-3)]">
+        <span>Last 10 games</span>
+        <span className="num text-[var(--text)]">
+          {sample === null || hits === null ? `${chronological.length} games` : `${hits}/${sample}`}
+          {rate === null ? '' : ` · ${rate}%`}
+        </span>
+      </div>
+
+      <div
+        className="grid h-9 grid-cols-10 items-end gap-1 rounded-[9px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface-3)_72%,transparent)] px-1.5 pt-1.5 pb-1"
+        aria-label={`Last ${chronological.length} game results against a line of ${line}`}
+      >
+        {chronological.map((game, index) => {
+          const value = Number(game.value);
+          const result = gameResult(game, line);
+          const height = Math.max(24, Math.min(100, (value / max) * 100));
+          const opponent = game.opponent || 'opponent unavailable';
+          const minutes = game.minutes == null ? '' : ` · ${game.minutes} min`;
+          const title = `${readableDate(game.date)} · ${opponent} · ${value}${minutes} · ${result}`;
+          const background =
+            result === 'hit'
+              ? 'var(--accent)'
+              : result === 'push'
+                ? 'var(--warn)'
+                : 'color-mix(in srgb, var(--neg) 72%, var(--surface-3))';
+
+          return (
+            <span
+              key={game.gameId || `${game.date || 'game'}-${index}`}
+              className="group relative flex h-full min-w-0 items-end"
+              title={title}
+              aria-label={title}
+            >
+              <span
+                className="block w-full rounded-[3px] opacity-90 transition-[height,filter,opacity] duration-300 ease-[var(--ease-out)] group-hover:opacity-100 group-hover:brightness-110"
+                style={{ height: `${height}%`, background }}
+              />
+            </span>
+          );
+        })}
+        {Array.from({ length: Math.max(0, 10 - chronological.length) }).map((_, index) => (
+          <span
+            key={`empty-${index}`}
+            className="block h-[24%] rounded-[3px] bg-[color-mix(in_srgb,var(--text)_8%,transparent)]"
+            aria-hidden="true"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------- prop card */
 
 export type PropCardStats = {
@@ -230,6 +320,18 @@ export function PropCard({
   const club = teamFor(group.team);
   const kickoff = shortTime(group.startsAt);
   const bookCount = new Set(group.quotes.map((quote) => quote.sportsbookKey || quote.sportsbook).filter(Boolean)).size;
+  const [recentGames, setRecentGames] = React.useState<GameLogRow[]>([]);
+
+  React.useEffect(() => {
+    setRecentGames([]);
+    if (loading || !stats) return;
+
+    const controller = new AbortController();
+    fetchResearch(group, 'OVER', controller.signal)
+      .then((research) => setRecentGames(playedGames(research).slice(0, 10)))
+      .catch(() => setRecentGames([]));
+    return () => controller.abort();
+  }, [group.key, loading, stats]);
 
   return (
     <div className="face prop-card-v2">
@@ -247,7 +349,7 @@ export function PropCard({
             sport={group.sport}
             team={group.team}
             providerPlayerId={group.providerPlayerId}
-            size={54}
+            size={58}
           />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[length:var(--fs-base)] font-semibold tracking-tight">
@@ -282,8 +384,16 @@ export function PropCard({
         {loading ? (
           <span className="grid gap-[7px]">
             <span className="h-3 w-32 animate-pulse rounded bg-[var(--surface-3)]" />
-            <span className="block h-2 animate-pulse rounded-full bg-[var(--surface-3)]" />
+            <span className="block h-9 animate-pulse rounded-[9px] bg-[var(--surface-3)]" />
           </span>
+        ) : recentGames.length ? (
+          <L10GameStrip
+            games={recentGames}
+            line={group.line}
+            hits={stats?.hits ?? null}
+            sample={stats?.sample ?? null}
+            rate={stats?.rate ?? null}
+          />
         ) : (
           <HitMeter
             label="L10 hit rate"
@@ -334,14 +444,14 @@ export function PropCardSkeleton() {
     <div className="face prop-card-v2">
       <div className="grid gap-4 p-4">
         <div className="flex items-center gap-3">
-          <div className="size-[54px] shrink-0 animate-pulse rounded-full bg-[var(--face-surface-2)]" />
+          <div className="size-[58px] shrink-0 animate-pulse rounded-[16px] bg-[var(--face-surface-2)]" />
           <div className="grid flex-1 gap-2">
             <div className="h-4 w-2/3 animate-pulse rounded bg-[var(--face-surface-2)]" />
             <div className="h-3 w-1/2 animate-pulse rounded bg-[var(--face-surface-2)]" />
           </div>
         </div>
         <div className="h-8 animate-pulse rounded bg-[var(--face-surface-2)]" />
-        <div className="h-2 animate-pulse rounded-full bg-[var(--face-surface-2)]" />
+        <div className="h-9 animate-pulse rounded-[9px] bg-[var(--face-surface-2)]" />
       </div>
       <div className="grid grid-cols-2 gap-2 px-4 pb-4">
         <div className="h-12 animate-pulse rounded-[var(--radius-sm)] bg-[var(--face-surface-2)]" />

@@ -33,16 +33,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm install --no-audit --no-fund
       - name: Typecheck
-        run: |
-          set -o pipefail
-          npm run typecheck 2>&1 | tee typecheck.log
-      - name: Upload typecheck log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: oblige-v2-typecheck-${{ github.sha }}
-          path: apps/oblige-web/typecheck.log
-          retention-days: 1
+        run: npm run typecheck
       - name: Build Next.js frontend
         env:
           OBLIGE_BACKEND_ORIGIN: https://autoprop-live-production.up.railway.app

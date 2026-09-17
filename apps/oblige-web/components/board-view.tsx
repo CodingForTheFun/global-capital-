@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, Search, TriangleAlert } from 'lucide-react';
+import { RefreshCw, Search, SlidersHorizontal, TriangleAlert } from 'lucide-react';
 import type { BoardMeta, PropGroup } from '@/lib/types';
 import { ApiError, fetchAccount, fetchBoard, fetchResearch, windowOf } from '@/lib/api';
 import { cn, pctValue } from '@/lib/utils';
@@ -24,6 +24,11 @@ type SortId = (typeof SORTS)[number]['id'];
 /** Enough cards to fill a tall screen without asking the research route for
  *  hundreds of histories nobody scrolled to. */
 const PAGE_SIZE = 24;
+const ALL = 'ALL';
+
+const bookName = (value: unknown) => String(value || '').trim();
+const sortedUnique = (values: Array<string | null | undefined>) =>
+  [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 
 export function BoardView() {
   const router = useRouter();
@@ -42,6 +47,11 @@ export function BoardView() {
   const [sort, setSort] = React.useState<SortId>('line');
   const [shown, setShown] = React.useState(PAGE_SIZE);
   const [picks, setPicks] = React.useState<Record<string, 'OVER' | 'UNDER'>>({});
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+  const [marketFilter, setMarketFilter] = React.useState(ALL);
+  const [teamFilter, setTeamFilter] = React.useState(ALL);
+  const [opponentFilter, setOpponentFilter] = React.useState(ALL);
+  const [bookFilter, setBookFilter] = React.useState(ALL);
 
   /** Hit rates arrive per card from the research route, so the board renders
    *  immediately and each card fills in as its history lands. */
@@ -71,6 +81,10 @@ export function BoardView() {
         setGroups(board.groups);
         setMeta(board.meta);
         setShown(PAGE_SIZE);
+        setMarketFilter(ALL);
+        setTeamFilter(ALL);
+        setOpponentFilter(ALL);
+        setBookFilter(ALL);
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) {
@@ -93,33 +107,49 @@ export function BoardView() {
     };
   }, [checking, account, sport, nonce]);
 
+  const filterOptions = React.useMemo(() => {
+    const books: string[] = [];
+    for (const group of groups) {
+      for (const quote of group.quotes) {
+        const value = bookName(quote.sportsbook || quote.sportsbookKey);
+        if (value) books.push(value);
+      }
+    }
+    return {
+      markets: sortedUnique(groups.map((group) => group.market)),
+      teams: sortedUnique(groups.map((group) => group.team)),
+      opponents: sortedUnique(groups.map((group) => group.opponent)),
+      books: sortedUnique(books),
+    };
+  }, [groups]);
+
+  const activeFilterCount = [marketFilter, teamFilter, opponentFilter, bookFilter].filter((value) => value !== ALL).length;
+
   const visible = React.useMemo(() => {
-    const filtered = debounced
-      ? groups.filter((group) =>
-          `${group.player} ${group.market} ${group.matchup}`.toLowerCase().includes(debounced),
-        )
-      : groups;
+    const filtered = groups.filter((group) => {
+      if (debounced && !`${group.player} ${group.market} ${group.matchup}`.toLowerCase().includes(debounced)) return false;
+      if (marketFilter !== ALL && group.market !== marketFilter) return false;
+      if (teamFilter !== ALL && group.team !== teamFilter) return false;
+      if (opponentFilter !== ALL && group.opponent !== opponentFilter) return false;
+      if (
+        bookFilter !== ALL &&
+        !group.quotes.some((quote) => bookName(quote.sportsbook || quote.sportsbookKey) === bookFilter)
+      ) return false;
+      return true;
+    });
     const sorted = [...filtered];
     sorted.sort((a, b) => {
       if (sort === 'name') return a.player.localeCompare(b.player);
       if (sort === 'line') return b.line - a.line;
-      // Only reached when the reader asks for it. Cards without a history yet
-      // sort below the ones that have one, so the top is never a row of blanks.
       const ra = stats[a.key]?.rate ?? -1;
       const rb = stats[b.key]?.rate ?? -1;
       return rb - ra || a.player.localeCompare(b.player);
     });
     return sorted;
-  }, [groups, debounced, sort, stats]);
+  }, [groups, debounced, sort, stats, marketFilter, teamFilter, opponentFilter, bookFilter]);
 
   const page = visible.slice(0, shown);
 
-  /* One hit-rate request per card, ever.
-     The keys already asked for live in a ref rather than in state, because
-     sorting by hit rate reorders the page as results arrive: keying this
-     effect on the page's contents would restart it on every result and abort
-     the requests still in flight. The controller is tied to the component's
-     life, not to a render. */
   const requested = React.useRef(new Set<string>());
   const inflight = React.useRef<AbortController | null>(null);
 
@@ -132,8 +162,6 @@ export function BoardView() {
     };
   }, []);
 
-  /* A change of sport is a different board, so previous answers no longer
-     apply and the keys are released. */
   React.useEffect(() => {
     requested.current = new Set();
     setStats({});
@@ -149,8 +177,6 @@ export function BoardView() {
     for (const group of wanted) requested.current.add(group.key);
 
     const queue = [...wanted];
-    // Four at a time: enough to fill a screen quickly, gentle enough that a
-    // scroll does not trip the research route's rate limit.
     const worker = async () => {
       while (queue.length && !controller.signal.aborted) {
         const group = queue.shift()!;
@@ -186,6 +212,13 @@ export function BoardView() {
     router.push(`/research?${params}`);
   }
 
+  function resetFilters() {
+    setMarketFilter(ALL);
+    setTeamFilter(ALL);
+    setOpponentFilter(ALL);
+    setBookFilter(ALL);
+  }
+
   if (checking) {
     return (
       <div className="mx-auto w-full max-w-[var(--maxw)] px-4 py-10 md:px-8">
@@ -210,8 +243,9 @@ export function BoardView() {
     <div className="mx-auto w-full max-w-[var(--maxw)] px-4 pt-6 pb-16 md:px-8">
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
+          <div className="board-kicker">Live player prop research</div>
           <h1 className="text-[length:var(--fs-xl)]" style={{ textTransform: 'var(--display-case)' as 'none' }}>
-            Prop Board
+            Props
           </h1>
           <p className="mt-1.5 text-[length:var(--fs-sm)] text-[var(--text-3)]">
             {loading
@@ -239,7 +273,6 @@ export function BoardView() {
         </p>
       )}
 
-      {/* filter rail */}
       <div
         className={cn(
           '-mx-4 border-b border-[var(--line)] px-4 py-3 md:-mx-8 md:px-8',
@@ -278,11 +311,25 @@ export function BoardView() {
               type="search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search player or market…"
+              placeholder="Search players, teams, or stats…"
               autoComplete="off"
               className="pl-9"
             />
           </label>
+          <button
+            type="button"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((open) => !open)}
+            className={cn(
+              'board-filter-trigger min-h-10 flex-none items-center gap-2 rounded-full border px-4 text-[length:var(--fs-xs)] font-semibold',
+              activeFilterCount
+                ? 'border-[color-mix(in_srgb,var(--accent)_45%,transparent)] text-[var(--accent)]'
+                : 'border-[var(--line)] text-[var(--text-2)]',
+            )}
+          >
+            <SlidersHorizontal className="size-4" aria-hidden="true" />
+            Filters{activeFilterCount ? ` (${activeFilterCount})` : ''}
+          </button>
           {SORTS.map((option) => (
             <button
               key={option.id}
@@ -301,6 +348,18 @@ export function BoardView() {
             </button>
           ))}
         </div>
+
+        {filtersOpen && (
+          <div className="board-filter-panel" aria-label="Advanced prop filters">
+            <FilterSelect label="Market" value={marketFilter} onChange={setMarketFilter} options={filterOptions.markets} />
+            <FilterSelect label="Team" value={teamFilter} onChange={setTeamFilter} options={filterOptions.teams} />
+            <FilterSelect label="Opponent" value={opponentFilter} onChange={setOpponentFilter} options={filterOptions.opponents} />
+            <FilterSelect label="Sportsbook" value={bookFilter} onChange={setBookFilter} options={filterOptions.books} />
+            <button type="button" onClick={resetFilters} disabled={!activeFilterCount} className="board-filter-reset">
+              Reset filters
+            </button>
+          </div>
+        )}
       </div>
 
       {error ? (
@@ -322,7 +381,7 @@ export function BoardView() {
           <Search className="size-7 text-[var(--text-3)]" aria-hidden="true" />
           <h2 className="text-[length:var(--fs-md)] normal-case">No props match that filter</h2>
           <p className="max-w-[46ch] text-[length:var(--fs-sm)] text-[var(--text-3)]">
-            Try a different league, or clear the search to see everything {sport} has priced.
+            Try a different league or clear the filters to see everything {sport} has priced.
           </p>
           <Button
             variant="ghost"
@@ -330,6 +389,7 @@ export function BoardView() {
             onClick={() => {
               setQuery('');
               setSort('line');
+              resetFilters();
             }}
           >
             Clear filters
@@ -371,5 +431,31 @@ export function BoardView() {
         </>
       )}
     </div>
+  );
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  return (
+    <label className="board-filter-field">
+      <span>{label}</span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        <option value={ALL}>All</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

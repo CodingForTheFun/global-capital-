@@ -6,6 +6,7 @@ import './player-shell.css';
 import './reference-shell.css';
 import './reference-filters.css';
 import './mobile-density.css';
+import './design-pass.css';
 import { DirectionProvider } from '@/components/theme';
 import { MobileNav, SiteFooter, SiteHeader } from '@/components/site-chrome';
 

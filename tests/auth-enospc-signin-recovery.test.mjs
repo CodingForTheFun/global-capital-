@@ -31,9 +31,28 @@ test('only successful-login metadata is recoverable when the volume is full', ()
   }
 });
 
-test('the ENOSPC fallback is narrow and every other persistence error is rethrown', () => {
+test('the account-store ENOSPC fallback is narrow and every other persistence error is rethrown', () => {
   const source = readFileSync(new URL('../lib/auth/store.mjs', import.meta.url), 'utf8');
   assert.match(source, /error\?\.code === 'ENOSPC' && recoverableLoginMetadataPatch\(fallback\?\.patch\)/);
   assert.match(source, /throw error;/, 'non-ENOSPC and security-critical write failures must still fail closed');
   assert.match(source, /temp\+rename|temp write runs out of space/i, 'the fallback relies on the canonical users file staying atomic');
+});
+
+test('new device presence falls back to process memory only when ENOSPC blocks persistence', () => {
+  const source = readFileSync(new URL('../lib/auth/presence.mjs', import.meta.url), 'utf8');
+  assert.match(source, /const ephemeralSessions = new Map\(\)/);
+  assert.match(source, /if \(error\?\.code !== 'ENOSPC'\) throw error;/,
+    'unexpected session-store errors must still fail closed');
+  assert.match(source, /ephemeralSessions\.set\(id, record\)/,
+    'a full disk may preserve a newly authenticated device only in process memory');
+  assert.match(source, /if \(error\?\.code === 'ENOSPC'\) return;/,
+    'a heartbeat write must not turn a valid signed session into a 500');
+  assert.match(source, /ephemeralSessions\.clear\(\)/,
+    'the test/reset path must never leave emergency sessions behind');
+});
+
+test('per-device validation remains in the account request path', () => {
+  const routes = readFileSync(new URL('../lib/auth/routes.mjs', import.meta.url), 'utf8');
+  assert.match(routes, /session\.sessionId && !\(await isSessionActive\(session\.sessionId\)\)/,
+    'sessions with a device id must still be checked server-side');
 });

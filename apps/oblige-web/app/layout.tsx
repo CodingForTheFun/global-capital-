@@ -7,6 +7,7 @@ import './reference-shell.css';
 import './reference-filters.css';
 import './mobile-density.css';
 import './human-polish.css';
+import { CommandSearchController } from '@/components/command-search';
 import { DirectionProvider } from '@/components/theme';
 import { MobileNav, SiteFooter, SiteHeader } from '@/components/site-chrome';
 
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           Skip to content
         </a>
         <DirectionProvider>
+          <CommandSearchController />
           <SiteHeader />
           <main id="main" className="pb-14 lg:pb-0">
             {children}

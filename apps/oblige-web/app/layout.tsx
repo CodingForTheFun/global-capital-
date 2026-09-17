@@ -10,6 +10,7 @@ import './human-polish.css';
 import './reference-acceptance.css';
 import './reference-acceptance-desktop.css';
 import './reference-mounted-board.css';
+import './reference-player-sheet.css';
 import { CommandSearchController } from '@/components/command-search';
 import { DirectionProvider } from '@/components/theme';
 import { MobileNav, SiteFooter, SiteHeader } from '@/components/site-chrome';

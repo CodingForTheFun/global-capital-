@@ -11,6 +11,7 @@ import { patchResearchTabsUi } from './lib/autoscout/research-tabs-runtime-patch
 import { patchLiveMainViewUi } from './lib/autoscout/live-main-view-runtime-patch.mjs';
 import { patchProplineRealtimeCore, patchProplineRealtimeFrontdoor, patchProplineRealtimeUi } from './lib/autoscout/propline-realtime-runtime-patch.mjs';
 import { patchProplinePushBoardCore, patchProplinePushBoardUi } from './lib/autoscout/propline-push-board-runtime-patch.mjs';
+import { patchMarketCore, patchMarketCoreFrontdoor } from './lib/autoscout/market-core-runtime-patch.mjs';
 import { patchProplineMarketUi } from './lib/autoscout/propline-market-runtime-patch.mjs';
 import { patchProplineInsightsUi } from './lib/autoscout/propline-insights-runtime-patch.mjs';
 import { patchProplineFullFrontdoor, patchProplineFullUi } from './lib/autoscout/propline-full-runtime-patch.mjs';
@@ -79,10 +80,11 @@ writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedProplinePushBoardUi),
 // Compose the core patches inline. The release suite deliberately treats every
 // named `patched*` variable as a UI stage that must be validated by the client
 // safety pass before it is written. Keeping the server-core composition inline
-// preserves that invariant while still applying the push overlay after realtime.
+// preserves that invariant while still applying the push overlay and the new
+// provider-neutral live market core after realtime normalization.
 writeFileSync(
   coreRuntimePath,
-  patchProplinePushBoardCore(patchProplineRealtimeCore(readFileSync(coreSourcePath, 'utf8'))),
+  patchMarketCore(patchProplinePushBoardCore(patchProplineRealtimeCore(readFileSync(coreSourcePath, 'utf8')))),
   'utf8',
 );
 
@@ -93,6 +95,7 @@ runtimeSource = patchEdgeFrontdoor(runtimeSource);
 runtimeSource = patchProfileAvatarFrontdoor(runtimeSource);
 runtimeSource = patchProplineRealtimeFrontdoor(runtimeSource);
 runtimeSource = patchProplineFullFrontdoor(runtimeSource);
+runtimeSource = patchMarketCoreFrontdoor(runtimeSource);
 if (!runtimeSource.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the edge-patched Auto Scout UI source.');
 runtimeSource = runtimeSource.replace(uiRead, uiRuntimeRead);
 writeFileSync(runtimePath, runtimeSource, 'utf8');

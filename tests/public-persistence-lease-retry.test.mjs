@@ -12,6 +12,17 @@ test('retry waits just past the database-authoritative next_at', () => {
   assert.equal(policy.shouldSchedule, true);
 });
 
+test('retry waits past an active database lease even when next_at is earlier', () => {
+  const policy = __leaseRetryPolicy('scheduled', false, {
+    dbNow: '2026-09-18T00:00:00.000Z',
+    nextAt: '2026-09-18T00:00:20.000Z',
+    leaseUntil: '2026-09-18T00:01:10.000Z',
+  });
+
+  assert.equal(policy.delayMs, 75_000);
+  assert.equal(policy.shouldSchedule, true);
+});
+
 test('database-timed retry stays bounded', () => {
   const near = __leaseRetryPolicy('scheduled', false, {
     dbNow: '2026-09-17T17:18:34.000Z',

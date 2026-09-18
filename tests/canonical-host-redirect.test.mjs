@@ -51,9 +51,17 @@ test('a port in the Host header does not defeat the match',async()=>{
  assert.equal(res.statusCode,301);
 });
 
-test('non-GET keeps its method and body by redirecting with 308, never 301',async()=>{
+test('retired-host API requests are served directly for cached and installed clients',async()=>{
+ for(const method of ['GET','POST','PUT','PATCH','DELETE']){
+  const {handled,res}=await run('www.obligepay.com',{url:'/api/account/login',method});
+  assert.notEqual(handled,true,`${method} API request must not be cross-origin redirected`);
+  assert.equal(res.statusCode,null);
+ }
+});
+
+test('non-API writes still preserve method when canonicalized',async()=>{
  for(const method of ['POST','PUT','PATCH','DELETE']){
-  const {res}=await run('www.obligepay.com',{url:'/api/account/login',method});
+  const {res}=await run('www.obligepay.com',{url:'/account',method});
   assert.equal(res.statusCode,308,`${method} must not be downgraded to GET`);
  }
 });

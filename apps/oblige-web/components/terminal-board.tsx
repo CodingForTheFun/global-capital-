@@ -103,13 +103,15 @@ function text(value: unknown) {
 }
 
 function numberOf(value: unknown) {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 function priceLabel(value: unknown) {
+  if (value === null || value === undefined || String(value).trim() === '') return '—';
   const number = Number(value);
-  if (!Number.isFinite(number)) return '—';
+  if (!Number.isFinite(number) || number === 0) return '—';
   return number > 0 ? `+${number}` : String(number);
 }
 

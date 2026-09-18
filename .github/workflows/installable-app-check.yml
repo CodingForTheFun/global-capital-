@@ -1,0 +1,53 @@
+name: ObligeProps installable app verification
+on:
+  pull_request:
+    branches: [production-stable]
+    paths:
+      - 'apps/oblige-web/**'
+      - 'scripts/qa-installable-app.mjs'
+      - 'scripts/verify-installable-production.mjs'
+      - '.github/workflows/installable-app-check.yml'
+  push:
+    branches: [production-stable, claude/website-review-audit-t5ei2j]
+    paths:
+      - 'apps/oblige-web/**'
+      - 'scripts/verify-installable-production.mjs'
+      - '.github/workflows/installable-app-check.yml'
+permissions:
+  contents: read
+jobs:
+  browser-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+      - run: npm ci && npm ci --prefix apps/oblige-web
+      - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck --prefix apps/oblige-web && npm run build --prefix apps/oblige-web
+      - name: Start frontend and test mobile, desktop, isolation and install assets
+        run: |
+          npm run start --prefix apps/oblige-web > installable-next.log 2>&1 &
+          node scripts/qa-installable-app.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installable-app-qa-${{ github.sha }}
+          path: |
+            installable-app-artifacts/
+            installable-next.log
+          retention-days: 7
+  production-check:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+      - name: Verify actual website and frontend after the paired deployments
+        run: node scripts/verify-installable-production.mjs

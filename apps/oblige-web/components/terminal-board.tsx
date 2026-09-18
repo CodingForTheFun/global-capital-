@@ -103,13 +103,14 @@ function text(value: unknown) {
 }
 
 function numberOf(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 function priceLabel(value: unknown) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return '—';
+  const number = numberOf(value);
+  if (number === null || number === 0) return '—';
   return number > 0 ? `+${number}` : String(number);
 }
 
@@ -878,9 +879,9 @@ function MobileMatrix({
 
             <div className={styles.mobileMeta}>
               <span><b>{group.line}</b> {group.market}</span>
-              <span>L5 <b>{rateLabel(summary === undefined ? undefined : summary?.l5 ?? null)}</b></span>
-              <span>L10 <b>{rateLabel(summary === undefined ? undefined : summary?.l10 ?? null)}</b></span>
-              <span>L20 <b>{rateLabel(summary === undefined ? undefined : summary?.l20 ?? null)}</b></span>
+              <span>O L5 <b>{rateLabel(summary === undefined ? undefined : summary?.l5 ?? null)}</b></span>
+              <span>O L10 <b>{rateLabel(summary === undefined ? undefined : summary?.l10 ?? null)}</b></span>
+              <span>O L20 <b>{rateLabel(summary === undefined ? undefined : summary?.l20 ?? null)}</b></span>
             </div>
 
             <div className={styles.mobileQuotes}>
@@ -978,7 +979,7 @@ function Inspector({
         <section className={styles.drawerSection}>
           <div className={styles.sectionHeading}>
             <span>Hit-rate windows</span>
-            <small>verified game log</small>
+            <small>OVER · verified game log</small>
           </div>
           <div className={styles.hitStrip}>
             {[

@@ -6,8 +6,10 @@ const Module = require('node:module');
 const ts = require('typescript');
 const source = fs.readFileSync(path.join(__dirname, '../lib/prop-route.ts'), 'utf8');
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } });
-const subject = new Module(path.join(__dirname, 'prop-route-compiled.cjs'), module);
-subject._compile(compiled.outputText, subject.filename);
+const filename = path.join(__dirname, 'prop-route-compiled.cjs');
+const subject = new Module(filename, module);
+subject.filename = filename;
+subject._compile(compiled.outputText, filename);
 const { researchHref, playerMarkets, selectedProp, optionalNumber, historyMessage } = subject.exports;
 
 function fixture(sport = 'TENNIS', extra = {}) {

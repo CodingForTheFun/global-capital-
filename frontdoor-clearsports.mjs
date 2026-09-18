@@ -18,7 +18,6 @@ import { patchProplineFullFrontdoor, patchProplineFullUi } from './lib/autoscout
 import { startProplineFreshnessMonitor } from './lib/data-sources/propline/full.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
 import { patchReferenceAcceptanceLiveUi } from './lib/autoscout/reference-acceptance-live-runtime-patch.mjs';
-import { patchPlayerDetailReferenceUi } from './lib/autoscout/player-detail-reference-runtime-patch.mjs';
 import { patchMobileNavDockUi } from './lib/autoscout/mobile-nav-dock-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
 import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs';
@@ -39,7 +38,7 @@ const researchSports = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS'
 const researchSportsWithTennis = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL','SOCCER','TENNIS']);";
 
 function makeClientSafeVisualUi(source) {
-  const patched = patchPlayerDetailReferenceUi(patchReferenceAcceptanceLiveUi(patchObligePropsVisualUi(source)));
+  const patched = patchReferenceAcceptanceLiveUi(patchObligePropsVisualUi(source));
   const withStyle = patched.replace(
     /<style id="oblige-props-pixel-target">([\s\S]*?)<\/style>/,
     (_match, css) => `\n;(function(){var s=document.getElementById('oblige-props-pixel-target');if(!s){s=document.createElement('style');s.id='oblige-props-pixel-target';s.textContent=${JSON.stringify(css)};(document.head||document.documentElement).appendChild(s);}})();\n`,

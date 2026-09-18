@@ -1,0 +1,117 @@
+name: Restore previous terminal and photos
+on:
+  push:
+    branches: ['chatgpt/restore-previous-board-faces-20260918']
+permissions:
+  contents: write
+concurrency:
+  group: restore-terminal-photos
+  cancel-in-progress: false
+jobs:
+  prepare-and-verify:
+    if: github.repository == 'CodingForTheFun/global-capital-'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/restore-previous-board-faces-20260918
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply source-checked presentation-only patch
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, subprocess
+          root=pathlib.Path('.')
+          board=root/'apps/oblige-web/components/terminal-board.tsx'
+          original=board.read_text()
+          if '<PlayerHeadshot' not in original:
+            actual=subprocess.check_output(['git','hash-object',str(board)],text=True).strip()
+            assert actual=='f985d5e51bce297dffb341b5a1fd4c07e8d46c07', 'Terminal source changed; stop rather than overwrite another edit'
+            assert original.count('  artworkUrl,\n')==1
+            source=original.replace('  artworkUrl,\n','')
+            anchor="import { SignInPanel } from '@/components/sign-in';"
+            assert source.count(anchor)==1
+            source=source.replace(anchor,anchor+"\nimport { PlayerHeadshot } from '@/components/player-headshot';")
+            pattern=r'''<img\s+src=\{artworkUrl\(group\.sport, group\.player, group\.team, group\.providerPlayerId\)\}\s+alt=""\s+onError=\{\(event\) => \{ event\.currentTarget\.style\.visibility = 'hidden'; \}\}\s*/>'''
+            replacement='<PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />'
+            source,count=re.subn(pattern,replacement,source)
+            assert count==3, f'Expected exactly three original image slots, got {count}'
+            board.write_text(source)
+          route='apps/oblige-web/app/board/page.tsx'
+          previous=subprocess.check_output(['git','show','9ad4fbaeb4451b4417a2e5498702409754af67f9:'+route])
+          assert b'<TerminalBoard' in previous and b'WorkspaceBoard' not in previous
+          pathlib.Path(route).write_bytes(previous)
+          # The rejected board is no longer mounted. Keep all canonical research
+          # tests by entering that supported shared-link format directly instead.
+          test=root/'scripts/verify-canonical-workspace.mjs'
+          s=test.read_text()
+          start="  await page.goto(base+'/board');await page.locator('[data-player-key]').first().waitFor();"
+          end="  assert.equal(await page.getByLabel('Player stat category').locator('option').count(),3,'one stat category, not a tab per book/line');"
+          if start in s:
+            a=s.index(start);b=s.index(end,a)
+            entry="  await page.goto(base+'/research?'+new URLSearchParams({sportKey:'football_nfl',event:'test-event',playerKey:'player:football_nfl',category:'rush'}));\n  await page.getByLabel('Selected book',{exact:true}).waitFor();\n"
+            s=s[:a]+entry+s[b:]
+            a=s.index("  await page.goto(base+'/board');await page.getByLabel('Sport',{exact:true}).selectOption('golf');")
+            b=s.index("  assert.equal(await page.locator('.op-line-number').textContent(),'-1.5');",a)
+            entry="  await page.goto(base+'/research?'+new URLSearchParams({sportKey:'golf',event:'test-event',playerKey:'player:golf',category:'rush'}));\n  await page.locator('.op-chart-bar').first().waitFor();\n"
+            s=s[:a]+entry+s[b:]
+            s=s.replace("'one-player-card','dynamic-sports',","'canonical-shared-link',")
+            test.write_text(s)
+          print('Restored exact previous board route; changed only three image slots. Existing research links retained.')
+          PY
+      - run: npm ci
+      - run: npm ci
+        working-directory: apps/oblige-web
+      - name: Unit tests, TypeScript, production build
+        working-directory: apps/oblige-web
+        run: node --test tests/player-headshots.test.mjs tests/workspace.test.mjs && npm run typecheck && npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Previous mobile/desktop board and existing research interactions
+        run: |
+          npm --prefix apps/oblige-web run start -- --port 3100 > /tmp/restored-next.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3100/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3100/ > /dev/null
+          node scripts/verify-restored-terminal.mjs
+          node scripts/verify-canonical-workspace.mjs
+      - name: Read-only live artwork evidence
+        run: |
+          node --input-type=module <<'JS'
+          import {mkdir,writeFile} from 'node:fs/promises';
+          const results=[];
+          for(const [sport,name] of [['NFL','Patrick Mahomes'],['WNBA','Aja Wilson']]){
+            try{
+              const response=await fetch('https://obligeprops.com/api/apex/player-artwork?'+new URLSearchParams({sport,name}),{signal:AbortSignal.timeout(20000),redirect:'error'});
+              const bytes=new Uint8Array(await response.arrayBuffer());
+              const type=response.headers.get('content-type')||'';
+              results.push({sport,name,status:response.status,contentType:type,bytes:bytes.length,raster:response.ok&&/^image\/(png|jpeg|webp)/.test(type)&&bytes.length>100});
+            }catch(e){results.push({sport,name,status:'UNVERIFIABLE',error:e.name});}
+          }
+          await mkdir('artifacts/restored-terminal',{recursive:true});
+          await writeFile('artifacts/restored-terminal/live-artwork.json',JSON.stringify(results,null,2));
+          console.log(JSON.stringify({liveArtworkEvidence:results}));
+          JS
+      - name: Commit only the verified presentation changes to the isolated branch
+        run: |
+          git add -- apps/oblige-web/app/board/page.tsx apps/oblige-web/components/terminal-board.tsx scripts/verify-canonical-workspace.mjs
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Restore previous prop board with identity-scoped real headshots'
+            git push origin HEAD:refs/heads/chatgpt/restore-previous-board-faces-20260918
+          fi
+          git rev-parse HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: restored-terminal-proof
+          path: |
+            artifacts/restored-terminal
+            artifacts/canonical-workspace
+          retention-days: 14

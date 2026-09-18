@@ -27,7 +27,6 @@ import { pctValue } from '@/lib/utils';
 import { SignInPanel } from '@/components/sign-in';
 import styles from './terminal-board.module.css';
 
-const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'WNBA', 'SOCCER'];
 const INITIAL_ROWS = 40;
 const LOAD_MORE_ROWS = 40;
 const FALLBACK_REFRESH_MS = 60_000;
@@ -269,6 +268,7 @@ export function TerminalBoard() {
   const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
   const [checking, setChecking] = React.useState(true);
   const [sport, setSport] = React.useState('NFL');
+  const [sports, setSports] = React.useState<string[]>(['NFL']);
   const [groups, setGroups] = React.useState<PropGroup[]>([]);
   const [meta, setMeta] = React.useState<BoardMeta>({});
   const [loading, setLoading] = React.useState(false);
@@ -314,6 +314,12 @@ export function TerminalBoard() {
         if (cancelled) return;
         setGroups(board.groups);
         setMeta(board.meta);
+        if (board.supportedSports.length) {
+          setSports((current) => {
+            const next = [...new Set([...current, ...board.supportedSports].map((value) => text(value).toUpperCase()).filter(Boolean))];
+            return next.sort((a, b) => a.localeCompare(b));
+          });
+        }
         if (initial) {
           setMarket(ALL);
           setBook(ALL);
@@ -563,7 +569,7 @@ export function TerminalBoard() {
 
         <div className={styles.commandBar}>
           <div className={styles.leagueRail} role="group" aria-label="League">
-            {SPORTS.map((option) => (
+            {sports.map((option) => (
               <button
                 key={option}
                 type="button"

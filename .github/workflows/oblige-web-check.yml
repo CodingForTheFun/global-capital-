@@ -1,13 +1,13 @@
-name: Oblige Props Vercel frontend
+name: Oblige Props frontend verification
 
 on:
   pull_request:
-    branches: [production-stable]
+    branches: [production-stable, claude/website-review-audit-t5ei2j]
     paths:
       - 'apps/oblige-web/**'
       - '.github/workflows/oblige-web-check.yml'
   push:
-    branches: [production-stable]
+    branches: [production-stable, claude/website-review-audit-t5ei2j]
     paths:
       - 'apps/oblige-web/**'
       - '.github/workflows/oblige-web-check.yml'
@@ -19,22 +19,38 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 18
     defaults:
       run:
         working-directory: apps/oblige-web
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-      - name: Set up Node 20
+      - name: Set up Node 22
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '22'
       - name: Install frontend dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Typecheck
         run: npm run typecheck
+      - name: Exact prop routing regression
+        run: node --test tests/direct-prop-route.test.cjs
       - name: Build Next.js frontend
         env:
-          OBLIGE_BACKEND_ORIGIN: https://autoprop-live-production.up.railway.app
+          OBLIGE_BACKEND_ORIGIN: http://127.0.0.1:31999
+          NEXT_TELEMETRY_DISABLED: '1'
         run: npm run build
+      - name: Install browser test runner
+        run: |
+          npm install --no-save --package-lock=false --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Verify direct phone and desktop research
+        run: node tests/direct-prop-browser.mjs
+      - name: Upload isolated UI verification screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: direct-prop-fixture-screenshots
+          path: apps/oblige-web/test-results/direct-prop
+          if-no-files-found: ignore

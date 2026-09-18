@@ -1,0 +1,37 @@
+name: Read-only installable public proof
+on:
+  push:
+    branches: [chatgpt/oblige-app-public-proof-20260918]
+    paths: ['.github/workflows/installable-public-proof.yml']
+permissions:
+  contents: read
+jobs:
+  public-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Report public installation responses without credentials or provider calls
+        run: |
+          node --input-type=module <<'NODE'
+          const origins = ['https://www.obligeprops.com','https://oblige-web-production.up.railway.app'];
+          const paths = ['/app.webmanifest','/app-worker.js','/app-icons/180.png','/app-icons/192.png','/app-icons/512.png','/','/board','/research','/account','/api/frontend-health'];
+          for (const origin of origins) {
+            await Promise.all(paths.map(async path => {
+              try {
+                const response = await fetch(origin+path,{signal:AbortSignal.timeout(15000),headers:{'cache-control':'no-cache'}});
+                const type = response.headers.get('content-type') || '';
+                const bytes = Buffer.from(await response.arrayBuffer());
+                const result = {origin,path,status:response.status,finalUrl:response.url,type,cache:response.headers.get('cache-control'),workerScope:response.headers.get('service-worker-allowed'),release:response.headers.get('x-oblige-app-release'),bytes:bytes.length};
+                if(type.includes('text/html')) { const text=bytes.toString();result.title=text.match(/<title>(.*?)<\/title>/)?.[1];result.appManifest=text.includes('/app.webmanifest');result.appleIcon=text.includes('/app-icons/180.png'); }
+                if(path==='/app.webmanifest' && type.includes('json')) { const value=JSON.parse(bytes);result.manifest={name:value.name,start:value.start_url,scope:value.scope,display:value.display}; }
+                if(path==='/app-worker.js') result.expectedWorker=bytes.toString().includes('oblige-installable-20260918');
+                if(type.includes('image/png')) { result.signature=bytes.subarray(0,8).toString('hex');result.dimensions=[bytes.readUInt32BE(16),bytes.readUInt32BE(20)]; }
+                console.log(JSON.stringify(result));
+              } catch(error) { console.log(JSON.stringify({origin,path,error:error.name,message:error.message})); }
+            }));
+          }
+          for(const path of ['/api/health','/api/account/me']) {
+            try { const response=await fetch(origins[0]+path,{signal:AbortSignal.timeout(15000)}); const json=await response.json().catch(()=>({}));console.log(JSON.stringify({path,status:response.status,ok:json.ok,authenticated:json.authenticated,hasUserId:Boolean(json.user?.id)})); }
+            catch(error) {console.log(JSON.stringify({path,error:error.name}));}
+          }
+          NODE

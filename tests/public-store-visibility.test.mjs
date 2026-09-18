@@ -64,10 +64,28 @@ test('the failure list is bounded so a long outage cannot grow health without li
   assert.ok(publicStoreHealth().failures.length <= 10, 'health must stay readable during an outage');
 });
 
-test('the callers still swallow - this must not change ingestion control flow', () => {
-  const worker = readFileSync(new URL('../lib/ingestion/public-worker.mjs', import.meta.url), 'utf8');
-  assert.match(worker, /async function status\(source, state\) \{ try \{ await recordStatus\(source, state\); \} catch \{\} \}/,
-    'a failed status write must still never stop an ingestion cycle');
+test('a rejected best-effort status write still cannot stop ingestion or owner release', async () => {
+  const { createPublicIngestionRunner } = await import('../lib/ingestion/public-worker.mjs');
+  const previous = process.env.AUTOSCOUT_DRAFTKINGS_PUBLIC_ENABLED;
+  process.env.AUTOSCOUT_DRAFTKINGS_PUBLIC_ENABLED = 'false';
+  const writes = []; let released = null, failedStatuses = 0;
+  try {
+    const runner = createPublicIngestionRunner({
+      claim: async () => ({ claimed: true, owner: 'test-db-owner' }),
+      release: async owner => { released = owner; },
+      feeds: { refreshFeed: async () => ({ status: 'no_props', records: [], fetchedAt: new Date().toISOString() }) },
+      persistSnapshot: async source => { writes.push(source); return { written: 0 }; },
+      recordStatus: async () => { failedStatuses++; throw new Error('status write unavailable'); },
+    });
+    const result = await runner.cycle();
+    assert.equal(result.claimed, true);
+    assert.deepEqual(writes, ['prizepicks', 'underdog']);
+    assert.equal(failedStatuses, 2);
+    assert.equal(released, 'test-db-owner');
+  } finally {
+    if (previous === undefined) delete process.env.AUTOSCOUT_DRAFTKINGS_PUBLIC_ENABLED;
+    else process.env.AUTOSCOUT_DRAFTKINGS_PUBLIC_ENABLED = previous;
+  }
 });
 
 test('public store health is exposed on /api/health', () => {

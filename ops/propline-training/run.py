@@ -8,6 +8,10 @@ from trainer import samples_from_rows, featurize, train_family, timestamp
 BASE='https://api.prop-line.com'
 STORE='https://irthqoecbhuasvcnsfjz.supabase.co/functions/v1/oblige-training-artifacts'
 MIB=1024*1024
+# The first all-book MLB export exceeded 128 MiB. A single real reference book
+# avoids paying/downloading duplicate outcomes; this is not a site book filter.
+# Its restricted coverage is recorded, never described as all-book history.
+REFERENCE_BOOKS={'baseball_mlb':'draftkings'}
 class Stopped(Exception): pass
 class StoreFailure(Exception): pass
 
@@ -72,18 +76,23 @@ class Provider:
         finally:response.close()
 
 def export_sport(provider,store,sport,since,until):
-    window=digest(encode([sport,since,until]))[:24]
+    reference_book=REFERENCE_BOOKS.get(sport)
+    scope=[sport,since,until]+([reference_book] if reference_book else [])
+    window=digest(encode(scope))[:24]
     path=f'exports/{sport}/{window}.csv.gz';metadata_path=f'exports/{sport}/{window}.json'
     metadata=store.get(metadata_path)
     if metadata:
         info=json.loads(metadata);payload=store.get(path)
         if payload is None or digest(payload)!=info['dataSha256']:raise StoreFailure('cached_export_checksum')
         return payload,{**info,'cacheHit':True}
-    response=provider.read('/v1/exports/resolved-props',{'sport':sport,'since':since,'until':until})
+    params={'sport':sport,'since':since,'until':until}
+    if reference_book:params['bookmaker']=reference_book
+    response=provider.read('/v1/exports/resolved-props',params)
     if 'csv' not in response.headers.get('content-type','').lower():response.close();raise Stopped('export_schema_unavailable')
     headers={k:response.headers.get(k) for k in ['x-propline-export-window-start','x-propline-archive-starts']}
     reader=csv.DictReader(provider.lines(response));fields=[k for k in reader.fieldnames or [] if k!='customer_token']
     required={'event_id','sport_key','market','player_name','resolution','actual_value'}
+    if reference_book:required.add('bookmaker')
     if not required.issubset(fields):response.close();raise Stopped('export_schema_mismatch')
     output=io.BytesIO();counts=collections.Counter();events=set();players=set();earliest=None;latest=None;canaries=0;missing=collections.Counter()
     with gzip.GzipFile(fileobj=output,mode='wb',mtime=0) as gz:
@@ -92,6 +101,7 @@ def export_sport(provider,store,sport,since,until):
             for row in reader:
                 if any(str(row.get(k,'')).startswith('(Watermark)') for k in ('player_name','home_team','away_team')):canaries+=1;continue
                 if row.get('sport_key')!=sport:continue
+                if reference_book and row.get('bookmaker')!=reference_book:raise Stopped('export_book_scope_mismatch')
                 writer.writerow({k:row.get(k,'') for k in fields})
                 counts[row.get('market','unknown')]+=1;events.add(row.get('event_id'));players.add(row.get('player_id') or row.get('player_name'))
                 when=timestamp(row.get('commence_time'))
@@ -99,7 +109,7 @@ def export_sport(provider,store,sport,since,until):
                 for k in ['player_id','opening_at','opening_price','opening_point','actual_value']:
                     if row.get(k) in (None,''):missing[k]+=1
     payload=output.getvalue()
-    info={'rows':sum(counts.values()),'events':len(events),'players':len(players),'markets':dict(counts),'earliestGame':earliest,'latestGame':latest,'missing':dict(missing),'excludedCanaries':canaries,'archiveHeaders':headers,'dataSha256':digest(payload),'cacheHit':False,'customerTokenRemoved':True}
+    info={'rows':sum(counts.values()),'events':len(events),'players':len(players),'markets':dict(counts),'earliestGame':earliest,'latestGame':latest,'missing':dict(missing),'excludedCanaries':canaries,'archiveHeaders':headers,'dataSha256':digest(payload),'cacheHit':False,'customerTokenRemoved':True,'referenceBook':reference_book,'bookScope':'single-reference-book' if reference_book else 'all-returned-books'}
     store.put(path,payload);store.put(metadata_path,encode(info))
     if store.get(metadata_path)!=encode(info):raise StoreFailure('export_checkpoint_roundtrip')
     return payload,info
@@ -139,7 +149,9 @@ def main():
     saved=store.get(report_path)
     report=json.loads(saved) if saved else {'run':run,'source':'PropLine resolved-props export','since':since,'until':until,'apiCalls':0,'sports':{},'startedAt':dt.datetime.now(dt.timezone.utc).isoformat(),'existingInventory':{'source':'ESPN persisted history inventory, not re-downloaded','rows':49089,'bySport':{'MLB':38344,'NBA':506,'NCAAF':805,'NFL':6595,'WNBA':2839}},'trainedCandidates':0,'productionModelsPublished':0}
     if report.get('status')=='COMPLETE':log('ALREADY_COMPLETE',run=run,trainedCandidates=report.get('trainedCandidates',0));return
+    report.pop('pauseReason',None)
     report['websiteSmoke']=smoke
+    report['referenceBooks']=REFERENCE_BOOKS
     report['status']='RUNNING';report['sourceCommit']=os.getenv('RAILWAY_GIT_COMMIT_SHA','unknown');report['trainerSha256']=digest(pathlib.Path(__file__).with_name('trainer.py').read_bytes())
     provider=Provider(key,report,deadline)
     def checkpoint():store.put(report_path,encode(report))
@@ -155,11 +167,11 @@ def main():
         for sport in sports:
             if report['sports'][sport].get('status')=='COMPLETE':continue
             if time.monotonic()>deadline:raise Stopped('time_budget')
-            log('SPORT_EXPORT_STARTED',sport=sport)
+            log('SPORT_EXPORT_STARTED',sport=sport,referenceBook=REFERENCE_BOOKS.get(sport))
             payload,inventory=export_sport(provider,store,sport,since,until)
             item={'status':'TRAINING','inventory':inventory,'models':{}}
             report['sports'][sport]=item;checkpoint()
-            log('SPORT_DATA_VERIFIED',sport=sport,rows=inventory['rows'],events=inventory['events'],cacheHit=inventory['cacheHit'],quota=report.get('quota'))
+            log('SPORT_DATA_VERIFIED',sport=sport,rows=inventory['rows'],events=inventory['events'],cacheHit=inventory['cacheHit'],referenceBook=inventory.get('referenceBook'),quota=report.get('quota'))
             with gzip.open(io.BytesIO(payload),'rt',encoding='utf-8',newline='') as file:
                 samples,rejected=samples_from_rows(csv.DictReader(file),sport,as_of)
             del payload

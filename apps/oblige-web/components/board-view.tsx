@@ -12,7 +12,6 @@ import { PropCard, PropCardSkeleton, type PropCardStats } from '@/components/fac
 import { Reveal } from '@/components/motion';
 import { SignInPanel } from '@/components/sign-in';
 
-const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'WNBA', 'SOCCER'];
 const SORTS = [
   { id: 'hit', label: 'Hit rate' },
   { id: 'line', label: 'Line' },
@@ -37,6 +36,7 @@ export function BoardView() {
   const [checking, setChecking] = React.useState(true);
 
   const [sport, setSport] = React.useState('NFL');
+  const [sports, setSports] = React.useState<string[]>(['NFL']);
   const [groups, setGroups] = React.useState<PropGroup[]>([]);
   const [meta, setMeta] = React.useState<BoardMeta>({});
   const [loading, setLoading] = React.useState(false);
@@ -94,6 +94,12 @@ export function BoardView() {
 
         setGroups(board.groups);
         setMeta(board.meta);
+        if (board.supportedSports.length) {
+          setSports((current) => {
+            const next = [...new Set([...current, ...board.supportedSports].map((value) => String(value || '').trim().toUpperCase()).filter(Boolean))];
+            return next.sort((a, b) => a.localeCompare(b));
+          });
+        }
         setError('');
 
         if (initial) {
@@ -298,7 +304,7 @@ export function BoardView() {
 
       <div className="board-toolbar sticky top-14 z-20 grid gap-1.5 border-y border-[var(--line)] bg-[color-mix(in_srgb,var(--bg)_94%,transparent)] py-1.5 backdrop-blur-xl md:top-16 md:gap-2 md:rounded-[14px] md:border md:px-2.5 md:py-2.5">
         <div className="board-leagues rail" role="group" aria-label="League">
-          {SPORTS.map((option) => (
+          {sports.map((option) => (
             <button
               key={option}
               type="button"

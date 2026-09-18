@@ -1,0 +1,41 @@
+name: Canonical workspace frontend
+on:
+  push:
+    branches: ['chatgpt/canonical-workspace-web-20260918']
+  pull_request:
+    branches: ['claude/website-review-audit-t5ei2j']
+    paths: ['apps/oblige-web/**', 'scripts/verify-canonical-workspace.mjs', '.github/workflows/canonical-workspace-web.yml']
+permissions:
+  contents: read
+jobs:
+  build-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm ci
+        working-directory: apps/oblige-web
+      - run: node --test tests/workspace.test.mjs && npm run typecheck && npm run build
+        working-directory: apps/oblige-web
+      - run: npx playwright install --with-deps chromium
+      - name: Mobile and desktop interaction regression
+        run: |
+          npm --prefix apps/oblige-web run start -- --port 3100 > /tmp/workspace-next.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3100/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3100/ > /dev/null
+          node scripts/verify-canonical-workspace.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canonical-workspace-browser
+          path: artifacts/canonical-workspace
+          retention-days: 14

@@ -84,13 +84,14 @@ export function SiteHeader() {
     >
       <div
         className={cn(
-          'mx-auto flex w-full max-w-[var(--maxw)] items-center gap-6 px-4 md:px-8',
+          'mx-auto flex w-full min-w-0 max-w-[var(--maxw)] items-center gap-6 px-4 md:px-8',
+          board && 'max-[767px]:gap-2 max-[767px]:px-3',
           'h-16 transition-[height] duration-300 ease-[var(--ease-out)]',
           stuck && 'h-14',
         )}
       >
-        <Link href="/" className="flex flex-none items-center gap-3" aria-label="Oblige Props home">
-          <span aria-hidden="true" className="op-mark">OP</span>
+        <Link href="/" className={cn("flex min-w-0 flex-none items-center gap-3",board&&"max-[767px]:gap-2")} aria-label="Oblige Props home">
+          <span aria-hidden="true" className={cn("op-mark",board&&"max-[420px]:hidden")}>OP</span>
           <Wordmark />
         </Link>
 

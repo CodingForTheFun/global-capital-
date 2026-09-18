@@ -84,3 +84,21 @@ expansion instructions in that archive are superseded by the owner reversal abov
 
 No deployment is claimed by this document. Verify CI, Railway source SHA and
 actual rollout state before reporting that the restoration or owner console is live.
+
+## Active additive scope — 2026-09-17, ChatGPT
+
+Branch: `chatgpt/propline-explorer-20260917`, based on production `154a70f`.
+Owner explicitly requested wider PropLine feature coverage and authorized new tabs.
+The separate Market Explorer may display correctly labelled period/alternate/DFS
+markets; the existing regular-board and scanner rules above stay unchanged.
+
+Claimed scope: new `lib/data-sources/propline/explorer*.mjs`,
+`lib/autoscout/propline-explorer-runtime-patch.mjs`, `tests/propline-explorer*.test.mjs`,
+`apps/oblige-web/app/explore/`, `apps/oblige-web/components/market-explorer*`,
+and minimal additive wiring in `frontdoor-clearsports.mjs`,
+`lib/web/new-web.mjs`, and `apps/oblige-web/components/site-chrome.tsx`.
+No claim on existing board/research UI internals, auth, polling, storage or secrets.
+Canonical sport keys, all returned books, period/team/line identity and null/redacted
+values must survive. New upstream reads are authenticated, shared-cache, on-demand;
+no new ingestion loop or subscription is to be activated by this implementation.
+Status: implementation in progress; not deployed.

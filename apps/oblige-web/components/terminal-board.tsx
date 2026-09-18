@@ -538,9 +538,15 @@ export function TerminalBoard() {
           </div>
 
           <div className={styles.headerMetrics}>
-            <div>
-              <span>Feed</span>
-              <b data-live={feedMode === 'live' && !meta.stale ? 'true' : 'false'}>{feedLabel}</b>
+            <div className={styles.feedMetric}>
+              <span className={styles.feedMetricLabel}>Feed</span>
+              <b className={styles.feedBadge} data-live={feedMode === 'live' && !meta.stale ? 'true' : 'false'}>
+                <span className={styles.feedDotWrap} aria-hidden="true">
+                  {feedMode === 'live' && !meta.stale ? <span className={styles.feedPing} /> : null}
+                  <span className={styles.feedDot} data-live={feedMode === 'live' && !meta.stale ? 'true' : 'false'} />
+                </span>
+                {feedLabel}
+              </b>
             </div>
             <div>
               <span>Props</span>

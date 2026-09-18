@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { BarChart3, Home, LayoutGrid, Menu, User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
 
 const NAV = [
   { href: '/board', label: 'Props' },
@@ -42,26 +43,11 @@ function Wordmark({ footer = false }: { footer?: boolean }) {
 }
 
 export function SiteHeader() {
-  const [stuck, setStuck] = React.useState(false);
+  const stuck = useScrollThreshold(24);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const pathname = usePathname();
   const board = pathname.startsWith('/board');
   const menuRef = React.useRef<HTMLDivElement | null>(null);
-
-  React.useEffect(() => {
-    let ticking = false;
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(() => {
-        setStuck(window.scrollY > 24);
-        ticking = false;
-      });
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
 
   React.useEffect(() => {
     setMenuOpen(false);

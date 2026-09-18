@@ -149,7 +149,7 @@ try{
   await page.goBack();await page.waitForSelector('.asMain');assert.equal(await page.locator('#asDrawerBg').isVisible(),false);
   await page.goForward();await page.waitForSelector('.asAnalyticsPage .asChart');
   await page.locator('#asClose').click();await page.waitForSelector('.asMain');
-  await page.locator('#asi-open').click();await page.waitForSelector('#asi-sensitivity');console.log('BROWSER_STUDIO',name);
+  await page.locator('.asCard').first().click();await page.locator('#asTab-intelligence').click();await page.waitForSelector('#asi-sensitivity');console.log('BROWSER_STUDIO',name);
   assert.equal(await page.locator('#asIntelligenceDetail details').count(),8);
   assert.equal(await page.locator('#asi-sensitivity tbody tr').count(),7);
   const initialLine=24.5+revision;
@@ -276,7 +276,8 @@ try{
   await page.screenshot({path:path.join(out,`${name}-pro-tools.png`),fullPage:false});
   await page.keyboard.press('Escape');await page.waitForSelector('.asMain');assert.equal(await page.locator('#asDrawerBg').isVisible(),false);
   revision++;await page.locator('#asRefresh').click();await page.waitForFunction(()=>document.querySelector('#asi-radar-count')?.textContent.includes('observed changes'));
-  await page.locator('.asi-radar summary').click();assert.ok(await page.locator('[data-radar-key]').count()>0);
+  assert.equal(await page.locator('.asi-studio').isVisible(),false,'retired board studio remains hidden while radar observations continue');
+  assert.ok(await page.locator('[data-radar-key]').count()>0,'radar observations continue to collect for player research');
   const unavailableTools=await page.evaluate(async()=>{
    const {renderDetails,disposeDetails}=await import('/assets/lib/ui/intelligence-studio.mjs');
    const root=document.createElement('div');document.body.append(root);

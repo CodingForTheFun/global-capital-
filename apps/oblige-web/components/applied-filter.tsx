@@ -1,8 +1,9 @@
 'use client';
 import * as React from 'react';
+import './applied-filter.css';
 
-/** Draft state belongs to this field only. Applying/clearing another field
- * cannot commit this draft. Closing the editor discards unapplied edits. */
+/** Each field owns its draft. Other fields cannot accidentally commit it.
+ * Editors expand in document flow rather than overlapping on narrow screens. */
 export function AppliedFilter({ label, value, options, onApply, clearValue = 'all' }: {
   label: string; value: string; options: { value: string; label: string }[];
   onApply: (value: string) => void; clearValue?: string;

@@ -2,30 +2,30 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
-const source=readFileSync(new URL('../lib/player-headshots.ts',import.meta.url),'utf8');
-const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
+const js=ts.transpileModule(readFileSync(new URL('../lib/player-headshots.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
 const {headshotSources,artworkSport,unavailablePhoto}=await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
 const player={sport:'NFL',name:'Fixture Player',team:'TEST'};
-test('explicit ESPN identity requests that player photo before the verified resolver',()=>{
+const remote=src=>new URL(src,'https://example.test').searchParams.get('url');
+test('explicit ESPN identity uses the same-origin restricted image optimizer',()=>{
  const sources=headshotSources({...player,providerPlayerId:'espn:42'});
- assert.equal(sources[0],'https://a.espncdn.com/i/headshots/nfl/players/full/42.png');
+ assert.ok(sources[0].startsWith('/_next/image?'));
+ assert.equal(remote(sources[0]),'https://a.espncdn.com/i/headshots/nfl/players/full/42.png');
  assert.ok(sources[1].startsWith('/api/apex/player-artwork?'));
  assert.equal(sources.at(-1),unavailablePhoto);
  assert.equal(new Set(sources).size,sources.length);
+ assert.ok(sources.every(s=>s.startsWith('/')||s===unavailablePhoto),'no browser third-party image request');
 });
 test('verified history identities stay in their own sport',()=>{
- assert.ok(headshotSources({...player,providerPlayerId:'history:NFL:42'})[0].startsWith('https://a.espncdn.com/'));
+ assert.ok(headshotSources({...player,providerPlayerId:'history:NFL:42'})[0].startsWith('/_next/image?'));
  assert.ok(headshotSources({...player,providerPlayerId:'history:NBA:42'})[0].startsWith('/api/apex/'));
 });
 test('raw provider IDs and URLs never become guessed athlete photos',()=>{
- for(const providerPlayerId of ['42','provider:42','https://example.com/image.png','espn:../42','espn:42?other=1']) {
-  assert.ok(headshotSources({...player,providerPlayerId})[0].startsWith('/api/apex/'));
- }
+ for(const providerPlayerId of ['42','provider:42','https://example.com/image.png','espn:../42','espn:42?other=1']) assert.ok(headshotSources({...player,providerPlayerId})[0].startsWith('/api/apex/'));
 });
 test('native provider sport codes map only within the artwork helper',()=>{
  assert.equal(artworkSport('football_nfl'),'NFL');
  assert.equal(artworkSport('soccer_uefa_nations_league'),'SOCCER');
- assert.ok(headshotSources({...player,sport:'soccer_uefa_nations_league',providerPlayerId:'espn:42'})[0].includes('/soccer/players/full/42.png'));
+ assert.ok(remote(headshotSources({...player,sport:'soccer_uefa_nations_league',providerPlayerId:'espn:42'})[0]).includes('/soccer/players/full/42.png'));
  assert.equal(artworkSport('UNKNOWN_SPORT'),'UNKNOWN_SPORT');
 });
 test('missing identity is a neutral unavailable image and query values are encoded',()=>{

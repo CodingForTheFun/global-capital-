@@ -33,7 +33,9 @@ export function headshotSources(identity: HeadshotIdentity): string[] {
   const history = /^history:([^:]+):([1-9]\d{0,10})$/i.exec(providerId);
   const id = explicit?.[1] || (history && artworkSport(history[1]) === sport ? history[2] : null);
   if (name && id && ESPN_PATH[sport]) {
-    sources.push(`https://a.espncdn.com/i/headshots/${ESPN_PATH[sport]}/players/full/${id}.png`);
+    const url = `https://a.espncdn.com/i/headshots/${ESPN_PATH[sport]}/players/full/${id}.png`;
+    // Same-origin image URL: do not weaken the production content-security policy.
+    sources.push(`/_next/image?${new URLSearchParams({ url, w: '128', q: '75' })}`);
   }
   if (name && sport) {
     const params = new URLSearchParams({ sport, name, v: 'restored-photos-1' });

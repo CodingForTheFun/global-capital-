@@ -13,7 +13,11 @@ try{
   const page=await context.newPage(),errors=[];
   let failPhotos=false;
   page.on('pageerror',e=>errors.push(e.message));
-  await page.route('https://a.espncdn.com/**',route=>failPhotos?route.abort():route.fulfill({status:200,contentType:'image/png',body:pixel}));
+  await page.route(base+'/board',async route=>{
+   const response=await route.fetch();
+   await route.fulfill({response,headers:{...response.headers(),'content-security-policy':"img-src 'self' data: blob:"}});
+  });
+  await page.route('**/_next/image?**',route=>failPhotos?route.abort():route.fulfill({status:200,contentType:'image/png',body:pixel}));
   await page.route('**/api/**',async route=>{
    const u=new URL(route.request().url());let body;
    if(u.pathname==='/api/account/me')body={authenticated:true,user:{id:'fixture-user'}};
@@ -37,9 +41,13 @@ try{
   assert.equal(await unit.count(),1,'the previous dense board folds book/side quotes into one prop');
   assert.equal(await page.locator('[data-release="canonical-workspace-v1"]').count(),0,'rejected layout is not mounted');
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].filter(n=>n.getBoundingClientRect().width>0).every(n=>n.complete&&n.naturalWidth>0));
-  assert.ok((await page.locator('img[data-player-photo]:visible').first().getAttribute('src')).includes('/nfl/players/full/42.png'));
-  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'restored board fits viewport');
+  const imgSrc=await page.locator('img[data-player-photo]:visible').first().getAttribute('src');
+  assert.ok(new URL(imgSrc,base).searchParams.get('url').includes('/nfl/players/full/42.png'));
   await page.screenshot({path:`${out}/${name}-board.png`,fullPage:true});
+  const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,offenders:[...document.querySelectorAll('body *')].map(n=>({tag:n.tagName,className:typeof n.className==='string'?n.className:'',rect:n.getBoundingClientRect().toJSON(),minWidth:getComputedStyle(n).minWidth,display:getComputedStyle(n).display,position:getComputedStyle(n).position,text:n.textContent?.slice(0,80)})).filter(x=>x.rect.width&&x.rect.right>innerWidth+1).slice(0,30)}));
+  await writeFile(`${out}/${name}-dimensions.json`,JSON.stringify(dimensions,null,2));
+  if(dimensions.scrollWidth>dimensions.viewport+1)console.log('OVERFLOW_DIAGNOSTIC',JSON.stringify(dimensions));
+  assert.ok(dimensions.scrollWidth<=dimensions.viewport+1,'restored board fits viewport');
   if(name.startsWith('mobile'))await page.getByRole('button',{name:'Inspect',exact:true}).click();else await unit.first().click();
   await page.getByLabel('Player inspector',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Player inspector',{exact:true}).locator('img[data-player-photo]').count(),1,'same photo component inside existing inspector');
@@ -49,10 +57,10 @@ try{
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo="unavailable"]')].every(n=>n.complete&&n.naturalWidth===128));
   assert.equal(await page.locator('img[data-player-photo="unavailable"]:visible').first().evaluate(n=>getComputedStyle(n).visibility),'visible','network errors never hide the image slot');
   failPhotos=false;await page.getByRole('button',{name:'WNBA',exact:true}).click();
-  await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].some(n=>n.src.includes('/wnba/players/full/84.png')&&n.complete&&n.naturalWidth>0));
+  await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].some(n=>new URL(n.src).searchParams.get('url')?.includes('/wnba/players/full/84.png')&&n.complete&&n.naturalWidth>0));
   assert.equal(await page.locator('img[data-player-photo="unavailable"]').count(),0,'previous player failure does not leak into a new identity');
   assert.deepEqual(errors,[]);
-  reports.push({viewport:name,passed:true,syntheticFixtures:true,checks:['previous-layout','multi-book-single-prop','blank-name-filter','image-loaded','inspector-photo','bounded-image-fallback','identity-reset','no-horizontal-overflow']});
+  reports.push({viewport:name,passed:true,syntheticFixtures:true,checks:['previous-layout','multi-book-single-prop','blank-name-filter','image-loaded-under-production-CSP','inspector-photo','bounded-image-fallback','identity-reset','no-horizontal-overflow']});
   await context.close();
  }
 }finally{await browser.close();await writeFile(`${out}/report.json`,JSON.stringify(reports,null,2));}

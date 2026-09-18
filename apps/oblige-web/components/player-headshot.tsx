@@ -16,8 +16,8 @@ function HeadshotImage({ className, ...identity }: Props) {
   const src = sources[Math.min(index, sources.length - 1)];
   const fallback = src === unavailablePhoto;
   return (
-    // The same-origin artwork service already serves image bytes and verifies
-    // identity. Avoid an image-optimizer hop or exposing any provider secret.
+    // Sources are already same-origin URLs: the public CDN candidate uses the
+    // restricted optimizer; the verified artwork route keeps its own cookies.
     // eslint-disable-next-line @next/next/no-img-element
     <img
       className={className}

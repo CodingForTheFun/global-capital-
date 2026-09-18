@@ -26,9 +26,6 @@ import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
 import { Reveal } from '@/components/motion';
 
-const DERIVED_MARKET =
-  /(?:\b(?:1q|2q|3q|4q|1h|2h)\b)|quarter|first half|second half|first inning|1st inning|fantasy/i;
-
 const FAVOURITES_KEY = 'oblige-followed';
 
 type PlayerSection = 'overview' | 'props' | 'trends' | 'splits';
@@ -65,6 +62,7 @@ export function PlayerView() {
   const [loadingBoard, setLoadingBoard] = React.useState(true);
   const [loadingResearch, setLoadingResearch] = React.useState(true);
   const [error, setError] = React.useState('');
+  const [researchError, setResearchError] = React.useState('');
   const [favourites, setFavourites] = React.useState<string[]>([]);
   const [section, setSection] = React.useState<PlayerSection>('overview');
 
@@ -112,7 +110,6 @@ export function PlayerView() {
     );
   }, [markets, market, postedLine]);
 
-  const derived = group ? DERIVED_MARKET.test(group.market) : false;
   const [state, setState] = React.useState<ExplorerState>({ line: 0, side: 'OVER', book: null });
 
   React.useEffect(() => {
@@ -123,22 +120,32 @@ export function PlayerView() {
 
   React.useEffect(() => {
     if (!group) return;
-    if (derived) {
-      setResearch(null);
-      setLoadingResearch(false);
-      return;
-    }
     const controller = new AbortController();
     setLoadingResearch(true);
+    setResearch(null);
+    setResearchError('');
     fetchResearch(group, state.side, controller.signal)
-      .then(setResearch)
-      .catch(() => setResearch(null))
-      .finally(() => setLoadingResearch(false));
+      .then((value) => {
+        setResearch(value);
+        setResearchError('');
+      })
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return;
+        setResearch(null);
+        setResearchError(
+          cause instanceof Error
+            ? cause.message
+            : 'Historical research could not load. Try again shortly.',
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingResearch(false);
+      });
     return () => controller.abort();
     // The game sample is the same for Over and Under; line/side changes are
     // recalculated client-side so they do not create extra provider requests.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group?.key, derived]);
+  }, [group?.key]);
 
   function selectMarket(next: PropGroup) {
     const search = new URLSearchParams({
@@ -349,11 +356,10 @@ export function PlayerView() {
               games={games}
               loading={loadingResearch}
               unavailableReason={
-                derived
-                  ? 'A first-half, quarter or fantasy-score number cannot be rebuilt from a full-game box score, so Oblige does not try. This market is priced live, and every book above is real — there is simply no verified history behind it.'
-                  : research && research.available === false
-                    ? research.message || 'No verified game log is available for this player and market yet.'
-                    : null
+                researchError ||
+                (research && research.available === false
+                  ? research.message || 'No verified game log is available for this player and market yet.'
+                  : null)
               }
               state={state}
               onState={setState}
@@ -363,10 +369,10 @@ export function PlayerView() {
           </CardPanel>
         </Reveal>
 
-        {research?.available === false && !derived && !loadingResearch && (
+        {(researchError || research?.available === false) && !loadingResearch && (
           <p className="mt-4 flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_36%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            {research.message || 'No verified history is available for this player and market yet.'}
+            {researchError || research?.message || 'No verified history is available for this player and market yet.'}
           </p>
         )}
       </section>
@@ -384,7 +390,7 @@ export function PlayerView() {
           group={group}
           line={state.line}
           side={state.side}
-          loading={loadingResearch && !derived}
+          loading={loadingResearch}
         />
       </section>
 
@@ -395,7 +401,7 @@ export function PlayerView() {
               games={games}
               line={state.line}
               market={group.market}
-              loading={loadingResearch && !derived}
+              loading={loadingResearch}
             />
           </Reveal>
         </div>
@@ -480,7 +486,7 @@ function SplitSummary({
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="player-app-shell mx-auto w-full max-w-[var(--maxw)] px-4 pt-5 pb-20 md:px-8">
+    <div className="player-app-shell mx-auto w-full max-w-[var(--maxw)] px-4 pt-5 pb-[calc(7rem+env(safe-area-inset-bottom))] md:px-8 md:pb-20">
       <Link
         href="/board"
         className="player-back-link inline-flex min-h-10 items-center gap-2 text-[length:var(--fs-sm)] text-[var(--text-2)] transition-colors duration-200 ease-[var(--ease-out)] hover:text-[var(--text)]"

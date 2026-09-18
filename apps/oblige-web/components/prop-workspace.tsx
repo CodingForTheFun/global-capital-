@@ -3,7 +3,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
 import {ArrowLeft,ArrowUpRight,ChevronRight} from 'lucide-react';
-import {fetchAccount} from '@/lib/api';
+import {artworkUrl,fetchAccount} from '@/lib/api';
 import {odds,shortTime} from '@/lib/utils';
 import {workspaceGet,WorkspaceError,booksFor,chooseOffer,toResearchGroup,expectedValue,type WorkspaceSport,type WorkspaceEvent,type WorkspacePlayer,type WorkspaceMarket,type WorkspaceOffer,type WorkspacePrediction,type WorkspaceHistory,type EventWorkspace} from '@/lib/workspace';
 import {SignInPanel} from '@/components/sign-in';
@@ -21,6 +21,19 @@ function useWorkspaceAccount(){
 function message(error:unknown){return error instanceof Error?error.message:'Data could not be loaded.';}
 function price(offer:WorkspaceOffer){return offer.conflict?'Unverified':offer.dfs?(offer.multiplier!==null&&offer.multiplier!==1?`${offer.multiplier}×`:'DFS projection'):odds(offer.price);}
 function matchup(player:WorkspacePlayer){return [player.awayTeam,player.homeTeam].filter(Boolean).join(' @ ')||'Matchup unavailable';}
+function usableOffer(offer:WorkspaceOffer){return !!offer&&!!String(offer.book||'').trim()&&!offer.conflict&&(offer.line!==null||!!String(offer.choice||'').trim())&&(offer.dfs||offer.price!==null||offer.multiplier!==null);}
+function usableMarket(market:WorkspaceMarket){return !!market&&!!String(market.label||'').trim()&&Array.isArray(market.offers)&&market.offers.some(usableOffer);}
+function cleanPlayer(player:WorkspacePlayer):WorkspacePlayer|null{
+ const markets=(player.markets||[]).map(m=>({...m,offers:(m.offers||[]).filter(usableOffer)})).filter(usableMarket);
+ return String(player.name||'').trim()&&markets.length?{...player,markets}:null;
+}
+function PlayerHeadshot({player}:{player:WorkspacePlayer}){
+ const src=artworkUrl(player.sport,player.name,null,player.playerId);
+ const [failed,setFailed]=React.useState(false);
+ React.useEffect(()=>setFailed(false),[src]);
+ const initials=player.name.split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase();
+ return <span className={styles.avatar} aria-hidden="true"><span>{initials||'OP'}</span>{!failed&&<img src={src} alt="" loading="lazy" onError={()=>setFailed(true)}/>}</span>;
+}
 function researchHref(player:WorkspacePlayer,market?:WorkspaceMarket){return `/research?${new URLSearchParams({sportKey:player.sport,event:player.eventId,playerKey:player.key,...(market?{category:market.key}:{})})}`;}
 
 export function WorkspaceBoard(){
@@ -53,7 +66,7 @@ export function WorkspaceBoard(){
   if(!account||!sport||!events.length)return;const c=new AbortController();const queue=events.slice(0,shown);
   async function worker(){while(queue.length&&!c.signal.aborted){const next=queue.shift()!;try{
    const body=await workspaceGet<EventWorkspace>('event',{sport,event:next.id},c.signal);
-   if(!c.signal.aborted){setByEvent(old=>({...old,[next.id]:body.players}));setEventErrors(old=>{const copy={...old};delete copy[next.id];return copy;});}
+   if(!c.signal.aborted){const cleaned=body.players.map(cleanPlayer).filter((p):p is WorkspacePlayer=>!!p);setByEvent(old=>({...old,[next.id]:cleaned}));setEventErrors(old=>{const copy={...old};delete copy[next.id];return copy;});}
   }catch(cause){if(!c.signal.aborted){setEventErrors(old=>({...old,[next.id]:message(cause)}));if(cause instanceof WorkspaceError&&cause.status===401)setAccount(null);}}}}
   void Promise.all([worker(),worker()]);return()=>c.abort();
  },[account,sport,events,shown,setAccount]);
@@ -85,7 +98,7 @@ export function WorkspaceBoard(){
    const offer=chooseOffer(category,book==='all'?null:book,null);
    const allBooks=new Set(player.markets.flatMap(m=>m.offers.map(o=>o.book))).size;
    return <Link key={player.key} href={researchHref(player,category)} className={styles.player} data-player-key={player.key}>
-    <div className={styles.playerTop}><span className={styles.tag}>{sports.find(s=>s.key===sport)?.title||sport}</span><span className={styles.initials} aria-hidden="true">{player.name.split(/\s+/).slice(0,2).map(s=>s[0]).join('')}</span></div>
+    <div className={styles.playerTop}><span className={styles.tag}>{sports.find(s=>s.key===sport)?.title||sport}</span><PlayerHeadshot player={player}/></div>
     <h2>{player.name}</h2><p>{matchup(player)}</p><p>{shortTime(player.startsAt)||'Start time unavailable'}</p>
     <div className={styles.preview}><span>{category.label}</span><strong>{offer?.line??offer?.choice??'—'}</strong></div>
     <div className={styles.cardFooter}><span>{player.markets.length} stat categories · {allBooks} books</span><span>Research <ChevronRight size={12} style={{display:'inline'}}/></span></div>

@@ -11,12 +11,16 @@ import { patchResearchTabsUi } from './lib/autoscout/research-tabs-runtime-patch
 import { patchLiveMainViewUi } from './lib/autoscout/live-main-view-runtime-patch.mjs';
 import { patchProplineRealtimeCore, patchProplineRealtimeFrontdoor, patchProplineRealtimeUi } from './lib/autoscout/propline-realtime-runtime-patch.mjs';
 import { patchProplinePushBoardCore, patchProplinePushBoardUi } from './lib/autoscout/propline-push-board-runtime-patch.mjs';
+import { patchMarketCore, patchMarketCoreFrontdoor } from './lib/autoscout/market-core-runtime-patch.mjs';
 import { patchProplineMarketUi } from './lib/autoscout/propline-market-runtime-patch.mjs';
 import { patchProplineInsightsUi } from './lib/autoscout/propline-insights-runtime-patch.mjs';
 import { patchProplineFullFrontdoor, patchProplineFullUi } from './lib/autoscout/propline-full-runtime-patch.mjs';
 import { startProplineFreshnessMonitor } from './lib/data-sources/propline/full.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
+import { patchReferenceAcceptanceLiveUi } from './lib/autoscout/reference-acceptance-live-runtime-patch.mjs';
 import { patchMobileNavDockUi } from './lib/autoscout/mobile-nav-dock-runtime-patch.mjs';
+import { patchHeaderMenuUi } from './lib/autoscout/header-menu-runtime-patch.mjs';
+import { patchBoardCoverageUi } from './lib/autoscout/board-coverage-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
 import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs';
 
@@ -36,7 +40,7 @@ const researchSports = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS'
 const researchSportsWithTennis = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL','SOCCER','TENNIS']);";
 
 function makeClientSafeVisualUi(source) {
-  const patched = patchObligePropsVisualUi(source);
+  const patched = patchReferenceAcceptanceLiveUi(patchObligePropsVisualUi(source));
   const withStyle = patched.replace(
     /<style id="oblige-props-pixel-target">([\s\S]*?)<\/style>/,
     (_match, css) => `\n;(function(){var s=document.getElementById('oblige-props-pixel-target');if(!s){s=document.createElement('style');s.id='oblige-props-pixel-target';s.textContent=${JSON.stringify(css)};(document.head||document.documentElement).appendChild(s);}})();\n`,
@@ -51,7 +55,9 @@ function makeClientSafeVisualUi(source) {
   );
   if (scopedVisualClient === visualClient) throw new Error('Profile avatar bootstrap could not locate the client scope boundary.');
   const avatarClient = patchProfileAvatarUi(scopedVisualClient);
-  const client = patchMobileNavDockUi(avatarClient);
+  const headerMenuClient = patchHeaderMenuUi(avatarClient);
+  const dockClient = patchMobileNavDockUi(headerMenuClient);
+  const client = patchBoardCoverageUi(dockClient);
   try { new Function(client); }
   catch (error) { throw new Error(`Auto Scout client bundle is invalid: ${error?.message || error}`); }
   return client;
@@ -79,10 +85,11 @@ writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedProplinePushBoardUi),
 // Compose the core patches inline. The release suite deliberately treats every
 // named `patched*` variable as a UI stage that must be validated by the client
 // safety pass before it is written. Keeping the server-core composition inline
-// preserves that invariant while still applying the push overlay after realtime.
+// preserves that invariant while still applying the push overlay and the new
+// provider-neutral live market core after realtime normalization.
 writeFileSync(
   coreRuntimePath,
-  patchProplinePushBoardCore(patchProplineRealtimeCore(readFileSync(coreSourcePath, 'utf8'))),
+  patchMarketCore(patchProplinePushBoardCore(patchProplineRealtimeCore(readFileSync(coreSourcePath, 'utf8')))),
   'utf8',
 );
 
@@ -93,6 +100,7 @@ runtimeSource = patchEdgeFrontdoor(runtimeSource);
 runtimeSource = patchProfileAvatarFrontdoor(runtimeSource);
 runtimeSource = patchProplineRealtimeFrontdoor(runtimeSource);
 runtimeSource = patchProplineFullFrontdoor(runtimeSource);
+runtimeSource = patchMarketCoreFrontdoor(runtimeSource);
 if (!runtimeSource.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the edge-patched Auto Scout UI source.');
 runtimeSource = runtimeSource.replace(uiRead, uiRuntimeRead);
 writeFileSync(runtimePath, runtimeSource, 'utf8');

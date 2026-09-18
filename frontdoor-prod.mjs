@@ -13,6 +13,7 @@ import { recordProjection, gradeFromGameLog, accuracyReport } from './lib/projec
 import { teammatesFor, injuryFeedConfigured } from './lib/data-sources/sportsdataio/injury-feed.mjs';
 import { accountSecret } from './lib/auth/secret.mjs';
 import { applySecurityHeaders, servePublicSurface, siteOrigin } from './lib/web/public-surface.mjs';
+import { serveNewWeb } from './lib/web/new-web.mjs';
 import { serveLegal } from './lib/web/legal.mjs';
 import { serveBillingPages } from './lib/web/billing-pages.mjs';
 import { installProcessGuards } from './lib/web/process-guards.mjs';
@@ -34,7 +35,7 @@ const ARTWORK_SPORTS = new Set(['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB'])
 const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL']);
 const researchLimits = new Map();
 // One board load hydrates at most this many cards, resolved this many at a time.
-const MAX_BATCH_PROPS = 60;
+const MAX_BATCH_PROPS = 100;
 const BATCH_CONCURRENCY = 8;
 // Every projection call costs money, so this route gets its own much
 // tighter budget than the research routes rather than sharing theirs.
@@ -698,6 +699,12 @@ const SITE_ORIGIN = siteOrigin();
 const server = http.createServer(async (req, res) => {
   // Hardening first, so it covers every branch below including error paths.
   applySecurityHeaders(res);
+  // The rebuilt front end owns the four pages it implements, served from this
+  // origin so the domain, the cookies and every /api route stay exactly where
+  // they are. Unset OBLIGE_WEB_ORIGIN and this returns before doing anything;
+  // if the new app is unreachable or errors it also returns false, having
+  // written nothing, and the request falls through to the handlers below.
+  if (await serveNewWeb(req, res)) return;
   // Icons, robots.txt and the manifest are fetched without a session; serving
   // them ahead of the gate keeps a crawler or a tab icon out of the login flow.
   if (servePublicSurface(req, res, { origin: SITE_ORIGIN })) return;

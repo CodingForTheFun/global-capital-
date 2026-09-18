@@ -104,7 +104,11 @@ test('soccer markets the game log cannot report are refused without a request', 
 test('research UI patch exposes tennis and customer-safe line-only states without changing the checked-in UI', () => {
   const source=readFileSync(new URL('../apex-v2/scout-ui-v5.js',import.meta.url),'utf8');
   const patched=patchResearchUi(source);
-  assert.match(patched,/,'SOCCER','TENNIS'\]/);
+  // Soccer and tennis must reach the board. The list is allowed to grow past
+  // them, so this no longer pins the end of the array.
+  const sports = (patched.match(/var SPORTS=\[([^\]]*)\]/) || [])[1] || '';
+  assert.ok(sports.includes("'SOCCER'"), 'SOCCER missing from the served sport list');
+  assert.ok(sports.includes("'TENNIS'"), 'TENNIS missing from the served sport list');
   assert.match(patched,/Combo line available/);
   assert.match(patched,/Fantasy line available/);
   assert.match(patched,/research\?\.lineOnly/);

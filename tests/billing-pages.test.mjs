@@ -17,16 +17,15 @@ function fakeRes() {
 }
 const req = (url, method = 'GET') => ({ url, method });
 
-test('pricing and checkout both render', () => {
+test('pricing and legacy checkout both render', () => {
   for (const path of BILLING_PATHS) {
     const html = billingPage(path, { origin: 'https://example.test' });
     assert.ok(html && html.startsWith('<!doctype html>'), `${path} must render`);
   }
 });
 
-// PayPal's configured return URL is ${base}/checkout, and that route answered
-// 404 before this existed, stranding anyone who actually paid.
-test('/checkout exists, because PayPal returns to it', () => {
+// Existing PayPal return URLs still land here. New purchases use Stripe.
+test('/checkout remains available for legacy PayPal reconciliation', () => {
   const html = billingPage('/checkout');
   assert.ok(html);
   assert.match(html, /billing=cancel|'cancel'/);
@@ -43,17 +42,28 @@ test('checkout is never cached, pricing may be', () => {
   assert.match(pricing.headers['cache-control'], /public/);
 });
 
-// The plan price is verified against PayPal by /api/payments/config. A number
-// written into this page could advertise something the processor would not
-// charge, so there must not be one.
-test('no price is hard-coded into the pricing page', () => {
+// Paid amounts come from Stripe Price objects that the server re-reads. The
+// page must never advertise a hand-written paid amount that checkout may not charge.
+test('paid prices are not hard-coded into the pricing page', () => {
   const source = readFileSync(new URL('../lib/web/billing-pages.mjs', import.meta.url), 'utf8');
   const body = source.slice(source.indexOf('function pricingBody'), source.indexOf('function checkoutBody'));
-  assert.doesNotMatch(body, /\$\s?\d+(\.\d+)?\s*(\/|per|a month|mo\b)/i, 'a currency amount must not be written here');
-  assert.match(billingPage('/pricing'), /\/api\/payments\/config/, 'the price must be fetched from the verified config');
+  assert.match(billingPage('/pricing'), /\/api\/billing\/stripe\/config/, 'paid prices must come from verified Stripe config');
+  assert.match(body, /unitAmount/);
+  assert.doesNotMatch(body, /\$\s?(?:14\.99|37\.99|129\.99)/, 'paid launch prices must not be duplicated in page source');
 });
 
-test('the plan limits shown come from PLANS, not from prose', () => {
+test('the pricing surface offers all three Pro billing cadences', () => {
+  const html = billingPage('/pricing');
+  for (const key of ['monthly', 'quarterly', 'annual']) {
+    assert.match(html, new RegExp(`data-plan="${key}"`));
+    assert.match(html, new RegExp(`price-${key}`));
+  }
+  assert.match(html, /Pro Monthly/);
+  assert.match(html, /Pro 3 Months/);
+  assert.match(html, /Pro Annual/);
+});
+
+test('the plan limits shown come from PLANS, not invented prose', () => {
   const html = billingPage('/pricing');
   for (const plan of [PLANS.free, PLANS.pro]) {
     assert.ok(html.includes(String(plan.predictionsPerDay)), `${plan.id} projections limit missing`);
@@ -62,13 +72,15 @@ test('the plan limits shown come from PLANS, not from prose', () => {
   }
 });
 
-test('the page sends the CSRF header both endpoints require', () => {
-  for (const path of BILLING_PATHS) {
-    const html = billingPage(path);
-    if (!/api\/payments\/(create|confirm)-subscription/.test(html)) continue;
-    assert.match(html, /x-csrf-token/, `${path} must send the CSRF header`);
-    assert.match(html, /\/api\/account\/me/, `${path} must fetch the CSRF token`);
-  }
+test('the page sends CSRF on Stripe checkout and the retained PayPal confirmation path', () => {
+  const pricing = billingPage('/pricing');
+  assert.match(pricing, /\/api\/billing\/stripe\/checkout/);
+  assert.match(pricing, /x-csrf-token/);
+  assert.match(pricing, /\/api\/account\/me/);
+  const legacy = billingPage('/checkout');
+  assert.match(legacy, /\/api\/payments\/confirm-subscription/);
+  assert.match(legacy, /x-csrf-token/);
+  assert.match(legacy, /\/api\/account\/me/);
 });
 
 test('requests are same-origin with credentials, as the backend demands', () => {
@@ -79,7 +91,8 @@ test('requests are same-origin with credentials, as the backend demands', () => 
   }
 });
 
-// The privacy policy claims no page loads an external resource.
+// The privacy policy claims no page loads an external resource. Hosted Checkout
+// is navigated to only after a customer clicks; no Stripe script is embedded.
 test('the billing pages load nothing from another origin', () => {
   for (const path of BILLING_PATHS) {
     const html = billingPage(path);
@@ -112,16 +125,16 @@ test('pricing is advertised to crawlers and checkout is not', () => {
   assert.ok(!xml.includes('/checkout'), 'a transactional page does not belong in the sitemap');
 });
 
-// The billing API is mounted by the edge patch, which is what production runs.
-// The pages are mounted in the frontdoor itself. Mounting the API in both
-// places produced a duplicate import that refused to boot, so this pins which
-// side owns which and keeps that collision from coming back.
-test('the billing API is mounted exactly once, by the edge patch', () => {
+// Billing APIs are mounted by the edge patch, which is what production runs.
+// The pages are mounted in the frontdoor itself. Mounting the API in both places
+// previously produced duplicate imports and a production boot failure.
+test('billing APIs are mounted exactly once, by the edge patch', () => {
   const edge = readFileSync(new URL('../lib/edge/frontdoor-patch.mjs', import.meta.url), 'utf8');
-  assert.match(edge, /handleBillingRoutes\(req, res, billingUrl/, 'the edge patch must mount the billing API');
+  assert.match(edge, /handleBillingRoutes\(req, res, billingUrl/, 'the PayPal compatibility API must remain mounted');
+  assert.match(edge, /createStripeBillingHandler\(/, 'Stripe must be mounted by the edge patch');
   const frontdoor = readFileSync(new URL('../frontdoor-prod.mjs', import.meta.url), 'utf8');
-  assert.ok(!frontdoor.includes('handleBillingRoutes'),
-    'the frontdoor must not mount it too — two imports of the same name will not parse');
+  assert.ok(!frontdoor.includes('handleBillingRoutes'), 'the frontdoor must not mount PayPal twice');
+  assert.ok(!frontdoor.includes('createStripeBillingHandler'), 'the frontdoor must not mount Stripe twice');
 });
 
 test('the frontdoor mounts the billing pages', () => {

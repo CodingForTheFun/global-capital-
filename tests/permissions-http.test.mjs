@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -13,21 +14,45 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const OWNER_PASSWORD = 'test-owner-password-not-a-real-secret';
 const PORT = 3000 + Math.floor(Math.random() * 4000);
 const BASE = `http://127.0.0.1:${PORT}`;
+const STARTUP_TIMEOUT_MS = 45_000;
+const STARTUP_HOOK_TIMEOUT_MS = 50_000;
+const OUTPUT_TAIL_LIMIT = 8_000;
 
 let child;
+let childError;
 let dataDir;
-const stderr = [];
+let stdout = '';
+let stderr = '';
 
-async function waitForServer(timeoutMs = 20_000) {
+function appendOutput(current, chunk) {
+  return `${current}${String(chunk)}`.slice(-OUTPUT_TAIL_LIMIT);
+}
+
+function startupDiagnostics() {
+  const processState = child
+    ? `exitCode=${child.exitCode ?? 'running'} signalCode=${child.signalCode ?? 'none'}`
+    : 'child=not-spawned';
+  const spawnError = childError ? `\nspawn error: ${childError.stack || childError.message}` : '';
+  return `${processState}${spawnError}\nstdout (tail):\n${stdout}\nstderr (tail):\n${stderr}`;
+}
+
+async function waitForServer(timeoutMs = STARTUP_TIMEOUT_MS) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    if (childError) {
+      throw new Error(`server process failed before becoming ready:\n${startupDiagnostics()}`);
+    }
+    if (child && (child.exitCode !== null || child.signalCode !== null)) {
+      throw new Error(`server process exited before becoming ready:\n${startupDiagnostics()}`);
+    }
+
     try {
       const response = await fetch(`${BASE}/api/auth/status`);
       if (response.ok) return;
     } catch {}
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
-  throw new Error(`server did not start:\n${stderr.join('')}`);
+  throw new Error(`server did not become ready within ${timeoutMs}ms:\n${startupDiagnostics()}`);
 }
 
 test.before(async () => {
@@ -45,12 +70,17 @@ test.before(async () => {
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  child.stderr.on('data', (chunk) => stderr.push(String(chunk)));
+  child.on('error', (error) => { childError = error; });
+  child.stdout.on('data', (chunk) => { stdout = appendOutput(stdout, chunk); });
+  child.stderr.on('data', (chunk) => { stderr = appendOutput(stderr, chunk); });
   await waitForServer();
-});
+}, { timeout: STARTUP_HOOK_TIMEOUT_MS });
 
 test.after(async () => {
-  child?.kill('SIGKILL');
+  if (child && child.exitCode === null && child.signalCode === null) {
+    child.kill('SIGKILL');
+    await once(child, 'exit');
+  }
   if (dataDir) await fs.rm(dataDir, { recursive: true, force: true });
 });
 

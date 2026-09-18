@@ -1,0 +1,418 @@
+/*
+ * Human polish pass for ObligeProps.
+ * Original project CSS informed by the product patterns popularized by
+ * shadcn/ui + Radix (quiet primitives), COSS/Linear-style SaaS density,
+ * and modern sports-data dashboards. No external component code is copied.
+ */
+
+:root {
+  --human-hairline: color-mix(in srgb, var(--text) 10%, transparent);
+  --human-hairline-strong: color-mix(in srgb, var(--text) 17%, transparent);
+  --human-surface: color-mix(in srgb, var(--surface) 94%, transparent);
+  --human-surface-raised: color-mix(in srgb, var(--surface-2) 92%, transparent);
+  --human-shadow: 0 18px 52px rgba(0, 0, 0, .22), inset 0 1px rgba(255, 255, 255, .025);
+}
+
+body {
+  background:
+    radial-gradient(900px 420px at 50% -170px, color-mix(in srgb, var(--accent) 9%, transparent), transparent 72%),
+    var(--bg);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  color: var(--text);
+}
+
+/* ------------------------------ restrained app chrome */
+
+header {
+  box-shadow: none !important;
+}
+
+header > div {
+  min-height: 56px;
+}
+
+header nav[aria-label="Primary"] {
+  display: flex;
+  align-items: center;
+  gap: 3px !important;
+  padding: 3px;
+  border: 1px solid var(--human-hairline) !important;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface) 64%, transparent) !important;
+  box-shadow: none !important;
+}
+
+header nav[aria-label="Primary"] a {
+  padding: 7px 10px !important;
+  border-radius: 8px;
+  font-size: 12px !important;
+}
+
+header nav[aria-label="Primary"] a > span {
+  display: none;
+}
+
+header nav[aria-label="Primary"] a[aria-current="page"] {
+  background: var(--surface-2) !important;
+  box-shadow: inset 0 0 0 1px var(--human-hairline) !important;
+}
+
+/* ------------------------------ board: more data, less chrome */
+
+main .sticky.top-16 {
+  border-color: var(--human-hairline) !important;
+  border-radius: 16px !important;
+  padding: 10px !important;
+  background: color-mix(in srgb, var(--bg-deep) 90%, transparent) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .20) !important;
+  backdrop-filter: blur(22px) saturate(1.08) !important;
+}
+
+main .sticky.top-16 .rail button,
+main .sticky.top-16 > div:nth-child(2) > button {
+  min-height: 36px !important;
+  padding-inline: 12px !important;
+  border-color: var(--human-hairline) !important;
+  background: rgba(255, 255, 255, .018) !important;
+  box-shadow: none !important;
+}
+
+main .sticky.top-16 .rail button[aria-pressed="true"],
+main .sticky.top-16 > div:nth-child(2) > button[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 44%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 13%, var(--surface)) !important;
+  color: var(--text) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 9%, transparent) !important;
+}
+
+main .sticky.top-16 input[type="search"] {
+  min-height: 40px !important;
+  border-color: var(--human-hairline) !important;
+  border-radius: 11px !important;
+  background: rgba(255, 255, 255, .018) !important;
+  box-shadow: none !important;
+}
+
+main .sticky.top-16 input[type="search"]:focus {
+  border-color: color-mix(in srgb, var(--accent) 52%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent) !important;
+}
+
+.board-filter-panel {
+  border: 1px solid var(--human-hairline) !important;
+  border-radius: 14px !important;
+  background: var(--human-surface-raised) !important;
+  box-shadow: var(--human-shadow) !important;
+}
+
+/* ------------------------------ player prop cards */
+
+main .face.prop-card-v2 {
+  border-color: var(--human-hairline) !important;
+  border-radius: 18px !important;
+  background:
+    radial-gradient(360px 150px at 96% -28%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 70%),
+    linear-gradient(165deg, color-mix(in srgb, var(--surface) 98%, black 2%), var(--bg-deep)) !important;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, .18), inset 0 1px rgba(255, 255, 255, .018) !important;
+  transition: transform 180ms var(--ease-out), border-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out) !important;
+}
+
+@media (hover: hover) {
+  main .face.prop-card-v2:hover {
+    transform: translateY(-2px) !important;
+    border-color: var(--human-hairline-strong) !important;
+    box-shadow: 0 15px 44px rgba(0, 0, 0, .25), inset 0 1px rgba(255, 255, 255, .025) !important;
+  }
+}
+
+.prop-card-v2__open {
+  gap: 0 !important;
+  padding: 14px 14px 10px !important;
+}
+
+.prop-card-v2__identity {
+  min-height: 58px;
+}
+
+.prop-card-v2__identity .ringavatar {
+  filter: none;
+  box-shadow: 0 0 0 1px var(--human-hairline-strong), 0 9px 22px rgba(0, 0, 0, .24) !important;
+}
+
+.prop-card-v2__identity .ringavatar > span {
+  border-radius: 16px !important;
+}
+
+.prop-card-v2__identity .ringavatar img {
+  transform: scale(1.04);
+}
+
+.prop-card-v2__meta {
+  color: var(--text-3) !important;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.prop-card-v2__market-row {
+  margin-top: 11px;
+  padding-top: 11px !important;
+  border-color: var(--human-hairline) !important;
+}
+
+.prop-card-v2__market-label > span:first-child {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.prop-card-v2__market-label > span:last-child {
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.prop-card-v2__line {
+  font-size: 27px !important;
+  letter-spacing: -.045em !important;
+}
+
+.prop-card-v2__hit {
+  padding: 0 14px 13px !important;
+}
+
+/* Convert the generic meter into a ten-beat sports-data strip. The fill still
+   represents the exact rate supplied by the backend; dividers are visual only. */
+.prop-card-v2__hit > div > div:last-child {
+  position: relative;
+  height: 10px !important;
+  border-radius: 4px !important;
+  border-color: var(--human-hairline) !important;
+  background: color-mix(in srgb, var(--surface-3) 76%, transparent) !important;
+}
+
+.prop-card-v2__hit > div > div:last-child::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: inherit;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(10% - 2px),
+    color-mix(in srgb, var(--bg-deep) 86%, transparent) calc(10% - 2px) 10%
+  );
+}
+
+.prop-card-v2__hit > div > div:last-child > div {
+  border-radius: 3px !important;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+.prop-card-v2__quotes {
+  gap: 7px !important;
+  padding: 0 14px 14px !important;
+}
+
+.prop-card-v2__quote {
+  min-height: 48px !important;
+  border-radius: 11px !important;
+  border-color: var(--human-hairline) !important;
+  background: rgba(255, 255, 255, .018) !important;
+  box-shadow: none !important;
+}
+
+.prop-card-v2__quote:hover {
+  border-color: var(--human-hairline-strong) !important;
+  background: rgba(255, 255, 255, .032) !important;
+}
+
+.prop-card-v2__quote[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 44%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 10%, transparent) !important;
+}
+
+.prop-card-v2__book {
+  color: var(--text-3) !important;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+/* ------------------------------ player analysis */
+
+.player-cinematic-hero {
+  border-color: var(--human-hairline) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, .23), inset 0 1px rgba(255, 255, 255, .022) !important;
+}
+
+.player-cinematic-hero .ringavatar > span {
+  border-radius: 22px !important;
+}
+
+.player-line-glance {
+  border-color: var(--human-hairline) !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, .022) !important;
+}
+
+.player-section-nav {
+  border: 1px solid var(--human-hairline) !important;
+  border-radius: 12px !important;
+  background: color-mix(in srgb, var(--surface) 72%, transparent) !important;
+  box-shadow: none !important;
+}
+
+.player-section-nav button {
+  border-radius: 9px !important;
+}
+
+.player-section-nav button[aria-pressed="true"] {
+  background: var(--surface-2) !important;
+  box-shadow: inset 0 0 0 1px var(--human-hairline) !important;
+}
+
+.player-explorer-panel {
+  border-color: var(--human-hairline) !important;
+  box-shadow: var(--human-shadow) !important;
+}
+
+/* Bar charts should read like compact analytics, not glowing decoration. */
+.player-explorer-panel [title*=" · "] {
+  box-shadow: inset 0 1px rgba(255, 255, 255, .12);
+  transition: filter 160ms ease, transform 160ms ease;
+}
+
+.player-explorer-panel [title*=" · "]:hover {
+  filter: brightness(1.13) saturate(1.04);
+  transform: scaleX(1.05);
+}
+
+/* ------------------------------ sign in */
+
+.auth-shell {
+  isolation: isolate;
+  background:
+    radial-gradient(760px 360px at 8% 2%, color-mix(in srgb, var(--accent) 11%, transparent), transparent 70%),
+    var(--surface) !important;
+  border-color: var(--human-hairline) !important;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .30), inset 0 1px rgba(255, 255, 255, .025) !important;
+}
+
+.auth-story {
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent 48%),
+    color-mix(in srgb, var(--bg-deep) 92%, var(--surface));
+}
+
+.auth-story__glow {
+  position: absolute;
+  width: 330px;
+  height: 330px;
+  left: -150px;
+  top: -155px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  filter: blur(70px);
+  opacity: .55;
+}
+
+.auth-story__eyebrow {
+  border: 1px solid var(--human-hairline);
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, .022);
+  color: var(--text-2);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.auth-trust-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--human-hairline);
+}
+
+.auth-card input {
+  min-height: 44px !important;
+  border-radius: 11px !important;
+  background: rgba(255, 255, 255, .018) !important;
+  border-color: var(--human-hairline) !important;
+}
+
+.auth-card input:focus {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent) !important;
+}
+
+.auth-google {
+  box-shadow: inset 0 1px rgba(255, 255, 255, .025);
+}
+
+.auth-submit {
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ------------------------------ mobile density */
+
+@media (max-width: 767px) {
+  main .sticky.top-16 {
+    top: 56px !important;
+    margin-inline: -8px !important;
+    padding: 8px !important;
+    border-radius: 13px !important;
+  }
+
+  main .sticky.top-16 .rail {
+    gap: 6px !important;
+  }
+
+  main .sticky.top-16 .rail button,
+  main .sticky.top-16 > div:nth-child(2) > button {
+    min-height: 34px !important;
+    padding-inline: 10px !important;
+  }
+
+  main .sticky.top-16 input[type="search"] {
+    min-height: 38px !important;
+  }
+
+  main .face.prop-card-v2 {
+    border-radius: 15px !important;
+  }
+
+  .prop-card-v2__open {
+    padding: 12px 12px 9px !important;
+  }
+
+  .prop-card-v2__hit {
+    padding-inline: 12px !important;
+  }
+
+  .prop-card-v2__quotes {
+    padding-inline: 12px !important;
+    padding-bottom: 12px !important;
+  }
+
+  .player-cinematic-hero {
+    border-radius: 17px !important;
+  }
+
+  .auth-shell {
+    border-radius: 18px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main .face.prop-card-v2,
+  .player-explorer-panel [title*=" · "] {
+    transition: none !important;
+    transform: none !important;
+  }
+}

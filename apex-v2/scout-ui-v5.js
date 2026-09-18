@@ -57,7 +57,7 @@ var slipOpen=false, quick={highEv:false,stale:false,side:null};
 var staleCache=new Map();
 var askThreads=new Map(), askPending=new Set();
 var sandbox={key:null,out:new Set(),roster:null,loading:false};
-var PAGE_SIZE=20;
+var PAGE_SIZE=50;
 var sport='NFL';try{sport=(localStorage.getItem('autoscout-sport')||'NFL').toUpperCase();}catch{}
 if(SPORTS.indexOf(sport)<0)sport='NFL';
 var payload={props:[],data:{lines:[],players:[]},meta:{}};

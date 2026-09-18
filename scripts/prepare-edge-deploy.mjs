@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { applySoccerPublicFeedPatches } from './patch-soccer-public-feeds.mjs';
 import { patchPublicSportsbookHosts } from './patch-public-sportsbook-hosts.mjs';
 import './patch-real-snipe-table.mjs';
+import './patch-obligeprops-presentation.mjs';
 
 // Public feed compatibility is applied at image-build time so it composes cleanly
 // with parallel ingestion work. A real application checkout always includes

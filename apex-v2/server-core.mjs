@@ -6,7 +6,7 @@ import { startFrugalPersistence } from '../lib/autoscout/persistence-scheduler.m
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { fetchUnifiedBoard, providerHealth, providerDiagnostics } from './provider.mjs';
-import { SUPPORTED_SPORTS, AUTOMATIC_SPORTS } from '../lib/autoscout/models.mjs';
+import { SUPPORTED_SPORTS, BOARD_SPORTS, AUTOMATIC_SPORTS } from '../lib/autoscout/models.mjs';
 import { decorateBoardWithScoutAudit } from '../lib/autoscout/scout-rules.mjs';
 import { persistNormalizedBoard, getLineHistory, persistenceHealth, persistenceConfigured } from '../lib/autoscout/supabase-persistence.mjs';
 import { handleProplineWebhook, WEBHOOK_PATH as PROPLINE_WEBHOOK_PATH } from '../lib/data-sources/propline/webhook-route.mjs';
@@ -16,6 +16,7 @@ import { startIngestWorker, ingestHealth } from '../lib/autoscout/ingest-worker.
 import { createSessionCodec, createRateLimiter, parseCookies, clientKey, SESSION_COOKIE, OWNER } from '../lib/session.mjs';
 import { installProcessGuards } from '../lib/web/process-guards.mjs';
 import { mailHealth } from '../lib/auth/mailer.mjs';
+import { startStorageMonitor, storageHealth } from '../lib/storage/volume-health.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const startedAt = new Date().toISOString();
@@ -79,7 +80,7 @@ async function propsResponse(req, url, res) {
     return json(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many prop requests. Try again shortly.' }, { 'retry-after': '60' });
   }
   const sport = String(url.searchParams.get('sport') || 'NFL').toUpperCase();
-  if (!SUPPORTED_SPORTS.includes(sport)) return json(res, 400, { ok: false, code: 'UNSUPPORTED_SPORT', supportedSports: SUPPORTED_SPORTS });
+  if (!BOARD_SPORTS.includes(sport)) return json(res, 400, { ok: false, code: 'UNSUPPORTED_SPORT', supportedSports: BOARD_SPORTS });
   const includeAlternates = ['1','true','yes'].includes(String(url.searchParams.get('alternates') || '').toLowerCase());
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
@@ -87,7 +88,7 @@ async function propsResponse(req, url, res) {
     const rawBoard = await fetchUnifiedBoard(sport, { signal: controller.signal, includeAlternates });
     const board = decorateBoardWithScoutAudit(rawBoard);
     if (!board?.meta?.cacheHit) void persistNormalizedBoard(board).catch(()=>{});
-    return await writePublicBoard(res, { ...board, supportedSports: SUPPORTED_SPORTS, persistence: persistenceHealth() });
+    return await writePublicBoard(res, { ...board, supportedSports: BOARD_SPORTS, persistence: persistenceHealth() });
   } catch (error) {
     if(res.headersSent){res.destroy();return;}
     return json(res, 503, { ok: false, code: String(error?.code || 'PROVIDER_ERROR'), message: 'Live prop data is temporarily unavailable for this sport.', sport }, {'retry-after':'30'});
@@ -138,13 +139,13 @@ async function e2eStatus() {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, { ok: true, service: 'autoscout-apex', revision:process.env.RAILWAY_GIT_COMMIT_SHA||null, startedAt, supportedSports: SUPPORTED_SPORTS, ...providerHealth(), persistence: persistenceHealth(), publicStore: publicStoreHealth(), mail: mailHealth(), proplineWebhook: proplineWebhookHealth() });
+    return json(res, 200, { ok: true, service: 'autoscout-apex', revision:process.env.RAILWAY_GIT_COMMIT_SHA||null, startedAt, supportedSports: BOARD_SPORTS, ...providerHealth(), persistence: persistenceHealth(), publicStore: publicStoreHealth(), storage: storageHealth(), mail: mailHealth(), proplineWebhook: proplineWebhookHealth() });
   }
   if (url.pathname === '/api/game-markets' || url.pathname === '/api/taco-offers') {
     if(req.method !== 'GET') return json(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'});
     if(!rateAllowed(req,'game-markets',30,60000)) return json(res,429,{ok:false,code:'RATE_LIMITED'});
     const sport=String(url.searchParams.get('sport')||'NFL').toUpperCase();
-    if(!SUPPORTED_SPORTS.includes(sport))return json(res,400,{ok:false,code:'UNSUPPORTED_SPORT'});
+    if(!BOARD_SPORTS.includes(sport))return json(res,400,{ok:false,code:'UNSUPPORTED_SPORT'});
     try{return json(res,200,await(url.pathname==='/api/game-markets'?fetchGameBoard(sport):fetchTacoBoard(sport)));}
     catch{return json(res,503,{ok:false,code:'FEED_UNAVAILABLE',message:'This feed is temporarily unavailable.'});}
   }
@@ -154,7 +155,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/api/props') return propsResponse(req, url, res);
   if(req.method==='GET'&&url.pathname==='/api/active-props'){
     const sport=String(url.searchParams.get('sport')||'NFL').toUpperCase();
-    if(!SUPPORTED_SPORTS.includes(sport))return json(res,400,{code:'UNSUPPORTED_SPORT'});
+    if(!BOARD_SPORTS.includes(sport))return json(res,400,{code:'UNSUPPORTED_SPORT'});
     if(!rateAllowed(req,'active-props',60,60000))return json(res,429,{code:'RATE_LIMITED'});
     try{const board=await fetchUnifiedBoard(sport,{cacheOnly:true});
       const selection=url.searchParams.has('books')?bookSelection(url.searchParams.get('books').split(',').filter(Boolean)):null;
@@ -168,7 +169,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && (url.pathname === '/api/diagnostics' || url.pathname === '/api/diagnostics/e2e' || url.pathname === '/diagnostics' || url.pathname === '/apex-v2/diagnostics')) {
     if (!ownerAuthorized(req)) return json(res, 403, { ok: false, code: 'OWNER_REQUIRED', message: 'Owner access is required.' });
     if (!rateAllowed(req, 'autoscout-diagnostics', 60, 60_000)) return json(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many diagnostics requests.' });
-    if (url.pathname === '/api/diagnostics') return json(res, 200, { ...providerDiagnostics(), persistence: persistenceHealth(), ingest: ingestHealth() });
+    if (url.pathname === '/api/diagnostics') return json(res, 200, { ...providerDiagnostics(), persistence: persistenceHealth(), storage: storageHealth(), ingest: ingestHealth() });
     if (url.pathname === '/api/diagnostics/e2e') return json(res, 200, await e2eStatus());
     return html(res, diagnosticsPage());
   }
@@ -178,6 +179,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => console.log(`AUTOSCOUT_APEX_CORE listening on ${PORT}`));
+startStorageMonitor();
 
 async function warmSports() {
   if (!process.env.THE_ODDS_API_KEY) return;

@@ -1,0 +1,8 @@
+/* The install entry is in document flow after main. Reserve the existing
+   mobile dock's space even on research pages where the footer is hidden. */
+@media (max-width:1023px) {
+  .op-install-entry.op-install-entry {
+    padding-bottom:calc(110px + env(safe-area-inset-bottom));
+  }
+  .op-install-entry button { scroll-margin-bottom:calc(110px + env(safe-area-inset-bottom)); }
+}

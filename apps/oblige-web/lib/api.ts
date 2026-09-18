@@ -154,6 +154,7 @@ export async function postAccount(
 /* ------------------------------------------------------------------ board */
 
 const num = (value: unknown): number | null => {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 };
@@ -186,7 +187,8 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
     const line = num(row.line);
     if (!player || !market || line === null) continue;
 
-    const key = [row.eventId || matchupLabel(row), player, market, line].join('|');
+    const playerIdentity = String(row.providerPlayerId || '').trim() || player.toLowerCase();
+    const key = [row.eventId || matchupLabel(row), playerIdentity, market, line].join('|');
     let group = groups.get(key);
     if (!group) {
       group = {

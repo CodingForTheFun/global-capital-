@@ -16,6 +16,7 @@ import { startIngestWorker, ingestHealth } from '../lib/autoscout/ingest-worker.
 import { createSessionCodec, createRateLimiter, parseCookies, clientKey, SESSION_COOKIE, OWNER } from '../lib/session.mjs';
 import { installProcessGuards } from '../lib/web/process-guards.mjs';
 import { mailHealth } from '../lib/auth/mailer.mjs';
+import { startStorageMonitor, storageHealth } from '../lib/storage/volume-health.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const startedAt = new Date().toISOString();
@@ -138,7 +139,7 @@ async function e2eStatus() {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
   if (req.method === 'GET' && url.pathname === '/api/health') {
-    return json(res, 200, { ok: true, service: 'autoscout-apex', revision:process.env.RAILWAY_GIT_COMMIT_SHA||null, startedAt, supportedSports: BOARD_SPORTS, ...providerHealth(), persistence: persistenceHealth(), publicStore: publicStoreHealth(), mail: mailHealth(), proplineWebhook: proplineWebhookHealth() });
+    return json(res, 200, { ok: true, service: 'autoscout-apex', revision:process.env.RAILWAY_GIT_COMMIT_SHA||null, startedAt, supportedSports: BOARD_SPORTS, ...providerHealth(), persistence: persistenceHealth(), publicStore: publicStoreHealth(), storage: storageHealth(), mail: mailHealth(), proplineWebhook: proplineWebhookHealth() });
   }
   if (url.pathname === '/api/game-markets' || url.pathname === '/api/taco-offers') {
     if(req.method !== 'GET') return json(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'});
@@ -168,7 +169,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && (url.pathname === '/api/diagnostics' || url.pathname === '/api/diagnostics/e2e' || url.pathname === '/diagnostics' || url.pathname === '/apex-v2/diagnostics')) {
     if (!ownerAuthorized(req)) return json(res, 403, { ok: false, code: 'OWNER_REQUIRED', message: 'Owner access is required.' });
     if (!rateAllowed(req, 'autoscout-diagnostics', 60, 60_000)) return json(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many diagnostics requests.' });
-    if (url.pathname === '/api/diagnostics') return json(res, 200, { ...providerDiagnostics(), persistence: persistenceHealth(), ingest: ingestHealth() });
+    if (url.pathname === '/api/diagnostics') return json(res, 200, { ...providerDiagnostics(), persistence: persistenceHealth(), storage: storageHealth(), ingest: ingestHealth() });
     if (url.pathname === '/api/diagnostics/e2e') return json(res, 200, await e2eStatus());
     return html(res, diagnosticsPage());
   }
@@ -178,6 +179,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => console.log(`AUTOSCOUT_APEX_CORE listening on ${PORT}`));
+startStorageMonitor();
 
 async function warmSports() {
   if (!process.env.THE_ODDS_API_KEY) return;

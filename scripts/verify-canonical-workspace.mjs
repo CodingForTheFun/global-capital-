@@ -4,6 +4,12 @@ import assert from 'node:assert/strict';
 import {mkdir,writeFile} from 'node:fs/promises';
 const base=process.env.WORKSPACE_TEST_ORIGIN||'http://127.0.0.1:3100';
 const output='artifacts/canonical-workspace';await mkdir(output,{recursive:true});
+async function checkWidth(page,name){
+ await page.screenshot({path:`${output}/${name}.png`,fullPage:true});
+ const diagnostic=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,offenders:[...document.querySelectorAll('body *')].map(n=>({tag:n.tagName,id:n.id,className:typeof n.className==='string'?n.className:'',rect:n.getBoundingClientRect().toJSON(),minWidth:getComputedStyle(n).minWidth,position:getComputedStyle(n).position,text:n.textContent?.slice(0,90)})).filter(x=>x.rect.width&&x.rect.right>innerWidth+1).slice(0,25)}));
+ if(diagnostic.scrollWidth>diagnostic.viewport+1){console.log('OVERFLOW_DIAGNOSTIC',JSON.stringify(diagnostic));await writeFile(`${output}/${name}-overflow.json`,JSON.stringify(diagnostic,null,2));}
+ assert.ok(diagnostic.scrollWidth<=diagnostic.viewport+1,`${name}: no horizontal page overflow`);
+}
 const sports=[{key:'football_nfl',title:'NFL',active:true},{key:'golf',title:'Golf',active:true},{key:'esports_rocket_league',title:'Rocket League',active:true},{key:'future_league',title:'Future League',active:false}];
 const offer=(book,line,side='OVER',price=100)=>({key:`${book}:${line}:${side}`,outcomeId:`test:${book}:${line}:${side}`,book,bookName:book==='draftkings'?'DraftKings':book==='fanduel'?'FanDuel':'PrizePicks',line,choice:side,side,price,multiplier:null,updatedAt:new Date().toISOString(),dfs:book==='prizepicks',conflict:false});
 function fixture(sport){
@@ -41,8 +47,7 @@ try{
   await page.waitForFunction(()=>document.querySelector('[data-player-key]')?.getAttribute('data-player-key')==='player:esports_rocket_league');
   await page.getByLabel('Sport',{exact:true}).selectOption('football_nfl');
   await page.waitForFunction(()=>document.querySelector('[data-player-key]')?.getAttribute('data-player-key')==='player:football_nfl');
-  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'board no horizontal page overflow');
-  await page.screenshot({path:`${output}/${name}-board.png`,fullPage:true});
+  await checkWidth(page,`${name}-board`);
   await page.locator('[data-player-key]').click();await page.getByLabel('Selected book',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Player stat category').locator('option').count(),3,'one stat category, not a tab per book/line');
   await page.getByLabel('Selected book',{exact:true}).selectOption('fanduel');
@@ -59,8 +64,7 @@ try{
   await page.getByText('Exact period history unavailable.',{exact:true}).waitFor();
   assert.equal(await page.locator('.op-sample').count(),0,'compact unavailable history instead of empty stat tiles');
   await page.getByLabel('Player stat category').selectOption('rush');await page.locator('.op-chart-bar').first().waitFor();
-  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'research no horizontal page overflow');
-  await page.screenshot({path:`${output}/${name}-research.png`,fullPage:true});
+  await checkWidth(page,`${name}-research`);
   assert.ok(targets.includes('fanduel:60.5:OVER'),'prediction requested exact selected book and line');
   await page.goto(base+'/board');await page.getByLabel('Sport',{exact:true}).selectOption('golf');
   await page.waitForFunction(()=>document.querySelector('[data-player-key]')?.getAttribute('data-player-key')==='player:golf');

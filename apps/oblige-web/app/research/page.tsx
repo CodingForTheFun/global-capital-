@@ -1,18 +1,5 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
-import { PlayerView } from '@/components/player-view';
-
-export const metadata: Metadata = {
-  title: 'Player research',
-  description: 'Game-by-game history, splits and every book pricing one player prop.',
-};
-
-export default function ResearchPage() {
-  // useSearchParams needs a Suspense boundary: the page is addressed entirely
-  // through the URL so a pasted link opens the same prop.
-  return (
-    <Suspense fallback={null}>
-      <PlayerView />
-    </Suspense>
-  );
-}
+import { WorkspaceResearch } from '@/components/prop-workspace';
+export const metadata: Metadata = {title:'Player research',description:'Switch stat categories, lines and books inside one player research workspace.'};
+export default function ResearchPage(){return <Suspense fallback={null}><WorkspaceResearch/></Suspense>;}

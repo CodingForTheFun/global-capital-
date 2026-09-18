@@ -1,0 +1,76 @@
+// Isolated, explicitly synthetic UI fixtures. No paid API calls or production data.
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import {mkdir,writeFile} from 'node:fs/promises';
+const base=process.env.WORKSPACE_TEST_ORIGIN||'http://127.0.0.1:3100';
+const output='artifacts/canonical-workspace';await mkdir(output,{recursive:true});
+const sports=[{key:'football_nfl',title:'NFL',active:true},{key:'golf',title:'Golf',active:true},{key:'esports_rocket_league',title:'Rocket League',active:true},{key:'future_league',title:'Future League',active:false}];
+const offer=(book,line,side='OVER',price=100)=>({key:`${book}:${line}:${side}`,outcomeId:`test:${book}:${line}:${side}`,book,bookName:book==='draftkings'?'DraftKings':book==='fanduel'?'FanDuel':'PrizePicks',line,choice:side,side,price,multiplier:null,updatedAt:new Date().toISOString(),dfs:book==='prizepicks',conflict:false});
+function fixture(sport){
+ const event={id:'test-event',sport,startsAt:'2050-09-20T18:00:00Z',homeTeam:'Test Home',awayTeam:'Test Away',status:'scheduled',aliases:[]};
+ const markets=[{key:'rush',marketKey:'player_rush_yds',label:sport==='golf'?'Score':'Rushing yards',period:null,variant:'standard',offers:[offer('draftkings',sport==='golf'?-1.5:50.5),offer('draftkings',sport==='golf'?-1.5:50.5,'UNDER'),offer('fanduel',55.5),offer('fanduel',60.5),offer('prizepicks',45.5)]},{key:'receptions',marketKey:'player_receptions',label:'Receptions',period:null,variant:'standard',offers:[offer('draftkings',3.5)]},{key:'half',marketKey:'player_rush_yds',label:'Rushing yards · Period h1',period:'h1',variant:'standard',offers:[offer('draftkings',20.5)]}];
+ return {ok:true,event,fetchedAt:new Date().toISOString(),players:[{key:`player:${sport}`,playerId:'test:1',name:'Fixture Player',aliases:['Fixture Player'],sport,eventId:event.id,startsAt:event.startsAt,homeTeam:event.homeTeam,awayTeam:event.awayTeam,markets}]};
+}
+const results=[];
+const browser=await chromium.launch();
+try{
+ for(const [name,viewport] of [['mobile390',{width:390,height:844}],['desktop1440',{width:1440,height:1000}]]){
+  const context=await browser.newContext({viewport,reducedMotion:'reduce'}),page=await context.newPage(),errors=[],targets=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  let failHistory=false;
+  await page.route('**/api/**',async route=>{
+   const u=new URL(route.request().url());let body,status=200;
+   if(u.pathname==='/api/account/me')body={authenticated:true,user:{id:'fixture-user'}};
+   else if(u.pathname==='/api/oblige-workspace'){
+    const action=u.searchParams.get('action'),sport=u.searchParams.get('sport')||'football_nfl',f=fixture(sport);
+    if(action==='catalog')body={ok:true,sports};
+    else if(action==='events')body={ok:true,events:[f.event]};
+    else if(action==='event')body=f;
+    else if(action==='history'){
+     if(failHistory){failHistory=false;status=502;body={ok:false,message:'Fixture transient history failure'};}
+     else if(u.searchParams.get('market')==='half')body={ok:true,available:false,message:'Exact period history unavailable.',gameLog:[]};
+     else body={ok:true,available:true,source:'Synthetic UI test fixture',gameLog:Array.from({length:20},(_,i)=>({gameId:`test-${i}`,date:`2049-09-${String(28-i).padStart(2,'0')}T00:00:00Z`,opponent:'Test Opponent',value:sport==='golf'?(i%5)-3:i%2?60:40,isHome:i%2===0,season:2049}))};
+    }else if(action==='model'){targets.push(u.searchParams.get('offer'));body={ok:true,prediction:{available:true,code:'READY',modelVersion:'SYNTHETIC-TEST-ONLY',projection:52,probabilityOver:.5,probabilityUnder:.4,probabilityPush:.1,generatedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+600000).toISOString(),validation:{method:'chronological-heldout-real-lines',events:100}}};}
+   }
+   if(body)await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});else await route.fulfill({status:404,contentType:'application/json',body:'{}'});
+  });
+  await page.goto(base+'/board');await page.locator('[data-player-key]').first().waitFor();
+  assert.equal(await page.locator('[data-player-key]').count(),1,'one card despite multiple lines and books');
+  assert.equal(await page.getByLabel('Sport',{exact:true}).locator('option').count(),5,'all catalog sports plus placeholder');
+  await page.getByLabel('Sport',{exact:true}).selectOption('esports_rocket_league');
+  await page.waitForFunction(()=>document.querySelector('[data-player-key]')?.getAttribute('data-player-key')==='player:esports_rocket_league');
+  await page.getByLabel('Sport',{exact:true}).selectOption('football_nfl');
+  await page.waitForFunction(()=>document.querySelector('[data-player-key]')?.getAttribute('data-player-key')==='player:football_nfl');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'board no horizontal page overflow');
+  await page.screenshot({path:`${output}/${name}-board.png`,fullPage:true});
+  await page.locator('[data-player-key]').click();await page.getByLabel('Selected book',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Player stat category').locator('option').count(),3,'one stat category, not a tab per book/line');
+  await page.getByLabel('Selected book',{exact:true}).selectOption('fanduel');
+  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='55.5');
+  await page.getByLabel('Posted line or outcome').selectOption('60.5');
+  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='60.5');
+  await page.getByLabel('Selected book',{exact:true}).selectOption('prizepicks');
+  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='45.5');
+  assert.ok(await page.getByLabel('Trained model prediction').innerText().then(t=>!t.includes('Selected-quote EV\n+')),'no synthetic DFS singles EV');
+  failHistory=true;await page.getByLabel('Player stat category').selectOption('receptions');
+  await page.getByRole('button',{name:'Retry history',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Retry history',exact:true}).click();await page.locator('.op-chart-bar').first().waitFor();
+  await page.getByLabel('Player stat category').selectOption('half');
+  await page.getByText('Exact period history unavailable.',{exact:true}).waitFor();
+  assert.equal(await page.locator('.op-sample').count(),0,'compact unavailable history instead of empty stat tiles');
+  await page.getByLabel('Player stat category').selectOption('rush');await page.locator('.op-chart-bar').first().waitFor();
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'research no horizontal page overflow');
+  await page.screenshot({path:`${output}/${name}-research.png`,fullPage:true});
+  assert.ok(targets.includes('fanduel:60.5:OVER'),'prediction requested exact selected book and line');
+  await page.goto(base+'/board');await page.getByLabel('Sport',{exact:true}).selectOption('golf');
+  await page.waitForFunction(()=>document.querySelector('[data-player-key]')?.getAttribute('data-player-key')==='player:golf');
+  await page.locator('[data-player-key]').click();await page.locator('.op-chart-bar').first().waitFor();
+  assert.equal(await page.locator('.op-line-number').textContent(),'-1.5');
+  await page.getByRole('button',{name:'Lower research line',exact:true}).click();assert.equal(await page.locator('.op-line-number').textContent(),'-2');
+  assert.ok(await page.locator('.op-chart-bar').evaluateAll(nodes=>nodes.every(n=>parseFloat(n.style.height)>0&&parseFloat(n.style.bottom)>=0)),'negative result bars stay within plot');
+  assert.deepEqual(errors,[],'no runtime errors');
+  results.push({viewport:name,passed:true,syntheticFixtures:true,checks:['one-player-card','dynamic-sports','unique-stat-categories','book-switch','line-switch','exact-model-target','DFS-no-single-EV','history-retry','compact-unavailable','no-page-overflow','negative-history']});
+  await context.close();
+ }
+}finally{await browser.close();await writeFile(`${output}/report.json`,JSON.stringify(results,null,2));}
+console.log(JSON.stringify({ok:true,results}));

@@ -97,10 +97,30 @@ test('zero real stat is retained; missing is not manufactured as zero',()=>{
 test('insert-only write requires exact read-back and is idempotent',async()=>{
   const store=new Map(),p=plan();let writes=0;
   const deps={mode:'apply',approveSnapshot:p.cohortHash,...dependencies(),readRows:async keys=>keys.map(k=>store.get(historyKey(k))).filter(Boolean),
-    insertRows:async rows=>{writes++;let n=0;for(const r of rows)if(!store.has(historyKey(r))){store.set(historyKey(r),structuredClone(r));n++;}return {written:n};}};
+    insertRows:async rows=>{writes++;let n=0;for(const r of rows)if(!store.has(historyKey(r))){store.set(historyKey(r),{...structuredClone(r),source:'ESPN'});n++;}return {written:n};}};
   const first=await runHistoryMaintenance(p,deps);assert.equal(first.insertedRows,1);assert.equal(first.outcomes[0].durableVerified,true);
   const second=await runHistoryMaintenance(p,deps);assert.equal(second.insertedRows,0);assert.equal(writes,1);
   assert.equal(second.outcomes[0].status,'ALREADY_PERSISTED_AND_VERIFIED');
+});
+test('exact read-back rejects contradictory material metadata and provenance',async()=>{
+  for (const [field,value] of [['player_name','Wrong Player'],['season','2025'],['season_type',3],['source','OTHER']]) {
+    const p=plan(),stored={...row(),source:'ESPN'};stored[field]=value;let writes=0;
+    const r=await runHistoryMaintenance(p,{mode:'apply',approveSnapshot:p.cohortHash,...dependencies(),readRows:async()=>[stored],insertRows:async()=>{writes++;}});
+    assert.equal(writes,0,field);assert.equal(r.outcomes[0].status,'EXISTING_HISTORY_CONFLICT',field);assert.equal(r.outcomes[0].durableVerified,false,field);
+  }
+});
+test('post-insert read-back requires SQL provenance and material metadata',async()=>{
+  for (const [field,value] of [['player_name','Wrong Player'],['season','2025'],['season_type',3],['source','OTHER']]) {
+    const p=plan();let stored;
+    const r=await runHistoryMaintenance(p,{mode:'apply',approveSnapshot:p.cohortHash,...dependencies(),
+      readRows:async()=>stored?[stored]:[],insertRows:async rows=>{stored={...structuredClone(rows[0]),source:'ESPN'};stored[field]=value;return{written:1};}});
+    assert.equal(r.stopped,'PERSISTENCE_UNVERIFIED',field);assert.equal(r.outcomes[0].durableVerified,false,field);
+  }
+});
+test('exact read-back permits richer stored stats when proved fields agree',async()=>{
+  const p=plan(),base=row(),stored={...base,source:'ESPN',stats:{...base.stats,extraVerifiedContext:'retained'}};
+  const r=await runHistoryMaintenance(p,{mode:'apply',approveSnapshot:p.cohortHash,...dependencies(),readRows:async()=>[stored],insertRows:async()=>{throw Error('must not write');}});
+  assert.equal(r.outcomes[0].status,'ALREADY_PERSISTED_AND_VERIFIED');assert.equal(r.outcomes[0].durableVerified,true);
 });
 test('failed read-back stops later writes and never claims persistence',async()=>{
   const p=plan([context(),context('MLB')]);let writes=0;
@@ -164,6 +184,10 @@ test('migration is isolated, active-board based, token-protected and insert-only
   assert.match(sql,/on conflict\(player_id,game_id,category\) do nothing/i);
   assert.doesNotMatch(sql,/\b(delete from|truncate|do update|update public\.)\b/i);
   assert.match(sql,/revoke all[\s\S]+from public;/);assert.match(sql,/One verified player per maintenance batch/);
+});
+test('migration fails closed on null or unknown maintenance actions',async()=>{
+  const sql=await readFile(new URL('../supabase/migrations/20260919014000_verified_history_maintenance.sql',import.meta.url),'utf8');
+  assert.match(sql,/p_action is null or p_action not in \\('snapshot','read_keys','insert_verified'\\)/i);
 });
 test('PrizePicks single_stat is recognized as scoring metadata, not a fabricated period',()=>{
   const c=context('NFL','Fixture Player',{period:'single_stat',sourceBook:'prizepicks'});

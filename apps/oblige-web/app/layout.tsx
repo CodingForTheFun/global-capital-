@@ -13,6 +13,7 @@ import './reference-mounted-board.css';
 import './reference-player-sheet.css';
 import './installable-research.css';
 import './install-safety.css';
+import './canonical-workspace.css';
 import './restored-board-chrome.css';
 import { CommandSearchController } from '@/components/command-search';
 import { DirectionProvider } from '@/components/theme';

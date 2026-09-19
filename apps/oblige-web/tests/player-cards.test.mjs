@@ -13,8 +13,8 @@ test('one player/game card retains all stats, alternate lines, books and sides',
 test('game time keeps doubleheaders and subsequent dates separate',()=>{
  assert.equal(groupPlayerCards([g('one'),g('two',{startsAt:'2050-10-01T23:00:00Z'}),g('three',{startsAt:'2050-10-02T19:00:00Z'})]).length,3);
 });
-test('names alone do not combine two verified people, games, or sports',()=>{
- assert.equal(groupPlayerCards([g('one'),g('two',{providerPlayerId:'espn:99'}),g('three',{sport:'WNBA'})]).length,3);
+test('provider-local IDs do not split one athlete, while games and sports stay separate',()=>{
+ assert.equal(groupPlayerCards([g('one'),g('two',{providerPlayerId:'espn:99'}),g('three',{sport:'WNBA'})]).length,2);
  assert.equal(groupPlayerCards([g('one',{startsAt:null,quotes:[{eventId:'one'}]}),g('two',{startsAt:null,quotes:[{eventId:'two'}]})]).length,2);
 });
 test('the same event across book identifiers and an ID-less quote resolve once',()=>{
@@ -29,6 +29,17 @@ test('filter first, then deduplicate, then paginate without losing selectable st
  const groups=[g('points'),g('rebounds',{market:'Rebounds',marketId:'player_rebounds',line:6.5})];
  const rows=collapsePlayerCards([groups[1]],groups);assert.equal(rows[0].market,'Rebounds');assert.equal(rows[0].categoryCount,2);
  assert.equal(rows[0].playerCardKey,collapsePlayerCards(groups,groups)[0].playerCardKey);
+});
+test('collapsed board chooses the most complete real preview and exposes all books on the player card',()=>{
+ const sparse=g('sparse',{providerPlayerId:null,marketId:null,quotes:[{eventId:'game-one',sportsbook:'PrizePicks',sportsbookKey:'prizepicks',side:'OVER',line:20.5}],bestOver:null,bestUnder:null});
+ const complete=g('complete',{market:'Rebounds',marketId:'player_rebounds',line:6.5,quotes:[
+  {eventId:'game-one',sportsbook:'Book A',sportsbookKey:'book_a',side:'OVER',line:6.5,price:-105},
+  {eventId:'game-one',sportsbook:'Book B',sportsbookKey:'book_b',side:'UNDER',line:6.5,price:115},
+ ]});
+ const row=collapsePlayerCards([sparse,complete],[sparse,complete])[0];
+ assert.equal(row.key,'complete');
+ assert.equal(row.categoryCount,2);
+ assert.deepEqual(row.bookNames.sort(),['Book A','Book B','PrizePicks'].sort());
 });
 test('category choices are unique across lines but exact periods remain separate',()=>{
  const groups=[g('one'),g('two',{line:21.5}),g('three',{market:'Points · First half',line:10.5})];
@@ -105,8 +116,19 @@ test('conflicting opponents at one start stay separate; a partialEventGroup offe
   assert.equal(groupPlayerCards(rows).length, 3);
   assert.deepEqual(eventMembership(rows), eventMembership([...rows].reverse()));
 });
-test('same-name verified people are not combined and ID-less evidence stays ambiguous', () => {
-  const rows = [eventGroup('one'), eventGroup('two', { providerPlayerId: 'espn:someone-else' }), partialEventGroup('no-id', { providerPlayerId: null })];
+test('same-name players on opposite sides of one game stay separate and side-less evidence stays ambiguous', () => {
+  const rows = [
+    eventGroup('one'),
+    eventGroup('two', {
+      providerPlayerId: 'espn:someone-else',
+      team: 'Kansas City Chiefs',
+      opponent: 'Indianapolis Colts',
+      homeTeam: 'Kansas City Chiefs',
+      awayTeam: 'Indianapolis Colts',
+      matchup: 'Indianapolis Colts @ Kansas City Chiefs',
+    }),
+    partialEventGroup('no-id', { providerPlayerId: null }),
+  ];
   assert.equal(groupPlayerCards(rows).length, 3);
 });
 test('placeholder team values do not become authoritative game anchors', () => {
@@ -138,12 +160,12 @@ test('sports without team metadata reconcile by a stable player ID and exact sta
  const rows = [partialEventGroup('one'), partialEventGroup('two', { quotes: [{ eventId: 'other-book' }] }), partialEventGroup('no-id', { providerPlayerId: null, quotes: [{ eventId: 'third-book' }] })];
  assert.equal(groupPlayerCards(rows).length, 1);
 });
-test('a same-name incomplete verified identity cannot make an ID-less offer adopt the wrong person', () => {
+test('book-local player IDs and an ID-less offer collapse at the same exact name and kickoff', () => {
  const rows = [eventGroup('one'), partialEventGroup('two', { providerPlayerId: 'espn:someone-else' }), partialEventGroup('no-id', { providerPlayerId: null, quotes: [{ eventId: 'no-identity-event' }] })];
- assert.equal(groupPlayerCards(rows).length, 3);
+ assert.equal(groupPlayerCards(rows).length, 1);
  assert.deepEqual(eventMembership(rows), eventMembership([...rows].reverse()));
 });
-test('a name and kickoff without any verified identity or matchup are not enough to merge different events', () => {
+test('same player name and exact kickoff collapse provider-local event IDs when matchup metadata is missing', () => {
  const rows = [partialEventGroup('one', { providerPlayerId: null }), partialEventGroup('two', { providerPlayerId: null, quotes: [{ eventId: 'other-event' }] })];
- assert.equal(groupPlayerCards(rows).length, 2);
+ assert.equal(groupPlayerCards(rows).length, 1);
 });

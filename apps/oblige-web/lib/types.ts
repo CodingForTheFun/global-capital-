@@ -13,6 +13,8 @@ export type Side = 'OVER' | 'UNDER';
 export type PropRow = {
   id?: string;
   propId?: string;
+  source?: string;
+  provider?: string;
   playerName?: string;
   providerPlayerId?: string;
   market?: string;

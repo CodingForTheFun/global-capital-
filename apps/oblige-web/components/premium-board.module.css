@@ -325,6 +325,18 @@
   font-weight: 800;
 }
 
+.sourceTag {
+  display: block;
+  margin-top: 3px;
+  color: #6f8096;
+  font-family: var(--font-sans, ui-sans-serif);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .055em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 .odds {
   display: inline-flex;
   min-width: 64px;

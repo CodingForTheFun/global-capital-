@@ -172,9 +172,43 @@ export function PlayerView() {
       {activeError && <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button>}
     </>}
     supporting={!pending && !unavailable && games.length > 0 ? <SplitSummary games={games} group={displayGroup} line={state.line} side={state.side}/> : null}
-    model={<section aria-label="Trained model prediction"><h2>Model prediction</h2><p>No validated forecast is attached to this research selection. Historical hit rates are not model predictions.</p></section>}
+    model={<LegacyMarketReference group={displayGroup}/>} 
     gameLog={<GameLog games={games} line={state.line} market={displayGroup.market} loading={pending}/>}
   />;
+}
+
+function LegacyMarketReference({group}:{group:PropGroup}) {
+  const [value,setValue]=React.useState<{projection:number|null;ev:number|null;book:string|null}|null>(null);
+  const [loading,setLoading]=React.useState(true);
+  React.useEffect(()=>{
+    const controller=new AbortController();
+    const eventId=String(group.quotes.find(row=>row.eventId)?.eventId||'').trim();
+    const marketId=String(group.marketId||'').trim();
+    if(!eventId||!marketId){setValue(null);setLoading(false);return()=>controller.abort();}
+    const common=new URLSearchParams({sport:group.sport,eventId,markets:marketId});
+    const read=async(kind:string)=>{
+      const response=await fetch('/api/apex/propline?kind='+kind+'&'+common,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+      if(!response.ok)return null;
+      const body=await response.json().catch(()=>null) as {available?:boolean;data?:unknown}|null;
+      return body?.available?body.data:null;
+    };
+    Promise.all([read('projections'),read('ev')]).then(([projections,evPayload])=>{
+      if(controller.signal.aborted)return;
+      const name=group.player.normalize('NFKC').toLowerCase();
+      const key=marketId.toLowerCase();
+      const pRows=Array.isArray((projections as {projections?:unknown[]}|null)?.projections)?(projections as {projections:Array<Record<string,unknown>>}).projections:[];
+      const p=pRows.find(row=>String(row.playerName||'').normalize('NFKC').toLowerCase()===name&&String(row.marketKey||'').toLowerCase()===key);
+      const projection=typeof p?.projection==='number'&&Number.isFinite(p.projection)?p.projection:null;
+      const plays=Array.isArray((evPayload as {plays?:unknown[]}|null)?.plays)?(evPayload as {plays:Array<Record<string,unknown>>}).plays:[];
+      const exact=plays.filter(row=>String(row.playerName||'').normalize('NFKC').toLowerCase()===name&&String(row.marketKey||'').toLowerCase()===key&&Number(row.line)===group.line)
+        .map(row=>({ev:Number(row.evPercent),book:String(row.bookmakerKey||'').trim()||null}))
+        .filter(row=>Number.isFinite(row.ev)).sort((a,b)=>b.ev-a.ev)[0];
+      setValue({projection,ev:exact?.ev??null,book:exact?.book??null});
+      setLoading(false);
+    }).catch(()=>{if(!controller.signal.aborted){setValue(null);setLoading(false);}});
+    return()=>controller.abort();
+  },[group.key,group.line,group.marketId,group.player,group.sport,group.quotes]);
+  return <section aria-label="Projection and EV reference"><h2>Market reference</h2>{loading?<p>Checking PropLine market reference…</p>:value&&(value.projection!==null||value.ev!==null)?<div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:10}}><span>Market projection<strong style={{display:'block',marginTop:5}}>{value.projection===null?'—':value.projection.toFixed(2)}</strong></span><span>No-vig market EV<strong style={{display:'block',marginTop:5}}>{value.ev===null?'—':(value.ev>0?'+':'')+value.ev.toFixed(1)+'%'}</strong></span><small style={{gridColumn:'1 / -1'}}>PropLine market-implied/no-vig reference for this exact posted line{value.book?' · '+value.book:''}. No trained model validation is required.</small></div>:<p>No market-implied reference is available for this exact selection.</p>}</section>;
 }
 
 function SplitSummary({ games, group, line, side }: { games: ReturnType<typeof playedGames>; group: PropGroup; line: number; side: Side }) {

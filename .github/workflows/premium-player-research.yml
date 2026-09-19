@@ -1,0 +1,78 @@
+name: Premium player research
+on:
+  push:
+    branches: ['chatgpt/premium-player-research-20260919', 'claude/website-review-audit-t5ei2j']
+    paths: ['apps/oblige-web/**', 'scripts/verify-premium-player*.mjs', '.github/workflows/premium-player-research.yml']
+  pull_request:
+    branches: ['claude/website-review-audit-t5ei2j']
+    paths: ['apps/oblige-web/**', 'scripts/verify-premium-player*.mjs', '.github/workflows/premium-player-research.yml']
+permissions:
+  contents: read
+concurrency:
+  group: premium-player-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm ci
+        working-directory: apps/oblige-web
+      - name: Frontend tests, TypeScript and production build
+        working-directory: apps/oblige-web
+        run: node --test tests/*.test.mjs && npm run typecheck && npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Canonical research, restored board and premium viewport acceptance
+        run: |
+          npm --prefix apps/oblige-web run start -- --port 3100 > /tmp/premium-next.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3100/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3100/ >/dev/null
+          node scripts/verify-canonical-workspace.mjs
+          node scripts/verify-restored-terminal.mjs
+          node scripts/verify-premium-player.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: premium-player-proof
+          path: |
+            artifacts/premium-player
+            artifacts/canonical-workspace
+            artifacts/restored-terminal
+          retention-days: 7
+  public-after-deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/claude/website-review-audit-t5ei2j'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verify shipped www research, protected APIs and existing QA session
+        env:
+          REFERENCE_VISUAL_EMAIL: ${{ secrets.REFERENCE_VISUAL_EMAIL }}
+          REFERENCE_VISUAL_PASSWORD: ${{ secrets.REFERENCE_VISUAL_PASSWORD }}
+        run: node scripts/verify-premium-player-live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: premium-player-live-proof
+          path: artifacts/premium-player-live
+          retention-days: 7

@@ -24,6 +24,11 @@ import {
   windowOf,
 } from '@/lib/api';
 import { pctValue } from '@/lib/utils';
+import {
+  marketArbitrage,
+  marketArbitrageLabel,
+  type MarketArbitrageCandidate,
+} from '@/lib/arbitrage.mjs';
 import { SignInPanel } from '@/components/sign-in';
 import styles from './terminal-board.module.css';
 
@@ -276,6 +281,7 @@ export function TerminalBoard() {
   const [market, setMarket] = React.useState(ALL);
   const [book, setBook] = React.useState(ALL);
   const [evFloor, setEvFloor] = React.useState<number | null>(null);
+  const [arbOnly, setArbOnly] = React.useState(false);
   const [shown, setShown] = React.useState(INITIAL_ROWS);
   const [predictions, setPredictions] = React.useState<Record<string, ModelPrediction>>({});
   const [research, setResearch] = React.useState<Record<string, ResearchSummary | null>>({});
@@ -317,6 +323,7 @@ export function TerminalBoard() {
           setMarket(ALL);
           setBook(ALL);
           setEvFloor(null);
+          setArbOnly(false);
           setShown(INITIAL_ROWS);
           setPredictions({});
           setResearch({});
@@ -411,6 +418,7 @@ export function TerminalBoard() {
           const best = evFor(group, predictions[group.key]);
           if (!best || best.ev < evFloor) return false;
         }
+        if (arbOnly && !marketArbitrage(group)) return false;
 
         return true;
       })
@@ -422,7 +430,7 @@ export function TerminalBoard() {
         const l10B = research[b.key]?.l10?.rate ?? -1;
         return l10B - l10A || a.player.localeCompare(b.player);
       });
-  }, [book, evFloor, groups, market, predictions, query, research]);
+  }, [arbOnly, book, evFloor, groups, market, predictions, query, research]);
 
   const page = React.useMemo(() => filtered.slice(0, shown), [filtered, shown]);
   const pageKey = page.map((group) => group.key).join('|');
@@ -619,8 +627,8 @@ export function TerminalBoard() {
             </button>
           </div>
 
-          <div className={styles.evRail} role="group" aria-label="Minimum expected value">
-            <span><SlidersHorizontal size={13} /> EV filter</span>
+          <div className={styles.evRail} role="group" aria-label="Expected value and arbitrage filters">
+            <span><SlidersHorizontal size={13} /> Market filters</span>
             {[
               { label: 'All', value: null },
               { label: '0%+', value: 0 },
@@ -638,6 +646,15 @@ export function TerminalBoard() {
                 {option.label}
               </button>
             ))}
+            <button
+              type="button"
+              aria-pressed={arbOnly}
+              className={arbOnly ? styles.active : ''}
+              onClick={() => setArbOnly((value) => !value)}
+              title="Show only settlement-aware exact-line cross-book arbitrage candidates"
+            >
+              Arb only
+            </button>
             <span className={styles.resultCount}>{filtered.length.toLocaleString()} matching</span>
           </div>
         </div>
@@ -654,7 +671,7 @@ export function TerminalBoard() {
           <div className={styles.statePanel}>
             <Search size={24} />
             <h2>No props match this view</h2>
-            <p>Change the league, book, market, EV threshold, or search text.</p>
+            <p>Change the league, book, market, EV / arb filter, or search text.</p>
           </div>
         ) : (
           <>
@@ -754,6 +771,7 @@ function DesktopMatrix({
             const prediction = predictions[group.key];
             const summary = research[group.key];
             const bestEv = evFor(group, prediction);
+            const arb = marketArbitrage(group);
             const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
             const overSelected = slip.some((item) => item.id === selectionId(group.key, 'OVER'));
             const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
@@ -772,7 +790,14 @@ function DesktopMatrix({
                     <small>{group.matchup} · {timeLabel(group.startsAt)}</small>
                   </span>
                 </td>
-                <td className={styles.marketCell}>{group.market}</td>
+                <td className={styles.marketCell}>
+                  <span className={styles.marketText}>{group.market}</span>
+                  {arb ? (
+                    <span className={styles.arbBadge} data-push={arb.possiblePush ? 'true' : 'false'}>
+                      {marketArbitrageLabel(arb)}
+                    </span>
+                  ) : null}
+                </td>
                 <td className={styles.numCell}>{group.line}</td>
                 <td>
                   <button
@@ -856,6 +881,7 @@ function MobileMatrix({
         const prediction = predictions[group.key];
         const summary = research[group.key];
         const bestEv = evFor(group, prediction);
+        const arb = marketArbitrage(group);
         const overSelected = slip.some((item) => item.id === selectionId(group.key, 'OVER'));
         const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
 
@@ -872,8 +898,17 @@ function MobileMatrix({
                 <b>{group.player}</b>
                 <small>{group.matchup}</small>
               </span>
-              <span className={styles.mobileEv}>
-                {bestEv ? `${bestEv.ev >= 0 ? '+' : ''}${bestEv.ev.toFixed(1)}% EV` : 'EV —'}
+              <span className={styles.mobileSignals}>
+                <span className={styles.mobileEv}>
+                  {bestEv ? `${bestEv.ev >= 0 ? '+' : ''}${bestEv.ev.toFixed(1)}% EV` : 'EV —'}
+                </span>
+                {arb ? (
+                  <span className={styles.mobileArb} data-push={arb.possiblePush ? 'true' : 'false'}>
+                    {arb.possiblePush
+                      ? `ARB +${arb.decidedReturnPct.toFixed(1)}%*`
+                      : `ARB +${arb.minimumReturnPct.toFixed(1)}%`}
+                  </span>
+                ) : null}
               </span>
             </button>
 
@@ -943,6 +978,7 @@ function Inspector({
   onSelect: (group: PropGroup, side: Side) => void;
 }) {
   const ev = evFor(group, prediction);
+  const arb = marketArbitrage(group);
   const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
 
   return (
@@ -974,6 +1010,7 @@ function Inspector({
           <div><span>Line</span><b>{group.line}</b></div>
           <div><span>Model</span><b>{projection !== null ? projection.toFixed(1) : '—'}</b></div>
           <div><span>Best EV</span><b data-positive={ev && ev.ev > 0 ? 'true' : 'false'}>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}%` : '—'}</b></div>
+          <div><span>Arb</span><b data-positive={arb ? 'true' : 'false'}>{arb ? `+${arb.decidedReturnPct.toFixed(2)}%` : '—'}</b></div>
         </div>
 
         <section className={styles.drawerSection}>
@@ -995,6 +1032,8 @@ function Inspector({
             ))}
           </div>
         </section>
+
+        {arb ? <ArbitragePanel candidate={arb} /> : null}
 
         <section className={styles.drawerSection}>
           <div className={styles.sectionHeading}>
@@ -1052,6 +1091,38 @@ function Inspector({
         </a>
       </aside>
     </div>
+  );
+}
+
+function ArbitragePanel({ candidate }: { candidate: MarketArbitrageCandidate }) {
+  const decided = candidate.decidedReturnPct.toFixed(2);
+  return (
+    <section className={styles.drawerSection}>
+      <div className={styles.sectionHeading}>
+        <span>Cross-book arbitrage candidate</span>
+        <small>{candidate.possiblePush ? 'integer line · push breaks even' : 'exact line · no integer push'}</small>
+      </div>
+      <div className={styles.arbPanel}>
+        <div>
+          <span>{candidate.possiblePush ? 'Decided return' : 'Minimum return'}</span>
+          <b>+{decided}%</b>
+          <small>{candidate.possiblePush ? '0% on an exact push' : 'if both quotes settle normally'}</small>
+        </div>
+        <div>
+          <span>Over</span>
+          <b>{candidate.over.bookName}</b>
+          <small>O {candidate.line} · {priceLabel(candidate.over.price)}</small>
+        </div>
+        <div>
+          <span>Under</span>
+          <b>{candidate.under.bookName}</b>
+          <small>U {candidate.line} · {priceLabel(candidate.under.price)}</small>
+        </div>
+      </div>
+      <p className={styles.arbNote}>
+        {candidate.note} This is read-only market math; Oblige does not place bets or assume the quotes will still be available.
+      </p>
+    </section>
   );
 }
 

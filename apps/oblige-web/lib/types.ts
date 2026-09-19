@@ -30,6 +30,17 @@ export type PropRow = {
   gameStartTime?: string;
   eventId?: string;
   live?: boolean;
+  period?: string;
+  entityType?: string;
+  payoutType?: string;
+  isAlternate?: boolean;
+  stale?: boolean;
+  suspended?: boolean;
+  started?: boolean;
+  completed?: boolean;
+  requiresParlay?: boolean;
+  lastSeenAt?: string;
+  ingestedAt?: string;
   providerUpdatedAt?: string;
   updatedAt?: string;
 };

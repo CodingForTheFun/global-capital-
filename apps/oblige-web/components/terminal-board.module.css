@@ -450,8 +450,38 @@
 .marketCell {
   overflow: hidden;
   color: #95a3b7;
+}
+
+.marketText {
+  display: block;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.arbBadge {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  margin-top: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(97, 232, 173, .26);
+  border-radius: 999px;
+  background: rgba(97, 232, 173, .075);
+  color: #69ebb2;
+  padding: 2px 5px;
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arbBadge[data-push="true"] {
+  border-color: rgba(240, 196, 95, .25);
+  background: rgba(240, 196, 95, .07);
+  color: #e6c574;
 }
 
 .numCell,
@@ -721,7 +751,7 @@
 
 .inspectorLine {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1px;
   margin: 0 16px 8px;
   overflow: hidden;
@@ -766,6 +796,57 @@
 .drawerSection {
   padding: 13px 16px;
   border-top: 1px solid rgba(255, 255, 255, .065);
+}
+
+.arbPanel {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.arbPanel > div {
+  min-width: 0;
+  border: 1px solid rgba(97, 232, 173, .14);
+  border-radius: 9px;
+  background: rgba(97, 232, 173, .035);
+  padding: 9px;
+}
+
+.arbPanel span,
+.arbPanel b,
+.arbPanel small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arbPanel span {
+  color: #607088;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.arbPanel b {
+  margin-top: 4px;
+  color: #66eab0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.arbPanel small {
+  margin-top: 3px;
+  color: #59687d;
+  font-size: 7px;
+}
+
+.arbNote {
+  margin: 8px 0 0;
+  color: #5e6e84;
+  font-size: 8px;
+  line-height: 1.55;
 }
 
 .sectionHeading {
@@ -1316,12 +1397,36 @@
     font-size: 8px;
   }
 
+  .mobileSignals {
+    display: grid;
+    justify-items: end;
+    gap: 3px;
+  }
+
   .mobileEv {
     color: #61e8ad;
     font-family: var(--font-mono);
     font-size: 9px;
     font-weight: 800;
     white-space: nowrap;
+  }
+
+  .mobileArb {
+    border: 1px solid rgba(97, 232, 173, .22);
+    border-radius: 999px;
+    background: rgba(97, 232, 173, .07);
+    color: #69ebb2;
+    padding: 2px 5px;
+    font-family: var(--font-mono);
+    font-size: 6.5px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .mobileArb[data-push="true"] {
+    border-color: rgba(240, 196, 95, .24);
+    background: rgba(240, 196, 95, .06);
+    color: #e0bf70;
   }
 
   .mobileMeta {
@@ -1428,6 +1533,10 @@
 
   .inspectorLine {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .arbPanel {
+    grid-template-columns: 1fr;
   }
 
   .bookMatrixHead,

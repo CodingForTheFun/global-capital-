@@ -16,11 +16,11 @@ function bookInitials(name: string) {
 }
 
 /**
- * Show the books that actually carry this exact prop/line. Registry-only books
- * with no applicable quote stay out of the player research card.
+ * Show every supported book for this exact prop/line. A missing quote stays
+ * visible as "No line"; it is never converted into a fallback or fake price.
  */
 export function BookPrices({ group }: { group: PropGroup }) {
-  const rows = React.useMemo(() => catalogBookRows(group.quotes).filter((row) => row.available), [group.quotes]);
+  const rows = React.useMemo(() => catalogBookRows(group.quotes), [group.quotes]);
   const bestOver = Math.max(...rows.map((row) => Number(row.over?.price ?? -1e6)));
   const bestUnder = Math.max(...rows.map((row) => Number(row.under?.price ?? -1e6)));
   const updated = shortTime(group.quotes[0]?.providerUpdatedAt || group.quotes[0]?.updatedAt);
@@ -38,7 +38,7 @@ export function BookPrices({ group }: { group: PropGroup }) {
 
       {!rows.length ? (
         <p className="py-8 text-center text-[length:var(--fs-sm)] text-[var(--text-3)]">
-          No books are currently posting this exact prop and line.
+          No supported books are configured.
         </p>
       ) : (
         <>
@@ -58,7 +58,7 @@ export function BookPrices({ group }: { group: PropGroup }) {
                   'transition-colors duration-200 ease-[var(--ease-out)]',
                   row.available
                     ? 'hover:border-[var(--line-strong)] hover:bg-[var(--surface-3)]'
-                    : '',
+                    : 'opacity-70',
                 )}
               >
                 <span className="flex min-w-0 items-center gap-3 text-[length:var(--fs-sm)] font-semibold">
@@ -71,7 +71,9 @@ export function BookPrices({ group }: { group: PropGroup }) {
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate">{row.name}</span>
-
+                    {!row.available && (
+                      <span className="block text-[10px] font-medium text-[var(--text-3)]">No line</span>
+                    )}
                   </span>
                 </span>
                 <Price quote={row.over} best={Number(row.over?.price) === bestOver} />
@@ -84,7 +86,7 @@ export function BookPrices({ group }: { group: PropGroup }) {
 
       <p className="mt-4 text-[length:var(--fs-xs)] leading-relaxed text-[var(--text-3)]">
         {updated ? `Last quote ${updated}. ` : ''}
-        Only books currently posting this exact prop and line are shown.
+        Every supported book stays visible. “No line” means that book is not currently posting this exact prop and line.
       </p>
     </CardPanel>
   );

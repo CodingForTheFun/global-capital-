@@ -71,7 +71,9 @@ export function PropExplorer({ group, games, loading, unavailableReason, state, 
   const summary = React.useMemo(() => computeWindow(chartGames, state.line, state.side, 'chart', 'Shown'), [chartGames, state.line, state.side]);
   const opponents = React.useMemo(() => distinct(played.map(game => game.opponent)).sort(), [played]);
   const seasons = React.useMemo(() => distinct(played.map(game => game.season == null ? null : String(game.season))).sort().reverse(), [played]);
-  const books = React.useMemo(() => catalogBookRows(group.quotes), [group.quotes]);
+  // The selector is a compact list of books that actually carry this exact prop/line.
+  // Do not pad the dropdown with registry books that have no applicable quote.
+  const books = React.useMemo(() => catalogBookRows(group.quotes).filter(book => book.available), [group.quotes]);
   const activeBook = books.find(book => book.key === state.book);
   const over = activeBook ? activeBook.over : group.bestOver;
   const under = activeBook ? activeBook.under : group.bestUnder;
@@ -86,7 +88,7 @@ export function PropExplorer({ group, games, loading, unavailableReason, state, 
       <AppliedFilter key={`${group.key}-opponent`} label="Opponent" value={filters.opponent} options={options(opponents)} onApply={opponent => setFilters(previous => ({ ...previous, opponent }))} />
       <AppliedFilter key={`${group.key}-season`} label="Season" value={filters.season} options={options(seasons)} onApply={season => setFilters(previous => ({ ...previous, season }))} />
       <AppliedFilter key={`${group.key}-venue`} label="Home / Away" value={filters.venue} options={[{ value: 'all', label: 'All' }, { value: 'home', label: 'Home' }, { value: 'away', label: 'Away' }]} onApply={venue => setFilters(previous => ({ ...previous, venue: venue as SampleFilters['venue'] }))} />
-      <AppliedFilter key={`${group.key}-book`} label="Book" value={state.book || 'all'} options={[{ value: 'all', label: 'Best prices · all books' }, ...books.map(book => ({ value: book.key, label: book.available ? `${book.name} · Line ${group.line}` : `${book.name} · No line` }))]} onApply={book => onState({ ...state, book: book === 'all' ? null : book })} />
+      <AppliedFilter key={`${group.key}-book`} label="Book" value={state.book || 'all'} options={[{ value: 'all', label: 'Best prices · all books' }, ...books.map(book => ({ value: book.key, label: `${book.name} · Line ${group.line}` }))]} onApply={book => onState({ ...state, book: book === 'all' ? null : book })} />
     </div>
     <div className="op-sample-caption"><span className="op-sample-count">{filtered.length} of {played.length} verified games</span>{filtersActive(filters) && <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}><RotateCcw size={12} /> Clear all history filters</button>}</div>
     <div className="op-line-controls">

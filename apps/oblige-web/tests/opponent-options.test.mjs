@@ -76,3 +76,28 @@ test('generic label matching handles the cross-sport abbreviations used by the d
   assert.equal(sameTeamLabel('BUFF', 'Buffalo'), true);
   assert.equal(sameTeamLabel('DAL', 'Philadelphia'), false);
 });
+
+
+test('every currently served sport can mark the verified current opponent without a sport allowlist', () => {
+  const servedSports = [
+    'NFL','NCAAF','NBA','NCAAB','WNBA','MLB','NHL','TENNIS','MLS','EPL','UCL',
+    'PGA','MMA','BOXING','CRICKET','DARTS','ESPORTS','CFL','AFL','F1','TABLETENNIS',
+    'VOLLEYBALL','BADMINTON','SNOOKER','CYCLING','RUGBYLEAGUE','RUGBYUNION',
+    'NCAABASEBALL','NBASUMMER','FIFA','SOCCER','RL','KBO','NPB','UFC','TT',
+    'NASCAR','BANANA BALL','MOTORCYCLE','BEACHVB','LA LIGA',
+    'NFL1H','NFL1Q','WNBA1H','WNBA1Q','CFB1H','MLBLIVE','NBASZN','NHLSZN',
+  ];
+  for (const sport of servedSports) {
+    const options = buildOpponentOptions(['OLD', 'OPP'], {
+      team: `${sport} HOME`,
+      opponent: 'OPP',
+      homeTeam: `${sport} HOME`,
+      awayTeam: 'OPP',
+    });
+    assert.deepEqual(
+      options.find(option => option.value === 'OPP'),
+      { value: 'OPP', label: 'OPP ★' },
+      `${sport} must mark the verified current opponent`,
+    );
+  }
+});

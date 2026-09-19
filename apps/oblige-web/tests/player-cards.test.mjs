@@ -169,3 +169,50 @@ test('same player name and exact kickoff collapse provider-local event IDs when 
  const rows = [partialEventGroup('one', { providerPlayerId: null }), partialEventGroup('two', { providerPlayerId: null, quotes: [{ eventId: 'other-event' }] })];
  assert.equal(groupPlayerCards(rows).length, 1);
 });
+
+
+test('provider shorthand and full matchup labels still produce one player card at the same slate time', () => {
+  const full = eventGroup('wnba-full', {
+    sport: 'WNBA',
+    player: 'Paige Bueckers',
+    providerPlayerId: 'wnba:1642799',
+    team: 'Dallas Wings',
+    opponent: 'Phoenix Mercury',
+    homeTeam: 'Dallas Wings',
+    awayTeam: 'Phoenix Mercury',
+    matchup: 'Phoenix Mercury @ Dallas Wings',
+    startsAt: '2050-09-19T17:00:00Z',
+  });
+  const shorthand = eventGroup('wnba-short', {
+    sport: 'WNBA',
+    player: 'Paige Bueckers',
+    providerPlayerId: null,
+    team: null,
+    opponent: null,
+    homeTeam: 'DAL',
+    awayTeam: 'PHX',
+    matchup: 'DAL/PHX',
+    market: 'Assists',
+    marketId: 'assists',
+    line: 5.5,
+    startsAt: '2050-09-19T17:05:00Z',
+    quotes: [{ eventId: 'dfs-local-game', sportsbook: 'PrizePicks', sportsbookKey: 'prizepicks', side: 'OVER', line: 5.5 }],
+  });
+  const rows = collapsePlayerCards([full, shorthand], [full, shorthand]);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].categoryCount, 2);
+  assert.deepEqual(rows[0].bookNames.sort(), ['Bovada', 'PrizePicks'].sort());
+});
+
+test('nearby kickoff reconciliation never merges conflicting full opponents', () => {
+  const first = eventGroup('first-full', { startsAt: '2050-09-19T17:00:00Z' });
+  const second = eventGroup('second-full', {
+    startsAt: '2050-09-19T17:05:00Z',
+    opponent: 'Buffalo Bills',
+    homeTeam: 'Buffalo Bills',
+    awayTeam: 'Indianapolis Colts',
+    matchup: 'Indianapolis Colts @ Buffalo Bills',
+    quotes: [{ eventId: 'other-full-game', sportsbook: 'Book B', sportsbookKey: 'book_b', side: 'OVER', line: 34.5, price: -110 }],
+  });
+  assert.equal(groupPlayerCards([first, second]).length, 2);
+});

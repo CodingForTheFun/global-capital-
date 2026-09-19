@@ -1,6 +1,6 @@
 'use client';
 import * as React from 'react';
-import { headshotSources, unavailablePhoto, type HeadshotIdentity } from '@/lib/player-headshots';
+import { headshotSources, type HeadshotIdentity } from '@/lib/player-headshots';
 
 type Props = HeadshotIdentity & { className?: string };
 
@@ -14,7 +14,7 @@ function HeadshotImage({ className, ...identity }: Props) {
   const sources = React.useMemo(() => headshotSources(identity), [identity.sport, identity.name, identity.team, identity.providerPlayerId]);
   const [index, setIndex] = React.useState(0);
   const src = sources[Math.min(index, sources.length - 1)];
-  const fallback = src === unavailablePhoto;
+  const fallback = index >= sources.length - 1;
   return (
     // Sources are already same-origin URLs: the public CDN candidate uses the
     // restricted optimizer; the verified artwork route keeps its own cookies.

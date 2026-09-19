@@ -173,7 +173,108 @@ export function groupPlayerCards(groups: PropGroup[]): PlayerCard[] {
     card.variants.push(group);
     cards.set(key, card);
   }
-  return [...cards.values()];
+  const rawCards = [...cards.values()];
+
+  // A few providers describe the same game differently (for example DAL/PHX
+  // versus Dallas Wings @ Phoenix Mercury) or round the scheduled timestamp by
+  // a few minutes. That metadata must not create a second card for the same
+  // athlete. Reconcile only within one sport + exact normalized player, within
+  // a very small kickoff window, and only when the matchup evidence is
+  // compatible. Conflicting full opponents and same-name athletes on opposite
+  // sides remain separate.
+  const KICKOFF_TOLERANCE_MS = 10 * 60 * 1000;
+  const cardStart = (card: PlayerCard) => {
+    const values = [...new Set(card.variants.map(startOf).filter(Number.isFinite))] as number[];
+    return values.length === 1 ? values[0] : NaN;
+  };
+  const cardSport = (card: PlayerCard) => clean(card.variants[0]?.sport);
+  const cardName = (card: PlayerCard) => name(card.variants[0]);
+  const codeLikeTeam = (label: string) => !label.includes(' ') && /^[a-z0-9.-]{1,5}$/.test(label);
+  const teamCompatible = (a: string, b: string) => (
+    a === b ||
+    codeLikeTeam(a) ||
+    codeLikeTeam(b) ||
+    (a.length >= 3 && b.startsWith(a)) ||
+    (b.length >= 3 && a.startsWith(b))
+  );
+  const pairParts = (group: PropGroup): [string, string] | null => {
+    const pair = teamPair(group);
+    if (!pair) return null;
+    try {
+      const parsed = JSON.parse(pair);
+      return Array.isArray(parsed) && parsed.length === 2 ? [String(parsed[0]), String(parsed[1])] : null;
+    } catch {
+      return null;
+    }
+  };
+  const pairCompatible = (a: [string, string], b: [string, string]) => (
+    (teamCompatible(a[0], b[0]) && teamCompatible(a[1], b[1])) ||
+    (teamCompatible(a[0], b[1]) && teamCompatible(a[1], b[0]))
+  );
+  const cardsByPlayer = new Map<string, PlayerCard[]>();
+  for (const card of rawCards) {
+    const key = JSON.stringify([cardSport(card), cardName(card)]);
+    const found = cardsByPlayer.get(key) || [];
+    found.push(card);
+    cardsByPlayer.set(key, found);
+  }
+
+  const reconciled: PlayerCard[] = [];
+  for (const playerCards of cardsByPlayer.values()) {
+    const dated = playerCards
+      .filter(card => Number.isFinite(cardStart(card)))
+      .map((card, order) => ({ card, at: cardStart(card), order }))
+      .sort((a, b) => a.at - b.at || a.order - b.order);
+    const undated = playerCards.filter(card => !Number.isFinite(cardStart(card)));
+    let cluster: PlayerCard[] = [];
+    let anchor = NaN;
+
+    const flush = () => {
+      if (!cluster.length) return;
+      if (cluster.length === 1) {
+        reconciled.push(cluster[0]);
+        cluster = [];
+        return;
+      }
+      const explicitSides = new Set(
+        cluster.flatMap(card => card.variants.map(sideOf)).filter(Boolean),
+      );
+      const pairs = cluster
+        .flatMap(card => card.variants.map(pairParts))
+        .filter((pair): pair is [string, string] => Boolean(pair));
+      const matchupConflict = pairs.some((pair, index) =>
+        pairs.slice(index + 1).some(other => !pairCompatible(pair, other)),
+      );
+
+      if (explicitSides.size > 1 || matchupConflict) {
+        reconciled.push(...cluster);
+      } else {
+        const variants = cluster.flatMap(card => card.variants);
+        const key = cluster.map(card => card.key).sort()[0];
+        reconciled.push({ key, variants });
+      }
+      cluster = [];
+    };
+
+    for (const item of dated) {
+      if (!cluster.length) {
+        cluster = [item.card];
+        anchor = item.at;
+        continue;
+      }
+      if (Math.abs(item.at - anchor) <= KICKOFF_TOLERANCE_MS) {
+        cluster.push(item.card);
+      } else {
+        flush();
+        cluster = [item.card];
+        anchor = item.at;
+      }
+    }
+    flush();
+    reconciled.push(...undated);
+  }
+
+  return reconciled;
 }
 
 export function bookKey(row: PropRow): string { return clean(row.sportsbookKey || row.sportsbook); }

@@ -17,7 +17,7 @@ export class PasswordResetError extends Error {
 export function validateResetInput({ email, code, password, confirmPassword }, completing = false) {
   if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return 'Enter a valid email address.';
   if (!completing) return null;
-  if (!/^\d{6}$/.test(String(code ?? '').trim())) return 'Enter the six-digit code from your reset email.';
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code.trim())) return 'Enter the six-digit code from your reset email.';
   if (typeof password !== 'string' || password.length < PASSWORD_MIN_LENGTH) return 'Use at least 10 characters for your new password.';
   if (password.length > PASSWORD_MAX_LENGTH) return 'Use no more than 200 characters for your new password.';
   if (password !== confirmPassword) return 'Your new passwords do not match.';
@@ -49,13 +49,16 @@ async function postReset(action, payload, { fetchImpl = globalThis.fetch, signal
       signal: controller.signal,
     });
     const body = await response.json().catch(() => null);
+    if (controller.signal.aborted) throw new Error('Request aborted');
     if (!response.ok || body?.ok !== true) {
       const code = response.status === 429 ? 'RATE_LIMITED' : body?.code || 'REQUEST_FAILED';
-      throw new PasswordResetError(ERROR_MESSAGES[code] || 'Password recovery could not be completed. Please try again shortly.', code, response.status);
+      const message = Object.hasOwn(ERROR_MESSAGES, code) ? ERROR_MESSAGES[code] : 'Password recovery could not be completed. Please try again shortly.';
+      throw new PasswordResetError(message, code, response.status);
     }
     // An HTML fallback, empty 200, or unrelated success must never claim a reset.
-    if (action === 'forgot' && body.code !== 'AUTH_RESET_SENT') {
-      throw new PasswordResetError('The reset request could not be confirmed. Please try again.', 'INVALID_RESPONSE');
+    const expectedCode = action === 'forgot' ? 'AUTH_RESET_SENT' : 'AUTH_PASSWORD_RESET';
+    if (body.code !== expectedCode) {
+      throw new PasswordResetError('The request could not be confirmed. Check your email or try signing in before retrying.', 'INVALID_RESPONSE');
     }
     return body;
   } catch (error) {
@@ -84,10 +87,9 @@ export async function requestPasswordReset(email, options) {
 export async function completePasswordReset(input, options) {
   const invalid = validateResetInput(input, true);
   if (invalid) throw new PasswordResetError(invalid, 'VALIDATION');
-  const result = await postReset('reset', {
+  return postReset('reset', {
     email: input.email.trim(),
     code: input.code.trim(),
     password: input.password,
   }, options);
-  return result;
 }

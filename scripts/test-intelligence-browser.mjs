@@ -7,6 +7,7 @@ import { chromium } from 'playwright';
 import { researchClient } from '../lib/ui/research-home.mjs';
 import { landingPage } from '../lib/auth/landing.mjs';
 import { analyzeResearch } from '../lib/analytics/research.mjs';
+import { BOOKS } from '../lib/constants/books.mjs';
 const now=Date.now();let revision=0,historyRequests=0,paidRequests=0,boardRequests=0,researchRequests=0,historyFailurePending=false,matchupRequests=0,matchupFailurePending=true;
 const savedProps=new Map();
 const quoteTime=()=>new Date(now-60000+revision*1000).toISOString();
@@ -78,7 +79,7 @@ try{
   await page.screenshot({path:path.join(out,`${name}-board.png`),fullPage:true});
   await page.locator('#asBoardFilterMenu>summary').click();
   await page.locator('#asBooksOpen').click();
-  assert.equal(await page.locator('[data-book-only]').count(),28,'25 registered platforms plus three fixture books');
+  assert.equal(await page.locator('[data-book-only]').count(),BOOKS.length+3,'registered platforms plus three fixture books');
   await page.locator('[data-book-only="book b"]').click();
   await page.locator('#asBooksDone').click();
   assert.equal(await page.locator('.asCard .asOddsChip').count(),1,'only selected book is shown');

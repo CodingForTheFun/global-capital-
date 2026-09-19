@@ -48,7 +48,9 @@ try{
   await writeFile(`${out}/${name}-dimensions.json`,JSON.stringify(dimensions,null,2));
   if(dimensions.scrollWidth>dimensions.viewport+1)console.log('OVERFLOW_DIAGNOSTIC',JSON.stringify(dimensions));
   assert.ok(dimensions.scrollWidth<=dimensions.viewport+1,'restored board fits viewport');
-  if(name.startsWith('mobile'))await page.getByRole('button',{name:'Inspect',exact:true}).click();else await unit.first().click();
+  // A row's midpoint can hit an independent Over/Under button. The player
+  // identity cell is the actual research-opening interaction being tested.
+  if(name.startsWith('mobile'))await page.getByRole('button',{name:'Inspect',exact:true}).click();else await unit.first().locator('td').first().click();
   await page.getByLabel('Player inspector',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Player inspector',{exact:true}).locator('img[data-player-photo]').count(),1,'same photo component inside existing inspector');
   await page.getByRole('button',{name:'Close inspector',exact:true}).click();

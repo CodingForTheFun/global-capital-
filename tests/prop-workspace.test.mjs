@@ -47,3 +47,25 @@ test('unknown sport fails closed, error does not disclose upstream credentials',
  const failed=createWorkspaceHandler({authenticate:async()=>({id:'u'}),read:async()=>{throw new Error('secret fake-test-key');}});
  let body;await failed({url:'/api/oblige-workspace',method:'GET'},{writeHead(){},end(b){body=b;}});assert.equal(body.includes('fake-test-key'),false);
 });
+
+test('model action falls back to exact PropLine market projection and no-vig EV without publishing an unvalidated model',async()=>{
+ const reads=[];
+ const read=async(path,params)=>{
+  reads.push([path,params]);
+  if(path==='/v1/sports')return[{key:'football_nfl',title:'NFL'}];
+  if(path==='/v1/sports/football_nfl/events')return[{id:'e1',sport_key:'football_nfl',commence_time:'2026-09-20T18:00:00Z',home_team:'A',away_team:'B'}];
+  if(path==='/v1/sports/football_nfl/events/e1/markets')return[{key:'player_rush_yds'}];
+  if(path==='/v1/sports/football_nfl/events/e1/odds')return payload('draftkings','player_rush_yds',[quote('Test Player',50.5)]);
+  if(path==='/v1/sports/football_nfl/events/e1/projections')return{projections:[{player_id:'nfl:1',player_name:'Test Player',market:'player_rush_yds',projection:53.2}]};
+  if(path==='/v1/sports/football_nfl/events/e1/ev')return{plays:[{player_id:'nfl:1',player_name:'Test Player',market:'player_rush_yds',point:50.5,bookmaker:'draftkings',ev_percent:4.7,fair_probability:.55,fair_price:-122}]};
+  throw new Error('unexpected '+path);
+ };
+ const handler=createWorkspaceHandler({authenticate:async()=>({id:'u'}),read,predict:async()=>({available:false,code:'MODEL_NOT_READY'})});
+ let body,status;
+ await handler({url:'/api/oblige-workspace?action=model&sport=football_nfl&event=e1&player='+encodeURIComponent(JSON.stringify(['football_nfl','e1',['id','nfl:1']]))+'&market='+encodeURIComponent(JSON.stringify(['player_rush_yds',null,'standard']))+'&offer='+encodeURIComponent(JSON.stringify(['draftkings',50.5,'Over'])),method:'GET'},{writeHead(s){status=s;},end(b){body=JSON.parse(b);}});
+ assert.equal(status,200);assert.equal(body.prediction.available,false);
+ assert.equal(body.marketReference.projection,53.2);assert.equal(body.marketReference.evPercent,4.7);
+ assert.equal(body.marketReference.basis,'PropLine market-implied / no-vig');
+ assert.ok(reads.some(([path])=>path.endsWith('/projections')));
+ assert.ok(reads.some(([path])=>path.endsWith('/ev')));
+});

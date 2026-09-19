@@ -1,25 +1,27 @@
 name: Player card repair
 on:
   push:
-    branches: [chatgpt/player-card-dedupe-photos-20260919]
+    branches: ['chatgpt/player-card-dedupe-photos-20260919', 'claude/website-review-audit-t5ei2j']
+    paths: ['apps/oblige-web/**', 'scripts/verify-restored-terminal.mjs', 'scripts/verify-player-cards-live.mjs', '.github/workflows/player-card-repair.yml']
+  pull_request:
+    branches: ['claude/website-review-audit-t5ei2j']
+    paths: ['apps/oblige-web/**', 'scripts/verify-restored-terminal.mjs', 'scripts/verify-player-cards-live.mjs', '.github/workflows/player-card-repair.yml']
 permissions:
-  contents: write
+  contents: read
 concurrency:
-  group: player-card-preparation
+  group: player-card-repair-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 jobs:
-  prepare-and-verify:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: chatgpt/player-card-dedupe-photos-20260919
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Apply exact source-checked component repair
-        run: python3 scripts/prepare-card-repair.py
       - run: npm ci
       - run: npm ci
         working-directory: apps/oblige-web
@@ -27,7 +29,7 @@ jobs:
         working-directory: apps/oblige-web
         run: node --test tests/player-cards.test.mjs tests/player-headshots.test.mjs tests/workspace.test.mjs && npm run typecheck && npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Browser regressions
+      - name: Mobile and desktop regression tests
         run: |
           npm --prefix apps/oblige-web run start -- --port 3100 > /tmp/card-next.log 2>&1 &
           SERVER_PID=$!
@@ -39,13 +41,6 @@ jobs:
           curl --fail --silent http://127.0.0.1:3100/ >/dev/null
           node scripts/verify-restored-terminal.mjs
           node scripts/verify-canonical-workspace.mjs
-      - name: Commit verified component changes only to isolated branch
-        run: |
-          test "$(git branch --show-current)" = chatgpt/player-card-dedupe-photos-20260919
-          git diff --exit-code -- apps/oblige-web/components/terminal-board.module.css
-          git add apps/oblige-web/components/terminal-board.tsx apps/oblige-web/components/player-view.tsx apps/oblige-web/components/face-card.tsx apps/oblige-web/components/prop-workspace.tsx
-          git -c user.name='ObligeProps verified repair' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Fix duplicate player cards and keep all stat and book choices inside research'
-          git push origin HEAD:refs/heads/chatgpt/player-card-dedupe-photos-20260919
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -53,4 +48,28 @@ jobs:
           path: |
             artifacts/restored-terminal
             artifacts/canonical-workspace
+          retention-days: 7
+  public-after-deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/claude/website-review-audit-t5ei2j'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Real public photos, deployed card code and verified-account visual checks
+        env:
+          REFERENCE_VISUAL_EMAIL: ${{ secrets.REFERENCE_VISUAL_EMAIL }}
+          REFERENCE_VISUAL_PASSWORD: ${{ secrets.REFERENCE_VISUAL_PASSWORD }}
+        run: node scripts/verify-player-cards-live.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: player-card-live-proof
+          path: artifacts/player-card-live
           retention-days: 7

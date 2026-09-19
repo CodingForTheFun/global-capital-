@@ -4,7 +4,7 @@ on:
     branches: ['chatgpt/canonical-workspace-web-20260918']
   pull_request:
     branches: ['claude/website-review-audit-t5ei2j']
-    paths: ['apps/oblige-web/**', 'scripts/verify-canonical-workspace.mjs', '.github/workflows/canonical-workspace-web.yml']
+    paths: ['apps/oblige-web/**', 'scripts/verify-canonical-workspace.mjs', 'scripts/verify-direct-filters.mjs', '.github/workflows/canonical-workspace-web.yml']
 permissions:
   contents: read
 jobs:
@@ -19,7 +19,7 @@ jobs:
       - run: npm ci
       - run: npm ci
         working-directory: apps/oblige-web
-      - run: node --test tests/workspace.test.mjs && npm run typecheck && npm run build
+      - run: node --test tests/workspace.test.mjs tests/applied-filter.test.mjs && npm run typecheck && npm run build
         working-directory: apps/oblige-web
       - run: npx playwright install --with-deps chromium
       - name: Mobile and desktop interaction regression
@@ -33,6 +33,7 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:3100/ > /dev/null
           node scripts/verify-canonical-workspace.mjs
+          node scripts/verify-direct-filters.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

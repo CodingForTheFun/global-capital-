@@ -60,6 +60,7 @@ try{
   const historyBefore=researchCalls;
   assert.deepEqual(await page.getByLabel('Selected book',{exact:true}).locator('option').allTextContents(),['Best prices · all books','book-a'],'legacy hero selector keeps Best prices plus exact-line books only');
   await page.getByRole('button',{name:'Select book-b',exact:true}).click();
+  await page.waitForURL(value=>new URL(value).searchParams.get('book')==='book-b');
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='21.5');
   assert.equal(await page.getByLabel('Posted line or outcome').locator('option').count(),2);
   await page.getByLabel('Posted line or outcome').selectOption('22.5');

@@ -2,10 +2,10 @@ name: Restore previous terminal and photos
 on:
   push:
     branches: ['chatgpt/restore-previous-board-faces-20260918', 'claude/website-review-audit-t5ei2j']
-    paths: ['apps/oblige-web/**', 'scripts/verify-restored-terminal.mjs', 'scripts/verify-canonical-workspace.mjs', '.github/workflows/restore-terminal-photos.yml']
+    paths: ['apps/oblige-web/**', 'scripts/verify-restored-terminal.mjs', 'scripts/verify-canonical-workspace.mjs', 'scripts/verify-public-domain-routing.mjs', 'tests/public-domain-routing.test.mjs', '.github/workflows/restore-terminal-photos.yml']
   pull_request:
     branches: ['claude/website-review-audit-t5ei2j']
-    paths: ['apps/oblige-web/**', 'scripts/verify-restored-terminal.mjs', 'scripts/verify-canonical-workspace.mjs', '.github/workflows/restore-terminal-photos.yml']
+    paths: ['apps/oblige-web/**', 'scripts/verify-restored-terminal.mjs', 'scripts/verify-canonical-workspace.mjs', 'scripts/verify-public-domain-routing.mjs', 'tests/public-domain-routing.test.mjs', '.github/workflows/restore-terminal-photos.yml']
 permissions:
   contents: read
 concurrency:
@@ -20,6 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: node --test tests/public-domain-routing.test.mjs
       - run: npm ci
       - run: npm ci
         working-directory: apps/oblige-web
@@ -50,49 +51,18 @@ jobs:
   public-after-deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/claude/website-review-audit-t5ei2j'
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 8
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Read-only public board and real photo delivery proof
-        run: |
-          node --input-type=module <<'JS'
-          import assert from 'node:assert/strict';
-          import {mkdir,writeFile} from 'node:fs/promises';
-          const origin='https://obligeprops.com';
-          const report={expectedCommit:process.env.GITHUB_SHA,observedAt:new Date().toISOString(),board:null,images:[]};
-          await mkdir('artifacts/public-restored-terminal',{recursive:true});
-          try{
-            for(let attempt=0;attempt<12;attempt++){
-              try{
-                const response=await fetch(origin+'/board?verify=restored-terminal',{signal:AbortSignal.timeout(10000),redirect:'error',cache:'no-store'});
-                const html=await response.text();
-                report.board={status:response.status,restoredTitle:html.includes('<title>Research Terminal'),imageCsp:response.headers.get('content-security-policy')?.match(/img-src[^;]*/)?.[0]||null};
-                if(response.ok&&report.board.restoredTitle)break;
-              }catch(e){report.board={status:'UNVERIFIABLE',error:e.name};}
-              if(attempt<11)await new Promise(r=>setTimeout(r,12000));
-            }
-            assert.ok(report.board?.restoredTitle,'public /board must serve the restored route, not the rejected workspace');
-            // ESPN primary player identity: https://www.espn.com/nfl/player/_/id/3139477/patrick-mahomes
-            // This checks delivery only; it is not a prop fixture or model data.
-            const photos=[
-              ['same-origin-optimizer','/_next/image?'+new URLSearchParams({url:'https://a.espncdn.com/i/headshots/nfl/players/full/3139477.png',w:'128',q:'75'})],
-              ['verified-resolver','/api/apex/player-artwork?'+new URLSearchParams({sport:'NFL',name:'Patrick Mahomes'})],
-            ];
-            for(const [kind,path] of photos){
-              try{
-                const response=await fetch(origin+path,{signal:AbortSignal.timeout(20000),redirect:'error'});
-                const bytes=new Uint8Array(await response.arrayBuffer()),type=response.headers.get('content-type')||'';
-                report.images.push({kind,status:response.status,contentType:type,bytes:bytes.length,raster:response.ok&&/^image\/(png|jpeg|webp)/.test(type)&&bytes.length>100});
-              }catch(e){report.images.push({kind,status:'UNVERIFIABLE',error:e.name,raster:false});}
-            }
-            assert.ok(report.images.find(x=>x.kind==='same-origin-optimizer')?.raster,'real same-origin headshot delivery');
-          }finally{
-            await writeFile('artifacts/public-restored-terminal/report.json',JSON.stringify(report,null,2));
-            console.log(JSON.stringify(report));
-          }
-          JS
+        env:
+          DOMAIN_PROOF_BOARD_ATTEMPTS: '12'
+        run: node scripts/verify-public-domain-routing.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

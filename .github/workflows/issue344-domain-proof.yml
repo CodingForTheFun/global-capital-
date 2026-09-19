@@ -1,0 +1,103 @@
+name: Issue 344 domain routing proof
+on:
+  push:
+    branches: ['chatgpt/issue344-domain-proof']
+    paths: ['.github/workflows/issue344-domain-proof.yml']
+permissions: {}
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Read-only DNS TLS and host routing matrix
+        run: |
+          python3 <<'PY'
+          import concurrent.futures, datetime, hashlib, json, os, re, subprocess, tempfile
+          from urllib.parse import urlsplit, urljoin
+          from pathlib import Path
+          hosts = ['obligeprops.com', 'www.obligeprops.com']
+          railway = ['autoprop-live-production.up.railway.app', 'autoprop-live-production-5a2d.up.railway.app']
+          probe = 'issue344-' + os.environ['GITHUB_RUN_ID']
+          report = {'observedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'probe': probe, 'dns': [], 'http': [], 'forced': [], 'tls': []}
+          def command(args, timeout=15):
+              try:
+                  p = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+                  return {'code': p.returncode, 'out': p.stdout.strip(), 'error': p.stderr.strip()[:300]}
+              except subprocess.TimeoutExpired:
+                  return {'code': -1, 'out': '', 'error': 'TIMEOUT'}
+          def dns_task(item):
+              host, kind, resolver = item
+              args = ['dig', '+time=2', '+tries=1', '+noall', '+answer', '+authority']
+              if resolver: args.append('@' + resolver)
+              result = command(args + [host, kind], 5)
+              return {'host': host, 'type': kind, 'resolver': resolver or 'runner-default', **result}
+          tasks = [(h,t,r) for h in hosts for t in ['A','AAAA','CNAME','NS'] for r in ['', '1.1.1.1','8.8.8.8']]
+          tasks += [(h,'A','') for h in railway]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
+              report['dns'] = list(pool.map(dns_task, tasks))
+          ns = command(['dig','+time=2','+tries=1','+short','obligeprops.com','NS'], 5)['out'].splitlines()
+          for server in ns[:4]:
+              if re.fullmatch(r'[A-Za-z0-9.-]+\.',server):
+                  for h in hosts:
+                      for t in ['A','AAAA','CNAME']:
+                          report['dns'].append(dns_task((h,t,server)))
+          allowed_headers = {'server','location','content-type','cache-control','age','via','x-cache','x-vercel-id','x-vercel-error','x-railway-request-id','x-railway-edge','x-railway-fallback','cf-ray','cf-cache-status','strict-transport-security','service-worker-allowed','content-security-policy','x-oblige-web'}
+          def http_task(item):
+              host, path, method, address = item
+              url = 'https://' + host + path
+              url += ('&' if '?' in path else '?') + 'domain_probe=' + probe
+              with tempfile.TemporaryDirectory() as tmp:
+                  args = ['curl','--silent','--show-error','--globoff','--path-as-is','--connect-timeout','5','--max-time','12','--max-filesize','2097152','-A','ObligeProps-Issue344-ReadOnly/'+probe,'-H','Cache-Control: no-cache','-D',tmp+'/headers','-o',tmp+'/body','-w','%{http_code}\t%{remote_ip}\t%{ssl_verify_result}']
+                  if method == 'HEAD': args.append('--head')
+                  if address: args += ['--resolve', host+':443:'+address]
+                  result = command(args+[url],15)
+                  text = Path(tmp+'/headers').read_text(errors='replace') if Path(tmp+'/headers').exists() else ''
+                  headers = {}
+                  cookie_attributes = []
+                  for line in text.splitlines():
+                      if ':' not in line: continue
+                      key,value = line.split(':',1)
+                      key,value = key.strip().lower(),value.strip()
+                      if key in allowed_headers: headers[key] = value
+                      if key == 'set-cookie': cookie_attributes.append(';'.join(value.split(';')[1:]).strip())
+                  body = Path(tmp+'/body').read_bytes() if Path(tmp+'/body').exists() else b''
+                  title = re.search(rb'<title[^>]*>([^<]*)</title>',body,re.I)
+                  row = {'host':host,'path':path,'method':method,'forcedAddress':address,'curl':result,'headers':headers,'cookieAttributesOnly':cookie_attributes,'bytes':len(body),'sha256':hashlib.sha256(body).hexdigest(),'title':title.group(1).decode(errors='replace') if title else None,'railwayNotFound':b'Application not found' in body,'restoredTitle':b'<title>Research Terminal' in body}
+                  if method == 'GET' and path.split('?')[0] in ['/site.webmanifest','/manifest.webmanifest','/manifest.json']:
+                      try:
+                          manifest=json.loads(body)
+                          row['manifest']={k:manifest.get(k) for k in ['name','id','start_url','scope','display']}
+                      except (ValueError,AttributeError): row['manifest']=None
+                  if path == '/api/account/me':
+                      try:
+                          payload=json.loads(body)
+                          row['signedOutShape']={'keys':list(payload)[:20], 'authenticated':payload.get('authenticated'), 'accountPresent':bool(payload.get('account')), 'userPresent':bool(payload.get('user'))}
+                      except (ValueError,AttributeError): pass
+                  return row
+          paths=['/','/board','/board?filter=a%2Fb&tag=one&tag=two&empty=','/research','/account','/login','/site.webmanifest','/manifest.webmanifest','/manifest.json','/sw.js','/service-worker.js','/api/account/me','/api/apex/props','/api/apex/diagnostics','/api/health']
+          tasks=[(h,p,'GET',None) for h in hosts for p in paths]
+          tasks += [(h,'/board','HEAD',None) for h in hosts]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+              report['http']=list(pool.map(http_task,tasks))
+          addresses=set()
+          for row in report['dns']:
+              if row['host'] in [hosts[1],*railway] and row['type']=='A':
+                  addresses.update(re.findall(r'\sA\s+(\d+\.\d+\.\d+\.\d+)',row['out']))
+          tasks=[(h,'/board','GET',ip) for h in hosts for ip in sorted(addresses)[:4]]
+          tasks += [(h,'/board','GET',None) for h in railway]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+              report['forced']=list(pool.map(http_task,tasks))
+          for h in hosts:
+              result=command(['bash','-c','set -o pipefail; timeout 10 openssl s_client -connect "$1:443" -servername "$1" -verify_return_error </dev/null 2>/dev/null | openssl x509 -noout -issuer -subject -dates -ext subjectAltName','bash',h],12)
+              report['tls'].append({'host':h,**result})
+          Path('artifacts/domain-proof').mkdir(parents=True,exist_ok=True)
+          Path('artifacts/domain-proof/report.json').write_text(json.dumps(report,indent=2))
+          print(json.dumps(report,indent=2))
+          print('DIAGNOSTIC ONLY: job success means collection finished, not that domain acceptance passed.')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue344-domain-routing-proof
+          path: artifacts/domain-proof
+          retention-days: 14

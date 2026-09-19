@@ -344,7 +344,7 @@ export function PremiumBoard() {
                 const bestQuote = group.bestOver || group.bestUnder || group.quotes[0];
                 const bookNames = [...new Set(group.quotes.map((q) => quoteBook(q)).filter((v) => v !== 'Book unavailable'))].slice(0, 4);
                 return (
-                  <tr key={group.key} onClick={() => router.push(playerResearchHref(group, undefined, book === ALL ? null : book))}>
+                  <tr key={group.key} data-player-card={group.key} onClick={() => router.push(playerResearchHref(group, undefined, book === ALL ? null : book))}>
                     <td>
                       <div className={styles.player}>
                         <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />

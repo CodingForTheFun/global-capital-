@@ -6,6 +6,7 @@ import {applyFilters,buildWindows,computeWindow,distinct,EMPTY_FILTERS,filtersAc
 import {odds,shortDate} from '@/lib/utils';
 import {Skeleton} from '@/components/ui/skeleton';
 import {AppliedFilter} from '@/components/applied-filter';
+import {buildOpponentOptions} from '@/lib/opponent-options';
 export type ExplorerState={line:number;side:'OVER'|'UNDER';book:string|null};
 type ChartSample=SampleId|'l20';
 const numberOrNull=(value:unknown):number|null=>{if(value==null||typeof value==='boolean'||String(value).trim()==='')return null;const n=Number(value);return Number.isFinite(n)?n:null;};
@@ -37,7 +38,7 @@ export function PropExplorer({group,games,loading,unavailableReason,state,onStat
  const h2h=React.useMemo(()=>headToHead(filtered,group.opponent,state.line,state.side),[filtered,group.opponent,state.line,state.side]);
  const chartGames=React.useMemo(()=>sample==='l20'?filtered.slice(0,20):sampleFor(filtered,sample,group.opponent),[filtered,sample,group.opponent]);
  const summary=React.useMemo(()=>computeWindow(chartGames,state.line,state.side,'chart','Shown'),[chartGames,state.line,state.side]);
- const opponents=React.useMemo(()=>distinct(played.map(g=>g.opponent)).sort(),[played]);
+ const opponentOptions=React.useMemo(()=>buildOpponentOptions(distinct(played.map(g=>g.opponent)),group),[played,group.opponent,group.team,group.homeTeam,group.awayTeam]);
  const seasons=React.useMemo(()=>distinct(played.map(g=>g.season==null?null:String(g.season))).sort().reverse(),[played]);
  const books=React.useMemo(()=>{
   const map=new Map<string,{key:string;name:string;over:PropRow|null;under:PropRow|null}>();
@@ -52,7 +53,7 @@ export function PropExplorer({group,games,loading,unavailableReason,state,onStat
  return <div className="research-reference" data-release="canonical-workspace-v1">
   <div className="op-research-title"><div><span>PLAYER RESEARCH</span><h3>{group.market}</h3></div><button type="button" className="op-follow" aria-label={favourite?`Unfollow ${group.player}`:`Follow ${group.player}`} aria-pressed={favourite} onClick={onFavourite} title="Follow on this device"><Star size={19} fill={favourite?'currentColor':'none'}/></button></div>
   <div className="op-research-filters" style={hideBookFilter?{gridTemplateColumns:'repeat(3,minmax(0,1fr))'}:undefined}>
-   <AppliedFilter key={`${group.key}-opponent`} label="Opponent" value={filters.opponent} options={options(opponents)} onApply={opponent=>setFilters(old=>({...old,opponent}))}/>
+   <AppliedFilter key={`${group.key}-opponent`} label="Opponent" value={filters.opponent} options={opponentOptions} onApply={opponent=>setFilters(old=>({...old,opponent}))}/>
    <AppliedFilter key={`${group.key}-season`} label="Season" value={filters.season} options={options(seasons)} onApply={season=>setFilters(old=>({...old,season}))}/>
    <AppliedFilter key={`${group.key}-venue`} label="Home / Away" value={filters.venue} options={[{value:'all',label:'All'},{value:'home',label:'Home'},{value:'away',label:'Away'}]} onApply={venue=>setFilters(old=>({...old,venue:venue as SampleFilters['venue']}))}/>
    {!hideBookFilter&&<AppliedFilter key={`${group.key}-book`} label="Book" value={state.book||'all'} options={[{value:'all',label:'Best prices'},...books.map(b=>({value:b.key,label:b.name}))]} onApply={book=>onState({...state,book:book==='all'?null:book})}/>}

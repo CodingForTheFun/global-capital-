@@ -3,7 +3,8 @@ import * as React from 'react';
 import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
 import {ArrowLeft,ArrowUpRight,ChevronRight} from 'lucide-react';
-import {artworkUrl,fetchAccount} from '@/lib/api';
+import {fetchAccount} from '@/lib/api';
+import {PlayerHeadshot as VerifiedHeadshot} from '@/components/player-headshot';
 import {odds,shortTime} from '@/lib/utils';
 import {workspaceGet,WorkspaceError,booksFor,chooseOffer,toResearchGroup,expectedValue,type WorkspaceSport,type WorkspaceEvent,type WorkspacePlayer,type WorkspaceMarket,type WorkspaceOffer,type WorkspacePrediction,type WorkspaceHistory,type EventWorkspace} from '@/lib/workspace';
 import {SignInPanel} from '@/components/sign-in';
@@ -28,11 +29,7 @@ function cleanPlayer(player:WorkspacePlayer):WorkspacePlayer|null{
  return String(player.name||'').trim()&&markets.length?{...player,markets}:null;
 }
 function PlayerHeadshot({player}:{player:WorkspacePlayer}){
- const src=artworkUrl(player.sport,player.name,null,player.playerId);
- const [failed,setFailed]=React.useState(false);
- React.useEffect(()=>setFailed(false),[src]);
- const initials=player.name.split(/\s+/).filter(Boolean).slice(0,2).map(s=>s[0]).join('').toUpperCase();
- return <span className={styles.avatar} aria-hidden="true"><span>{initials||'OP'}</span>{!failed&&<img src={src} alt="" loading="lazy" onError={()=>setFailed(true)}/>}</span>;
+ return <span className={styles.avatar}><VerifiedHeadshot sport={player.sport} name={player.name} providerPlayerId={player.playerId}/></span>;
 }
 function researchHref(player:WorkspacePlayer,market?:WorkspaceMarket){return `/research?${new URLSearchParams({sportKey:player.sport,event:player.eventId,playerKey:player.key,...(market?{category:market.key}:{})})}`;}
 

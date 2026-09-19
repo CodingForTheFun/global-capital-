@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { collapsePlayerCards, groupPlayerCards, restrictBook, playerResearchHref, type PlayerCardGroup } from '@/lib/player-cards';
 import {
   Activity,
   BarChart3,
@@ -265,6 +267,7 @@ function selectionId(groupKey: string, side: Side) {
 }
 
 export function TerminalBoard() {
+  const router = useRouter();
   const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
   const [checking, setChecking] = React.useState(true);
   const [sport, setSport] = React.useState('NFL');
@@ -281,7 +284,6 @@ export function TerminalBoard() {
   const [predictions, setPredictions] = React.useState<Record<string, ModelPrediction>>({});
   const [research, setResearch] = React.useState<Record<string, ResearchSummary | null>>({});
   const [feedMode, setFeedMode] = React.useState<FeedMode>('connecting');
-  const [inspector, setInspector] = React.useState<PropGroup | null>(null);
   const [slip, setSlip] = React.useState<SlipSelection[]>([]);
   const [slipOpen, setSlipOpen] = React.useState(false);
 
@@ -327,7 +329,6 @@ export function TerminalBoard() {
           setShown(INITIAL_ROWS);
           setPredictions({});
           setResearch({});
-          setInspector(null);
         }
       } catch (cause) {
         if (cancelled) return;
@@ -400,10 +401,11 @@ export function TerminalBoard() {
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [groups]);
 
-  const filtered = React.useMemo(() => {
+  const matchingProps = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
 
     return groups
+      .map(group => book === ALL ? group : restrictBook(group, book))
       .filter((group) => {
         if (market !== ALL && group.market !== market) return false;
         if (book !== ALL && !group.quotes.some((quote) => quoteBook(quote) === book)) return false;
@@ -431,6 +433,8 @@ export function TerminalBoard() {
       });
   }, [book, evFloor, groups, market, predictions, query, research]);
 
+  const playerCards = React.useMemo(() => groupPlayerCards(groups), [groups]);
+  const filtered = React.useMemo(() => collapsePlayerCards(matchingProps, groups), [matchingProps, groups]);
   const page = React.useMemo(() => filtered.slice(0, shown), [filtered, shown]);
   const pageKey = page.map((group) => group.key).join('|');
 
@@ -483,15 +487,6 @@ export function TerminalBoard() {
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, pageKey]);
-
-  const visibleBooks = React.useMemo(() => {
-    if (!inspector) return [];
-    return [...inspector.quotes].sort((a, b) => {
-      const bookOrder = quoteBook(a).localeCompare(quoteBook(b));
-      if (bookOrder) return bookOrder;
-      return text(a.side).localeCompare(text(b.side));
-    });
-  }, [inspector]);
 
   const feedLabel = meta.stale
     ? 'cached'
@@ -557,8 +552,8 @@ export function TerminalBoard() {
               </b>
             </div>
             <div>
-              <span>Props</span>
-              <b>{groups.length.toLocaleString()}</b>
+              <span>Players</span>
+              <b>{playerCards.length.toLocaleString()}</b>
             </div>
             <div>
               <span>Books</span>
@@ -616,7 +611,6 @@ export function TerminalBoard() {
               type="button"
               className={styles.slipButton}
               onClick={() => {
-                setInspector(null);
                 setSlipOpen(true);
               }}
             >
@@ -672,7 +666,7 @@ export function TerminalBoard() {
               slip={slip}
               onInspect={(group) => {
                 setSlipOpen(false);
-                setInspector(group);
+                router.push(playerResearchHref(group, undefined, book === ALL ? null : book));
               }}
               onSelect={selectSide}
             />
@@ -683,7 +677,7 @@ export function TerminalBoard() {
               slip={slip}
               onInspect={(group) => {
                 setSlipOpen(false);
-                setInspector(group);
+                router.push(playerResearchHref(group, undefined, book === ALL ? null : book));
               }}
               onSelect={selectSide}
             />
@@ -698,18 +692,6 @@ export function TerminalBoard() {
           </>
         )}
       </section>
-
-      {inspector ? (
-        <Inspector
-          group={inspector}
-          prediction={predictions[inspector.key]}
-          research={research[inspector.key]}
-          quotes={visibleBooks}
-          slip={slip}
-          onClose={() => setInspector(null)}
-          onSelect={selectSide}
-        />
-      ) : null}
 
       {slipOpen ? (
         <SlipDrawer
@@ -731,7 +713,7 @@ function DesktopMatrix({
   onInspect,
   onSelect,
 }: {
-  rows: PropGroup[];
+  rows: PlayerCardGroup[];
   predictions: Record<string, ModelPrediction>;
   research: Record<string, ResearchSummary | null>;
   slip: SlipSelection[];
@@ -766,7 +748,7 @@ function DesktopMatrix({
             const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
 
             return (
-              <tr key={group.key} onClick={() => onInspect(group)}>
+              <tr key={group.playerCardKey} data-player-card={group.playerCardKey} onClick={() => onInspect(group)}>
                 <td className={styles.playerCell}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />
@@ -775,7 +757,7 @@ function DesktopMatrix({
                     <small>{group.matchup} · {timeLabel(group.startsAt)}</small>
                   </span>
                 </td>
-                <td className={styles.marketCell}>{group.market}</td>
+                <td className={styles.marketCell}>{group.market}<small className={styles.unavailable}> · {group.categoryCount} stats</small></td>
                 <td className={styles.numCell}>{group.line}</td>
                 <td>
                   <button
@@ -828,7 +810,7 @@ function DesktopMatrix({
                     <span className={styles.unavailable}>—</span>
                   )}
                 </td>
-                <td><ChevronRight size={16} className={styles.rowChevron} /></td>
+                <td><button type="button" aria-label={`Research ${group.player}`} onClick={(event) => { event.stopPropagation(); onInspect(group); }}><ChevronRight size={16} className={styles.rowChevron} /></button></td>
               </tr>
             );
           })}
@@ -846,7 +828,7 @@ function MobileMatrix({
   onInspect,
   onSelect,
 }: {
-  rows: PropGroup[];
+  rows: PlayerCardGroup[];
   predictions: Record<string, ModelPrediction>;
   research: Record<string, ResearchSummary | null>;
   slip: SlipSelection[];
@@ -863,13 +845,13 @@ function MobileMatrix({
         const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
 
         return (
-          <article key={group.key} className={styles.mobileRow}>
+          <article key={group.playerCardKey} data-player-card={group.playerCardKey} className={styles.mobileRow}>
             <button type="button" className={styles.mobileIdentity} onClick={() => onInspect(group)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />
               <span>
                 <b>{group.player}</b>
-                <small>{group.matchup}</small>
+                <small>{group.matchup} · {group.categoryCount} stats · {group.bookCount} books</small>
               </span>
               <span className={styles.mobileEv}>
                 {bestEv ? `${bestEv.ev >= 0 ? '+' : ''}${bestEv.ev.toFixed(1)}% EV` : 'EV —'}
@@ -904,7 +886,7 @@ function MobileMatrix({
               </button>
               <button type="button" className={styles.inspectButton} onClick={() => onInspect(group)}>
                 <BarChart3 size={15} />
-                Inspect
+                Research
               </button>
             </div>
           </article>
@@ -921,132 +903,6 @@ function RateCell({ window }: { window: RateWindow | null | undefined }) {
       <b>{rateLabel(window)}</b>
       {sample ? <small>{sample}</small> : null}
     </td>
-  );
-}
-
-function Inspector({
-  group,
-  prediction,
-  research,
-  quotes,
-  slip,
-  onClose,
-  onSelect,
-}: {
-  group: PropGroup;
-  prediction?: ModelPrediction;
-  research?: ResearchSummary | null;
-  quotes: PropRow[];
-  slip: SlipSelection[];
-  onClose: () => void;
-  onSelect: (group: PropGroup, side: Side) => void;
-}) {
-  const ev = evFor(group, prediction);
-  const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
-
-  return (
-    <div className={styles.drawerBackdrop} onMouseDown={(event) => {
-      if (event.currentTarget === event.target) onClose();
-    }}>
-      <aside className={styles.inspector} aria-label="Player inspector">
-        <div className={styles.drawerHeader}>
-          <span>Player inspector</span>
-          <button type="button" aria-label="Close inspector" onClick={onClose}><X size={18} /></button>
-        </div>
-
-        <div className={styles.inspectorHero}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />
-          <div>
-            <span>{group.sport} · {group.team || 'Team unavailable'}</span>
-            <h2>{group.player}</h2>
-            <p>{group.matchup} · {timeLabel(group.startsAt)}</p>
-          </div>
-        </div>
-
-        <div className={styles.inspectorLine}>
-          <div><span>Market</span><b>{group.market}</b></div>
-          <div><span>Line</span><b>{group.line}</b></div>
-          <div><span>Model</span><b>{projection !== null ? projection.toFixed(1) : '—'}</b></div>
-          <div><span>Best EV</span><b data-positive={ev && ev.ev > 0 ? 'true' : 'false'}>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}%` : '—'}</b></div>
-        </div>
-
-        <section className={styles.drawerSection}>
-          <div className={styles.sectionHeading}>
-            <span>Hit-rate windows</span>
-            <small>verified game log</small>
-          </div>
-          <div className={styles.hitStrip}>
-            {[
-              { label: 'L5', window: research === undefined ? undefined : research?.l5 ?? null },
-              { label: 'L10', window: research === undefined ? undefined : research?.l10 ?? null },
-              { label: 'L20', window: research === undefined ? undefined : research?.l20 ?? null },
-            ].map(({ label, window }) => (
-              <div key={label}>
-                <span>{label}</span>
-                <b>{rateLabel(window)}</b>
-                <small>{hitSample(window) || 'sample unavailable'}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className={styles.drawerSection}>
-          <div className={styles.sectionHeading}>
-            <span>Multi-book matrix</span>
-            <small>{new Set(quotes.map((quote) => quoteBook(quote))).size} books</small>
-          </div>
-
-          <div className={styles.bookMatrix}>
-            <div className={styles.bookMatrixHead}>
-              <span>Book</span><span>Side</span><span>Line</span><span>Price</span>
-            </div>
-            {quotes.length ? quotes.map((quote, index) => (
-              <div key={`${quoteBook(quote)}-${quote.side}-${quote.line}-${index}`} className={styles.bookMatrixRow}>
-                <span>{quoteBook(quote)}</span>
-                <span>{text(quote.side).toUpperCase() || '—'}</span>
-                <span>{numberOf(quote.line) ?? group.line}</span>
-                <span>{priceLabel(quote.price)}</span>
-              </div>
-            )) : <p className={styles.drawerEmpty}>No verified book matrix is available for this line.</p>}
-          </div>
-        </section>
-
-        <div className={styles.inspectorActions}>
-          <button
-            type="button"
-            data-selected={slip.some((item) => item.id === selectionId(group.key, 'OVER')) ? 'true' : 'false'}
-            onClick={() => onSelect(group, 'OVER')}
-          >
-            <span>Best over</span>
-            <b>{priceLabel(group.bestOver?.price)}</b>
-            <small>{quoteBook(group.bestOver)}</small>
-          </button>
-          <button
-            type="button"
-            data-selected={slip.some((item) => item.id === selectionId(group.key, 'UNDER')) ? 'true' : 'false'}
-            onClick={() => onSelect(group, 'UNDER')}
-          >
-            <span>Best under</span>
-            <b>{priceLabel(group.bestUnder?.price)}</b>
-            <small>{quoteBook(group.bestUnder)}</small>
-          </button>
-        </div>
-
-        <a
-          className={styles.fullResearch}
-          href={`/research?${new URLSearchParams({
-            sport: group.sport,
-            player: group.player,
-            market: group.market,
-            line: String(group.line),
-          })}`}
-        >
-          Open full player research
-          <ChevronRight size={16} />
-        </a>
-      </aside>
-    </div>
   );
 }
 

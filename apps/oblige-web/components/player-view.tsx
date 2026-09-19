@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, TriangleAlert } from 'lucide-react';
 import type { PropGroup, ResearchResponse } from '@/lib/types';
 import { ApiError, fetchAccount, fetchBoard, fetchResearch, playedGames } from '@/lib/api';
+import { groupPlayerCards, playerMarketKey, playerCategories, quotedBooks, postedSelection, playerResearchHref } from '@/lib/player-cards';
 import {
   computeWindow,
   headToHead,
@@ -52,8 +53,12 @@ export function PlayerView() {
   const sport = params.get('sport') || 'NFL';
   const player = params.get('player') || '';
   const market = params.get('market') || '';
-  const lineParam = Number(params.get('line'));
-  const postedLine = Number.isFinite(lineParam) ? lineParam : null;
+  const lineRaw = params.get('line');
+  const postedLine = lineRaw !== null && lineRaw.trim() !== '' && Number.isFinite(Number(lineRaw)) ? Number(lineRaw) : null;
+  const cardKey = params.get('card') || '';
+  const categoryKey = params.get('category') || '';
+  const selectedBook = params.get('book') || null;
+  const [resolvedCardKey, setResolvedCardKey] = React.useState(cardKey);
 
   const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
   const [checking, setChecking] = React.useState(true);
@@ -85,7 +90,11 @@ export function PlayerView() {
     setError('');
     fetchBoard(sport, controller.signal)
       .then((board) => {
-        const mine = board.groups.filter((candidate) => candidate.player === player);
+        if (controller.signal.aborted) return;
+        const cards = groupPlayerCards(board.groups);
+        const selected = cardKey ? cards.find(card => card.key === cardKey) : cards.find(card => card.variants.some(candidate => candidate.player === player));
+        const mine = selected?.variants || [];
+        setResolvedCardKey(selected?.key || cardKey);
         if (!mine.length) setError(`${player} is not on the ${sport} board right now.`);
         setMarkets(mine);
       })
@@ -99,24 +108,22 @@ export function PlayerView() {
       })
       .finally(() => setLoadingBoard(false));
     return () => controller.abort();
-  }, [checking, account, sport, player]);
+  }, [checking, account, sport, player, cardKey]);
 
-  const group = React.useMemo(() => {
-    if (!markets.length) return null;
-    return (
-      markets.find((candidate) => candidate.market === market && candidate.line === postedLine) ||
-      markets.find((candidate) => candidate.market === market) ||
-      markets[0]
-    );
-  }, [markets, market, postedLine]);
+  const categories = React.useMemo(() => playerCategories(markets), [markets]);
+  const group = React.useMemo(() => postedSelection(markets, categoryKey, selectedBook, postedLine, market), [markets, categoryKey, selectedBook, postedLine, market]);
+  const categoryVariants = React.useMemo(() => group ? markets.filter(candidate => playerMarketKey(candidate) === playerMarketKey(group)) : [], [markets, group]);
+  const allBooks = React.useMemo(() => quotedBooks(categoryVariants), [categoryVariants]);
+  const postedLines = React.useMemo(() => [...new Set(categoryVariants.filter(candidate => !selectedBook || quotedBooks([candidate]).some(book => book.key === selectedBook.toLowerCase() || book.label === selectedBook)).map(candidate => candidate.line))].sort((a,b) => a-b), [categoryVariants, selectedBook]);
+  const researchIdentity = group ? JSON.stringify([resolvedCardKey, playerMarketKey(group)]) : '';
 
   const [state, setState] = React.useState<ExplorerState>({ line: 0, side: 'OVER', book: null });
 
   React.useEffect(() => {
     if (!group) return;
-    setState({ line: group.line, side: 'OVER', book: null });
+    setState(previous => ({ line: group.line, side: previous.side, book: selectedBook }));
     setSection('overview');
-  }, [group?.key, group?.line]);
+  }, [group?.key, group?.line, selectedBook]);
 
   React.useEffect(() => {
     if (!group) return;
@@ -145,16 +152,17 @@ export function PlayerView() {
     // The game sample is the same for Over and Under; line/side changes are
     // recalculated client-side so they do not create extra provider requests.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group?.key]);
+  }, [researchIdentity]);
 
-  function selectMarket(next: PropGroup) {
-    const search = new URLSearchParams({
-      sport: next.sport,
-      player: next.player,
-      market: next.market,
-      line: String(next.line),
-    });
-    router.replace(`/research?${search}`, { scroll: false });
+  function choose(category: string, book: string | null, line: number | null) {
+    const variants = markets.filter(candidate => playerMarketKey(candidate) === category);
+    const next = postedSelection(variants, category, book, line);
+    if (next) router.replace(playerResearchHref(next, resolvedCardKey, book), { scroll: false });
+  }
+  function selectCategory(category: string) {
+    const variants = markets.filter(candidate => playerMarketKey(candidate) === category);
+    const keepBook = selectedBook && quotedBooks(variants).some(book => book.key === selectedBook.toLowerCase() || book.label === selectedBook) ? selectedBook : null;
+    choose(category, keepBook, postedLine);
   }
 
   function selectSection(next: PlayerSection) {
@@ -310,34 +318,25 @@ export function PlayerView() {
             <span className="player-section-kicker">Prop markets</span>
             <h2>Choose the number you want to research.</h2>
           </div>
-          <span className="player-section-count">{markets.length} market{markets.length === 1 ? '' : 's'}</span>
+          <span className="player-section-count">{categories.length} stat categories</span>
         </div>
-        <div className="rail player-market-rail" role="tablist" aria-label="Markets for this player">
-          {markets.map((candidate) => {
-            const active = candidate.key === group.key;
-            return (
-              <button
-                key={candidate.key}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => selectMarket(candidate)}
-                className={cn(
-                  'flex min-h-11 flex-none items-center gap-2 rounded-full border px-4',
-                  'text-[length:var(--fs-xs)] font-semibold whitespace-nowrap',
-                  'transition-[color,background-color,border-color,transform] duration-200 ease-[var(--ease-out)] active:scale-[.97]',
-                  active
-                    ? 'border-transparent bg-[var(--accent)] text-[var(--accent-ink)]'
-                    : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)]',
-                )}
-              >
-                {candidate.market}
-                <span className={cn('num', active ? 'opacity-80' : 'text-[var(--text-3)]')}>
-                  {candidate.line}
-                </span>
-              </button>
-            );
-          })}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Player market choices">
+          <label className="grid min-w-0 gap-1 text-sm">Stat category
+            <select className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] p-2" aria-label="Player stat category" value={playerMarketKey(group)} onChange={event => selectCategory(event.target.value)}>
+              {categories.map(category => <option key={category.key} value={category.key}>{category.label}</option>)}
+            </select>
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm">Sportsbook
+            <select className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] p-2" aria-label="Selected book" value={selectedBook ? allBooks.find(book => book.key === selectedBook.toLowerCase() || book.label === selectedBook)?.key || '' : ''} onChange={event => choose(playerMarketKey(group), event.target.value || null, group.line)}>
+              <option value="">Best prices · all books</option>
+              {allBooks.map(book => <option key={book.key} value={book.key}>{book.label}</option>)}
+            </select>
+          </label>
+          <label className="grid min-w-0 gap-1 text-sm">Posted line
+            <select className="min-w-0 rounded-lg border border-[var(--line)] bg-[var(--surface)] p-2" aria-label="Posted line or outcome" value={String(group.line)} onChange={event => choose(playerMarketKey(group), selectedBook, Number(event.target.value))}>
+              {postedLines.map(line => <option key={line} value={String(line)}>{line}</option>)}
+            </select>
+          </label>
         </div>
       </section>
 
@@ -353,6 +352,7 @@ export function PlayerView() {
           <CardPanel className="player-explorer-panel p-4 sm:p-5">
             <PropExplorer
               group={group}
+              hideBookFilter
               games={games}
               loading={loadingResearch}
               unavailableReason={

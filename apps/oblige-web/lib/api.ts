@@ -200,6 +200,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         line,
         sport,
         team: row.team || null,
+        position: row.position || null,
         opponent: row.opponent || null,
         homeTeam: row.homeTeam || null,
         awayTeam: row.awayTeam || null,
@@ -217,6 +218,17 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
   }
 
   for (const group of groups.values()) {
+    // Fantasy scoring belongs to the platform that posted the line. If one
+    // quote carries a source-qualified market id (for example PrizePicks),
+    // preserve that verified identity for research even when another DFS book
+    // happens to post the same display label and number.
+    const qualified = group.quotes.find((row) => {
+      const marketId = String(row.marketId || '').trim().toLowerCase();
+      const book = String(row.sportsbookKey || '').trim().toLowerCase();
+      return Boolean(book && marketId.startsWith(`${book}:`));
+    });
+    if (qualified?.marketId) group.marketId = qualified.marketId;
+    if (qualified?.position) group.position = qualified.position;
     group.bestOver = bestQuote(group.quotes, 'OVER');
     group.bestUnder = bestQuote(group.quotes, 'UNDER');
   }
@@ -264,6 +276,7 @@ export async function fetchResearch(
   });
   if (group.providerPlayerId) params.set('providerPlayerId', group.providerPlayerId);
   if (group.marketId) params.set('marketId', group.marketId);
+  if (group.position) params.set('position', group.position);
   if (group.team) params.set('team', group.team);
   if (group.opponent) params.set('opponent', group.opponent);
   if (group.homeTeam) params.set('homeTeam', group.homeTeam);

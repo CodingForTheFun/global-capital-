@@ -4,7 +4,8 @@ const ALIASES: Record<string, string> = {
   FOOTBALL_NCAAF: 'NCAAF', AMERICANFOOTBALL_NCAAF: 'NCAAF',
   BASKETBALL_NBA: 'NBA', BASKETBALL_WNBA: 'WNBA', BASKETBALL_NCAAB: 'NCAAB',
   BASEBALL_MLB: 'MLB', ICEHOCKEY_NHL: 'NHL', HOCKEY_NHL: 'NHL',
-  MLS: 'SOCCER', EPL: 'SOCCER', UCL: 'SOCCER',
+  MLS: 'SOCCER', EPL: 'SOCCER', UCL: 'SOCCER', CFB: 'NCAAF', CBB: 'NCAAB', NCAAM: 'NCAAB',
+  SOCCER_USA_MLS: 'SOCCER', SOCCER_EPL: 'SOCCER', SOCCER_UEFA_CHAMPS_LEAGUE: 'SOCCER',
 };
 const ESPN_PATH: Record<string, string> = {
   NFL: 'nfl', NCAAF: 'college-football', NBA: 'nba', WNBA: 'wnba',
@@ -12,7 +13,7 @@ const ESPN_PATH: Record<string, string> = {
   TENNIS: 'tennis', GOLF: 'golf',
 };
 export function artworkSport(value: string): string {
-  const code = String(value || '').trim().toUpperCase();
+  const code = String(value || '').trim().toUpperCase().replace(/^(NFL|NBA|WNBA|NHL|MLB|NCAAF|NCAAB)(?:LIVE|[1-4]H|[1-4]Q|Q[1-4]|H[12])$/, '$1');
   if (code.startsWith('SOCCER_')) return 'SOCCER';
   if (code.startsWith('TENNIS_')) return 'TENNIS';
   return ALIASES[code] || code;
@@ -34,16 +35,28 @@ export function headshotSources(identity: HeadshotIdentity): string[] {
   const id = explicit?.[1] || (history && artworkSport(history[1]) === sport ? history[2] : null);
   if (name && id && ESPN_PATH[sport]) {
     const url = `https://a.espncdn.com/i/headshots/${ESPN_PATH[sport]}/players/full/${id}.png`;
-    // Same-origin image URL: do not weaken the production content-security policy.
     sources.push(`/_next/image?${new URLSearchParams({ url, w: '128', q: '75' })}`);
   }
+  // Native IDs are accepted only with an explicit namespace; raw numbers are
+  // deliberately never reinterpreted as a different provider's athlete.
+  const native = /^(mlb|mlbam|nba|wnba):([1-9]\d{0,10})$/i.exec(providerId);
+  if (name && native) {
+    const namespace = native[1].toLowerCase(), nativeId = native[2];
+    const url = sport === 'MLB' && (namespace === 'mlb' || namespace === 'mlbam')
+      ? `https://img.mlbstatic.com/mlb-photos/image/upload/w_256,q_auto:good,f_auto/v1/people/${nativeId}/headshot/67/current`
+      : ((sport === 'NBA' && namespace === 'nba') || (sport === 'WNBA' && namespace === 'wnba'))
+        ? `https://cdn.nba.com/headshots/nba/latest/1040x760/${nativeId}.png` : null;
+    if (url) sources.push(`/_next/image?${new URLSearchParams({ url, w: '128', q: '75' })}`);
+  }
   if (name && sport) {
-    const params = new URLSearchParams({ sport, name, v: 'restored-photos-1' });
+    const raw = String(identity.sport || '').trim().toUpperCase();
+    // Artwork only: the exact player name is verified within soccer; no history alias.
+    const resolverSport = sport === 'SOCCER'
+      ? (raw === 'MLS' || raw === 'SOCCER_USA_MLS' ? 'MLS' : raw === 'UCL' || raw === 'SOCCER_UEFA_CHAMPS_LEAGUE' ? 'UCL' : 'EPL') : sport;
+    const params = new URLSearchParams({ sport: resolverSport, name, v: 'player-cards-2' });
     if (identity.team?.trim()) params.set('team', identity.team.trim());
     if (providerId) params.set('providerPlayerId', providerId);
     sources.push(`/api/apex/player-artwork?${params}`);
   }
-  // The existing backend verifies name/team identity and has its own short
-  // negative cache. The local silhouette is only the final network-error state.
   return [...new Set([...sources, unavailablePhoto])];
 }

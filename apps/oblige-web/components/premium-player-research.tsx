@@ -31,6 +31,13 @@ export function PremiumPlayerResearch({ player, market, selected, side, favourit
   const numeric = bookOffers.length > 0 && bookOffers.every(offer => offer.line !== null && !!offer.side);
   const lines = [...new Set(bookOffers.filter(offer => offer.line !== null).map(offer => offer.line!))].sort((a, b) => a - b);
   const title = marketName(market);
+  // The hero sportsbook selector is intentionally line-specific: only books
+  // carrying the exact displayed prop/line are useful here. Books that carry
+  // only a different line remain available in the comparison rail below.
+  const applicableBooks = booksFor(market).filter(book => market.offers.some(offer =>
+    offer.book === book.key && !offer.conflict &&
+    (selected.line === null ? offer.line === null && offer.choice === selected.choice : offer.line === selected.line)
+  ));
   const game = matchupLabel || [player.awayTeam, player.homeTeam].filter(Boolean).join(' @ ') || 'Matchup unavailable';
   function category(next: WorkspaceMarket) {
     const samePeriod = player.markets.find(item => marketFamily(item) === marketFamily(next) && item.period === market.period);
@@ -49,7 +56,7 @@ export function PremiumPlayerResearch({ player, market, selected, side, favourit
           <div className={s.marketBand}>
             <BarChart3 size={23} className={s.marketIcon} aria-hidden="true"/>
             <div className={s.marketInfo}><h2>{title}</h2><p><span>{selected.side === 'OVER' ? 'O' : selected.side === 'UNDER' ? 'U' : selected.choice} {selected.line ?? ''}</span><strong data-side={selected.side}>{offerPrice(selected)}</strong><span className={s.periodCaption}>{periodName(market.period)}</span></p></div>
-            <label className={s.bookSelect}><span className={s.srOnly}>Sportsbook</span><select aria-label="Selected book" value={currentBook || ''} onChange={event => onBook(event.target.value)}>{allowBestPrices && <option value="">Best prices · all books</option>}{booksFor(market).map(book => <option key={book.key} value={book.key}>{book.name}</option>)}</select><ChevronDown size={15} aria-hidden="true"/></label>
+            <label className={s.bookSelect}><span className={s.srOnly}>Sportsbook</span><select aria-label="Selected book" value={currentBook || ''} onChange={event => onBook(event.target.value)}>{allowBestPrices && <option value="">Best prices · all books</option>}{applicableBooks.map(book => <option key={book.key} value={book.key}>{book.name}</option>)}</select><ChevronDown size={15} aria-hidden="true"/></label>
           </div>
         </header>
         <div className={s.statControls}>

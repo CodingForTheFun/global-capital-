@@ -97,7 +97,7 @@ test('zero real stat is retained; missing is not manufactured as zero',()=>{
 test('insert-only write requires exact read-back and is idempotent',async()=>{
   const store=new Map(),p=plan();let writes=0;
   const deps={mode:'apply',approveSnapshot:p.cohortHash,...dependencies(),readRows:async keys=>keys.map(k=>store.get(historyKey(k))).filter(Boolean),
-    insertRows:async rows=>{writes++;let n=0;for(const r of rows)if(!store.has(historyKey(r))){store.set(historyKey(r),structuredClone(r));n++;}return {written:n};}};
+    insertRows:async rows=>{writes++;let n=0;for(const r of rows)if(!store.has(historyKey(r))){store.set(historyKey(r),{...structuredClone(r),source:'ESPN'});n++;}return {written:n};}};
   const first=await runHistoryMaintenance(p,deps);assert.equal(first.insertedRows,1);assert.equal(first.outcomes[0].durableVerified,true);
   const second=await runHistoryMaintenance(p,deps);assert.equal(second.insertedRows,0);assert.equal(writes,1);
   assert.equal(second.outcomes[0].status,'ALREADY_PERSISTED_AND_VERIFIED');

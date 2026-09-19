@@ -1,0 +1,48 @@
+name: Issue 344 public domain acceptance
+on:
+  push:
+    branches: ['chatgpt/issue344-domain-proof']
+    paths:
+      - 'scripts/verify-public-domain-routing.mjs'
+      - 'tests/public-domain-routing.test.mjs'
+      - '.github/workflows/issue344-domain-acceptance.yml'
+      - '.github/workflows/restore-terminal-photos.yml'
+  pull_request:
+    branches: ['claude/website-review-audit-t5ei2j']
+    paths:
+      - 'scripts/verify-public-domain-routing.mjs'
+      - 'tests/public-domain-routing.test.mjs'
+      - '.github/workflows/issue344-domain-acceptance.yml'
+permissions:
+  contents: read
+jobs:
+  policy-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/public-domain-routing.test.mjs
+  public-read-only:
+    needs: policy-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apex and www navigation auth PWA protected API and photo proof
+        run: node scripts/verify-public-domain-routing.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue344-public-domain-acceptance
+          path: artifacts/public-restored-terminal
+          retention-days: 14

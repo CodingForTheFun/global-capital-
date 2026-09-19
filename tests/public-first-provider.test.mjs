@@ -18,14 +18,15 @@ process.env.SPORTSDATAIO_API_KEY = '';
 
 const originalFetch = globalThis.fetch;
 const calls = [];
-let rows = [{
+const fixtureRow = {
   id: 'fixture-db-line', source: 'PrizePicks', provider: 'prizepicks', sport: 'NBA',
   eventId: 'fixture-event', playerId: 'fixture-player', playerName: 'Fixture Player', team: 'BOS',
   marketId: 'player_points', market: 'Points', side: 'OVER', line: 24.5, price: null,
   sportsbook: 'PrizePicks', sportsbookKey: 'prizepicks',
   gameStartTime: new Date(Date.now() + 24 * 3600_000).toISOString(), homeTeam: 'BOS', awayTeam: 'NYK',
   isAlternate: false, ingestedAt: new Date().toISOString(),
-}];
+};
+let rows = [fixtureRow];
 
 globalThis.fetch = async (input, init = {}) => {
   const url = new URL(String(input));
@@ -55,6 +56,22 @@ test('empty public database still returns a cache-first empty board instead of r
   assert.equal(board.meta.publicFirst, true);
   assert.equal(board.props.length, 0);
   assert.ok(calls.every((url) => new URL(url).hostname === 'autoscout-fixture.supabase.co'));
+});
+
+test('customer board removes persisted props older than the hard freshness ceiling', async () => {
+  calls.length = 0;
+  rows = [{ ...fixtureRow, ingestedAt: new Date(Date.now() - 11 * 60_000).toISOString() }];
+  const board = await fetchUnifiedBoard('NBA');
+  assert.equal(board.props.length, 0);
+  assert.equal(board.meta.customerFreshness?.dropped?.stale, 1);
+});
+
+test('customer board never promotes the canonical last-good database fallback', async () => {
+  calls.length = 0;
+  rows = [{ ...fixtureRow, ingestedAt: new Date().toISOString(), cacheFallback: true }];
+  const board = await fetchUnifiedBoard('NBA');
+  assert.equal(board.props.length, 0);
+  assert.equal(board.meta.customerFreshness?.dropped?.last_good_fallback, 1);
 });
 
 after(async () => {

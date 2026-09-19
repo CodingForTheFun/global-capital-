@@ -28,14 +28,33 @@ test('finds a fresh exact-line cross-book two-way arbitrage', () => {
   assert.equal(signal.kind, 'exact-line-cross-book-arbitrage');
   assert.equal(signal.line, 22.5);
   assert.equal(signal.roiPct, 25);
+  assert.equal(signal.possiblePush, false);
+  assert.equal(signal.minimumReturnPct, 25);
+  assert.equal(signal.decidedReturnPct, 25);
   assert.deepEqual(signal.example, {
     totalStake: 100,
     overStake: 50,
     underStake: 50,
     equalizedPayout: 125,
     theoreticalProfit: 25,
+    minimumTheoreticalProfit: 25,
   });
-  assert.match(arbitrageLabel(signal), /25\.00% theoretical/);
+  assert.match(arbitrageLabel(signal), /25\.00% theoretical minimum/);
+});
+
+test('integer exact lines expose a break-even push instead of claiming guaranteed profit', () => {
+  const signal = bestArbitrage([
+    quote('book-a', 'OVER', 22, 150),
+    quote('book-b', 'UNDER', 22, 150),
+  ], { now: NOW, bankroll: 100 });
+
+  assert.ok(signal);
+  assert.equal(signal.possiblePush, true);
+  assert.equal(signal.minimumReturnPct, 0);
+  assert.equal(signal.decidedReturnPct, 25);
+  assert.equal(signal.example.minimumTheoreticalProfit, 0);
+  assert.match(signal.note, /push both sides and refund stakes/i);
+  assert.match(arbitrageLabel(signal), /25\.00% when decided · push breaks even/);
 });
 
 test('requires different books and the exact same line', () => {

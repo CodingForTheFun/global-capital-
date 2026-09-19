@@ -20,6 +20,15 @@ export type PropRow = {
   line?: number | string;
   side?: string;
   price?: number | string;
+  /** Pick'em / DFS metadata when the source does not publish American odds. */
+  payoutType?: string;
+  payout_type?: string;
+  dfsOddsType?: string;
+  dfs_odds_type?: string;
+  specialType?: string;
+  multiplier?: number | string;
+  payoutMultiplier?: number | string;
+  payout_multiplier?: number | string;
   sportsbook?: string;
   sportsbookKey?: string;
   team?: string;

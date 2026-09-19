@@ -15,6 +15,7 @@ import styles from './premium-board.module.css';
 const ALL = 'ALL';
 const PAGE_SIZE = 60;
 const RESEARCH_WORKERS = 6;
+const MARKET_REFERENCE_WORKERS = 4;
 
 type Prediction = {
   available?: boolean;
@@ -23,7 +24,19 @@ type Prediction = {
   probabilityUnder?: number;
 };
 
-type ResearchStat = { rate: number | null; hits: number | null; sample: number; source: 'window' | 'game-log' | 'unavailable' } | null;
+type ResearchStat = {
+  rate: number | null;
+  hits: number | null;
+  sample: number;
+  source: 'window' | 'game-log' | 'propline-graded' | 'unavailable';
+} | null;
+
+type MarketReference = {
+  projection: number | null;
+  ev: number | null;
+  projectionBasis: 'market-implied' | null;
+  evBasis: 'no-vig-market' | null;
+};
 
 function text(value: unknown) {
   return String(value || '').trim();
@@ -66,8 +79,39 @@ function bestEv(group: PropGroup, prediction?: Prediction) {
 
 function priceLabel(value: unknown) {
   const n = numberOf(value);
-  if (n === null || n === 0) return 'N/A';
+  if (n === null || n === 0) return '—';
   return n > 0 ? `+${n}` : String(n);
+}
+
+function canonical(value: unknown) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function quoteProduct(row: PropRow | null) {
+  if (!row) return null;
+  const book = quoteBook(row).toLowerCase();
+  const special = text(row.specialType || row.dfsOddsType || row.dfs_odds_type).toLowerCase();
+  if (special === 'goblin') return 'Goblin';
+  if (special === 'demon') return 'Demon';
+  if (special && special !== 'standard') return special;
+  const multiplier = numberOf(row.multiplier ?? row.payoutMultiplier ?? row.payout_multiplier);
+  if (multiplier !== null && multiplier > 0 && multiplier !== 1) return `${multiplier}×`;
+  const payout = text(row.payoutType || row.payout_type).toLowerCase();
+  if (payout === 'pickem' || payout === 'pick_em' || payout === 'pick-em') {
+    return book.includes('draftkings') ? 'Pick6' : "Pick'em";
+  }
+  if (special === 'standard') {
+    if (book.includes('draftkings')) return 'Pick6';
+    if (book.includes('prizepicks') || book.includes('underdog')) return "Pick'em";
+    return 'DFS';
+  }
+  if (book.includes('prizepicks') || book.includes('underdog')) return "Pick'em";
+  return null;
 }
 
 function displayQuote(group: PropGroup) {
@@ -82,8 +126,75 @@ function displayQuote(group: PropGroup) {
 function quotePriceLabel(row: PropRow | null) {
   const price = numberOf(row?.price);
   if (price !== null && price !== 0) return priceLabel(price);
-  const book = quoteBook(row).toLowerCase();
-  return book.includes('prizepicks') || book.includes('underdog') ? 'DFS' : 'N/A';
+  return quoteProduct(row) || '—';
+}
+
+function marketReferenceFrom(
+  group: PropGroup,
+  projections: unknown,
+  evPayload: unknown,
+): MarketReference {
+  const marketKey = canonical(group.marketId || group.market);
+  const playerName = canonical(group.player);
+  const projectionRows = Array.isArray((projections as { projections?: unknown[] } | null)?.projections)
+    ? (projections as { projections: Array<Record<string, unknown>> }).projections
+    : [];
+  const projectionRow = projectionRows.find((row) =>
+    canonical(row.playerName) === playerName && canonical(row.marketKey) === marketKey
+  );
+  const projection = numberOf(projectionRow?.projection);
+
+  const plays = Array.isArray((evPayload as { plays?: unknown[] } | null)?.plays)
+    ? (evPayload as { plays: Array<Record<string, unknown>> }).plays
+    : [];
+  const exact = plays.filter((row) => {
+    if (canonical(row.playerName) !== playerName || canonical(row.marketKey) !== marketKey) return false;
+    const line = numberOf(row.line);
+    return line !== null && Math.abs(line - group.line) < 1e-9;
+  });
+  const ev = exact
+    .map((row) => numberOf(row.evPercent))
+    .filter((value): value is number => value !== null)
+    .sort((a, b) => b - a)[0] ?? null;
+
+  return {
+    projection,
+    ev,
+    projectionBasis: projection === null ? null : 'market-implied',
+    evBasis: ev === null ? null : 'no-vig-market',
+  };
+}
+
+async function propLineJson(path: string, signal: AbortSignal) {
+  const response = await fetch(path, { credentials: 'same-origin', cache: 'no-store', signal });
+  if (!response.ok) return null;
+  const body = await response.json().catch(() => null) as { available?: boolean; data?: unknown } | null;
+  return body?.available ? body.data ?? null : null;
+}
+
+async function propLineTrendStat(group: PropGroup, signal: AbortSignal): Promise<ResearchStat> {
+  if (!group.marketId || !group.player) return null;
+  const params = new URLSearchParams({
+    kind: 'trends',
+    sport: group.sport,
+    playerName: group.player,
+  });
+  const data = await propLineJson(`/api/apex/propline?${params}`, signal) as {
+    markets?: Array<{
+      marketKey?: string;
+      windows?: { l10?: { hitRate?: number | null; over?: number | null; games?: number | null } | null };
+    }>;
+  } | null;
+  const row = data?.markets?.find((candidate) => canonical(candidate.marketKey) === canonical(group.marketId));
+  const window = row?.windows?.l10;
+  const rate = pctValue(window?.hitRate ?? null);
+  if (rate === null) return null;
+  return {
+    rate,
+    hits: numberOf(window?.over),
+    sample: Math.max(0, Math.round(numberOf(window?.games) ?? 0)),
+    source: 'propline-graded',
+  };
 }
 
 function boardResearchStat(response: ResearchResponse, line: number): ResearchStat {
@@ -174,6 +285,7 @@ export function PremiumBoard() {
   const [line, setLine] = React.useState(ALL);
   const [sort, setSort] = React.useState('EV');
   const [predictions, setPredictions] = React.useState<Record<string, Prediction>>({});
+  const [marketRefs, setMarketRefs] = React.useState<Record<string, MarketReference | null>>({});
   const [research, setResearch] = React.useState<Record<string, ResearchStat>>({});
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
@@ -202,6 +314,7 @@ export function PremiumBoard() {
         setBook(ALL);
         setLine(ALL);
         setPredictions({});
+        setMarketRefs({});
         setResearch({});
       })
       .catch((cause) => {
@@ -248,9 +361,11 @@ export function PremiumBoard() {
       if (sort === 'PLAYER') return a.player.localeCompare(b.player);
       if (sort === 'LINE') return b.line - a.line;
       if (sort === 'HIT') return (research[b.key]?.rate ?? -1) - (research[a.key]?.rate ?? -1);
-      return (bestEv(b, predictions[b.key]) ?? -Infinity) - (bestEv(a, predictions[a.key]) ?? -Infinity);
+      const evB = bestEv(b, predictions[b.key]) ?? marketRefs[b.key]?.ev ?? -Infinity;
+      const evA = bestEv(a, predictions[a.key]) ?? marketRefs[a.key]?.ev ?? -Infinity;
+      return evB - evA;
     });
-  }, [book, groups, line, market, opponent, predictions, query, research, sort, team]);
+  }, [book, groups, line, market, marketRefs, opponent, predictions, query, research, sort, team]);
 
   const page = filtered.slice(0, PAGE_SIZE);
   const pageKey = page.map((g) => g.key).join('|');
@@ -333,6 +448,63 @@ export function PremiumBoard() {
   React.useEffect(() => {
     if (!account || !page.length) return;
     const controller = new AbortController();
+    const unresolved = page.filter((group) => marketRefs[group.key] === undefined);
+    if (!unresolved.length) return () => controller.abort();
+
+    const byEvent = new Map<string, PropGroup[]>();
+    for (const group of unresolved) {
+      const eventId = text(group.quotes.find((quote) => quote.eventId)?.eventId);
+      if (!eventId || !group.marketId) {
+        setMarketRefs((current) => ({ ...current, [group.key]: null }));
+        continue;
+      }
+      const key = JSON.stringify([group.sport, eventId]);
+      const rows = byEvent.get(key) || [];
+      rows.push(group);
+      byEvent.set(key, rows);
+    }
+    const jobs = [...byEvent.values()];
+    let cursor = 0;
+
+    const worker = async () => {
+      while (cursor < jobs.length && !controller.signal.aborted) {
+        const rows = jobs[cursor++];
+        const first = rows[0];
+        const eventId = text(first.quotes.find((quote) => quote.eventId)?.eventId);
+        const markets = [...new Set(rows.map((group) => group.marketId).filter((value): value is string => Boolean(value)))].join(',');
+        const common = new URLSearchParams({ sport: first.sport, eventId, ...(markets ? { markets } : {}) });
+        try {
+          const [projections, ev] = await Promise.all([
+            propLineJson(`/api/apex/propline?kind=projections&${common}`, controller.signal),
+            propLineJson(`/api/apex/propline?kind=ev&${common}`, controller.signal),
+          ]);
+          if (!controller.signal.aborted) {
+            setMarketRefs((current) => {
+              const next = { ...current };
+              rows.forEach((group) => { next[group.key] = marketReferenceFrom(group, projections, ev); });
+              return next;
+            });
+          }
+        } catch {
+          if (!controller.signal.aborted) {
+            setMarketRefs((current) => {
+              const next = { ...current };
+              rows.forEach((group) => { next[group.key] = null; });
+              return next;
+            });
+          }
+        }
+      }
+    };
+
+    void Promise.all(Array.from({ length: Math.min(MARKET_REFERENCE_WORKERS, jobs.length) }, worker));
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account, pageKey]);
+
+  React.useEffect(() => {
+    if (!account || !page.length) return;
+    const controller = new AbortController();
     const queue = page.filter((group) => research[group.key] === undefined);
     if (!queue.length) return () => controller.abort();
 
@@ -342,7 +514,10 @@ export function PremiumBoard() {
         if (!group) break;
         try {
           const response = await fetchResearch(group, 'OVER', controller.signal);
-          const result = boardResearchStat(response, group.line);
+          let result = boardResearchStat(response, group.line);
+          if (!result?.rate && result?.rate !== 0) {
+            result = await propLineTrendStat(group, controller.signal) || result;
+          }
           if (!controller.signal.aborted) {
             setResearch((current) => ({ ...current, [group.key]: result }));
           }
@@ -419,19 +594,26 @@ export function PremiumBoard() {
             <tbody>
               {page.map((group) => {
                 const prediction = predictions[group.key];
-                const predictionLoading = prediction === undefined;
-                const ev = bestEv(group, prediction);
+                const reference = marketRefs[group.key];
+                const predictionLoading = prediction === undefined || reference === undefined;
+                const modelProjection = prediction?.available ? numberOf(prediction.projection) : null;
+                const projection = modelProjection ?? reference?.projection ?? null;
+                const modelEv = bestEv(group, prediction);
+                const ev = modelEv ?? reference?.ev ?? null;
+                const projectionBasis = modelProjection !== null ? 'model' : reference?.projectionBasis;
+                const evBasis = modelEv !== null ? 'model' : reference?.evBasis;
                 const researchStat = research[group.key];
                 const hitLoading = researchStat === undefined;
                 const hit = researchStat?.rate ?? null;
-                const projection = prediction?.available && numberOf(prediction.projection) !== null
-                  ? Number(prediction.projection)
-                  : null;
                 const bestQuote = displayQuote(group);
                 const bookNames = group.bookNames.slice(0, 4);
-                const sampleLabel = researchStat?.sample
-                  ? `${researchStat.hits ?? '—'}/${researchStat.sample} L10`
-                  : hitLoading ? 'Loading L10' : 'No verified L10 sample';
+                const sampleLabel = researchStat?.source === 'propline-graded'
+                  ? researchStat.sample
+                    ? `${researchStat.hits ?? '—'}/${researchStat.sample} PropLine graded L10 market trend · historical posted lines may differ from this line`
+                    : 'PropLine graded L10 market trend'
+                  : researchStat?.sample
+                    ? `${researchStat.hits ?? '—'}/${researchStat.sample} L10`
+                    : hitLoading ? 'Loading L10' : 'No verified L10 sample';
                 return (
                   <tr
                     key={group.playerCardKey}
@@ -449,25 +631,36 @@ export function PremiumBoard() {
                       <span>{group.market}</span>
                       {group.categoryCount > 1 ? <small>{group.categoryCount} stats inside</small> : null}
                     </td>
-                    <td data-label="Line" className={styles.number}>{Number.isFinite(group.line) ? group.line : 'N/A'}</td>
+                    <td data-label="Line" className={styles.number}>{group.line}</td>
                     <td data-label="Odds"><span className={styles.odds}>{quotePriceLabel(bestQuote)}</span></td>
-                    <td data-label="Proj" className={styles.number}>
-                      {predictionLoading ? '…' : projection === null ? 'N/A' : projection.toFixed(1)}
+                    <td
+                      data-label="Proj"
+                      className={styles.number}
+                      title={projectionBasis === 'market-implied' ? 'PropLine market-implied projection' : projectionBasis === 'model' ? 'Validated model projection' : 'No projection source returned'}
+                    >
+                      {predictionLoading ? '…' : projection === null ? '—' : projection.toFixed(1)}
+                      {projectionBasis === 'market-implied' ? <small className={styles.sourceTag}>market</small> : null}
                     </td>
-                    <td data-label="EV%" className={styles.ev} data-positive={ev !== null && ev > 0 ? 'true' : 'false'}>
-                      {predictionLoading ? '…' : ev === null ? 'N/A' : `${ev >= 0 ? '+' : ''}${ev.toFixed(1)}%`}
+                    <td
+                      data-label="EV%"
+                      className={styles.ev}
+                      data-positive={ev !== null && ev > 0 ? 'true' : 'false'}
+                      title={evBasis === 'no-vig-market' ? 'PropLine no-vig market EV' : evBasis === 'model' ? 'Model probability EV' : 'No comparable priced market returned'}
+                    >
+                      {predictionLoading ? '…' : ev === null ? '—' : `${ev >= 0 ? '+' : ''}${ev.toFixed(1)}%`}
+                      {evBasis === 'no-vig-market' ? <small className={styles.sourceTag}>no-vig</small> : null}
                     </td>
                     <td data-label="Hit rate" title={sampleLabel}>
                       <div className={styles.hit}>
-                        <span>{hitLoading ? '…' : hit === null ? 'N/A' : `${Math.round(hit)}%`}</span>
+                        <span>{hitLoading ? '…' : hit === null ? '—' : `${Math.round(hit)}%`}</span>
                         <i><b style={{ width: hit === null ? '0%' : `${Math.max(0, Math.min(100, hit))}%` }} /></i>
                       </div>
+                      {researchStat?.source === 'propline-graded' ? <small className={styles.sourceTag}>graded</small> : null}
                     </td>
                     <td data-label="Books">
                       <div className={styles.books}>
-                        {bookNames.length
-                          ? bookNames.map((name) => <span key={name} title={name}>{bookShort(name)}</span>)
-                          : <em className={styles.unavailable}>N/A</em>}
+                        {bookNames.map((name) => <span key={name} title={name}>{bookShort(name)}</span>)}
+                        {group.bookNames.length > bookNames.length ? <span title={group.bookNames.slice(bookNames.length).join(', ')}>+{group.bookNames.length - bookNames.length}</span> : null}
                       </div>
                     </td>
                     <td className={styles.chevron}>›</td>

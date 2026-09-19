@@ -14,7 +14,8 @@ const sports=[{key:'football_nfl',title:'NFL',active:true},{key:'golf',title:'Go
 const offer=(book,line,side='OVER',price=100)=>({key:`${book}:${line}:${side}`,outcomeId:`test:${book}:${line}:${side}`,book,bookName:book==='draftkings'?'DraftKings':book==='fanduel'?'FanDuel':'PrizePicks',line,choice:side,side,price,multiplier:null,updatedAt:new Date().toISOString(),dfs:book==='prizepicks',conflict:false});
 function fixture(sport){
  const event={id:'test-event',sport,startsAt:'2050-09-20T18:00:00Z',homeTeam:'Test Home',awayTeam:'Test Away',status:'scheduled',aliases:[]};
- const markets=[{key:'rush',marketKey:'player_rush_yds',label:sport==='golf'?'Score':'Rushing yards',period:null,variant:'standard',offers:[offer('draftkings',sport==='golf'?-1.5:50.5),offer('draftkings',sport==='golf'?-1.5:50.5,'UNDER'),offer('fanduel',55.5),offer('fanduel',60.5),offer('prizepicks',45.5)]},{key:'receptions',marketKey:'player_receptions',label:'Receptions',period:null,variant:'standard',offers:[offer('draftkings',3.5)]},{key:'half',marketKey:'player_rush_yds',label:'Rushing yards · Period h1',period:'h1',variant:'standard',offers:[offer('draftkings',20.5)]}];
+ const primaryLine=sport==='golf'?-1.5:50.5;
+ const markets=[{key:'rush',marketKey:'player_rush_yds',label:sport==='golf'?'Score':'Rushing yards',period:null,variant:'standard',offers:[offer('draftkings',primaryLine),offer('draftkings',primaryLine,'UNDER'),offer('fanduel',primaryLine),offer('fanduel',55.5),offer('fanduel',60.5),offer('prizepicks',primaryLine)]},{key:'receptions',marketKey:'player_receptions',label:'Receptions',period:null,variant:'standard',offers:[offer('draftkings',3.5)]},{key:'half',marketKey:'player_rush_yds',label:'Rushing yards · Period h1',period:'h1',variant:'standard',offers:[offer('draftkings',20.5)]}];
  return {ok:true,event,fetchedAt:new Date().toISOString(),players:[{key:`player:${sport}`,playerId:'test:1',name:'Fixture Player',aliases:['Fixture Player'],sport,eventId:event.id,startsAt:event.startsAt,homeTeam:event.homeTeam,awayTeam:event.awayTeam,markets}]};
 }
 const results=[];
@@ -44,12 +45,15 @@ try{
   await page.getByLabel('Selected book',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Player stat category').locator('option').count(),3,'one stat category, not a tab per book/line');
   await page.getByLabel('Selected book',{exact:true}).selectOption('fanduel');
-  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='55.5');
+  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='50.5');
   await page.getByLabel('Posted line or outcome').selectOption('60.5');
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='60.5');
+  assert.deepEqual(await page.getByLabel('Selected book',{exact:true}).locator('option').allTextContents(),['FanDuel'],'different-line books are not presented as applicable');
+  await page.getByLabel('Posted line or outcome').selectOption('50.5');
+  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='50.5');
   await page.getByLabel('Selected book',{exact:true}).selectOption('prizepicks');
-  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='45.5');
-  assert.ok(await page.getByLabel('Trained model prediction').innerText().then(t=>!t.includes('Selected-quote EV\n+')),'no synthetic DFS singles EV');
+  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='50.5');
+  assert.ok(await page.getByLabel('Projection and EV reference').innerText().then(t=>!t.includes('Selected-quote EV\n+')),'no synthetic DFS singles EV');
   failHistory=true;await page.getByLabel('Player stat category').selectOption('receptions');
   await page.getByRole('button',{name:'Retry history',exact:true}).waitFor();
   await page.getByRole('button',{name:'Retry history',exact:true}).click();await page.locator('.op-chart-bar').first().waitFor();

@@ -57,6 +57,6 @@ export function sportName(sport: string): string {
 export function offerPrice(offer: WorkspaceOffer | null | undefined): string {
   if (!offer) return '—';
   if (offer.conflict) return 'Unverified';
-  if (offer.dfs) return offer.multiplier !== null && offer.multiplier !== 1 ? `${offer.multiplier}×` : 'DFS';
+  if (offer.dfs) return offer.multiplier !== null && offer.multiplier !== 1 ? `${offer.multiplier}×` : String(offer.book || '').toLowerCase().includes('draftkings') ? 'Pick6' : "Pick'em";
   return offer.price === null || !Number.isFinite(offer.price) || offer.price === 0 ? '—' : `${offer.price > 0 ? '+' : '−'}${Math.abs(offer.price)}`;
 }

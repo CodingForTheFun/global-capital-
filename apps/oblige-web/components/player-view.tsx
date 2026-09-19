@@ -168,7 +168,7 @@ export function PlayerView() {
     }}
     onFavourite={() => toggleFavourite(group.key)}
     research={<>
-      <PropExplorer group={displayGroup} games={games} loading={pending} unavailableReason={unavailable} hideBookFilter state={state} onState={setState} favourite={favourite} onFavourite={() => toggleFavourite(group.key)}/>
+      <PropExplorer group={displayGroup} games={games} loading={pending} unavailableReason={unavailable} currentOpponent={activeResearch?.matchup?.opponent ?? group.opponent} hideBookFilter state={state} onState={setState} favourite={favourite} onFavourite={() => toggleFavourite(group.key)}/>
       {activeError && <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button>}
     </>}
     supporting={!pending && !unavailable && games.length > 0 ? <SplitSummary games={games} group={displayGroup} line={state.line} side={state.side}/> : null}

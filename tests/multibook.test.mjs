@@ -8,7 +8,7 @@ const start='2099-09-14T20:00:00Z',updated='2026-09-13T15:00:00Z';
 function pp(){return {data:[{id:'q',type:'projection',attributes:{stat_type:'Points',line_score:24.5,start_time:start,updated_at:updated,odds_type:'standard'},relationships:{new_player:{data:{id:'p',type:'new_player'}},league:{data:{id:'nba',type:'league'}}}}],included:[{id:'p',type:'new_player',attributes:{name:'Test Player',team:'BOS'}},{id:'nba',type:'league',attributes:{name:'NBA'}}]};}
 function ud(){return {players:[{id:'p',first_name:'Test',last_name:'Player',sport_id:'NBA',team:'BOS'}],appearances:[{id:'a',player_id:'p',match_id:'g'}],games:[{id:'g',scheduled_at:start}],over_under_lines:[{id:'u',stat_value:'25.5',updated_at:updated,over_under:{appearance_stat:{appearance_id:'a',stat:'Points'}},options:[{choice:'higher',payout_multiplier:'1.0'},{choice:'lower',payout_multiplier:'1.0'}]}]};}
 test('registry contains the full supported book catalog, aliases and intentional empty selection',()=>{
- assert.equal(BOOKS.length,35);assert.equal(new Set(BOOKS.map(b=>b.id)).size,25);
+ assert.equal(BOOKS.length,35);assert.equal(new Set(BOOKS.map(b=>b.id)).size,35);
  for(const b of BOOKS){assert.match(b.badgeColor,/^#[0-9A-F]{6}$/i);assert.ok(['dfs','exchange','sportsbook','sweepstakes'].includes(b.type));}
  assert.equal(bookId('Bovada'),'bvda');assert.equal(bookId('betonlineag'),'boag');assert.equal(bookId('williamhill_us'),'caesars');assert.equal(bookId('LowVig.ag'),'lowvig');assert.equal(bookId('tab'),'tab_au');assert.equal(bookId('Polymarket US'),'polymarket_us');
  assert.deepEqual(bookSelection(['FanDuel','fanduel']),['fanduel']);assert.ok(bookEnabled({sportsbookKey:'New Book'},null));assert.equal(bookEnabled({sportsbookKey:'fanduel'},[]),false);

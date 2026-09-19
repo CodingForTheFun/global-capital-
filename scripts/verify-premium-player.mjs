@@ -37,12 +37,13 @@ try{
   assert.equal(await page.getByRole('button',{name:'Follow Research QA Player',exact:true,includeHidden:true}).count(),2,'Same follow action is retained in engine and presented once');
   assert.equal(await page.getByRole('button',{name:'Follow Research QA Player',exact:true}).count(),1);
   const initialHistoryCalls=historyCalls.length;
-  await page.getByLabel('Selected book',{exact:true}).selectOption('fanduel');await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='1.5');
+  assert.equal(await page.getByLabel('Selected book',{exact:true}).locator('option').count(),1,'hero selector is exact-line only');
+  await page.getByRole('button',{name:'Select FanDuel',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='1.5');
   await page.getByRole('button',{name:'Raise research line',exact:true}).click();assert.equal(await page.locator('.op-line-number').textContent(),'2');
   assert.equal(historyCalls.length,initialHistoryCalls,'Book and line changes do not widen history polling');
   await page.getByRole('button',{name:'Follow Research QA Player',exact:true}).click();
   assert.equal(await page.getByRole('button',{name:'Unfollow Research QA Player',exact:true}).getAttribute('aria-pressed'),'true');
-  await page.getByLabel('Selected book',{exact:true}).selectOption('draftkings');
+  await page.getByRole('button',{name:'Select DraftKings',exact:true}).click();
   await page.getByRole('group',{name:'Available game periods',exact:true}).getByRole('button',{name:'1H',exact:true}).click();
   await page.getByText('Exact first-half history unavailable.',{exact:true}).waitFor();assert.equal(await page.locator('.op-chart-bar').count(),0,'No full-game chart substituted for missing half history');
   if(width===390)await page.screenshot({path:`${out}/mobile390-unavailable.png`,fullPage:true});

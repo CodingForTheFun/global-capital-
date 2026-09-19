@@ -4,8 +4,9 @@ import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, Menu, Search, SlidersHorizontal } from 'lucide-react';
 import { ApiError, fetchAccount, fetchBoard, fetchResearch, windowOf } from '@/lib/api';
+import { computeWindow, playable, sortRecentFirst } from '@/lib/analytics';
 import { collapsePlayerCards, playerResearchHref, restrictBook } from '@/lib/player-cards';
-import type { BoardMeta, PropGroup, PropRow } from '@/lib/types';
+import type { BoardMeta, PropGroup, PropRow, ResearchResponse } from '@/lib/types';
 import { pctValue } from '@/lib/utils';
 import { PlayerHeadshot } from '@/components/player-headshot';
 import { SignInPanel } from '@/components/sign-in';
@@ -13,6 +14,7 @@ import styles from './premium-board.module.css';
 
 const ALL = 'ALL';
 const PAGE_SIZE = 60;
+const RESEARCH_WORKERS = 6;
 
 type Prediction = {
   available?: boolean;
@@ -21,13 +23,14 @@ type Prediction = {
   probabilityUnder?: number;
 };
 
-type ResearchStat = { rate: number | null } | null;
+type ResearchStat = { rate: number | null; hits: number | null; sample: number; source: 'window' | 'game-log' | 'unavailable' } | null;
 
 function text(value: unknown) {
   return String(value || '').trim();
 }
 
 function numberOf(value: unknown) {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -63,8 +66,60 @@ function bestEv(group: PropGroup, prediction?: Prediction) {
 
 function priceLabel(value: unknown) {
   const n = numberOf(value);
-  if (n === null || n === 0) return '—';
+  if (n === null || n === 0) return 'N/A';
   return n > 0 ? `+${n}` : String(n);
+}
+
+function displayQuote(group: PropGroup) {
+  const candidates = [group.bestOver, group.bestUnder, ...group.quotes]
+    .filter((row): row is PropRow => Boolean(row));
+  return candidates.find((row) => {
+    const price = numberOf(row.price);
+    return price !== null && price !== 0;
+  }) || candidates[0] || null;
+}
+
+function quotePriceLabel(row: PropRow | null) {
+  const price = numberOf(row?.price);
+  if (price !== null && price !== 0) return priceLabel(price);
+  const book = quoteBook(row).toLowerCase();
+  return book.includes('prizepicks') || book.includes('underdog') ? 'DFS' : 'N/A';
+}
+
+function boardResearchStat(response: ResearchResponse, line: number): ResearchStat {
+  const last10 = windowOf(response, 'last10', 'l10', 'lastTen');
+  const rate = pctValue(last10?.hitRate ?? null);
+  const sampleRaw = numberOf(last10?.sampleSize ?? last10?.games);
+  const hitsRaw = numberOf(last10?.hits);
+  if (rate !== null) {
+    return {
+      rate,
+      hits: hitsRaw,
+      sample: sampleRaw === null ? 0 : Math.max(0, Math.round(sampleRaw)),
+      source: 'window',
+    };
+  }
+
+  // Some research providers return a verified game log before they materialize
+  // window summaries. Recompute L10 from that exact log + posted line using the
+  // same analytics policy as the player page; never invent missing history.
+  const fallback = computeWindow(
+    sortRecentFirst(playable(response.gameLog || [])),
+    line,
+    'OVER',
+    'l10',
+    'L10',
+    10,
+  );
+  if (fallback.hitRate !== null) {
+    return {
+      rate: fallback.hitRate,
+      hits: fallback.hits,
+      sample: fallback.games,
+      source: 'game-log',
+    };
+  }
+  return { rate: null, hits: null, sample: 0, source: 'unavailable' };
 }
 
 function matchupTime(value: string | null) {
@@ -203,15 +258,21 @@ export function PremiumBoard() {
   React.useEffect(() => {
     if (!account || !page.length) return;
     const controller = new AbortController();
-    const targets = page
+    const targets: Array<{ key: string; groupKey: string; payload: Record<string, unknown> }> = [];
+    const unavailable: string[] = [];
+
+    page
       .filter((group) => predictions[group.key] === undefined)
-      .map((group, index) => {
+      .forEach((group) => {
         const quote = group.bestOver || group.bestUnder || group.quotes[0];
-        if (!quote?.eventId || !group.providerPlayerId || !group.marketId || !group.startsAt) return null;
-        const sportsbookKey = text(quote.sportsbookKey || quote.sportsbook);
-        if (!sportsbookKey) return null;
-        return {
-          key: String(index),
+        const sportsbookKey = text(quote?.sportsbookKey || quote?.sportsbook);
+        if (!quote?.eventId || !group.providerPlayerId || !group.marketId || !group.startsAt || !sportsbookKey) {
+          unavailable.push(group.key);
+          return;
+        }
+        const key = String(targets.length);
+        targets.push({
+          key,
           groupKey: group.key,
           payload: {
             sport: group.sport,
@@ -225,11 +286,18 @@ export function PremiumBoard() {
             entityType: 'player',
             live: group.live,
             isAlternate: false,
-            key: String(index),
+            key,
           },
-        };
-      })
-      .filter(Boolean) as Array<{ key: string; groupKey: string; payload: Record<string, unknown> }>;
+        });
+      });
+
+    if (unavailable.length) {
+      setPredictions((current) => {
+        const next = { ...current };
+        unavailable.forEach((key) => { if (next[key] === undefined) next[key] = { available: false }; });
+        return next;
+      });
+    }
     if (!targets.length) return () => controller.abort();
 
     fetch('/api/props/ml', {
@@ -241,16 +309,23 @@ export function PremiumBoard() {
     })
       .then((r) => r.ok ? r.json() : null)
       .then((body) => {
-        if (!body?.results || controller.signal.aborted) return;
+        if (controller.signal.aborted) return;
         setPredictions((current) => {
           const next = { ...current };
           targets.forEach((target) => {
-            next[target.groupKey] = body.results[target.key] || { available: false };
+            next[target.groupKey] = body?.results?.[target.key] || { available: false };
           });
           return next;
         });
       })
-      .catch(() => {});
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setPredictions((current) => {
+          const next = { ...current };
+          targets.forEach((target) => { next[target.groupKey] = { available: false }; });
+          return next;
+        });
+      });
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, pageKey]);
@@ -259,21 +334,26 @@ export function PremiumBoard() {
     if (!account || !page.length) return;
     const controller = new AbortController();
     const queue = page.filter((group) => research[group.key] === undefined);
+    if (!queue.length) return () => controller.abort();
+
     const worker = async () => {
       while (queue.length && !controller.signal.aborted) {
         const group = queue.shift();
         if (!group) break;
         try {
           const response = await fetchResearch(group, 'OVER', controller.signal);
-          const last10 = windowOf(response, 'last10', 'l10', 'lastTen');
-          const rate = pctValue(last10?.hitRate ?? null);
-          if (!controller.signal.aborted) setResearch((current) => ({ ...current, [group.key]: { rate } }));
+          const result = boardResearchStat(response, group.line);
+          if (!controller.signal.aborted) {
+            setResearch((current) => ({ ...current, [group.key]: result }));
+          }
         } catch {
-          if (!controller.signal.aborted) setResearch((current) => ({ ...current, [group.key]: null }));
+          if (!controller.signal.aborted) {
+            setResearch((current) => ({ ...current, [group.key]: null }));
+          }
         }
       }
     };
-    void Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+    void Promise.all(Array.from({ length: Math.min(RESEARCH_WORKERS, queue.length) }, worker));
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, pageKey]);
@@ -339,30 +419,55 @@ export function PremiumBoard() {
             <tbody>
               {page.map((group) => {
                 const prediction = predictions[group.key];
+                const predictionLoading = prediction === undefined;
                 const ev = bestEv(group, prediction);
-                const hit = research[group.key]?.rate ?? null;
-                const bestQuote = group.bestOver || group.bestUnder || group.quotes[0];
-                const bookNames = [...new Set(group.quotes.map((q) => quoteBook(q)).filter((v) => v !== 'Book unavailable'))].slice(0, 4);
+                const researchStat = research[group.key];
+                const hitLoading = researchStat === undefined;
+                const hit = researchStat?.rate ?? null;
+                const projection = prediction?.available && numberOf(prediction.projection) !== null
+                  ? Number(prediction.projection)
+                  : null;
+                const bestQuote = displayQuote(group);
+                const bookNames = group.bookNames.slice(0, 4);
+                const sampleLabel = researchStat?.sample
+                  ? `${researchStat.hits ?? '—'}/${researchStat.sample} L10`
+                  : hitLoading ? 'Loading L10' : 'No verified L10 sample';
                 return (
-                  <tr key={group.key} data-player-card={group.key} onClick={() => router.push(playerResearchHref(group, undefined, book === ALL ? null : book))}>
+                  <tr
+                    key={group.playerCardKey}
+                    data-player-card={group.playerCardKey}
+                    onClick={() => router.push(playerResearchHref(group, group.playerCardKey, book === ALL ? null : book))}
+                  >
                     <td>
                       <div className={styles.player}>
                         <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />
                         <span><b>{group.player}</b><small>{group.team || 'Team unavailable'}</small></span>
                       </div>
                     </td>
-                    <td><span className={styles.matchup}>{group.matchup}</span><small>{matchupTime(group.startsAt)}</small></td>
-                    <td>{group.market}</td>
-                    <td className={styles.number}>{group.line}</td>
-                    <td><span className={styles.odds}>{priceLabel(bestQuote?.price)}</span></td>
-                    <td className={styles.number}>{prediction?.available && numberOf(prediction.projection) !== null ? Number(prediction.projection).toFixed(1) : '—'}</td>
-                    <td className={styles.ev} data-positive={ev !== null && ev > 0 ? 'true' : 'false'}>{ev === null ? '—' : `${ev >= 0 ? '+' : ''}${ev.toFixed(1)}%`}</td>
-                    <td>
-                      <div className={styles.hit}><span>{hit === null ? '—' : `${Math.round(hit)}%`}</span><i><b style={{ width: hit === null ? '0%' : `${Math.max(0, Math.min(100, hit))}%` }} /></i></div>
+                    <td data-label="Matchup"><span className={styles.matchup}>{group.matchup}</span><small>{matchupTime(group.startsAt)}</small></td>
+                    <td data-label="Stat" className={styles.statCell}>
+                      <span>{group.market}</span>
+                      {group.categoryCount > 1 ? <small>{group.categoryCount} stats inside</small> : null}
                     </td>
-                    <td>
+                    <td data-label="Line" className={styles.number}>{Number.isFinite(group.line) ? group.line : 'N/A'}</td>
+                    <td data-label="Odds"><span className={styles.odds}>{quotePriceLabel(bestQuote)}</span></td>
+                    <td data-label="Proj" className={styles.number}>
+                      {predictionLoading ? '…' : projection === null ? 'N/A' : projection.toFixed(1)}
+                    </td>
+                    <td data-label="EV%" className={styles.ev} data-positive={ev !== null && ev > 0 ? 'true' : 'false'}>
+                      {predictionLoading ? '…' : ev === null ? 'N/A' : `${ev >= 0 ? '+' : ''}${ev.toFixed(1)}%`}
+                    </td>
+                    <td data-label="Hit rate" title={sampleLabel}>
+                      <div className={styles.hit}>
+                        <span>{hitLoading ? '…' : hit === null ? 'N/A' : `${Math.round(hit)}%`}</span>
+                        <i><b style={{ width: hit === null ? '0%' : `${Math.max(0, Math.min(100, hit))}%` }} /></i>
+                      </div>
+                    </td>
+                    <td data-label="Books">
                       <div className={styles.books}>
-                        {bookNames.map((name) => <span key={name} title={name}>{bookShort(name)}</span>)}
+                        {bookNames.length
+                          ? bookNames.map((name) => <span key={name} title={name}>{bookShort(name)}</span>)
+                          : <em className={styles.unavailable}>N/A</em>}
                       </div>
                     </td>
                     <td className={styles.chevron}>›</td>
@@ -378,7 +483,7 @@ export function PremiumBoard() {
         </section>
 
         <div className={styles.footerMeta}>
-          <span>{filtered.length.toLocaleString()} props</span>
+          <span>{filtered.length.toLocaleString()} players</span>
           <span>{(meta.sportsbookCount ?? books.length) || 0} books</span>
           <span>{meta.stale ? 'Cached feed' : 'Live board'}</span>
         </div>

@@ -17,7 +17,6 @@ import {
 import type { BoardMeta, PropGroup, PropRow, Side } from '@/lib/types';
 import {
   ApiError,
-  artworkUrl,
   fetchAccount,
   fetchBoard,
   fetchResearch,
@@ -25,6 +24,7 @@ import {
 } from '@/lib/api';
 import { pctValue } from '@/lib/utils';
 import { SignInPanel } from '@/components/sign-in';
+import { PlayerHeadshot } from '@/components/player-headshot';
 import styles from './terminal-board.module.css';
 
 const INITIAL_ROWS = 40;
@@ -769,11 +769,7 @@ function DesktopMatrix({
               <tr key={group.key} onClick={() => onInspect(group)}>
                 <td className={styles.playerCell}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
-                    alt=""
-                    onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-                  />
+                  <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />
                   <span>
                     <b>{group.player}</b>
                     <small>{group.matchup} · {timeLabel(group.startsAt)}</small>
@@ -870,11 +866,7 @@ function MobileMatrix({
           <article key={group.key} className={styles.mobileRow}>
             <button type="button" className={styles.mobileIdentity} onClick={() => onInspect(group)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
-                alt=""
-                onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-              />
+              <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />
               <span>
                 <b>{group.player}</b>
                 <small>{group.matchup}</small>
@@ -964,11 +956,7 @@ function Inspector({
 
         <div className={styles.inspectorHero}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
-            alt=""
-            onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-          />
+          <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />
           <div>
             <span>{group.sport} · {group.team || 'Team unavailable'}</span>
             <h2>{group.player}</h2>

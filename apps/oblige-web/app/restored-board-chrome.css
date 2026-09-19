@@ -1,0 +1,7 @@
+/* Preserve the original responsive header: the desktop link rail must not
+   override its lg-only visibility and push the phone's menu off-screen. */
+@media (max-width: 1023px) {
+  header[data-board] nav[aria-label="Primary"] {
+    display: none !important;
+  }
+}

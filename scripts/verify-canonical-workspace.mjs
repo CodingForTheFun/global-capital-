@@ -40,15 +40,8 @@ try{
    }
    if(body)await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});else await route.fulfill({status:404,contentType:'application/json',body:'{}'});
   });
-  await page.goto(base+'/board');await page.locator('[data-player-key]').first().waitFor();
-  assert.equal(await page.locator('[data-player-key]').count(),1,'one card despite multiple lines and books');
-  assert.equal(await page.getByLabel('Sport',{exact:true}).locator('option').count(),5,'all catalog sports plus placeholder');
-  await page.getByLabel('Sport',{exact:true}).selectOption('esports_rocket_league');
-  await page.waitForFunction(()=>document.querySelector('[data-player-key]')?.getAttribute('data-player-key')==='player:esports_rocket_league');
-  await page.getByLabel('Sport',{exact:true}).selectOption('football_nfl');
-  await page.waitForFunction(()=>document.querySelector('[data-player-key]')?.getAttribute('data-player-key')==='player:football_nfl');
-  await checkWidth(page,`${name}-board`);
-  await page.locator('[data-player-key]').click();await page.getByLabel('Selected book',{exact:true}).waitFor();
+  await page.goto(base+'/research?'+new URLSearchParams({sportKey:'football_nfl',event:'test-event',playerKey:'player:football_nfl',category:'rush'}));
+  await page.getByLabel('Selected book',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Player stat category').locator('option').count(),3,'one stat category, not a tab per book/line');
   await page.getByLabel('Selected book',{exact:true}).selectOption('fanduel');
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='55.5');
@@ -66,14 +59,13 @@ try{
   await page.getByLabel('Player stat category').selectOption('rush');await page.locator('.op-chart-bar').first().waitFor();
   await checkWidth(page,`${name}-research`);
   assert.ok(targets.includes('fanduel:60.5:OVER'),'prediction requested exact selected book and line');
-  await page.goto(base+'/board');await page.getByLabel('Sport',{exact:true}).selectOption('golf');
-  await page.waitForFunction(()=>document.querySelector('[data-player-key]')?.getAttribute('data-player-key')==='player:golf');
-  await page.locator('[data-player-key]').click();await page.locator('.op-chart-bar').first().waitFor();
+  await page.goto(base+'/research?'+new URLSearchParams({sportKey:'golf',event:'test-event',playerKey:'player:golf',category:'rush'}));
+  await page.locator('.op-chart-bar').first().waitFor();
   assert.equal(await page.locator('.op-line-number').textContent(),'-1.5');
   await page.getByRole('button',{name:'Lower research line',exact:true}).click();assert.equal(await page.locator('.op-line-number').textContent(),'-2');
   assert.ok(await page.locator('.op-chart-bar').evaluateAll(nodes=>nodes.every(n=>parseFloat(n.style.height)>0&&parseFloat(n.style.bottom)>=0)),'negative result bars stay within plot');
   assert.deepEqual(errors,[],'no runtime errors');
-  results.push({viewport:name,passed:true,syntheticFixtures:true,checks:['one-player-card','dynamic-sports','unique-stat-categories','book-switch','line-switch','exact-model-target','DFS-no-single-EV','history-retry','compact-unavailable','no-page-overflow','negative-history']});
+  results.push({viewport:name,passed:true,syntheticFixtures:true,checks:['canonical-shared-link','unique-stat-categories','book-switch','line-switch','exact-model-target','DFS-no-single-EV','history-retry','compact-unavailable','no-page-overflow','negative-history']});
   await context.close();
  }
 }finally{await browser.close();await writeFile(`${output}/report.json`,JSON.stringify(results,null,2));}

@@ -6,6 +6,7 @@ import { ApiError, fetchAccount, postAccount } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Field, Input } from '@/components/ui/input';
 import { CardPanel } from '@/components/ui/card';
+import { PasswordResetPanel } from '@/components/password-reset';
 
 type Mode = 'login' | 'register' | 'verify';
 
@@ -35,6 +36,7 @@ export function SignInPanel({
   const [message, setMessage] = React.useState('');
   const [error, setError] = React.useState('');
   const [googleAvailable, setGoogleAvailable] = React.useState(false);
+  const [recovering, setRecovering] = React.useState(false);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -82,6 +84,19 @@ export function SignInPanel({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (recovering) {
+    const returnToSignIn = (resetEmail: string, completed = false) => {
+      setEmail(resetEmail);
+      setPassword('');
+      setCode('');
+      setMode('login');
+      setError('');
+      setMessage(completed ? 'Password updated. Sign in with your new password.' : '');
+      setRecovering(false);
+    };
+    return <PasswordResetPanel initialEmail={email} onBack={(value) => returnToSignIn(value)} onComplete={(value) => returnToSignIn(value, true)} />;
   }
 
   const title =
@@ -201,6 +216,13 @@ export function SignInPanel({
                 required
               />
             </Field>
+          )}
+
+          {mode === 'login' && (
+            <button type="button" disabled={busy} onClick={() => { setPassword(''); setRecovering(true); }}
+              className="mb-4 inline-flex min-h-11 items-center font-semibold text-[length:var(--fs-sm)] text-[var(--accent)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--accent)] disabled:opacity-50">
+              Forgot password?
+            </button>
           )}
 
           {mode !== 'verify' && (

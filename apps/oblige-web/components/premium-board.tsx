@@ -94,15 +94,21 @@ function canonical(value: unknown) {
 
 function quoteProduct(row: PropRow | null) {
   if (!row) return null;
+  const book = quoteBook(row).toLowerCase();
   const special = text(row.specialType || row.dfsOddsType || row.dfs_odds_type).toLowerCase();
-  if (special) return special === 'goblin' ? 'Goblin' : special === 'demon' ? 'Demon' : special === 'standard' ? 'Standard' : special;
+  if (special === 'goblin') return 'Goblin';
+  if (special === 'demon') return 'Demon';
+  if (special && special !== 'standard') return special;
   const multiplier = numberOf(row.multiplier ?? row.payoutMultiplier ?? row.payout_multiplier);
   if (multiplier !== null && multiplier > 0 && multiplier !== 1) return `${multiplier}×`;
   const payout = text(row.payoutType || row.payout_type).toLowerCase();
-  const book = quoteBook(row).toLowerCase();
   if (payout === 'pickem' || payout === 'pick_em' || payout === 'pick-em') {
+    return book.includes('draftkings') ? 'Pick6' : "Pick'em";
+  }
+  if (special === 'standard') {
     if (book.includes('draftkings')) return 'Pick6';
-    return "Pick'em";
+    if (book.includes('prizepicks') || book.includes('underdog')) return "Pick'em";
+    return 'DFS';
   }
   if (book.includes('prizepicks') || book.includes('underdog')) return "Pick'em";
   return null;
@@ -601,9 +607,13 @@ export function PremiumBoard() {
                 const hit = researchStat?.rate ?? null;
                 const bestQuote = displayQuote(group);
                 const bookNames = group.bookNames.slice(0, 4);
-                const sampleLabel = researchStat?.sample
-                  ? `${researchStat.hits ?? '—'}/${researchStat.sample} L10`
-                  : hitLoading ? 'Loading L10' : 'No verified L10 sample';
+                const sampleLabel = researchStat?.source === 'propline-graded'
+                  ? researchStat.sample
+                    ? `${researchStat.hits ?? '—'}/${researchStat.sample} PropLine graded L10 market trend · historical posted lines may differ from this line`
+                    : 'PropLine graded L10 market trend'
+                  : researchStat?.sample
+                    ? `${researchStat.hits ?? '—'}/${researchStat.sample} L10`
+                    : hitLoading ? 'Loading L10' : 'No verified L10 sample';
                 return (
                   <tr
                     key={group.playerCardKey}
@@ -645,6 +655,7 @@ export function PremiumBoard() {
                         <span>{hitLoading ? '…' : hit === null ? '—' : `${Math.round(hit)}%`}</span>
                         <i><b style={{ width: hit === null ? '0%' : `${Math.max(0, Math.min(100, hit))}%` }} /></i>
                       </div>
+                      {researchStat?.source === 'propline-graded' ? <small className={styles.sourceTag}>graded</small> : null}
                     </td>
                     <td data-label="Books">
                       <div className={styles.books}>

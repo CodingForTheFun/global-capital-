@@ -530,184 +530,25 @@
     min-width: 88px;
   }
 
-  /* The phone board is a dense player card, not a 980px desktop table that
-     forces the user to swipe sideways just to find line and hit rate. */
   .tableWrap {
-    overflow: visible;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
+    border-radius: 12px;
   }
 
   .table {
-    display: block;
-    width: 100%;
-    min-width: 0;
+    min-width: 980px;
   }
 
-  .table thead {
-    display: none;
-  }
-
-  .table tbody {
-    display: grid;
-    gap: 9px;
-  }
-
-  .table tbody tr {
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    overflow: hidden;
-    border: 1px solid #1c2a3c;
-    border-radius: 14px;
-    background: rgba(7, 16, 26, .97);
-    box-shadow: 0 12px 34px rgba(0, 0, 0, .16);
-  }
-
-  .table tbody tr:hover {
-    background: rgba(7, 16, 26, .97);
-    box-shadow: 0 12px 34px rgba(0, 0, 0, .16), inset 3px 0 0 #5be4af;
+  .table th,
+  .table td {
+    padding-inline: 10px;
   }
 
   .table td {
-    min-width: 0;
-    height: auto;
-    min-height: 52px;
-    border-bottom: 0;
-    padding: 9px 10px;
-    font-size: 12px;
-  }
-
-  .table td[data-label]::before {
-    content: attr(data-label);
-    display: block;
-    margin-bottom: 4px;
-    color: #6f8096;
-    font-size: 8px;
-    font-weight: 850;
-    letter-spacing: .07em;
-    line-height: 1;
-    text-transform: uppercase;
-  }
-
-  .table td:nth-child(1) {
-    grid-column: 1 / 5;
-    min-height: 60px;
-    padding-right: 48px;
-    border-bottom: 1px solid #162333;
-  }
-
-  .table td:nth-child(2) {
-    grid-column: 1 / 3;
-    border-bottom: 1px solid #162333;
-  }
-
-  .table td:nth-child(3) {
-    grid-column: 3 / 5;
-    border-bottom: 1px solid #162333;
-  }
-
-  .table td:nth-child(4),
-  .table td:nth-child(5),
-  .table td:nth-child(6),
-  .table td:nth-child(7) {
-    border-bottom: 1px solid #162333;
-  }
-
-  .table td:nth-child(5),
-  .table td:nth-child(6),
-  .table td:nth-child(7) {
-    border-left: 1px solid #162333;
-  }
-
-  .table td:nth-child(8) {
-    grid-column: 1 / 3;
-  }
-
-  .table td:nth-child(9) {
-    grid-column: 3 / 5;
-    border-left: 1px solid #162333;
-  }
-
-  .table td:nth-child(10) {
-    position: absolute;
-    top: 7px;
-    right: 4px;
-    display: grid;
-    width: 38px;
-    min-height: 48px;
-    place-items: center;
-    padding: 0;
+    height: 58px;
   }
 
   .player img {
-    width: 40px;
-    height: 40px;
-  }
-
-  .player b {
-    font-size: 14px;
-  }
-
-  .player small,
-  .table td small {
-    font-size: 9px;
-  }
-
-  .matchup,
-  .statCell > span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .number,
-  .ev {
-    font-size: 13px;
-  }
-
-  .odds {
-    width: 100%;
-    min-width: 0;
-    height: 30px;
-    border-radius: 8px;
-    font-size: 11px;
-  }
-
-  .hit {
-    justify-content: space-between;
-    gap: 8px;
-  }
-
-  .hit > span {
-    min-width: 34px;
-    font-size: 12px;
-  }
-
-  .hit i {
-    width: min(74px, 58%);
-  }
-
-  .books {
-    min-height: 28px;
-    flex-wrap: wrap;
-    gap: 5px;
-  }
-
-  .books span {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    font-size: 8px;
-  }
-
-  .chevron {
-    font-size: 24px !important;
-  }
-
-  .footerMeta {
-    padding-inline: 2px;
+    width: 36px;
+    height: 36px;
   }
 }

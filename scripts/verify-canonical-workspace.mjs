@@ -53,7 +53,7 @@ try{
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='50.5');
   await page.getByLabel('Selected book',{exact:true}).selectOption('prizepicks');
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='50.5');
-  assert.ok(await page.getByLabel('Trained model prediction').innerText().then(t=>!t.includes('Selected-quote EV\n+')),'no synthetic DFS singles EV');
+  assert.ok(await page.getByLabel('Projection and EV reference').innerText().then(t=>!t.includes('Selected-quote EV\n+')),'no synthetic DFS singles EV');
   failHistory=true;await page.getByLabel('Player stat category').selectOption('receptions');
   await page.getByRole('button',{name:'Retry history',exact:true}).waitFor();
   await page.getByRole('button',{name:'Retry history',exact:true}).click();await page.locator('.op-chart-bar').first().waitFor();

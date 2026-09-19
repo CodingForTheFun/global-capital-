@@ -1,0 +1,42 @@
+name: PropLine training resume checks
+on:
+  push:
+    branches: [chatgpt/training-resumable-exports-20260918]
+  pull_request:
+    branches: [chatgpt/propline-training-runtime-20260918]
+    paths:
+      - 'ops/propline-training/**'
+      - '.github/workflows/propline-training-resume.yml'
+permissions:
+  contents: read
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ops/propline-training
+    env:
+      PROPLINE_API_KEY: ''
+      TRAINING_STORE_TOKEN: ''
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: ops/propline-training/requirements.txt
+      - run: python -m pip install -r requirements.txt
+      - run: python -m py_compile run.py resume.py chunked_export.py trainer.py
+      - run: python -m unittest -v
+      - name: No credentials means zero provider calls
+        run: |
+          python resume.py > /tmp/training-preflight.json
+          python - <<'PY'
+          import json
+          rows = [json.loads(line) for line in open('/tmp/training-preflight.json') if line.strip()]
+          assert rows == [{'event':'WAITING_FOR_SECURE_CONFIGURATION','providerCalls':0}], rows
+          print('Credential-free preflight passed; provider calls = 0')
+          PY

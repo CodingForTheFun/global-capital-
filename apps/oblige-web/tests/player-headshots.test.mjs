@@ -33,15 +33,14 @@ test('missing identity is neutral and query values are encoded',()=>{
  const url=new URL(headshotSources({...player,name:'Name & <Other>'})[0],'https://example.test');
  assert.equal(url.searchParams.get('name'),'Name & <Other>');assert.equal(url.searchParams.get('team'),'TEST');
 });
-test('previous TerminalBoard retains both card layouts and shared photos, with direct research',()=>{
+test('premium board keeps shared player photos and direct research navigation',()=>{
  const page=readFileSync(new URL('../app/board/page.tsx',import.meta.url),'utf8');
- const board=readFileSync(new URL('../components/terminal-board.tsx',import.meta.url),'utf8');
- assert.ok(page.includes('<TerminalBoard'));assert.ok(!page.includes('WorkspaceBoard'));
- assert.equal((board.match(/<PlayerHeadshot\b/g)||[]).length,2);
- assert.ok(!board.includes("event.currentTarget.style.visibility = 'hidden'"));
- assert.ok(board.includes('DesktopMatrix')&&board.includes('MobileMatrix'));
+ const board=readFileSync(new URL('../components/premium-board.tsx',import.meta.url),'utf8');
+ assert.ok(page.includes('<PremiumBoard'));assert.ok(!page.includes('WorkspaceBoard'));
+ assert.ok(board.includes('<PlayerHeadshot'));
  assert.ok(board.includes('router.push(playerResearchHref'));
- assert.ok(!board.includes('<Inspector'));
+ assert.ok(board.includes('Opponent')&&board.includes('Home/Away')&&board.includes('Book')&&board.includes('Line'));
+ assert.ok(!board.includes('Apply')&&!board.includes('Clear'));
 });
 test('period aliases use their parent sport only for pictures',()=>{
  for(const [sport,expected] of [['MLBLIVE','MLB'],['WNBA1H','WNBA'],['NFLQ1','NFL'],['CFB','NCAAF']])assert.equal(artworkSport(sport),expected);

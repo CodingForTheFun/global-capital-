@@ -13,7 +13,7 @@ test('explicit ESPN identity uses the same-origin restricted image optimizer',()
  assert.ok(sources[1].startsWith('/api/apex/player-artwork?'));
  assert.equal(sources.at(-1),sportFallbackPhoto('NFL'));
  assert.equal(new Set(sources).size,sources.length);
- assert.ok(sources.every(s=>s.startsWith('/')||s===unavailablePhoto));
+ assert.ok(sources.every(s=>s.startsWith('/')||s===sportFallbackPhoto('NFL')));
 });
 test('verified history identities stay in their own sport',()=>{
  assert.ok(headshotSources({...player,providerPlayerId:'history:NFL:42'})[0].startsWith('/_next/image?'));

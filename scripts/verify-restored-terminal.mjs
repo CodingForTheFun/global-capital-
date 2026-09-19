@@ -11,7 +11,7 @@ try{
  for(const [name,viewport] of [['mobile390',{width:390,height:844}],['desktop1440',{width:1440,height:1000}]]){
   const context=await browser.newContext({viewport,reducedMotion:'reduce',serviceWorkers:'block'});
   const page=await context.newPage(),errors=[];
-  let failPhotos=false;
+  let failPhotos=false,researchCalls=0;
   page.on('pageerror',e=>errors.push(e.message));
   await page.route(base+'/board',async route=>{
    const response=await route.fetch();
@@ -25,8 +25,10 @@ try{
     const sport=u.searchParams.get('sport')||'NFL';
     const playerName=sport==='WNBA'?'Fixture Second Player':'Fixture Player',providerPlayerId=sport==='WNBA'?'espn:84':'espn:42';
     const common={sport,playerName,providerPlayerId,eventId:'fixture-event',market:'Points',marketId:'player_points',line:20.5,price:-110,gameStartTime:'2050-09-20T18:00:00Z',homeTeam:'Test Home',awayTeam:'Test Away'};
-    body={ok:true,props:['book-a','book-b'].flatMap(book=>['OVER','UNDER'].map(side=>({...common,id:`${sport}-${book}-${side}`,sportsbook:book,sportsbookKey:book,side}))).concat([{...common,id:'blank-row',playerName:''}]),supportedSports:['NFL','WNBA'],meta:{sportsbookCount:2}};
-   }else if(u.pathname==='/api/apex/research')body={ok:true,available:false,message:'Synthetic test: verified history unavailable.',gameLog:[]};
+    const props=['Points','Rebounds','Points · First half'].flatMap((market,mi)=>['book-a','book-b'].flatMap(book=>(book==='book-b'?[21.5,22.5]:[20.5]).flatMap(line=>['OVER','UNDER'].map(side=>({...common,market,marketId:mi===1?'player_rebounds':'player_points',line,id:`${sport}-${mi}-${book}-${line}-${side}`,sportsbook:book,sportsbookKey:book,side})))));
+    props.push({...props[0]},{...props[0],id:'no-id-duplicate',providerPlayerId:null},{...common,id:'blank-row',playerName:''});
+    body={ok:true,props,supportedSports:['NFL','WNBA'],meta:{sportsbookCount:2}};
+   }else if(u.pathname==='/api/apex/research'){researchCalls++;body={ok:true,available:false,message:'Synthetic test: verified history unavailable.',gameLog:[]};}
    else if(u.pathname==='/api/props/ml')body={ok:true,results:{}};
    else if(u.pathname==='/api/apex/player-artwork'){
     if(failPhotos)return route.abort();
@@ -38,31 +40,43 @@ try{
   await page.getByRole('heading',{name:'Research Terminal',exact:true}).waitFor();
   const unit=name.startsWith('mobile')?page.locator('article:visible'):page.locator('table:visible tbody tr');
   await unit.first().waitFor();
-  assert.equal(await unit.count(),1,'the previous dense board folds book/side quotes into one prop');
-  assert.equal(await page.locator('[data-release="canonical-workspace-v1"]').count(),0,'rejected layout is not mounted');
+  assert.equal(await unit.count(),1,'one player/game card despite duplicate ingestion, three stats, multiple lines and books');
+  assert.equal(await page.locator('[data-release="canonical-workspace-v1"]').count(),0,'rejected board layout is not mounted');
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].filter(n=>n.getBoundingClientRect().width>0).every(n=>n.complete&&n.naturalWidth>0));
   const imgSrc=await page.locator('img[data-player-photo]:visible').first().getAttribute('src');
   assert.ok(new URL(imgSrc,base).searchParams.get('url').includes('/nfl/players/full/42.png'));
   await page.screenshot({path:`${out}/${name}-board.png`,fullPage:true});
-  const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,offenders:[...document.querySelectorAll('body *')].map(n=>({tag:n.tagName,className:typeof n.className==='string'?n.className:'',rect:n.getBoundingClientRect().toJSON(),minWidth:getComputedStyle(n).minWidth,display:getComputedStyle(n).display,position:getComputedStyle(n).position,text:n.textContent?.slice(0,80)})).filter(x=>x.rect.width&&x.rect.right>innerWidth+1).slice(0,30)}));
+  const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
   await writeFile(`${out}/${name}-dimensions.json`,JSON.stringify(dimensions,null,2));
-  if(dimensions.scrollWidth>dimensions.viewport+1)console.log('OVERFLOW_DIAGNOSTIC',JSON.stringify(dimensions));
   assert.ok(dimensions.scrollWidth<=dimensions.viewport+1,'restored board fits viewport');
-  // A row's midpoint can hit an independent Over/Under button. The player
-  // identity cell is the actual research-opening interaction being tested.
-  if(name.startsWith('mobile'))await page.getByRole('button',{name:'Inspect',exact:true}).click();else await unit.first().locator('td').first().click();
-  await page.getByLabel('Player inspector',{exact:true}).waitFor();
-  assert.equal(await page.getByLabel('Player inspector',{exact:true}).locator('img[data-player-photo]').count(),1,'same photo component inside existing inspector');
-  await page.getByRole('button',{name:'Close inspector',exact:true}).click();
+  if(name.startsWith('mobile'))await page.getByRole('button',{name:'Research',exact:true}).click();else await unit.first().locator('td').first().click();
+  await page.getByLabel('Player stat category',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('Player inspector',{exact:true}).count(),0,'no intermediate inspector');
+  assert.equal(await page.getByLabel('Player stat category').locator('option').count(),3,'one category per stat, not per book/line');
+  await page.getByLabel('Player stat category').selectOption({label:'Points'});
+  await page.getByText('Synthetic test: verified history unavailable.',{exact:true}).first().waitFor();
+  const historyBefore=researchCalls;
+  await page.getByLabel('Selected book',{exact:true}).selectOption('book-b');
+  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='21.5');
+  assert.equal(await page.getByLabel('Posted line or outcome').locator('option').count(),2);
+  await page.getByLabel('Posted line or outcome').selectOption('22.5');
+  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='22.5');
+  await page.getByLabel('Selected book',{exact:true}).selectOption('book-a');
+  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='20.5');
+  assert.equal(researchCalls,historyBefore,'changing book/line reuses the same game sample');
+  await page.locator('img[data-player-photo]:visible').first().waitFor();
+  await page.screenshot({path:`${out}/${name}-player-research.png`,fullPage:true});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'player controls fit viewport');
+  await page.goto(base+'/board');
   failPhotos=true;await page.reload();
   await page.locator('img[data-player-photo="unavailable"]:visible').first().waitFor();
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo="unavailable"]')].every(n=>n.complete&&n.naturalWidth===128));
   assert.equal(await page.locator('img[data-player-photo="unavailable"]:visible').first().evaluate(n=>getComputedStyle(n).visibility),'visible','network errors never hide the image slot');
   failPhotos=false;await page.getByRole('button',{name:'WNBA',exact:true}).click();
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].some(n=>new URL(n.src).searchParams.get('url')?.includes('/wnba/players/full/84.png')&&n.complete&&n.naturalWidth>0));
-  assert.equal(await page.locator('img[data-player-photo="unavailable"]').count(),0,'previous player failure does not leak into a new identity');
+  assert.equal(await page.locator('img[data-player-photo="unavailable"]').count(),0,'old failures do not leak into new players');
   assert.deepEqual(errors,[]);
-  reports.push({viewport:name,passed:true,syntheticFixtures:true,checks:['previous-layout','multi-book-single-prop','blank-name-filter','image-loaded-under-production-CSP','inspector-photo','bounded-image-fallback','identity-reset','no-horizontal-overflow']});
+  reports.push({viewport:name,passed:true,syntheticFixtures:true,checks:['previous-layout','one-player-per-game','three-stats-without-duplicate-cards','blank-name-filter','image-loaded-under-production-CSP','direct-research-photo','unique-stat-categories','book-specific-lines','no-extra-history-calls-on-book-line-change','bounded-image-fallback','identity-reset','no-horizontal-overflow']});
   await context.close();
  }
 }finally{await browser.close();await writeFile(`${out}/report.json`,JSON.stringify(reports,null,2));}

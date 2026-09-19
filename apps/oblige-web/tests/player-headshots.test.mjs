@@ -13,7 +13,7 @@ test('explicit ESPN identity uses the same-origin restricted image optimizer',()
  assert.ok(sources[1].startsWith('/api/apex/player-artwork?'));
  assert.equal(sources.at(-1),unavailablePhoto);
  assert.equal(new Set(sources).size,sources.length);
- assert.ok(sources.every(s=>s.startsWith('/')||s===unavailablePhoto),'no browser third-party image request');
+ assert.ok(sources.every(s=>s.startsWith('/')||s===unavailablePhoto));
 });
 test('verified history identities stay in their own sport',()=>{
  assert.ok(headshotSources({...player,providerPlayerId:'history:NFL:42'})[0].startsWith('/_next/image?'));
@@ -28,18 +28,27 @@ test('native provider sport codes map only within the artwork helper',()=>{
  assert.ok(remote(headshotSources({...player,sport:'soccer_uefa_nations_league',providerPlayerId:'espn:42'})[0]).includes('/soccer/players/full/42.png'));
  assert.equal(artworkSport('UNKNOWN_SPORT'),'UNKNOWN_SPORT');
 });
-test('missing identity is a neutral unavailable image and query values are encoded',()=>{
+test('missing identity is neutral and query values are encoded',()=>{
  assert.deepEqual(headshotSources({sport:'NFL',name:''}),[unavailablePhoto]);
  const url=new URL(headshotSources({...player,name:'Name & <Other>'})[0],'https://example.test');
- assert.equal(url.searchParams.get('name'),'Name & <Other>');
- assert.equal(url.searchParams.get('team'),'TEST');
+ assert.equal(url.searchParams.get('name'),'Name & <Other>');assert.equal(url.searchParams.get('team'),'TEST');
 });
-test('the mounted board is the previous TerminalBoard, with photos in all three existing slots',()=>{
+test('previous TerminalBoard retains both card layouts and shared photos, with direct research',()=>{
  const page=readFileSync(new URL('../app/board/page.tsx',import.meta.url),'utf8');
  const board=readFileSync(new URL('../components/terminal-board.tsx',import.meta.url),'utf8');
- assert.ok(page.includes('<TerminalBoard'));
- assert.ok(!page.includes('WorkspaceBoard'));
- assert.equal((board.match(/<PlayerHeadshot\b/g)||[]).length,3);
+ assert.ok(page.includes('<TerminalBoard'));assert.ok(!page.includes('WorkspaceBoard'));
+ assert.equal((board.match(/<PlayerHeadshot\b/g)||[]).length,2);
  assert.ok(!board.includes("event.currentTarget.style.visibility = 'hidden'"));
  assert.ok(board.includes('DesktopMatrix')&&board.includes('MobileMatrix'));
+ assert.ok(board.includes('router.push(playerResearchHref'));
+ assert.ok(!board.includes('<Inspector'));
+});
+test('period aliases use their parent sport only for pictures',()=>{
+ for(const [sport,expected] of [['MLBLIVE','MLB'],['WNBA1H','WNBA'],['NFLQ1','NFL'],['CFB','NCAAF']])assert.equal(artworkSport(sport),expected);
+ const url=new URL(headshotSources({sport:'soccer_uefa_nations_league',name:'Test Player'})[0],'https://example.test');assert.equal(url.searchParams.get('sport'),'EPL');
+});
+test('native MLB and NBA IDs stay in their explicitly named provider and sport',()=>{
+ assert.ok(remote(headshotSources({sport:'MLB',name:'Test Player',providerPlayerId:'mlb:660271'})[0]).includes('/people/660271/'));
+ assert.ok(remote(headshotSources({sport:'NBA',name:'Test Player',providerPlayerId:'nba:201939'})[0]).includes('/201939.png'));
+ assert.ok(headshotSources({sport:'NFL',name:'Test Player',providerPlayerId:'nba:201939'})[0].startsWith('/api/apex'));
 });

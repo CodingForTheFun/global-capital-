@@ -3,31 +3,54 @@ on:
   push:
     branches: [chatgpt/player-card-dedupe-photos-20260919]
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: player-card-preparation
+  cancel-in-progress: true
 jobs:
-  inspect:
+  prepare-and-verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
-      - run: |
-          mkdir -p artifacts/card-repair
-          git archive --format=tar HEAD apps/oblige-web scripts lib/web lib/autoscout/providers lib/data-sources/espn lib/data-sources/contract.mjs lib/props package.json package-lock.json .github/workflows > artifacts/card-repair/source.tar
-      - name: Read-only public photo diagnostic
+          ref: chatgpt/player-card-dedupe-photos-20260919
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply exact source-checked component repair
+        run: python3 scripts/prepare-card-repair.py
+      - run: npm ci
+      - run: npm ci
+        working-directory: apps/oblige-web
+      - name: Unit tests, TypeScript and production build
+        working-directory: apps/oblige-web
+        run: node --test tests/player-cards.test.mjs tests/player-headshots.test.mjs tests/workspace.test.mjs && npm run typecheck && npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Browser regressions
         run: |
-          node --input-type=module <<'JS'
-          import {writeFile} from 'node:fs/promises';
-          const roots=['https://www.obligeprops.com','https://autoprop-live-production.up.railway.app'];
-          const paths=['/api/account/me','/api/apex/player-artwork?sport=NFL&name=Patrick+Mahomes','/api/apex/player-artwork?sport=MLB&name=Shohei+Ohtani','/_next/image?url=https%3A%2F%2Fa.espncdn.com%2Fi%2Fheadshots%2Fnfl%2Fplayers%2Ffull%2F3139477.png&w=128&q=75'];
-          const report=[];
-          for(const root of roots)for(const path of paths){try{const r=await fetch(root+path,{signal:AbortSignal.timeout(12000),redirect:'manual'});const b=Buffer.from(await r.arrayBuffer());report.push({root,path,status:r.status,type:r.headers.get('content-type'),artwork:r.headers.get('x-artwork-status'),location:r.headers.get('location'),bytes:b.length,body:r.headers.get('content-type')?.includes('json')?b.toString().slice(0,200):null});}catch(e){report.push({root,path,error:e.name});}}
-          await writeFile('artifacts/card-repair/public-probes.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));
-          JS
+          npm --prefix apps/oblige-web run start -- --port 3100 > /tmp/card-next.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3100/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3100/ >/dev/null
+          node scripts/verify-restored-terminal.mjs
+          node scripts/verify-canonical-workspace.mjs
+      - name: Commit verified component changes only to isolated branch
+        run: |
+          test "$(git branch --show-current)" = chatgpt/player-card-dedupe-photos-20260919
+          git diff --exit-code -- apps/oblige-web/components/terminal-board.module.css
+          git add apps/oblige-web/components/terminal-board.tsx apps/oblige-web/components/player-view.tsx apps/oblige-web/components/face-card.tsx apps/oblige-web/components/prop-workspace.tsx
+          git -c user.name='ObligeProps verified repair' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'Fix duplicate player cards and keep all stat and book choices inside research'
+          git push origin HEAD:refs/heads/chatgpt/player-card-dedupe-photos-20260919
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: player-card-source
-          path: artifacts/card-repair
-          retention-days: 2
+          name: player-card-repair-proof
+          path: |
+            artifacts/restored-terminal
+            artifacts/canonical-workspace
+          retention-days: 7

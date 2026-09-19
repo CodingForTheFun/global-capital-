@@ -4,6 +4,7 @@ import { record, normalizedFeedBoard } from '../lib/ingestion/normalize.mjs';
 import { marketContract, statValue } from '../lib/data-sources/espn/stat-contract.mjs';
 import { fieldsFor } from '../lib/data-sources/sportsdataio/markets.mjs';
 import { propType, categoryOptions } from '../lib/ui/prop-board.mjs';
+import { rawStatFor } from '../lib/data-sources/propline/game-research.mjs';
 
 const start = '2026-09-14T19:00:00.000Z';
 const at = '2026-09-13T18:30:00.000Z';
@@ -46,6 +47,19 @@ test('basketball combination props retain their canonical market identities', ()
   const board = normalizedFeedBoard([row], { props: [] }, at);
   assert.equal(board.props[0].marketId, 'player_points_rebounds_assists');
   assert.equal(propType({ sport:'NBA', marketId:board.props[0].marketId, market:board.props[0].market }), 'Points + Rebounds + Assists');
+});
+
+test('basketball split rebounds use exact verified fields across ESPN and PropLine', () => {
+  const offensive = marketContract({ sport:'WNBA', market:'Offensive Rebounds', providerMarketKey:'player_offensive_rebounds' });
+  const defensive = marketContract({ sport:'NBA', market:'Defensive Rebounds', providerMarketKey:'player_defensive_rebounds' });
+  assert.deepEqual(offensive.fields, ['OffensiveRebounds']);
+  assert.deepEqual(defensive.fields, ['DefensiveRebounds']);
+  assert.equal(statValue({ offensiveRebounds:6 }, offensive), 6);
+  assert.equal(statValue({ defensiveRebounds:9 }, defensive), 9);
+  assert.deepEqual(fieldsFor('WNBA','Offensive Rebounds','player_offensive_rebounds'), ['OffensiveRebounds']);
+  assert.deepEqual(fieldsFor('NBA','Defensive Rebounds','player_defensive_rebounds'), ['DefensiveRebounds']);
+  assert.equal(rawStatFor({ sport:'WNBA', market:'Offensive Rebounds', providerMarketKey:'player_offensive_rebounds', period:'game' }), 'offensive_rebounds');
+  assert.equal(rawStatFor({ sport:'NBA', market:'Defensive Rebounds', providerMarketKey:'player_defensive_rebounds', period:'game' }), 'defensive_rebounds');
 });
 
 test('MLB pitches, batters faced and innings pitched use measured source fields', () => {

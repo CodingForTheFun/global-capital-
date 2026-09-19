@@ -37,7 +37,7 @@ function Wordmark({ footer = false }: { footer?: boolean }) {
         footer ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-md)] max-[519px]:text-[length:var(--fs-base)]',
       )}
     >
-      Oblige<span className="op-wordmark__accent">Props</span>
+      Oblige<span className="op-wordmark__accent"> Props</span>
     </span>
   );
 }
@@ -90,8 +90,10 @@ export function SiteHeader() {
           stuck && 'h-14',
         )}
       >
-        <Link href="/" className={cn("flex min-w-0 flex-none items-center gap-3",board&&"max-[767px]:gap-2")} aria-label="Oblige Props home">
-          <span aria-hidden="true" className={cn("op-mark",board&&"max-[420px]:hidden")}>OP</span>
+        <Link href="/" className={cn("flex min-w-0 flex-none items-center gap-2.5")} aria-label="Oblige Props home">
+          <span aria-hidden="true" className="op-brand-mark">
+            <img src="/icon.svg" alt="" width="32" height="32" />
+          </span>
           <Wordmark />
         </Link>
 
@@ -124,22 +126,20 @@ export function SiteHeader() {
         </nav>
 
         <div className="relative ml-auto flex items-center gap-2" ref={menuRef}>
-          {board && (
-            <button
-              type="button"
-              className="board-mobile-menu-trigger hidden size-8 items-center justify-center rounded-[8px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_88%,transparent)] text-[var(--text-2)] max-[767px]:inline-flex"
-              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-              aria-expanded={menuOpen}
-              aria-controls="board-mobile-menu"
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              {menuOpen ? <X className="size-4" aria-hidden="true" /> : <Menu className="size-4" aria-hidden="true" />}
-            </button>
-          )}
+          <button
+            type="button"
+            className="board-mobile-menu-trigger hidden size-10 items-center justify-center rounded-[12px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_88%,transparent)] text-[var(--text-2)] max-[767px]:inline-flex"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            aria-controls="site-mobile-menu"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {menuOpen ? <X className="size-4" aria-hidden="true" /> : <Menu className="size-4" aria-hidden="true" />}
+          </button>
 
-          {board && menuOpen && (
+          {menuOpen && (
             <div
-              id="board-mobile-menu"
+              id="site-mobile-menu"
               className="board-mobile-menu absolute right-0 top-[calc(100%+8px)] z-50 hidden min-w-[190px] overflow-hidden rounded-[12px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_97%,transparent)] p-1.5 shadow-2xl backdrop-blur-xl max-[767px]:grid"
             >
               {MOBILE_MENU.map((item, index) => (
@@ -159,11 +159,11 @@ export function SiteHeader() {
             asChild
             size="sm"
             variant="ghost"
-            className={cn('max-[519px]:hidden', board && 'max-[767px]:hidden')}
+            className="max-[767px]:hidden"
           >
             <Link href="/account">Account</Link>
           </Button>
-          <Button asChild size="sm" className={cn(board && 'max-[767px]:hidden')}>
+          <Button asChild size="sm" className="max-[767px]:hidden">
             <Link href="/board">Open Props</Link>
           </Button>
         </div>

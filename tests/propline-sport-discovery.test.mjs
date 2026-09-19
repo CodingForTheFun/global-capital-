@@ -4,7 +4,7 @@
 // of transcribed, and the live catalogue fills in what the static map misses.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { matchProplineSport, sportMapFromCatalog, SPORT_KEYS } from '../lib/data-sources/propline/markets.mjs';
+import { matchProplineSport, sportMapFromCatalog, proplineSportKey, SPORT_KEYS } from '../lib/data-sources/propline/markets.mjs';
 
 test('the disciplines this product models are placed exactly', () => {
   assert.equal(matchProplineSport('football_nfl'), 'NFL');
@@ -77,4 +77,12 @@ test('a malformed catalogue degrades to the static map instead of throwing', () 
     const map = sportMapFromCatalog(input);
     assert.equal(map.NFL, SPORT_KEYS.NFL);
   }
+});
+
+test('on-demand research accepts provider-native sport keys without changing automatic aliases',()=>{
+ assert.equal(proplineSportKey('NFL'),'football_nfl');
+ assert.equal(proplineSportKey('football_nfl'),'football_nfl');
+ assert.equal(proplineSportKey('golf'),'golf');
+ assert.equal(proplineSportKey('soccer_spain_la_liga'),'soccer_spain_la_liga');
+ assert.equal(proplineSportKey('not_a_sport'),null);
 });

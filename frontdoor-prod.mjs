@@ -3,6 +3,7 @@ import {createMLHandler} from './lib/ml/routes.mjs';
 const maybeServeML = createMLHandler();
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
+import { validPhotoSport, photoCreditPage } from './lib/autoscout/providers/player-photo-discovery.mjs';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
 import { fetchMatchupResearch } from './lib/data-sources/espn/research.mjs';
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
@@ -581,18 +582,30 @@ async function maybeServeArtwork(req, res) {
   }
   const sport = String(url.searchParams.get('sport') || '').toUpperCase();
   const name = String(url.searchParams.get('name') || '').trim().slice(0, 90);
-  if (!RESEARCH_SPORTS.has(sport) || !name) {
+  if (!validPhotoSport(sport) || !name) {
     res.writeHead(400, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
     res.end(JSON.stringify({ ok: false, message: 'Valid sport and player name are required.' }));
     return true;
   }
   try {
     const image = await playerArtworkResponse(sport, name, {team:String(url.searchParams.get('team')||'').slice(0,90),providerPlayerId:String(url.searchParams.get('providerPlayerId')||'').slice(0,48)});
+    if (url.searchParams.get('format') === 'credits') {
+      const body = photoCreditPage(image);
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': image.verified ? 'public, max-age=86400' : 'no-store', 'x-content-type-options': 'nosniff' });
+      res.end(body);
+      return true;
+    }
+    if (!image.verified && url.searchParams.get('requirePhoto') === '1') {
+      directJson(res, 404, { ok: false, code: 'PHOTO_UNAVAILABLE', message: 'No verified player photo is available yet.' }, { 'x-artwork-status': 'unavailable' });
+      return true;
+    }
     res.writeHead(image.status || 200, {
       'content-type': image.contentType || 'image/svg+xml',
       'content-length': Buffer.byteLength(image.body),
       'cache-control': image.cacheControl || 'public, max-age=30',
       'x-artwork-status': image.verified ? 'verified' : 'unavailable',
+      'x-artwork-persisted': image.persisted ? 'true' : 'false',
+      'x-artwork-source': image.source || 'placeholder',
       'x-content-type-options': 'nosniff',
       'cross-origin-resource-policy': 'same-origin',
     });

@@ -99,5 +99,5 @@ jobs:
         if: always()
         with:
           name: board-research-shipped-render-proof
-          path: artifacts/board-premmium-public
+          path: artifacts/board-premium-public
           retention-days: 7

@@ -34,14 +34,14 @@ try{
   assert.equal(await page.getByRole('group',{name:'Stat categories',exact:true}).locator('button').count(),2,'No duplicate category per period, book or line');
   assert.equal(await page.getByRole('group',{name:'Available game periods',exact:true}).locator('button').count(),2,'Only actual supported periods');
   assert.equal(await page.locator('.op-research-title:visible').count(),0,'No duplicated research heading');
-  assert.equal(await page.getByRole('button',{name:'Follow Research QA Player',exact:true}).count(),2,'Same follow action is retained in engine and presented once');
-  assert.equal(await page.getByRole('button',{name:'Follow Research QA Player',exact:true}).filter({visible:true}).count(),1);
+  assert.equal(await page.getByRole('button',{name:'Follow Research QA Player',exact:true,includeHidden:true}).count(),2,'Same follow action is retained in engine and presented once');
+  assert.equal(await page.getByRole('button',{name:'Follow Research QA Player',exact:true}).count(),1);
   const initialHistoryCalls=historyCalls.length;
   await page.getByLabel('Selected book',{exact:true}).selectOption('fanduel');await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='1.5');
   await page.getByRole('button',{name:'Raise research line',exact:true}).click();assert.equal(await page.locator('.op-line-number').textContent(),'2');
   assert.equal(historyCalls.length,initialHistoryCalls,'Book and line changes do not widen history polling');
-  await page.getByRole('button',{name:'Follow Research QA Player',exact:true}).filter({visible:true}).click();
-  assert.equal(await page.getByRole('button',{name:'Unfollow Research QA Player',exact:true}).filter({visible:true}).getAttribute('aria-pressed'),'true');
+  await page.getByRole('button',{name:'Follow Research QA Player',exact:true}).click();
+  assert.equal(await page.getByRole('button',{name:'Unfollow Research QA Player',exact:true}).getAttribute('aria-pressed'),'true');
   await page.getByLabel('Selected book',{exact:true}).selectOption('draftkings');
   await page.getByRole('group',{name:'Available game periods',exact:true}).getByRole('button',{name:'1H',exact:true}).click();
   await page.getByText('Exact first-half history unavailable.',{exact:true}).waitFor();assert.equal(await page.locator('.op-chart-bar').count(),0,'No full-game chart substituted for missing half history');
@@ -53,7 +53,6 @@ try{
   await page.screenshot({path:`${out}/width-${width}.png`,fullPage:true});
   assert.deepEqual(errors,[],'No runtime errors');results.push({width,passed:true,syntheticFixtures:true,...dimensions,historyCalls:historyCalls.length});await context.close();
  }
- // Signed-out client must not ask for private player/history/model data.
  const context=await browser.newContext(),page=await context.newPage();let workspaceRequests=0;
  await page.route('**/api/**',async route=>{if(route.request().url().includes('/api/oblige-workspace'))workspaceRequests++;await route.fulfill({status:401,contentType:'application/json',body:JSON.stringify({authenticated:false,ok:false})});});
  await page.goto(url);await page.getByRole('button',{name:/sign in/i}).first().waitFor();assert.equal(workspaceRequests,0);assert.equal(await page.locator('[data-design="premium-player-research-v1"]').count(),0);await context.close();

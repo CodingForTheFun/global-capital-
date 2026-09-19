@@ -18,13 +18,16 @@ try{
  browser=await chromium.launch();
  for(const width of [375,390,430,768,1440]){
   const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce',serviceWorkers:'block'}),page=await context.newPage();
-  const errors=[],historyCalls=[];let signedIn=true,failPhotos=false,privateCalls=0;
+  const errors=[],historyCalls=[],privatePaths=[];let signedIn=true,failPhotos=false;
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/_next/image?**',route=>failPhotos?route.abort():route.fulfill({status:200,contentType:'image/svg+xml',body:photo}));
   await page.route('**/api/**',async route=>{
    const url=new URL(route.request().url());let body,status=200;
    if(url.pathname==='/api/account/me')body={authenticated:signedIn,...(signedIn?{user:{id:'synthetic-ui-test-user'}}:{})};
-   else if(!signedIn){privateCalls++;status=401;body={ok:false};}
+   // SignInPanel asks whether to display Google sign-in. This is public config,
+   // not protected player data; all other signed-out API calls remain failures.
+   else if(url.pathname==='/api/account/google/status')body={available:false};
+   else if(!signedIn){privatePaths.push(url.pathname);status=401;body={ok:false};}
    else if(url.pathname==='/api/apex/props'){const sport=url.searchParams.get('sport')||'NFL';body={ok:true,props:rows(sport),supportedSports:Object.keys(names),meta:{sportsbookCount:2}};}
    else if(url.pathname==='/api/apex/research'){
     const market=url.searchParams.get('market')||'';historyCalls.push({market,sport:url.searchParams.get('sport'),line:url.searchParams.get('line')});
@@ -82,9 +85,9 @@ try{
   }
   failPhotos=true;await page.reload();await main.waitFor();await page.locator('img[data-player-photo="unavailable"]:visible').first().waitFor();
   assert.equal(await page.locator('img[data-player-photo="unavailable"]:visible').first().evaluate(node=>getComputedStyle(node).visibility),'visible','Missing artwork has a visible bounded fallback');
-  signedIn=false;privateCalls=0;await page.reload();await page.getByRole('button',{name:/sign in/i}).first().waitFor();assert.equal(await main.count(),0,'Private research hidden when signed out');assert.equal(privateCalls,0,'No private data requests before authentication');
+  signedIn=false;privatePaths.length=0;await page.reload();await page.getByRole('button',{name:/sign in/i}).first().waitFor();assert.equal(await main.count(),0,'Private research hidden when signed out');assert.deepEqual(privatePaths,[],'No protected data requests before authentication');
   assert.deepEqual(errors,[],'No runtime exceptions');
-  results.push({width,passed:true,origin:base,syntheticFixtures:true,actualBoardClick:true,savedLinkSports:width===390?Object.keys(names):[],signedOutPrivateRequests:privateCalls,...dimensions});await context.close();
+  results.push({width,passed:true,origin:base,syntheticFixtures:true,actualBoardClick:true,savedLinkSports:width===390?Object.keys(names):[],signedOutPrivateRequests:privatePaths.length,...dimensions});await context.close();
  }
 }catch(error){await writeFile(`${out}/failure.txt`,String(error));throw error;}
 finally{await browser?.close();await writeFile(`${out}/report.json`,JSON.stringify({syntheticFixtures:true,authenticatedLiveData:false,results},null,2));}

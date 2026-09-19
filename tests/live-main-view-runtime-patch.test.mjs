@@ -12,7 +12,7 @@ test('inline Scores patch reuses the existing nav slot and renders same-page sco
   assert.match(patched, /asLiveNowSection/);
   assert.match(patched, /asLiveUpcomingSection/);
   assert.match(patched, /asLiveFinalSection/);
-  assert.match(patched, /homeLogo/);
+  assert.match(patched, /game\[side\+'Logo'\]/);
   assert.match(patched, /\/api\/live/);
   assert.match(patched, /searchParams\.set\('view','live'\)/);
   assert.doesNotMatch(patched, /nav\.insertBefore\(liveButton/);

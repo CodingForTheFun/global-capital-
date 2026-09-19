@@ -30,12 +30,12 @@ test('live player props survive even when historical research has no contract ye
   assert.equal(board.props[0].period, 'first_inning');
 });
 
-test('fantasy and source-specific categories remain visible without fabricated history', () => {
+test('PrizePicks fantasy categories remain visible with exact source identity for verified research', () => {
   const row = live({ sport:'NBA', market:'Fantasy Score', line:42.5, team:'BOS', opponent:'NYK' });
   assert.ok(row);
   assert.equal(row.contract, null);
   const board = normalizedFeedBoard([row], { props: [] }, at);
-  assert.equal(board.props[0].marketId, 'player_fantasy_score');
+  assert.equal(board.props[0].marketId, 'prizepicks:player_fantasy_score');
   assert.equal(board.props[0].market, 'Fantasy Score');
 });
 

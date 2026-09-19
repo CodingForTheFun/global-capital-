@@ -7,6 +7,7 @@ import {
   proplineQuota,
 } from '../lib/data-sources/propline/client.mjs';
 import {
+  bookKey,
   defaultPlayerPropMarkets,
   proplineSportKey,
 } from '../lib/data-sources/propline/markets.mjs';
@@ -108,6 +109,13 @@ test('PropLine defaults use documented sport keys and comparable player markets'
   assert.ok(defaultPlayerPropMarkets('NBA').includes('player_points'));
   assert.ok(defaultPlayerPropMarkets('TENNIS').includes('player_aces'));
   assert.deepEqual(defaultPlayerPropMarkets('MLS'), []);
+});
+
+test('PropLine keeps distinct bookmaker identities while normalizing spelling aliases', () => {
+  assert.equal(bookKey('polymarket'), 'polymarket');
+  assert.equal(bookKey('polymarket_us'), 'polymarket_us');
+  assert.equal(bookKey('hardrock'), 'hardrockbet');
+  assert.equal(bookKey('tab_au'), 'tab');
 });
 
 test('cacheOnly PropLine board reads never make an upstream request', async () => {

@@ -16,6 +16,113 @@ export function playerGameKey(group: PropGroup): string {
   return JSON.stringify([clean(group.sport), 'unverified-game', group.key]);
 }
 
+/** Placeholder labels are missing evidence, not distinct opponents. */
+const teamLabel = (value: unknown) => {
+  const label = clean(value);
+  return /^(?:tbd|tba|unknown|unavailable|team [ab]|matchup unavailable)$/.test(label) ? '' : label;
+};
+function teamPair(group: PropGroup): string | null {
+  const home = teamLabel(group.homeTeam), away = teamLabel(group.awayTeam);
+  const team = teamLabel(group.team), opponent = teamLabel(group.opponent);
+  const pair = home && away ? [home, away] : team && opponent ? [team, opponent] : null;
+  return pair && pair[0] !== pair[1] ? JSON.stringify(pair.sort()) : null;
+}
+const eventIds = (group: PropGroup) => [...new Set(group.quotes.map(q => String(q.eventId ?? '').trim()).filter(Boolean))];
+const startOf = (group: PropGroup) => group.startsAt ? Date.parse(group.startsAt) : NaN;
+
+/**
+ * Reconcile book-local game IDs against evidence in this board snapshot only.
+ * Exact player + kickoff can attach incomplete metadata to one known matchup.
+ * An undated offer needs a shared event ID. No nearest-game/name-only guessing,
+ * recursive union, provider requests, or mutation of the underlying quotes.
+ */
+function resolvedGameKeys(groups: PropGroup[]): Map<PropGroup, string> {
+  const resolved = new Map(groups.map(group => [group, playerGameKey(group)]));
+  const facts = new Map(groups.map(group => [group, {
+    sport: clean(group.sport), id: id(group), name: name(group), at: startOf(group),
+    pair: teamPair(group), events: eventIds(group),
+    full: Boolean(teamLabel(group.homeTeam) && teamLabel(group.awayTeam)),
+  }]));
+  type Index = Map<string, Set<PropGroup>>;
+  const byStart: Index = new Map(), byEvent: Index = new Map();
+  const tokens = (group: PropGroup, evidence: string) => {
+    const f = facts.get(group)!;
+    return [
+      ...(f.id ? [JSON.stringify([f.sport, 'id', f.id, evidence])] : []),
+      ...(f.name ? [JSON.stringify([f.sport, 'name', f.name, evidence])] : []),
+    ];
+  };
+  const add = (index: Index, group: PropGroup, evidence: string) => {
+    for (const token of tokens(group, evidence)) {
+      const entries = index.get(token) || new Set<PropGroup>();
+      entries.add(group); index.set(token, entries);
+    }
+  };
+  const lookup = (index: Index, group: PropGroup, evidence: string) => {
+    const found = new Set<PropGroup>(), own = facts.get(group)!;
+    for (const token of tokens(group, evidence)) for (const candidate of index.get(token) || []) {
+      const peer = facts.get(candidate)!;
+      if (own.id && peer.id ? own.id === peer.id : Boolean(own.name) && own.name === peer.name) found.add(candidate);
+    }
+    return [...found];
+  };
+  const timed = groups.filter(group => Number.isFinite(facts.get(group)!.at));
+  for (const group of timed) add(byStart, group, String(facts.get(group)!.at));
+
+  type Anchor = { key: string; full: boolean; events: Set<string> };
+  type Evidence = { anchors: Map<string, Anchor>; ids: Set<string> };
+  // Once per player/start, not once per market/line: dense boards must stay responsive.
+  const contexts = new Map<string, Evidence>();
+  for (const group of timed) {
+    const own = facts.get(group)!;
+    const contextKey = JSON.stringify([own.sport, own.id, own.name, own.at]);
+    let context = contexts.get(contextKey);
+    if (!context) {
+      context = { anchors: new Map(), ids: new Set() };
+      for (const peer of lookup(byStart, group, String(own.at))) {
+        const f = facts.get(peer)!;
+        if (f.id) context.ids.add(f.id);
+        if (!f.pair) continue;
+        const key = f.full ? playerGameKey(peer) : JSON.stringify([f.sport, 'matchup', f.pair, f.at]);
+        const anchor = context.anchors.get(f.pair) || { key, full: f.full, events: new Set<string>() };
+        if ((f.full && !anchor.full) || (f.full === anchor.full && key < anchor.key)) { anchor.key = key; anchor.full = f.full; }
+        for (const event of f.events) anchor.events.add(event);
+        context.anchors.set(f.pair, anchor);
+      }
+      contexts.set(contextKey, context);
+    }
+    // A sparse name-only row cannot choose between two verified people.
+    if (!own.id && !own.pair && context.ids.size > 1) continue;
+    let anchors = own.pair ? [context.anchors.get(own.pair)!] : [...context.anchors.values()];
+    if (!own.pair && anchors.length > 1) {
+      const linked = anchors.filter(anchor => own.events.some(event => anchor.events.has(event)));
+      // Ambiguous partial rows must never join two verified matchups transitively.
+      anchors = linked.length === 1 ? linked : [];
+    }
+    if (anchors.length === 1) {
+      // Keep full-matchup deep links when present; books/lines never enter the key.
+      resolved.set(group, anchors[0].key);
+    } else if (context.anchors.size === 0 && (own.id || context.ids.size === 1)) {
+      resolved.set(group, JSON.stringify([own.sport, 'player-start', own.at]));
+    }
+  }
+
+  // Only originally dated rows are anchors. An inferred date is never reused as evidence.
+  for (const group of timed) for (const event of facts.get(group)!.events) add(byEvent, group, event);
+  for (const group of groups) {
+    const own = facts.get(group)!;
+    if (Number.isFinite(own.at)) continue;
+    const candidates = new Set<string>();
+    for (const event of own.events) for (const peer of lookup(byEvent, group, event)) {
+      const peerPair = facts.get(peer)!.pair;
+      if (own.pair && peerPair && own.pair !== peerPair) continue;
+      candidates.add(resolved.get(peer)!);
+    }
+    if (candidates.size === 1) resolved.set(group, [...candidates][0]);
+  }
+  return resolved;
+}
+
 /** Lines and books are choices within a category. Periods remain different categories. */
 export function playerMarketKey(group: PropGroup): string {
   const row = group.quotes[0] as (PropRow & { period?: string; periodKey?: string; dfsOddsType?: string; dfs_odds_type?: string }) | undefined;
@@ -26,16 +133,18 @@ export type PlayerCardGroup = PropGroup & { playerCardKey: string; categoryCount
 
 /** Resolve missing IDs only when the exact normalized name has one known ID in that game. */
 export function groupPlayerCards(groups: PropGroup[]): PlayerCard[] {
+  groups = groups.filter(group => name(group) && clean(group.market) && Number.isFinite(group.line));
+  const games = resolvedGameKeys(groups);
   const known = new Map<string, Set<string>>();
   for (const group of groups) {
     if (!name(group) || !id(group)) continue;
-    const k = JSON.stringify([playerGameKey(group), name(group)]);
+    const k = JSON.stringify([games.get(group)!, name(group)]);
     const ids = known.get(k) || new Set<string>(); ids.add(id(group)); known.set(k, ids);
   }
   const cards = new Map<string, PlayerCard>();
   for (const group of groups) {
     if (!name(group) || !clean(group.market) || !Number.isFinite(group.line)) continue;
-    const game = playerGameKey(group), ids = known.get(JSON.stringify([game, name(group)]));
+    const game = games.get(group)!, ids = known.get(JSON.stringify([game, name(group)]));
     const identity = id(group) || (ids?.size === 1 ? [...ids][0] : `name:${name(group)}`);
     const key = JSON.stringify([game, identity]);
     const card = cards.get(key) || { key, variants: [] };

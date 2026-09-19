@@ -89,9 +89,12 @@ export function PremiumPlayerResearch({ player, market, selected, side, favourit
           <p className={s.priceNote}>{selected.updatedAt ? `Quote seen ${shortTime(selected.updatedAt)}` : 'Quote timestamp unavailable'}</p>
           <details className={s.allLines}><summary>All posted lines <span>{market.offers.length} quotes</span></summary><div className={s.quoteList}>{market.offers.map(offer => <button key={offer.key} type="button" aria-pressed={selected.key === offer.key} onClick={() => onOffer(offer)}><span>{offer.bookName}<small>{offer.choice} {offer.line ?? ''}</small></span><strong>{offerPrice(offer)}</strong></button>)}</div></details>
         </section>
-        <div className={s.model}>{model}</div>
         {gameLog && <details className={s.gameLog}><summary>Game-by-game results</summary>{gameLog}</details>}
       </aside>
     </div>
+    <section className={s.modelChoice} aria-label="Model choice pick">
+      <div className={s.modelChoiceTitle}><span>MODEL CHOICE</span><h2>Model choice pick</h2><p>Exact to the selected player, stat, posted line and book.</p></div>
+      <div className={s.modelChoiceBody}>{model}</div>
+    </section>
   </main>;
 }

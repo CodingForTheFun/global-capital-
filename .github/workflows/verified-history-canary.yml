@@ -1,0 +1,41 @@
+name: Verified public history canary (read only)
+on:
+  push:
+    branches: [chatgpt/331-verified-history-coverage-all-sports]
+    paths:
+      - .github/workflows/verified-history-canary.yml
+      - docs/diagnostics/history-331-canary.json
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: verified-public-history-canary
+  cancel-in-progress: false
+jobs:
+  public-canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Offline regression tests
+        run: node --test tests/verified-history*.test.mjs
+      - name: Probe existing public parser without credentials or writes
+        run: >-
+          node scripts/verified-history-maintenance.mjs --mode=probe
+          --snapshot-in=docs/diagnostics/history-331-canary.json
+          --max-players=12 --max-requests=80 --max-rows=300 --max-ms=150000
+          --out=verified-history-canary-report.json
+          --evidence-out=verified-history-canary-evidence.json
+      - name: Retain bounded evidence and unavailable reasons
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-history-canary-${{ github.sha }}
+          path: verified-history-canary-*.json
+          if-no-files-found: warn
+          retention-days: 3

@@ -1,0 +1,185 @@
+name: Issue 341 www production verification
+on:
+  push:
+    branches: ['diagnostics/issue-341-www-verification-20260919']
+    paths: ['.github/workflows/issue341-www-verification.yml']
+permissions:
+  contents: read
+concurrency:
+  group: issue341-www-verification
+  cancel-in-progress: false
+jobs:
+  verify-www:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Existing www public-after-deploy check (unchanged)
+        continue-on-error: true
+        env:
+          REFERENCE_VISUAL_EMAIL: ${{ secrets.REFERENCE_VISUAL_EMAIL }}
+          REFERENCE_VISUAL_PASSWORD: ${{ secrets.REFERENCE_VISUAL_PASSWORD }}
+        run: node scripts/verify-player-cards-live.mjs
+      - name: Mobile WebKit and desktop Chromium production verification
+        env:
+          REFERENCE_VISUAL_EMAIL: ${{ secrets.REFERENCE_VISUAL_EMAIL }}
+          REFERENCE_VISUAL_PASSWORD: ${{ secrets.REFERENCE_VISUAL_PASSWORD }}
+        run: |
+          cat > issue341-www-runtime.mjs <<'ISSUE341_JS'
+          // Read-only www verification: no registration, auth bypass, mutations, provider refreshes,
+          // synthetic players, mocked responses, HARs, cookies, account payloads, or secret logging.
+          import { chromium, webkit, devices } from 'playwright';
+          import { mkdir, writeFile } from 'node:fs/promises';
+          import { createHash } from 'node:crypto';
+          const base = 'https://www.obligeprops.com';
+          const out = 'artifacts/issue341-www';
+          await mkdir(out, { recursive: true });
+          const report = { startedAt: new Date().toISOString(), base, diagnosticSha: process.env.GITHUB_SHA,
+            signedOut: [], authenticated: [], failures: [], overall: 'UNVERIFIABLE' };
+          const targets = new Set(['/api/apex/player-artwork','/api/oblige-workspace','/api/apex/research','/api/apex/props','/api/props/ml']);
+          const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+          const hash = value => createHash('sha256').update(value).digest('hex').slice(0, 16);
+          const protocols = [
+            { name:'mobile-webkit-390', browser:webkit, options:{...devices['iPhone 13'],viewport:{width:390,height:844}} },
+            { name:'desktop-chromium-1440', browser:chromium, options:{viewport:{width:1440,height:900}} }
+          ];
+          const protectedPaths = ['/api/apex/props?sport=NFL', '/api/oblige-workspace?sport=NFL', '/api/apex/research?sport=NFL&name=Patrick%20Mahomes'];
+          async function get(context, path) {
+            return context.request.get(base + path, { timeout:15000, maxRedirects:0, headers:{'cache-control':'no-cache'} });
+          }
+          async function photos(page) {
+            return page.locator('img[data-player-photo]').evaluateAll(nodes => nodes.filter(n => {
+              const r=n.getBoundingClientRect(); return r.width>0 && r.height>0 && r.top<innerHeight && r.bottom>0;
+            }).map(n => ({ loaded:n.complete && n.naturalWidth>0, fallback:n.getAttribute('data-player-photo')==='unavailable' })));
+          }
+          for (const protocol of protocols) {
+            let browser;
+            try {
+              browser = await protocol.browser.launch();
+              // Independent, truly empty browser context for each device; service workers remain enabled.
+              const context = await browser.newContext({...protocol.options, reducedMotion:'reduce'});
+              const signed = { device:protocol.name, authState:'signed-out', startedAt:new Date().toISOString(), routes:[], apis:[] };
+              report.signedOut.push(signed);
+              const page = await context.newPage();
+              let pageErrors=0;
+              page.on('pageerror', () => pageErrors++);
+              for (const path of ['/board','/research','/account']) {
+                const start=Date.now();
+                const response=await page.goto(base+path,{waitUntil:'domcontentloaded',timeout:30000});
+                await pause(1200);
+                signed.routes.push({path,status:response?.status()??null,elapsedMs:Date.now()-start,
+                  finalOrigin:new URL(page.url()).origin,finalPath:new URL(page.url()).pathname,
+                  exposedPlayerCards:await page.locator('[data-player-card]').count(),
+                  horizontallyFits:await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)});
+                if(path==='/board') {
+                  await page.screenshot({path:`${out}/${protocol.name}-signed-out-board.png`});
+                  const manifest=await page.locator('link[rel="manifest"]').getAttribute('href').catch(()=>null);
+                  if(manifest && new URL(manifest,base).origin===base) {
+                    const response=await context.request.get(new URL(manifest,base).href,{timeout:15000,maxRedirects:0});
+                    const json=await response.json().catch(()=>null);
+                    signed.manifest={status:response.status(),isJson:!!json,hasStartUrl:typeof json?.start_url==='string'};
+                  }
+                }
+              }
+              const me=await get(context,'/api/account/me'), identity=await me.json().catch(()=>null);
+              signed.me={status:me.status(),authenticated:identity?.authenticated??null,
+                hasUserPayload:!!identity?.user || !!identity?.account};
+              for(const path of protectedPaths) {
+                const start=Date.now(), response=await get(context,path), json=await response.json().catch(()=>null);
+                const sensitive=['props','players','quotes','workspace','history','user','account','data'];
+                const privatePayloadDetected=!!json && sensitive.some(key=>json[key]!=null &&
+                  !(Array.isArray(json[key])&&json[key].length===0));
+                signed.apis.push({path:new URL(path,base).pathname,status:response.status(),elapsedMs:Date.now()-start,
+                  privatePayloadDetected,failClosed:[401,403].includes(response.status())&&!privatePayloadDetected});
+              }
+              signed.pageErrors=pageErrors;
+              signed.result=signed.me.authenticated===false&&!signed.me.hasUserPayload && signed.apis.every(a=>a.failClosed) &&
+                signed.routes.every(r=>r.status===200&&r.finalOrigin===base&&r.exposedPlayerCards===0) ? 'PASS':'FAIL';
+              if(signed.result==='FAIL') report.failures.push(`${protocol.name}: signed-out protection or public route check failed`);
+              await context.close();
+              const auth={device:protocol.name,result:'UNVERIFIABLE',network:[],visits:[],missingArtwork:'UNVERIFIABLE',originalWorkspace:'UNVERIFIABLE'};
+              report.authenticated.push(auth);
+              const email=process.env.REFERENCE_VISUAL_EMAIL, password=process.env.REFERENCE_VISUAL_PASSWORD;
+              if(!email || !password) {auth.reason='Existing verified QA credentials are not configured; no authenticated browser session was attempted.'; continue;}
+              const authed=await browser.newContext({...protocol.options,reducedMotion:'reduce'});
+              try {
+                // Use only the existing account's supported normal password login; never create or elevate an account.
+                const login=await authed.request.post(base+'/api/account/login',{timeout:15000,maxRedirects:0,
+                  headers:{origin:base,referer:base+'/board'},data:{email,password,rememberMe:false}});
+                const me=await get(authed,'/api/account/me'), identity=await me.json().catch(()=>null);
+                auth.loginStatus=login.status();
+                if(!login.ok() || identity?.authenticated!==true) {auth.reason='Existing QA login not accepted; no auth bypass attempted.';continue;}
+                const page=await authed.newPage(); let phase='setup', seq=0, pending=new Map();
+                page.on('request', req=>{
+                  const u=new URL(req.url()); if(u.origin!==base||!targets.has(u.pathname))return;
+                  const pairs=[...u.searchParams].filter(([k])=>!['v','_','ts','timestamp'].includes(k)).sort();
+                  const row={id:++seq,phase,path:u.pathname,key:hash(u.pathname+JSON.stringify(pairs)),startedAt:new Date().toISOString(),status:null,elapsedMs:null};
+                  if(u.pathname==='/api/apex/player-artwork')row.missingRequiredIdentity=!u.searchParams.get('sport')?.trim()||!u.searchParams.get('name')?.trim();
+                  pending.set(req,{row,start:Date.now()}); auth.network.push(row);
+                });
+                page.on('response',res=>{const item=pending.get(res.request());if(item){item.row.status=res.status();item.row.responseMs=Date.now()-item.start;}});
+                page.on('requestfinished',req=>{const item=pending.get(req);if(item){item.row.elapsedMs=Date.now()-item.start;pending.delete(req);}});
+                page.on('requestfailed',req=>{const item=pending.get(req);if(item){item.row.elapsedMs=Date.now()-item.start;item.row.failed=true;item.row.aborted=/ABORT|cancel/i.test(req.failure()?.errorText||'');pending.delete(req);}});
+                for(let visit=0;visit<3;visit++) {
+                  phase=`visit-${visit+1}-board`;
+                  await page.goto(base+'/board',{waitUntil:'domcontentloaded',timeout:30000});
+                  await page.locator('[data-player-card]:visible').first().waitFor({timeout:45000});
+                  await pause(3000);
+                  const missing=page.locator('[data-player-card]:visible').filter({has:page.locator('img[data-player-photo="unavailable"]')});
+                  const selectMissing=visit===1 && await missing.count()>0;
+                  const card=selectMissing?missing.first():page.locator('[data-player-card]:visible').first();
+                  const entry={visit:visit+1,usedNaturalMissingArtwork:selectMissing,boardPhotos:await photos(page)};
+                  phase=`visit-${visit+1}-research`;
+                  await card.locator('button').last().click();
+                  await page.waitForURL(/\/research\?/,{timeout:15000});
+                  await page.getByLabel('Player stat category',{exact:true}).waitFor({timeout:45000});
+                  await page.getByLabel('Selected book',{exact:true}).waitFor({timeout:15000});
+                  await pause(3000);
+                  entry.researchPhotos=await photos(page);auth.visits.push(entry);
+                  await page.screenshot({path:`${out}/${protocol.name}-research-${visit+1}.png`,mask:[page.getByText(email,{exact:true})]});
+                  if(selectMissing)auth.missingArtwork=entry.researchPhotos.some(p=>p.fallback&&p.loaded)?'PASS':'REVIEW';
+                  phase=`visit-${visit+1}-back`;
+                  await page.goBack({waitUntil:'domcontentloaded',timeout:15000});await pause(500);
+                  phase=`visit-${visit+1}-forward`;
+                  await page.goForward({waitUntil:'domcontentloaded',timeout:15000});await pause(1500);
+                }
+                const workspace=auth.network.filter(r=>r.path==='/api/oblige-workspace');
+                auth.originalWorkspace=workspace.length?'OBSERVED_REQUIRES_LATENCY_REVIEW':'UNVERIFIABLE_NOT_EXERCISED_BY_CURRENT_UI';
+                auth.workspaceSamples=workspace.length;
+                auth.artwork400=auth.network.filter(r=>r.path==='/api/apex/player-artwork'&&r.status===400).length;
+                auth.invalidArtworkRequests=auth.network.filter(r=>r.missingRequiredIdentity).length;
+                auth.http499=auth.network.filter(r=>r.status===499).length;
+                auth.browserAborts=auth.network.filter(r=>r.aborted).length;
+                auth.settledAborts=auth.network.filter(r=>r.aborted&&!/back|forward/.test(r.phase)).length;
+                auth.repeatedRequests=Object.values(auth.network.reduce((all,r)=>{const k=r.phase+':'+r.key;const x=all[k]??={phase:r.phase,path:r.path,key:r.key,count:0};x.count++;return all;},{})).filter(x=>x.count>1);
+                auth.result=auth.artwork400||auth.invalidArtworkRequests||auth.settledAborts?'REVIEW':'OBSERVED';
+                auth.reason='Browser observation is not issue closure: missing-artwork, duplicate requests, original workspace exposure and server-side 499 correlation must all be reviewed.';
+              } catch(error) {auth.reason=`Authenticated verification stopped (${error?.name||'Error'}); no secrets or raw exceptions logged.`;auth.result='UNVERIFIABLE';}
+              finally {await authed.close();}
+            } catch(error) {report.failures.push(`${protocol.name}: verification stopped (${error?.name||'Error'})`);}
+            finally {await browser?.close();}
+          }
+          report.finishedAt=new Date().toISOString();
+          report.overall=report.failures.length?'FAIL': 'UNVERIFIABLE';
+          report.closureEligible=false; // A human must correlate the authenticated network with deployment HTTP logs.
+          await writeFile(out+'/report.json',JSON.stringify(report,null,2));
+          console.log('ISSUE341_REPORT '+JSON.stringify(report));
+          // Missing coverage is a non-pass, not a green issue-closure signal.
+          process.exitCode=report.overall==='FAIL'?1:2;
+          ISSUE341_JS
+          node issue341-www-runtime.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue341-www-verification
+          path: |
+            artifacts/issue341-www
+            artifacts/player-card-live
+          retention-days: 3

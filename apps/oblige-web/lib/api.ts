@@ -200,6 +200,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         line,
         sport,
         team: row.team || null,
+        position: row.position || null,
         opponent: row.opponent || null,
         homeTeam: row.homeTeam || null,
         awayTeam: row.awayTeam || null,
@@ -264,6 +265,7 @@ export async function fetchResearch(
   });
   if (group.providerPlayerId) params.set('providerPlayerId', group.providerPlayerId);
   if (group.marketId) params.set('marketId', group.marketId);
+  if (group.position) params.set('position', group.position);
   if (group.team) params.set('team', group.team);
   if (group.opponent) params.set('opponent', group.opponent);
   if (group.homeTeam) params.set('homeTeam', group.homeTeam);

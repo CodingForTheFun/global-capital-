@@ -40,9 +40,42 @@ test('retired public host in x-forwarded-host canonicalizes even when proxy rewr
   assert.equal(res.headers.location, `${CANONICAL}/board?sport=NFL`);
 });
 
+test('retired Host canonicalizes when proxy supplies an internal x-forwarded-host', async () => {
+  const { handled, res } = await run({
+    host: 'www.obligepay.com',
+    forwardedHost: 'autoprop-live-production.up.railway.app',
+    url: '/?source=retired',
+  });
+  assert.equal(handled, true);
+  assert.equal(res.statusCode, 301);
+  assert.equal(res.headers.location, `${CANONICAL}/?source=retired`);
+});
+
+test('bare Oblige Props Host canonicalizes when proxy supplies an internal x-forwarded-host', async () => {
+  const { handled, res } = await run({
+    host: 'obligeprops.com',
+    forwardedHost: 'autoprop-live-production.up.railway.app',
+    url: '/research?probe=1',
+  });
+  assert.equal(handled, true);
+  assert.equal(res.statusCode, 301);
+  assert.equal(res.headers.location, `${CANONICAL}/research?probe=1`);
+});
+
 test('retired-host API remains same-origin for cached/PWA clients behind a proxy', async () => {
   const { handled, res } = await run({
     forwardedHost: 'www.obligepay.com',
+    url: '/api/account/login',
+    method: 'POST',
+  });
+  assert.notEqual(handled, true);
+  assert.equal(res.statusCode, null);
+});
+
+test('retired Host API remains same-origin when forwarded host is internal', async () => {
+  const { handled, res } = await run({
+    host: 'www.obligepay.com',
+    forwardedHost: 'autoprop-live-production.up.railway.app',
     url: '/api/account/login',
     method: 'POST',
   });

@@ -11,37 +11,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Archive exact backend source
-        run: |
-          mkdir -p /tmp/oblige-audit
-          git archive HEAD | gzip > /tmp/oblige-audit/backend.tar.gz
-          git rev-parse HEAD
-          grep -nE 'researchRateAllowed|player-artwork|ARTWORK_SPORTS|currentAccount|serveNewWeb' frontdoor-prod.mjs
-      - uses: actions/checkout@v4
         with:
-          ref: claude/website-review-audit-t5ei2j
-          path: frontend-source
-      - name: Archive exact frontend source and inspect request paths
-        run: |
-          git -C frontend-source rev-parse HEAD
-          git -C frontend-source archive HEAD apps/oblige-web .github/workflows | gzip > /tmp/oblige-audit/frontend.tar.gz
-          grep -RInE 'Too many research|research-matchup|api/apex/research|player-artwork|Verified history unavailable' frontend-source/apps/oblige-web --exclude-dir=node_modules | head -100 || true
-      - name: Bounded public read-only smoke
-        shell: python
-        run: |
-          import urllib.request, json
-          for path in ['/api/health','/board','/api/apex/player-artwork?sport=MLB&playerName=Aaron%20Judge&team=NYY','/api/apex/player-artwork?sport=TENNIS&playerName=Coco%20Gauff']:
-            try:
-              with urllib.request.urlopen('https://www.obligeprops.com'+path,timeout=15) as r:
-                body=r.read(350000)
-                result={'path':path,'status':r.status,'content_type':r.headers.get('Content-Type'),'bytes':len(body),'artwork_source':r.headers.get('x-artwork-source')}
-                if path=='/board':
-                  result['has_terminal_board']=b'Prop Board' in body
-                print(json.dumps(result))
-            except Exception as e:
-              print(json.dumps({'path':path,'error':str(e)}))
+          persist-credentials: false
+      - name: Inspect public photo sources
+        run: python scripts/photo-discovery-source-audit.py
       - uses: actions/upload-artifact@v4
         with:
-          name: oblige-photo-research-source-audit
+          name: oblige-photo-source-contracts
           path: /tmp/oblige-audit/
           retention-days: 2

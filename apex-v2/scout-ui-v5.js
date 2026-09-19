@@ -11,9 +11,6 @@ var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(
 var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
 // Presentation enhancement: a failed load must leave the board intact.
 var dfsEdge=await import('/assets/lib/props/dfs-edge.mjs').catch(()=>null);
-// Exact-line arb analysis is pure presentation math over quotes already loaded
-// by the board. It does not poll a new source or widen provider spend.
-var arbitrage=await import('/assets/lib/markets/arbitrage.mjs').catch(()=>null);
 // Loaded on first use rather than at boot: the research-only client strips the
 // betslip, so eagerly importing this cost every visitor a request for a module
 // that never runs. loadSlipMaths() is called from renderSlip once a slip exists.
@@ -565,28 +562,43 @@ function fairValueStrip(g){
  return '<div class="asFairStrip'+(edge?' asFairEdge':'')+'" aria-label="Sharp fair value">'
   +'<b>'+(edge?'Edge':'Fair value')+'</b><span>'+esc(copy)+'</span></div>';
 }
-// Exact-line, cross-book arbitrage. The scanner intentionally stays silent
-// unless two different books quote opposite sides of the same number with
-// fresh prices. It never treats neighbouring lines as interchangeable.
+// Surface the repository's settlement-aware Pro Tools arb engine on the
+// ordinary card and Compare Lines view. This is read-only analysis over quotes
+// already loaded by the board: no extra provider request, polling or bet action.
 function arbitrageFor(g){
- if(g.archived||!arbitrage)return null;
- try{return arbitrage.bestArbitrage(g.comparisonOffers||g.rows||[]);}catch(_error){return null;}
+ if(g.archived)return null;
+ try{
+  var analysis=proToolsAnalysis({...g,rows:g.rows||[],comparisonOffers:g.comparisonOffers||g.rows||[]});
+  return analysis&&analysis.arbitrage&&analysis.arbitrage[0]||null;
+ }catch(_error){return null;}
 }
+function arbPct(value){
+ var n=Number(value);
+ return Number.isFinite(n)?n.toFixed(2)+'%':'—';
+}
+function arbBook(quote){return quote&&(quote.sportsbook||quote.bookName||quote.bookKey)||'Book';}
 function arbitrageStrip(g){
  var signal=arbitrageFor(g);
  if(!signal)return '';
- return '<div class="asFairStrip asFairEdge" aria-label="Exact-line arbitrage">'
-  +'<b>Arbitrage</b><span>'+esc(arbitrage.arbitrageLabel(signal))+'</span></div>';
+ var push=signal.possiblePush?' · push can break even':'';
+ return '<div class="asFairStrip asFairEdge" aria-label="Settlement-aware arbitrage candidate">'
+  +'<b>Arb candidate</b><span>Worst case '+esc(arbPct(signal.minimumReturnPercent))
+  +' · decided '+esc(arbPct(signal.decidedReturnPercent))
+  +' · '+esc(arbBook(signal.over))+' O '+esc(dec(signal.over.line))+' '+esc(money(signal.over.price))
+  +' / '+esc(arbBook(signal.under))+' U '+esc(dec(signal.under.line))+' '+esc(money(signal.under.price))
+  +esc(push)+'</span></div>';
 }
 function arbitragePanel(g){
  if(g.archived)return '<p class="asNotice">Arbitrage requires current sportsbook quotes; saved snapshots are not scanned.</p>';
- if(!arbitrage)return '<p class="asNotice">The arbitrage scanner could not load. Existing line comparison remains available.</p>';
  var signal=arbitrageFor(g);
- if(!signal)return '<p class="asNotice">No fresh exact-line cross-book arbitrage is present in the current quotes. Different lines are never combined to manufacture an opportunity.</p>';
+ if(!signal)return '<p class="asNotice">No settlement-aware cross-book arbitrage candidate is present in the current fresh straight-book quotes. Stale, non-contemporaneous, live, promotional, mismatched-event, unsupported-stat and ambiguous offers are rejected.</p>';
+ var pushNote=signal.possiblePush?'An exact-stat push can refund both stakes, so positive profit is not guaranteed on that outcome.':'These lines have no attainable push outcome in the supported integer-stat domain.';
  return '<div class="asMarketSummary">'
-  +'<div><small>Theoretical return at posted prices</small><b>'+esc(signal.roiPct.toFixed(2))+'%</b><span>Before limits, void rules and line movement</span></div>'
-  +'<div><small>Exact line '+esc(dec(signal.line))+'</small><b>'+esc(signal.over.bookName)+' O '+esc(money(signal.over.price))+'</b><span>'+esc(signal.under.bookName)+' U '+esc(money(signal.under.price))+'</span></div>'
-  +'</div><p class="asNotice">'+esc(signal.note)+'</p>';
+  +'<div><small>Worst-case theoretical return</small><b>'+esc(arbPct(signal.minimumReturnPercent))+'</b><span>'+esc(pushNote)+'</span></div>'
+  +'<div><small>Decided-outcome theoretical return</small><b>'+esc(arbPct(signal.decidedReturnPercent))+'</b><span>'
+  +esc(arbBook(signal.over))+' O '+esc(dec(signal.over.line))+' '+esc(money(signal.over.price))
+  +' · '+esc(arbBook(signal.under))+' U '+esc(dec(signal.under.line))+' '+esc(money(signal.under.price))+'</span></div>'
+  +'</div><p class="asNotice">'+esc(signal.assumptions)+'</p>';
 }
 // ---------------------------------------------------------------------------
 // Modelled projection card.

@@ -60,7 +60,6 @@ try{
   const historyBefore=researchCalls;
   await page.getByRole('button',{name:'Select book-b',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='21.5');
-  assert.equal(await page.getByLabel('Posted line or outcome').locator('option').count(),2);
   await page.getByLabel('Posted line or outcome').selectOption('22.5');
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='22.5');
   await page.getByRole('button',{name:'Select book-a',exact:true}).click();

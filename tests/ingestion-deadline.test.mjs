@@ -62,3 +62,18 @@ test('diagnostics are bounded and contain no URLs, request headers or payloads',
   assert.equal(ingestionDeadlineHealth().recent.length, 96);
   await assert.rejects(withIngestionDeadline('https://secret.example?key=x', () => 1, 100), TypeError);
 });
+
+test('a settled scope timer gets a fresh budget when it retries the same operation key', async () => {
+  const retry = deferred();
+  const key = 'test:same-key-retry';
+  await withIngestionDeadline(key, () => {
+    setTimeout(() => {
+      void withIngestionDeadline(key, async () => {
+        await sleep(45);
+        return 'fresh-budget';
+      }, 200).then(retry.resolve, retry.reject);
+    }, 55);
+    return 'scheduled';
+  }, 80);
+  assert.equal(await retry.promise, 'fresh-budget');
+});

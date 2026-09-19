@@ -209,6 +209,7 @@ async function maybeServeResearch(req, res) {
       sport,
       playerName,
       providerPlayerId: safeParam(url, 'providerPlayerId', 48) || null,
+      position: safeParam(url, 'position', 16) || null,
       team: safeParam(url, 'team', 40) || null,
       homeTeam: safeParam(url, 'homeTeam', 60) || null,
       awayTeam: safeParam(url, 'awayTeam', 60) || null,
@@ -267,6 +268,7 @@ function batchEntry(raw) {
     params: {
       sport, playerName, market, line, side,
       providerPlayerId: text(raw?.providerPlayerId, 48) || null,
+      position: text(raw?.position, 16) || null,
       team: text(raw?.team, 40) || null,
       homeTeam: text(raw?.homeTeam, 60) || null,
       awayTeam: text(raw?.awayTeam, 60) || null,

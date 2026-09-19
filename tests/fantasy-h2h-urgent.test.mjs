@@ -66,6 +66,14 @@ test('PrizePicks NBA fantasy score uses the verified six-component chart exactly
   assert.equal(scoreFantasyRow({},spec,raw),44.5);
 });
 
+test('PrizePicks Fantasy Points aliases resolve only with verified source and MLB role', () => {
+  assert.equal(fantasySpec({sport:'NBA',market:'Fantasy Points',providerMarketKey:'prizepicks:player_fantasy_points'})?.id,'nba');
+  assert.equal(fantasySpec({sport:'MLB',market:'Fantasy Points',providerMarketKey:'prizepicks:player_fantasy_points',position:'OF'})?.id,'mlb_hitter');
+  assert.equal(fantasySpec({sport:'MLB',market:'Fantasy Points',providerMarketKey:'prizepicks:player_fantasy_points',position:'SP'})?.id,'mlb_pitcher');
+  assert.equal(fantasySpec({sport:'MLB',market:'Fantasy Points',providerMarketKey:'prizepicks:player_fantasy_points'}),null);
+  assert.equal(fantasySpec({sport:'MLB',market:'Fantasy Points',providerMarketKey:'underdog:player_fantasy_points',position:'OF'}),null);
+});
+
 test('PrizePicks MLB hitter and pitcher fantasy scores use every required component', () => {
   const hitter=fantasySpec({sport:'MLB',market:'Hitter Fantasy Score',providerMarketKey:'prizepicks:player_hitter_fantasy_score'});
   const hitterRaw={hits:'3',doubles:'1',triples:'0',homeRuns:'1',runs:'2',RBIs:'3',walks:'1',hitByPitch:'0',stolenBases:'1'};
@@ -88,6 +96,7 @@ test('production UI sends source-qualified fantasy research and does not present
   const source=readFileSync(new URL('../apex-v2/scout-ui-v5.js',import.meta.url),'utf8');
   const patched=patchFantasyH2HUi(patchResearchUi(source));
   assert.match(patched,/function researchMarketKey/);
+  assert.match(patched,/id\.indexOf\(':\'\)>0/);
   assert.match(patched,/prizepicks.*marketId/s);
   assert.match(patched,/H2H','N\/A','','0 prior games'/);
   assert.match(patched,/FANTASY_COMPONENTS_INCOMPLETE/);

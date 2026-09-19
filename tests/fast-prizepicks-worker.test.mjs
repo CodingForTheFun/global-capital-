@@ -66,3 +66,42 @@ test('fast PrizePicks worker fails closed and retains last-good data', async () 
   assert.equal(result.httpStatus, 403);
   assert.equal(statuses.at(-1).state.retained, true);
 });
+
+
+test('fast PrizePicks worker preserves exact MLB fantasy identity and position for customer research', async () => {
+  const persisted = [];
+  const payload = {
+    data: [{
+      type: 'projection', id: 'mlb-fantasy-1',
+      attributes: { stat_type: 'Fantasy Points', line_score: 6.5 },
+      relationships: {
+        new_player: { data: { type: 'new_player', id: 'mlb-hitter-1' } },
+        game: { data: { type: 'game', id: 'mlb-game-1' } },
+        league: { data: { type: 'league', id: 'mlb' } },
+      },
+    }],
+    included: [
+      { type: 'new_player', id: 'mlb-hitter-1', attributes: { name: 'Fixture Hitter', team: 'ATL', position: 'OF' } },
+      { type: 'game', id: 'mlb-game-1', attributes: { start_time: '2030-09-20T00:20:00Z', home_team: 'ATL', away_team: 'NYM' } },
+      { type: 'league', id: 'mlb', attributes: { name: 'MLB' } },
+    ],
+    links: {},
+  };
+  const run = createFastPrizePicksRunner({
+    now: () => Date.parse('2026-09-19T14:00:00Z'),
+    fetchJson: async () => payload,
+    persistSnapshot: async (source, rows) => {
+      persisted.push({ source, rows });
+      return { written: rows.length };
+    },
+    recordStatus: async () => {},
+  });
+
+  const result = await run();
+  assert.equal(result.persisted, true);
+  assert.equal(persisted.length, 1);
+  assert.equal(persisted[0].rows.length, 2);
+  assert.ok(persisted[0].rows.every(row => row.marketId === 'prizepicks:player_hitter_fantasy_score'));
+  assert.ok(persisted[0].rows.every(row => row.position === 'OF'));
+  assert.deepEqual(new Set(persisted[0].rows.map(row => row.line)), new Set([6.5]));
+});

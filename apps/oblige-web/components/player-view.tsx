@@ -27,7 +27,7 @@ import { SignInPanel } from '@/components/sign-in';
 import { Reveal } from '@/components/motion';
 
 const DERIVED_MARKET =
-  /(?:\b(?:1q|2q|3q|4q|1h|2h)\b)|quarter|first half|second half|first inning|1st inning|fantasy/i;
+  /(?:\b(?:1q|2q|3q|4q|1h|2h)\b)|quarter|first half|second half|first inning|1st inning/i;
 
 const FAVOURITES_KEY = 'oblige-followed';
 
@@ -350,7 +350,7 @@ export function PlayerView() {
               loading={loadingResearch}
               unavailableReason={
                 derived
-                  ? 'A first-half, quarter or fantasy-score number cannot be rebuilt from a full-game box score, so Oblige does not try. This market is priced live, and every book above is real — there is simply no verified history behind it.'
+                  ? 'This period-specific number cannot be rebuilt from a full-game box score, so Oblige does not substitute unrelated history. The live line remains available.'
                   : research && research.available === false
                     ? research.message || 'No verified game log is available for this player and market yet.'
                     : null

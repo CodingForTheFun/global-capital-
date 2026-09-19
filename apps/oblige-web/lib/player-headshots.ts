@@ -21,9 +21,15 @@ export function artworkSport(value: string): string {
 export type HeadshotIdentity = {
   sport: string; name: string; team?: string | null; providerPlayerId?: string | null;
 };
-export const unavailablePhoto = 'data:image/svg+xml,' + encodeURIComponent(
-  '<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><title>Player photo unavailable</title><rect width="128" height="128" rx="64" fill="#18263c"/><circle cx="64" cy="44" r="22" fill="#53647c"/><path d="M23 112c0-27 18-42 41-42s41 15 41 42" fill="#53647c"/></svg>'
-);
+const escapeXml = (value: string) => value.replace(/[<>&"']/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[char] || char));
+export function sportFallbackPhoto(value: string): string {
+  const code = artworkSport(value) || 'SPORT';
+  const safe = escapeXml(code.slice(0, 12));
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128"><title>${safe} logo</title><rect width="128" height="128" rx="64" fill="#0d1928"/><path d="M64 17l34 13v29c0 25-14 42-34 53C44 101 30 84 30 59V30l34-13z" fill="#182c42" stroke="#38506c" stroke-width="3"/><text x="64" y="70" text-anchor="middle" font-family="Arial,sans-serif" font-size="${safe.length > 5 ? 18 : 23}" font-weight="800" fill="#e8f0fb">${safe}</text><text x="64" y="91" text-anchor="middle" font-family="Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="1.3" fill="#86a0bc">SPORT</text></svg>`;
+  return 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+// Backward-compatible neutral fallback for any older caller that imports it.
+export const unavailablePhoto = sportFallbackPhoto('SPORT');
 export function headshotSources(identity: HeadshotIdentity): string[] {
   const sport = artworkSport(identity.sport);
   const name = String(identity.name || '').trim();
@@ -58,5 +64,5 @@ export function headshotSources(identity: HeadshotIdentity): string[] {
     if (providerId) params.set('providerPlayerId', providerId);
     sources.push(`/api/apex/player-artwork?${params}`);
   }
-  return [...new Set([...sources, unavailablePhoto])];
+  return [...new Set([...sources, sportFallbackPhoto(sport)])];
 }

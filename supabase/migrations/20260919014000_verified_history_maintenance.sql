@@ -20,6 +20,11 @@ begin
   ) then raise exception 'Unauthorized ingestion' using errcode='42501'; end if;
   if p_payload is null or jsonb_typeof(p_payload) <> 'object'
     or octet_length(p_payload::text) > 2000000 then raise exception 'Invalid maintenance payload'; end if;
+  -- Fail closed before dispatch. SQL NOT IN yields NULL for a NULL action,
+  -- which must never be allowed to fall through to the writer path.
+  if p_action is null or p_action not in ('snapshot','read_keys','insert_verified') then
+    raise exception 'Invalid maintenance operation';
+  end if;
 
   if p_action = 'snapshot' then
     -- No legacy players/props/events join: this is the actual non-expired board.

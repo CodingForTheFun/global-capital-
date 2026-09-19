@@ -583,8 +583,11 @@ function arbitragePanel(g){
  if(!arbitrage)return '<p class="asNotice">The arbitrage scanner could not load. Existing line comparison remains available.</p>';
  var signal=arbitrageFor(g);
  if(!signal)return '<p class="asNotice">No fresh exact-line cross-book arbitrage is present in the current quotes. Different lines are never combined to manufacture an opportunity.</p>';
+ var returnLabel=signal.possiblePush?'Decided return at posted prices':'Theoretical minimum return';
+ var returnValue=signal.possiblePush?signal.decidedReturnPct:signal.minimumReturnPct;
+ var returnNote=signal.possiblePush?'Exact result pushes both sides · 0% return on the push':'Before limits, void rules and line movement';
  return '<div class="asMarketSummary">'
-  +'<div><small>Theoretical return at posted prices</small><b>'+esc(signal.roiPct.toFixed(2))+'%</b><span>Before limits, void rules and line movement</span></div>'
+  +'<div><small>'+returnLabel+'</small><b>'+esc(returnValue.toFixed(2))+'%</b><span>'+returnNote+'</span></div>'
   +'<div><small>Exact line '+esc(dec(signal.line))+'</small><b>'+esc(signal.over.bookName)+' O '+esc(money(signal.over.price))+'</b><span>'+esc(signal.under.bookName)+' U '+esc(money(signal.under.price))+'</span></div>'
   +'</div><p class="asNotice">'+esc(signal.note)+'</p>';
 }

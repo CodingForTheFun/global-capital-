@@ -9,7 +9,8 @@ const PAGES = new Set(['/', '/board', '/research', '/account']);
 const REDIRECTS = new Set([301, 302, 307, 308]);
 const QUERY = '?verify=domain-routing&filter=a%2Fb&tag=one&tag=two&empty=&space=a+b&plus=a%2Bb';
 const SAFE_HEADERS = ['server', 'content-type', 'cache-control', 'x-railway-request-id', 'x-railway-edge', 'service-worker-allowed'];
-const check = (condition, code) => { if (!condition) throw new Error(code); };
+class ProbeError extends Error { constructor(code) { super(code); this.name = 'ProbeError'; } }
+const check = (condition, code) => { if (!condition) throw new ProbeError(code); };
 
 /** Read-only and credential-free. Only an exact, one-hop apex page redirect is followed.
  * API, auth, image and worker requests never follow a redirect. No forced DNS or TLS bypass. */
@@ -53,7 +54,7 @@ export async function readPublicRoute(origin, path, { method = 'GET', navigation
       } else await response.body?.cancel();
       return { response, body: Buffer.concat(chunks), chain, finalOrigin: new URL(current).origin };
     }
-    throw new Error('REDIRECT_LIMIT_EXCEEDED');
+    throw new ProbeError('REDIRECT_LIMIT_EXCEEDED');
   } catch (error) {
     error.probeChain = chain;
     throw error;
@@ -62,7 +63,7 @@ export async function readPublicRoute(origin, path, { method = 'GET', navigation
 
 function jsonBody(result) {
   check(/^application\/(?:json|[\w.+-]+\+json)(?:;|$)/i.test(result.response.headers.get('content-type') || ''), 'JSON_CONTENT_TYPE_REQUIRED');
-  try { return JSON.parse(result.body.toString('utf8')); } catch { throw new Error('INVALID_JSON'); }
+  try { return JSON.parse(result.body.toString('utf8')); } catch { throw new ProbeError('INVALID_JSON'); }
 }
 function raster(body, type) {
   if (body.length <= 100) return false;
@@ -94,7 +95,8 @@ export async function verifyPublicDomains({ fetchImpl = fetch, boardAttempts = 1
     for (const [kind,path] of PHOTO_PATHS) plans.push({ origin, path, kind, image: true });
   }
   async function probe(plan) {
-    const row = { origin: plan.origin, path: plan.path, method: plan.method || 'GET', kind: plan.kind, ok: false, status: null, attempts: 0, chain: [] };
+    // The existing public-after-deploy check records resolver delivery but requires the optimizer.
+    const row = { origin: plan.origin, path: plan.path, method: plan.method || 'GET', kind: plan.kind, required: plan.kind !== 'verified-resolver', ok: false, status: null, attempts: 0, chain: [] };
     const retries = plan.kind === 'page' && row.method === 'GET' && plan.path.startsWith('/board?') ? boardAttempts : 1;
     for (let attempt = 0; attempt < retries; attempt++) {
       row.attempts++;
@@ -144,8 +146,8 @@ export async function verifyPublicDomains({ fetchImpl = fetch, boardAttempts = 1
       } catch (error) {
         if (error.probeChain) row.chain = error.probeChain;
         row.status = row.chain.at(-1)?.status ?? null;
-        // Never log response bodies, cookies, OAuth state, credentials or arbitrary fetch errors.
-        row.error = /^[A-Z][A-Z0-9_]+$/.test(error.message) ? error.message : error.name;
+        // Only codes created by this module are printable, never arbitrary fetch errors.
+        row.error = error instanceof ProbeError ? error.message : ['TypeError','AbortError','TimeoutError'].includes(error.name) ? error.name : 'PROBE_ERROR';
       }
       if (attempt + 1 < retries) await sleep(12000);
     }
@@ -155,7 +157,8 @@ export async function verifyPublicDomains({ fetchImpl = fetch, boardAttempts = 1
   for (let i = 0; i < plans.length; i += 4) report.checks.push(...await Promise.all(plans.slice(i, i + 4).map(probe)));
   report.board = report.checks.find(r => r.origin === APEX && r.method === 'GET' && r.path.startsWith('/board?'));
   report.images = report.checks.filter(r => PHOTO_PATHS.some(([kind]) => r.kind === kind));
-  report.status = report.checks.every(r => r.ok) ? 'HEALTHY' : report.checks.some(r => !r.ok && r.status !== null) ? 'FAILING' : 'UNVERIFIABLE';
+  const required = report.checks.filter(r => r.required);
+  report.status = required.every(r => r.ok) ? 'HEALTHY' : required.some(r => !r.ok && r.status !== null) ? 'FAILING' : 'UNVERIFIABLE';
   return report;
 }
 
@@ -163,6 +166,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const report = await verifyPublicDomains({ boardAttempts: Number(process.env.DOMAIN_PROOF_BOARD_ATTEMPTS || 1) });
   await mkdir('artifacts/public-restored-terminal', { recursive: true });
   await writeFile('artifacts/public-restored-terminal/report.json', JSON.stringify(report, null, 2));
-  console.log(JSON.stringify(report, null, 2));
+  console.log(JSON.stringify({ status: report.status, observedAt: report.observedAt, authenticatedSession: report.authenticatedSession, checks: report.checks.map(({ origin,path,method,status,ok,error,required,contentType,attempts }) => ({ origin,path,method,status,ok,error,required,contentType,attempts })) }));
   assert.equal(report.status, 'HEALTHY', 'Public apex/www routing contract is not healthy; do not hide the apex failure');
 }

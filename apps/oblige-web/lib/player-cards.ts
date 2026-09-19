@@ -131,7 +131,7 @@ export function playerMarketKey(group: PropGroup): string {
 export type PlayerCard = { key: string; variants: PropGroup[] };
 export type PlayerCardGroup = PropGroup & { playerCardKey: string; categoryCount: number; bookCount: number; bookNames: string[] };
 
-/** Resolve missing IDs only when the exact normalized name has one known ID in that game. */
+/** One card per athlete per game; source-local IDs never create duplicate player cards by themselves. */
 export function groupPlayerCards(groups: PropGroup[]): PlayerCard[] {
   groups = groups.filter(group => name(group) && clean(group.market) && Number.isFinite(group.line));
   const games = resolvedGameKeys(groups);

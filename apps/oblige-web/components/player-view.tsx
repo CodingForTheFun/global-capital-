@@ -24,8 +24,8 @@ function readFavourites(): string[] {
 }
 
 /**
- * The live TerminalBoard emits this legacy URL format. Keep its existing board
- * and research APIs, but render the SAME premium component as canonical links.
+ * The live board emits this legacy URL format. Keep its existing board and
+ * research APIs, but render the SAME premium component as canonical links.
  * No fabricated canonical identities or extra provider fetches are introduced.
  */
 export function PlayerView() {
@@ -163,7 +163,7 @@ export function PlayerView() {
     onBook={book => choose(playerMarketKey(group), book || null, group.line)}
     onLine={line => choose(playerMarketKey(group), selectedBook, line)}
     onOffer={offer => {
-      if (offer.side) setState(previous => ({ ...previous, side: offer.side! }));
+      setState(previous => ({ line: offer.line ?? group.line, book: offer.book, side: offer.side || previous.side }));
       choose(playerMarketKey(group), offer.book, offer.line);
     }}
     onFavourite={() => toggleFavourite(group.key)}

@@ -2,6 +2,7 @@ import {appendPublicFeeds,publicFeeds} from '../lib/ingestion/public-feeds.mjs';
 import {normalizedDataFromBoardRows} from '../lib/ingestion/normalize.mjs';
 import { publicPersistenceConfigured, readPublicProps } from '../lib/ingestion/public-persistence.mjs';
 import { mergeCachedPropline, proplineSupplementHealth } from '../lib/ingestion/propline-supplement.mjs';
+import { filterCustomerBoardFreshness } from '../lib/ingestion/customer-prop-freshness.mjs';
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
@@ -220,21 +221,23 @@ export function __persistedFallbackState() {
 
 async function fetchPublicFirstBoard(sport, options) {
   let persisted = [];
-  let servedFromLastGood = null;
+  let persistedReadFailed = false;
   try {
     persisted = await readPublicProps(sport);
     rememberPersisted(sport, persisted);
   } catch {
-    const recalled = recallPersisted(sport);
-    if (recalled) {
-      persisted = recalled.rows;
-      servedFromLastGood = new Date(recalled.at).toISOString();
-    }
+    // Last-good persisted rows remain available for diagnostics/recovery only.
+    // A customer request must not substitute an unverifiable older snapshot.
+    persistedReadFailed = true;
   }
 
   let cached = null;
   try {
     cached = await fetchBaseBoard(sport, { ...options, force: false, cacheOnly: true });
+    // Provider caches may retain a last successful board for recovery. Keep
+    // that internally, but never seed the customer board with a known-stale
+    // provider snapshot.
+    if (cached?.meta?.stale === true) cached = null;
   } catch {}
 
   let board = await appendPublicFeeds(cached || emptyPublicBoard(sport), sport);
@@ -242,10 +245,8 @@ async function fetchPublicFirstBoard(sport, options) {
   // PropLine is cache-only on the customer path. Existing direct/public rows
   // win identity collisions; PropLine only fills missing book/market coverage.
   board = mergeCachedPropline(board, sport);
-  // Say so when any of these rows came from the held copy rather than the
-  // database. The board renders meta.stale; nothing shows an old price as live.
-  if (servedFromLastGood) {
-    board = { ...board, meta: { ...board.meta, stale: true, staleSince: servedFromLastGood, staleReason: 'PERSISTED_READ_UNAVAILABLE' } };
+  if (persistedReadFailed) {
+    board = { ...board, meta: { ...board.meta, persistedReadFailed: true } };
   }
   if (board.props.length || options.cacheOnly || options.allowPaidRefresh !== true) return board;
 
@@ -262,18 +263,25 @@ export async function fetchUnifiedBoard(league,options={}) {
   if(options.refreshPublicFeeds===true&&!options.cacheOnly)await publicFeeds.refresh();
 
   if (publicPersistenceConfigured() && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false') {
-    return fetchPublicFirstBoard(sport, options);
+    return filterCustomerBoardFreshness(await fetchPublicFirstBoard(sport, options));
   }
 
   // Legacy behavior remains available for local/test environments without the
   // secure public store. Production uses the public-first branch above.
   try{
-    const board=await appendPublicFeeds(await fetchBaseBoard(sport,options),sport);
-    return mergeCachedPropline(board,sport);
+    const base=await fetchBaseBoard(sport,options);
+    // A provider may intentionally return its last successful board after an
+    // upstream failure. Keep that cache for recovery, but do not seed a
+    // customer response with a board already known to be stale.
+    const customerBase=base?.meta?.stale===true
+      ? {props:[],data:{events:[],players:[],props:[],lines:[]},meta:{provider:base?.meta?.provider||'Provider cache',cacheHit:true,stale:false,knownStaleRejected:true}}
+      : base;
+    const board=await appendPublicFeeds(customerBase,sport);
+    return filterCustomerBoardFreshness(mergeCachedPropline(board,sport));
   }
   catch(error){
     let fallback=await appendPublicFeeds({props:[],data:{events:[],players:[],props:[],lines:[]},meta:{provider:'Public platform feeds',stale:true,cacheHit:true,warning:'Primary sportsbook feed is temporarily unavailable.'}},sport);
-    fallback=mergeCachedPropline(fallback,sport);
+    fallback=filterCustomerBoardFreshness(mergeCachedPropline(fallback,sport));
     if(fallback.props.length)return fallback;
     throw error;
   }

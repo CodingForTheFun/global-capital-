@@ -43,11 +43,13 @@ try{
   await page.goto(base+'/research?'+new URLSearchParams({sportKey:'football_nfl',event:'test-event',playerKey:'player:football_nfl',category:'rush'}));
   await page.getByLabel('Selected book',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Player stat category').locator('option').count(),3,'one stat category, not a tab per book/line');
-  await page.getByLabel('Selected book',{exact:true}).selectOption('fanduel');
+  assert.deepEqual(await page.getByLabel('Selected book',{exact:true}).locator('option').allTextContents(),['DraftKings'],'hero selector contains only books carrying the displayed line');
+  await page.getByRole('button',{name:'Select FanDuel',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='55.5');
   await page.getByLabel('Posted line or outcome').selectOption('60.5');
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='60.5');
-  await page.getByLabel('Selected book',{exact:true}).selectOption('prizepicks');
+  assert.deepEqual(await page.getByLabel('Selected book',{exact:true}).locator('option').allTextContents(),['FanDuel'],'line change keeps the hero selector exact-line only');
+  await page.getByRole('button',{name:'Select PrizePicks',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='45.5');
   assert.ok(await page.getByLabel('Trained model prediction').innerText().then(t=>!t.includes('Selected-quote EV\n+')),'no synthetic DFS singles EV');
   failHistory=true;await page.getByLabel('Player stat category').selectOption('receptions');

@@ -1,0 +1,21 @@
+{
+  "asOf": "2026-09-19T01:48:01.724673+00:00",
+  "scope": "bounded six-sport public canary, two missing-history names per sport; not full production coverage",
+  "completeActiveUniverse": false,
+  "truncated": false,
+  "history": [],
+  "active": [
+    {"team":"Arsenal","sport":"EPL","market":"Shots","period":"single_stat","awayTeam":"","homeTeam":"","entityType":"player","playerName":"Bukayo Saka","sourceBook":"prizepicks","providerMarketKey":"player_shots"},
+    {"team":"Newcastle","sport":"EPL","market":"Shots","period":"single_stat","awayTeam":"","homeTeam":"","entityType":"player","playerName":"Harvey Barnes","sourceBook":"prizepicks","providerMarketKey":"player_shots"},
+    {"team":"","sport":"MLB","market":"Strikeouts","period":"game","awayTeam":"Philadelphia Phillies (A Painter)","homeTeam":"New York Mets (C Scott)","entityType":"player","playerName":"Andrew Painter","sourceBook":"fanduel","providerMarketKey":"pitcher_strikeouts"},
+    {"team":"","sport":"MLB","market":"Strikeouts","period":"game","awayTeam":"New York Yankees","homeTeam":"Arizona Diamondbacks","entityType":"player","playerName":"Cam Schlittler","sourceBook":"bvda","providerMarketKey":"pitcher_strikeouts"},
+    {"team":"","sport":"NCAAF","market":"Rush Yards","period":"game","awayTeam":"","homeTeam":"","entityType":"player","playerName":"Abu Sama","sourceBook":"underdog","providerMarketKey":"player_rush_yds"},
+    {"team":"WIS","sport":"NCAAF","market":"Rush Yards","period":"single_stat","awayTeam":"","homeTeam":"","entityType":"player","playerName":"Abu Sama III","sourceBook":"prizepicks","providerMarketKey":"player_rush_yds"},
+    {"team":"","sport":"NFL","market":"Points","period":"game","awayTeam":"Pittsburgh Steelers","homeTeam":"New England Patriots","entityType":"player","playerName":"Andres Borregales","sourceBook":"bvda","providerMarketKey":"player_points"},
+    {"team":"ATL","sport":"NFL","market":"Pass Yards","period":"single_stat","awayTeam":"","homeTeam":"","entityType":"player","playerName":"Cooper Rush","sourceBook":"prizepicks","providerMarketKey":"player_pass_yds"},
+    {"team":"Athletico PR","sport":"SOCCER","market":"Shots","period":"single_stat","awayTeam":"","homeTeam":"","entityType":"player","playerName":"Alejandro García","sourceBook":"prizepicks","providerMarketKey":"player_shots"},
+    {"team":"Roma","sport":"SOCCER","market":"Shots","period":"single_stat","awayTeam":"","homeTeam":"","entityType":"player","playerName":"Donyell Malen","sourceBook":"prizepicks","providerMarketKey":"player_shots"},
+    {"team":"Portland Fire","sport":"WNBA","market":"Points","period":"game","awayTeam":"Portland Fire","homeTeam":"Golden State Valkyries","entityType":"player","playerName":"Carla Leite","sourceBook":"draftkings","providerMarketKey":"player_points"},
+    {"team":"","sport":"WNBA","market":"Points","period":"game","awayTeam":"Portland Fire","homeTeam":"Golden State Valkyries","entityType":"player","playerName":"Cecilia Zandalasini","sourceBook":"pinnacle","providerMarketKey":"player_points"}
+  ]
+}

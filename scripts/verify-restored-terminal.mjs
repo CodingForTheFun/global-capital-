@@ -26,7 +26,13 @@ try{
     const playerName=sport==='WNBA'?'Fixture Second Player':'Fixture Player',providerPlayerId=sport==='WNBA'?'espn:84':'espn:42';
     const common={sport,playerName,providerPlayerId,eventId:'fixture-event',market:'Points',marketId:'player_points',line:20.5,price:-110,gameStartTime:'2050-09-20T18:00:00Z',homeTeam:'Test Home',awayTeam:'Test Away'};
     const props=['Points','Rebounds','Points · First half'].flatMap((market,mi)=>['book-a','book-b'].flatMap(book=>(book==='book-b'?[21.5,22.5]:[20.5]).flatMap(line=>['OVER','UNDER'].map(side=>({...common,market,marketId:mi===1?'player_rebounds':'player_points',line,id:`${sport}-${mi}-${book}-${line}-${side}`,sportsbook:book,sportsbookKey:book,side})))));
-    props.push({...props[0]},{...props[0],id:'no-id-duplicate',providerPlayerId:null},{...common,id:'blank-row',playerName:''});
+    // Reproduce cross-book splits: different event IDs, team-only vs full matchup,
+    // and an ID-less offer with no matchup. Only the exact kickoff is shared.
+    for(const row of props){
+     row.eventId=`fixture-event-${row.sportsbookKey}`;
+     if(row.sportsbookKey==='book-a'){row.homeTeam=null;row.awayTeam=null;row.team='TEST';}
+    }
+    props.push({...props[0]},{...props[0],id:'no-id-duplicate',providerPlayerId:null,eventId:'fixture-event-no-id',team:null,homeTeam:null,awayTeam:null},{...common,id:'blank-row',playerName:''});
     body={ok:true,props,supportedSports:['NFL','WNBA'],meta:{sportsbookCount:2}};
    }else if(u.pathname==='/api/apex/research'){researchCalls++;body={ok:true,available:false,message:'Synthetic test: verified history unavailable.',gameLog:[]};}
    else if(u.pathname==='/api/props/ml')body={ok:true,results:{}};
@@ -40,7 +46,7 @@ try{
   await page.getByRole('heading',{name:'Research Terminal',exact:true}).waitFor();
   const unit=name.startsWith('mobile')?page.locator('article:visible'):page.locator('table:visible tbody tr');
   await unit.first().waitFor();
-  assert.equal(await unit.count(),1,'one player/game card despite duplicate ingestion, three stats, multiple lines and books');
+  assert.equal(await unit.count(),1,'one player/game card despite cross-book event IDs, incomplete matchups, duplicate ingestion, three stats and alternate lines');
   assert.equal(await page.locator('[data-release="canonical-workspace-v1"]').count(),0,'rejected board layout is not mounted');
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].filter(n=>n.getBoundingClientRect().width>0).every(n=>n.complete&&n.naturalWidth>0));
   const imgSrc=await page.locator('img[data-player-photo]:visible').first().getAttribute('src');
@@ -76,7 +82,7 @@ try{
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].some(n=>new URL(n.src).searchParams.get('url')?.includes('/wnba/players/full/84.png')&&n.complete&&n.naturalWidth>0));
   assert.equal(await page.locator('img[data-player-photo="unavailable"]').count(),0,'old failures do not leak into new players');
   assert.deepEqual(errors,[]);
-  reports.push({viewport:name,passed:true,syntheticFixtures:true,checks:['previous-layout','one-player-per-game','three-stats-without-duplicate-cards','blank-name-filter','image-loaded-under-production-CSP','direct-research-photo','unique-stat-categories','book-specific-lines','no-extra-history-calls-on-book-line-change','bounded-image-fallback','identity-reset','no-horizontal-overflow']});
+  reports.push({viewport:name,passed:true,syntheticFixtures:true,checks:['previous-layout','one-player-per-game','cross-book-event-aliases','partial-matchup-reconciliation','three-stats-without-duplicate-cards','blank-name-filter','image-loaded-under-production-CSP','direct-research-photo','unique-stat-categories','book-specific-lines','no-extra-history-calls-on-book-line-change','bounded-image-fallback','identity-reset','no-horizontal-overflow']});
   await context.close();
  }
 }finally{await browser.close();await writeFile(`${out}/report.json`,JSON.stringify(reports,null,2));}

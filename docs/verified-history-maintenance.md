@@ -127,7 +127,11 @@ frozen active cohort. Live ingestion may also change stored coverage during that
 window, so the net percentage delta is not attributed entirely to maintenance.
 The report separately records rows acknowledged inserted and read-back failures.
 A write acknowledgement without matching persisted evidence is UNVERIFIABLE,
-not success. Keep issue 331 open until measured acceptance actually passes.
+not success. Exact read-back includes player name, season, season type and ESPN
+provenance in addition to the natural key, sport, game date and freshly proved
+stat fields; richer stored stat objects may retain extra fields. Null or unknown
+maintenance actions fail closed before writer dispatch. Keep issue 331 open until
+measured acceptance actually passes.
 
 The initial investigation measured NFL 250/522 (47.9%), MLB 81/130 (62.3%), WNBA
 12/18 (66.7%), NCAAF 65/494 (13.2%), and NBA 6/6 (100%) using an issue-style raw

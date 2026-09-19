@@ -54,7 +54,12 @@ try{
   await page.getByLabel('Selected book',{exact:true}).selectOption('fanduel');await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='23.5');
   await page.getByLabel('Posted line or outcome').selectOption('24.5');await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='24.5');
   await page.getByLabel('Selected book',{exact:true}).selectOption('draftkings');await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='22.5');
-  await page.getByLabel('Selected book',{exact:true}).selectOption('');assert.equal(await page.getByLabel('Selected book',{exact:true}).inputValue(),'','Best prices retained');
+  await page.getByRole('button',{name:'Raise research line',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='23');
+  await page.getByRole('button',{name:'Select DraftKings',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='22.5');
+  assert.equal(await page.locator('.op-line-number').textContent(),'22.5','Explicit quote reselection resets the adjusted analysis line');
+  await page.getByLabel('Selected book',{exact:true}).selectOption('');
+  await page.waitForFunction(()=>document.querySelector('select[aria-label="Selected book"]')?.value===''&&!new URL(location.href).searchParams.has('book'));
+  assert.equal(await page.getByLabel('Selected book',{exact:true}).inputValue(),'','Best prices retained');
   await page.getByRole('button',{name:'Raise research line',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='23');
   assert.equal(historyCalls.length,count,'Book/line adjustments reuse the existing category history');
   assert.ok(historyCalls.some(call=>call.market==='player_reception_longest'),'Raw API identity is unchanged in data requests');

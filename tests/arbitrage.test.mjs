@@ -94,3 +94,25 @@ test('accepts ingestedAt when providerUpdatedAt is absent but still enforces fre
   assert.ok(signal);
   assert.equal(signal.line, 4.5);
 });
+
+
+test('uses last-seen or ingestion freshness instead of an old last-change timestamp', () => {
+  const oldChange = new Date(NOW - 2 * 60 * 60_000).toISOString();
+  const freshSeen = new Date(NOW - 20_000).toISOString();
+  const signal = bestArbitrage([
+    {
+      ...quote('book-a', 'OVER', 6.5, 125),
+      providerUpdatedAt: oldChange,
+      lastSeenAt: freshSeen,
+      ingestedAt: freshSeen,
+    },
+    {
+      ...quote('book-b', 'UNDER', 6.5, 125),
+      providerUpdatedAt: oldChange,
+      lastSeenAt: freshSeen,
+      ingestedAt: freshSeen,
+    },
+  ], { now: NOW });
+  assert.ok(signal);
+  assert.equal(signal.line, 6.5);
+});

@@ -1,0 +1,103 @@
+name: Board research route acceptance
+on:
+  push:
+    branches: ['chatgpt/fix-actual-board-research-20260919', 'claude/website-review-audit-t5ei2j']
+    paths: ['apps/oblige-web/**', 'scripts/verify-board-premium.mjs', '.github/workflows/board-research-route.yml']
+  pull_request:
+    branches: ['claude/website-review-audit-t5ei2j']
+    paths: ['apps/oblige-web/**', 'scripts/verify-board-premium.mjs', '.github/workflows/board-research-route.yml']
+permissions:
+  contents: read
+concurrency:
+  group: board-research-route-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm ci
+        working-directory: apps/oblige-web
+      - name: All frontend unit tests, typecheck and production build
+        working-directory: apps/oblige-web
+        run: node --test tests/*.test.mjs && npm run typecheck && npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Both URL formats, actual board clicks, direct filters and screenshots
+        run: |
+          npm --prefix apps/oblige-web run start -- --port 3100 > /tmp/board-premium-next.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3100/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:3100/ >/dev/null
+          node scripts/verify-canonical-workspace.mjs
+          node scripts/verify-restored-terminal.mjs
+          node scripts/verify-premium-player.mjs
+          node scripts/verify-board-premium.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: board-research-route-proof
+          path: |
+            artifacts/board-premium
+            artifacts/premium-player
+            artifacts/restored-terminal
+            artifacts/canonical-workspace
+          retention-days: 7
+  public-after-deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/claude/website-review-audit-t5ei2j'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verify specific legacy-route release and actual signed-out access controls
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import {mkdir,writeFile} from 'node:fs/promises';
+          const base='https://www.obligeprops.com',out='artifacts/board-premium-public';
+          await mkdir(out,{recursive:true});
+          const get=path=>fetch(new URL(path,base),{signal:AbortSignal.timeout(12000),headers:{'cache-control':'no-cache'}});
+          const report={commit:process.env.GITHUB_SHA,legacyRouteBundle:false,routes:[],authenticatedLiveData:false};
+          async function shipped(){
+            const response=await get('/research');if(!response.ok)return false;
+            const html=await response.text();
+            const scripts=[...new Set([...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(m=>m[1].replace(/&amp;/g,'&')).filter(p=>p.startsWith('/_next/')))];
+            const found=await Promise.all(scripts.slice(0,25).map(async path=>{try{const r=await get(path);return r.ok&&(await r.text()).includes('legacy-board-premium-v2');}catch{return false;}}));
+            return found.some(Boolean);
+          }
+          try{
+            for(let i=0;i<24;i++){if(await shipped()){report.legacyRouteBundle=true;break;}await new Promise(r=>setTimeout(r,10000));}
+            assert.equal(report.legacyRouteBundle,true,'The legacy board route fix, not just the earlier canonical bundle, must be live');
+            for(const path of ['/board','/research','/api/health','/app.webmanifest','/app-worker.js']){const r=await get(path);report.routes.push({path,status:r.status});assert.equal(r.status,200);}
+            for(const path of ['/api/apex/props?sport=NFL','/api/oblige-workspace?action=catalog']){const r=await get(path);report.routes.push({path,status:r.status});assert.equal(r.status,401,'Signed-out private data remains protected');}
+          }finally{await writeFile(out+'/public.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));}
+          JS
+      - name: Render shipped www board-to-research code with browser-only test data
+        env:
+          BOARD_PREMIUM_ORIGIN: https://www.obligeprops.com
+          BOARD_PREMIUM_OUTPUT: artifacts/board-premium-public
+        run: node scripts/verify-board-premium.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: board-research-shipped-render-proof
+          path: artifacts/board-premium-public
+          retention-days: 7

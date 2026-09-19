@@ -1,0 +1,89 @@
+'use client';
+import * as React from 'react';
+import Link from 'next/link';
+import { ArrowLeft, BarChart3, ChevronDown, Star } from 'lucide-react';
+import { PlayerHeadshot } from '@/components/player-headshot';
+import { booksFor, chooseOffer, type WorkspacePlayer, type WorkspaceMarket, type WorkspaceOffer } from '@/lib/workspace';
+import { marketFamily, marketName, marketOptionName, offerPrice, periodName, sportName } from '@/lib/market-display';
+import { shortTime } from '@/lib/utils';
+import type { Side } from '@/lib/types';
+import s from './premium-player-research.module.css';
+
+type Props = {
+  player: WorkspacePlayer; market: WorkspaceMarket; selected: WorkspaceOffer;
+  side: Side; favourite: boolean; canFollow: boolean;
+  onCategory(key: string): void; onBook(key: string): void;
+  onOffer(offer: WorkspaceOffer): void; onFavourite(): void;
+  research: React.ReactNode; model: React.ReactNode; gameLog?: React.ReactNode;
+};
+
+/** Pure presentation. All account, history, model and quote state stays in the existing workspace. */
+export function PremiumPlayerResearch({ player, market, selected, side, favourite, canFollow, onCategory, onBook, onOffer, onFavourite, research, model, gameLog }: Props) {
+  const family = marketFamily(market);
+  const families = [...new Map(player.markets.map(item => [marketFamily(item), item])).values()];
+  const periods = player.markets.filter(item => marketFamily(item) === family);
+  const bookOffers = market.offers.filter(offer => offer.book === selected.book);
+  const numeric = bookOffers.every(offer => offer.line !== null && !!offer.side);
+  const lines = [...new Set(bookOffers.filter(offer => offer.line !== null).map(offer => offer.line!))].sort((a, b) => a - b);
+  const title = marketName(market);
+  const game = [player.awayTeam, player.homeTeam].filter(Boolean).join(' @ ') || 'Matchup unavailable';
+  function category(next: WorkspaceMarket) {
+    const samePeriod = player.markets.find(item => marketFamily(item) === marketFamily(next) && item.period === market.period);
+    onCategory((samePeriod || next).key);
+  }
+  return <main className={s.page} data-release="canonical-workspace-v1" data-design="premium-player-research-v1">
+    <div className={s.breadcrumb}><Link href="/board"><ArrowLeft size={16} aria-hidden="true"/> Back to props</Link><span>Player research</span></div>
+    <div className={s.layout}>
+      <section className={s.primary} aria-label="Player research workspace">
+        <header className={s.hero}>
+          <div className={s.identity}>
+            <span className={s.avatar}><PlayerHeadshot sport={player.sport} name={player.name} providerPlayerId={player.playerId}/></span>
+            <div className={s.playerInfo}><h1>{player.name}</h1><p>{game}</p><div className={s.meta}><span className={s.league}>{sportName(player.sport)}</span><time>{shortTime(player.startsAt) || 'Time unavailable'}</time></div></div>
+            <button type="button" className={s.follow} aria-label={favourite ? `Unfollow ${player.name}` : `Follow ${player.name}`} aria-pressed={favourite} disabled={!canFollow} onClick={onFavourite} title="Follow on this device"><Star size={20} fill={favourite ? 'currentColor' : 'none'}/></button>
+          </div>
+          <div className={s.marketBand}>
+            <BarChart3 size={23} className={s.marketIcon} aria-hidden="true"/>
+            <div className={s.marketInfo}><h2>{title}</h2><p><span>{selected.side === 'OVER' ? 'O' : selected.side === 'UNDER' ? 'U' : selected.choice} {selected.line ?? ''}</span><strong data-side={selected.side}>{offerPrice(selected)}</strong><span className={s.periodCaption}>{periodName(market.period)}</span></p></div>
+            <label className={s.bookSelect}><span className={s.srOnly}>Sportsbook</span><select aria-label="Selected book" value={selected.book} onChange={event => onBook(event.target.value)}>{booksFor(market).map(book => <option key={book.key} value={book.key}>{book.name}</option>)}</select><ChevronDown size={15} aria-hidden="true"/></label>
+          </div>
+        </header>
+        <div className={s.statControls}>
+          <div className={s.statRail} role="group" aria-label="Stat categories">
+            {families.map(item => <button key={marketFamily(item)} type="button" aria-pressed={marketFamily(item) === family} title={marketOptionName(item)} onClick={() => category(item)}>{marketName(item)}</button>)}
+          </div>
+          <label className={s.allStats}><span aria-hidden="true">All stats <ChevronDown size={13}/></span><select aria-label="Player stat category" value={market.key} onChange={event => onCategory(event.target.value)}>{player.markets.map(item => <option key={item.key} value={item.key}>{marketOptionName(item)}</option>)}</select></label>
+        </div>
+        <div className={s.periodControls}>
+          <div className={s.periodRail} role="group" aria-label="Available game periods">{periods.map(item => <button key={item.key} type="button" aria-pressed={item.key === market.key} onClick={() => onCategory(item.key)}>{periodName(item.period)}</button>)}</div>
+          <label className={s.lineSelect}><span>{numeric ? 'Posted line' : 'Outcome'}</span><select aria-label="Posted line or outcome" value={numeric ? String(selected.line) : selected.key} onChange={event => {
+            const next = numeric ? chooseOffer(market, selected.book, Number(event.target.value), side) : bookOffers.find(offer => offer.key === event.target.value);
+            if (next) onOffer(next);
+          }}>{numeric ? lines.map(line => <option key={line} value={line}>{line}</option>) : bookOffers.map(offer => <option key={offer.key} value={offer.key}>{offer.choice}</option>)}</select></label>
+        </div>
+        <div className={s.research}>{research}</div>
+      </section>
+      <aside className={s.sidebar} aria-label="Sportsbook comparison and model">
+        <section className={s.books} aria-label="Sportsbook prices"><div className={s.sectionTitle}><h2>Sportsbook prices</h2><span>{booksFor(market).length} books</span></div>
+          <div className={s.bookRail}>{booksFor(market).map(book => {
+            const base = chooseOffer(market, book.key, selected.line, side);
+            if (!base) return null;
+            const exact = market.offers.filter(offer => offer.book === book.key && offer.line === base.line);
+            const pair = (value: Side) => exact.find(offer => offer.side === value && !offer.conflict);
+            return <article key={book.key} className={s.bookCard} data-active={book.key === selected.book}>
+              <button type="button" className={s.bookName} onClick={() => onOffer(base)} aria-label={`Select ${book.name}`}><span className={s.bookMark} aria-hidden="true">{book.name.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase()}</span><strong>{book.name}</strong></button>
+              <span className={s.bookLine}>{base.line === null ? base.choice : `Line ${base.line}`}{base.line !== selected.line && <small>Different line</small>}</span>
+              {base.side ? <div className={s.bookSides}>{(['OVER', 'UNDER'] as const).map(value => {
+                const quote = pair(value);
+                return <button key={value} type="button" data-side={value} disabled={!quote} aria-label={`${book.name} ${value.toLowerCase()} ${base.line ?? ''} ${offerPrice(quote)}`} aria-pressed={!!quote && selected.key === quote.key} onClick={() => quote && onOffer(quote)}><span>{value === 'OVER' ? 'O' : 'U'}</span><strong>{offerPrice(quote)}</strong></button>;
+              })}</div> : <button type="button" className={s.outcome} onClick={() => onOffer(base)}>{offerPrice(base)}</button>}
+            </article>;
+          })}</div>
+          <p className={s.priceNote}>Prices belong to the displayed posted line. DFS multipliers are not sportsbook odds.</p>
+          <details className={s.allLines}><summary>All posted lines <span>{market.offers.length} quotes</span></summary><div className={s.quoteList}>{market.offers.map(offer => <button key={offer.key} type="button" aria-pressed={selected.key === offer.key} onClick={() => onOffer(offer)}><span>{offer.bookName}<small>{offer.choice} {offer.line ?? ''}</small></span><strong>{offerPrice(offer)}</strong></button>)}</div></details>
+        </section>
+        <div className={s.model}>{model}</div>
+        {gameLog && <details className={s.gameLog}><summary>Game-by-game results</summary>{gameLog}</details>}
+      </aside>
+    </div>
+  </main>;
+}

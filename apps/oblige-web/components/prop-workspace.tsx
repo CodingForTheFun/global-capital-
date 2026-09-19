@@ -2,7 +2,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
-import {ArrowLeft,ArrowUpRight,ChevronRight} from 'lucide-react';
+import {ChevronRight} from 'lucide-react';
 import {fetchAccount} from '@/lib/api';
 import {PlayerHeadshot as VerifiedHeadshot} from '@/components/player-headshot';
 import {odds,shortTime} from '@/lib/utils';
@@ -11,6 +11,8 @@ import {SignInPanel} from '@/components/sign-in';
 import {PlayerView} from '@/components/player-view';
 import {PropExplorer,type ExplorerState} from '@/components/prop-explorer';
 import {GameLog} from '@/components/research';
+import {PremiumPlayerResearch} from '@/components/premium-player-research';
+import {marketName} from '@/lib/market-display';
 import styles from './workspace.module.css';
 
 type Account={id:string;email?:string}|null;
@@ -135,6 +137,7 @@ function WorkspaceDetail({sport,eventId,playerKey,categoryKey}:{sport:string;eve
   return()=>c.abort();
  },[player,market,sport,eventId,retry]);
  const group=React.useMemo(()=>player&&market&&selected&&selected.line!==null&&selected.side?toResearchGroup(player,market,selected):null,[player,market,selected]);
+ const displayGroup=React.useMemo(()=>group&&market?{...group,market:marketName(market)}:group,[group,market]);
  React.useEffect(()=>{try{const saved=JSON.parse(localStorage.getItem('oblige-followed')||'[]');setFavourite(Array.isArray(saved)&&!!group&&saved.includes(group.key));}catch{setFavourite(false);}},[group]);
  function select(offer:WorkspaceOffer){setSelected(offer);setAnalysis({line:offer.line??0,side:offer.side||'OVER',book:offer.book});}
  function selectBook(book:string){if(market){const offer=chooseOffer(market,book,selected?.line??null,selected?.side||'OVER');if(offer)select(offer);}}
@@ -143,27 +146,15 @@ function WorkspaceDetail({sport,eventId,playerKey,categoryKey}:{sport:string;eve
  if(!account)return <main className={styles.shell}><SignInPanel onSignedIn={setAccount}/></main>;
  if(error)return <main className={styles.shell}><Link href="/board" className={styles.back}>Back to props</Link><p role="alert" className={styles.status}>{error}</p></main>;
  if(!player||!market||!selected)return <main className={styles.shell}><p className={styles.status}>Loading this player’s markets…</p></main>;
- const inBook=market.offers.filter(o=>o.book===selected.book),numeric=inBook.every(o=>o.line!==null&&!!o.side),lines=[...new Set(inBook.filter(o=>o.line!==null).map(o=>o.line!))].sort((a,b)=>a-b);
  const unavailable=historyError||(history?.available===false?history.message||'No verified history for this exact statistic.':null);
- return <main className={styles.shell} data-release="canonical-workspace-v1">
-  <Link href="/board" className={styles.back}><ArrowLeft size={15}/> Back to props</Link>
-  <header className={styles.heading}><div><span className={styles.tag}>Player research</span><h1>{player.name}</h1><p>{matchup(player)} · {shortTime(player.startsAt)||'Time unavailable'}</p></div><span className={styles.count}>{player.markets.length} stat categories</span></header>
-  <div className={styles.selection}>
-   <label>Stat category<select aria-label="Player stat category" value={market.key} onChange={e=>setCategory(e.target.value)}>{player.markets.map(m=><option key={m.key} value={m.key}>{m.label}</option>)}</select></label>
-   <label>Book<select aria-label="Selected book" value={selected.book} onChange={e=>selectBook(e.target.value)}>{booksFor(market).map(b=><option key={b.key} value={b.key}>{b.name}</option>)}</select></label>
-   <label>{numeric?'Posted line':'Outcome'}<select aria-label="Posted line or outcome" value={numeric?String(selected.line):selected.key} onChange={e=>{const next=numeric?chooseOffer(market,selected.book,Number(e.target.value),analysis.side):inBook.find(o=>o.key===e.target.value);if(next)select(next);}}>{numeric?lines.map(line=><option key={line} value={line}>{line}</option>):inBook.map(o=><option key={o.key} value={o.key}>{o.choice}</option>)}</select></label>
-  </div>
-  <section className={styles.panel}><h2>{market.label} · {selected.bookName}</h2><p className={styles.muted}>{selected.choice} {selected.line??''} · {price(selected)}{selected.updatedAt?` · Quote seen ${shortTime(selected.updatedAt)}`:' · Quote timestamp unavailable'}</p></section>
-  {group?<section className={styles.panel}>
-   <PropExplorer group={group} games={unavailable?[]:history?.gameLog||[]} loading={historyLoading} unavailableReason={unavailable} hideBookFilter state={analysis} onState={next=>{if(next.side!==analysis.side){const quote=chooseOffer(market,selected.book,selected.line,next.side);if(quote?.side===next.side)setSelected(quote);}setAnalysis({...next,book:selected.book});}} favourite={favourite} onFavourite={toggleFavourite}/>
+ return <PremiumPlayerResearch player={player} market={market} selected={selected} side={analysis.side} favourite={favourite} canFollow={!!group} onCategory={setCategory} onBook={selectBook} onOffer={select} onFavourite={toggleFavourite}
+  research={displayGroup?<>
+   <PropExplorer group={displayGroup} games={unavailable?[]:history?.gameLog||[]} loading={historyLoading} unavailableReason={unavailable} hideBookFilter state={analysis} onState={next=>{if(next.side!==analysis.side){const quote=chooseOffer(market,selected.book,selected.line,next.side);if(quote?.side===next.side)setSelected(quote);}setAnalysis({...next,book:selected.book});}} favourite={favourite} onFavourite={toggleFavourite}/>
    {historyError&&<button className={styles.button} onClick={()=>setRetry(n=>n+1)}>Retry history</button>}
-  </section>:<p className={styles.status}>This is a {selected.choice} outcome, not a numeric Over/Under line. Its quote is preserved; a numeric history chart is not substituted.</p>}
-  <ModelPanel player={player} market={market} offer={selected} researchLine={analysis.line} researchSide={analysis.side}/>
-  <div className={styles.twoColumn}>
-   <section className={styles.panel}><h2>Books and posted lines</h2><p className={styles.muted}>Choose any quote to switch books and lines without leaving this player.</p><div className={styles.quotes}>{market.offers.map(offer=><button key={offer.key} className={styles.quote} aria-pressed={selected.key===offer.key} onClick={()=>select(offer)}><span>{offer.bookName}<small className={styles.muted} style={{display:'block'}}>{offer.choice} {offer.line??''}</small></span><strong>{price(offer)}</strong><ArrowUpRight size={14}/></button>)}</div></section>
-   {group&&history?.available&&!historyError&&<GameLog games={history.gameLog||[]} line={analysis.line} market={market.label} loading={historyLoading}/>}
-  </div>
- </main>;
+  </>:<p className={styles.status}>This is a {selected.choice} outcome, not a numeric Over/Under line. Its quote is preserved; a numeric history chart is not substituted.</p>}
+  model={<ModelPanel player={player} market={market} offer={selected} researchLine={analysis.line} researchSide={analysis.side}/>}
+  gameLog={group&&history?.available&&!historyError?<GameLog games={history.gameLog||[]} line={analysis.line} market={marketName(market)} loading={historyLoading}/>:null}
+ />;
 }
 function ModelPanel({player,market,offer,researchLine,researchSide}:{player:WorkspacePlayer;market:WorkspaceMarket;offer:WorkspaceOffer;researchLine:number;researchSide:string}){
  const [model,setModel]=React.useState<WorkspacePrediction|null>(null),[loading,setLoading]=React.useState(false),[error,setError]=React.useState(''),[now,setNow]=React.useState(Date.now());

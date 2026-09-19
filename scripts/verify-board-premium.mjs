@@ -54,9 +54,9 @@ try{
   assert.equal(await page.getByLabel('Player stat category').locator('option').count(),3,'All legacy stat/period choices retained');
   assert.equal(await page.getByRole('group',{name:'Stat categories',exact:true}).locator('button').count(),2,'Stat rail is not duplicated per book or period');
   const count=historyCalls.length;
-  await page.getByLabel('Selected book',{exact:true}).selectOption('fanduel');await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='23.5');
+  await page.getByRole('button',{name:'Select FanDuel',exact:true}).click();await page.waitForURL(value=>new URL(value).searchParams.get('book')==='fanduel');await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='23.5');
   await page.getByLabel('Posted line or outcome').selectOption('24.5');await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='24.5');
-  await page.getByLabel('Selected book',{exact:true}).selectOption('draftkings');await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='22.5');
+  await page.getByRole('button',{name:'Select DraftKings',exact:true}).click();await page.waitForURL(value=>new URL(value).searchParams.get('book')==='draftkings');await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='22.5');
   await page.getByRole('button',{name:'Raise research line',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='23');
   await page.getByRole('button',{name:'Select DraftKings',exact:true}).click();await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='22.5');
   assert.equal(await page.locator('.op-line-number').textContent(),'22.5','Explicit quote reselection resets the adjusted analysis line');

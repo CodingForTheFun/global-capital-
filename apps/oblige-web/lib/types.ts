@@ -23,6 +23,7 @@ export type PropRow = {
   sportsbook?: string;
   sportsbookKey?: string;
   team?: string;
+  position?: string;
   opponent?: string;
   homeTeam?: string;
   awayTeam?: string;
@@ -63,6 +64,7 @@ export type PropGroup = {
   line: number;
   sport: string;
   team: string | null;
+  position?: string | null;
   opponent: string | null;
   homeTeam: string | null;
   awayTeam: string | null;

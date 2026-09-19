@@ -58,12 +58,14 @@ try{
   await page.getByLabel('Player stat category').selectOption({label:'Points'});
   await page.getByText('Synthetic test: verified history unavailable.',{exact:true}).first().waitFor();
   const historyBefore=researchCalls;
-  await page.getByLabel('Selected book',{exact:true}).selectOption('book-b');
+  assert.deepEqual(await page.getByLabel('Selected book',{exact:true}).locator('option').allTextContents(),['Best prices · all books','book-a'],'legacy hero selector keeps Best prices plus exact-line books only');
+  await page.getByRole('button',{name:'Select book-b',exact:true}).click();
+  await page.waitForURL(value=>new URL(value).searchParams.get('book')==='book-b');
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='21.5');
   assert.equal(await page.getByLabel('Posted line or outcome').locator('option').count(),2);
   await page.getByLabel('Posted line or outcome').selectOption('22.5');
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='22.5');
-  await page.getByLabel('Selected book',{exact:true}).selectOption('book-a');
+  await page.getByRole('button',{name:'Select book-a',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='20.5');
   assert.equal(researchCalls,historyBefore,'changing book/line reuses the same game sample');
   await page.locator('img[data-player-photo]:visible').first().waitFor();

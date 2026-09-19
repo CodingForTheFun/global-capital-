@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Minus, Plus, Star, RotateCcw } from 'lucide-react';
-import type { GameLogRow, PropGroup } from '@/lib/types';
+import type { GameLogRow, PropGroup, PropRow } from '@/lib/types';
 import { catalogBookRows } from '@/lib/book-catalog';
 import { applyFilters, buildWindows, computeWindow, distinct, EMPTY_FILTERS, filtersActive, headToHead, sampleFor, sortRecentFirst, type SampleFilters, type SampleId, type Side, type Window as ResearchWindow } from '@/lib/analytics';
 import { odds, shortDate } from '@/lib/utils';

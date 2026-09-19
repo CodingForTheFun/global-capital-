@@ -5,7 +5,7 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-test('real core HTTP handler streams last-good large board through provider 429 without restart',async()=>{
+test('real core HTTP handler hides known-stale provider boards through 429 without restart',async()=>{
  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'odds-http-'));
  const socket=http.createServer();await new Promise(r=>socket.listen(0,'127.0.0.1',r));const port=socket.address().port;await new Promise(r=>socket.close(r));
  const child=spawn(process.execPath,['--import','./tests/mock-odds-core.mjs','apex-v2/server-core.mjs'],{cwd:process.cwd(),env:{PATH:process.env.PATH,DATA_DIR:temp,PORT:String(port),THE_ODDS_API_REQUEST_SPACING_MS:'100'},stdio:['ignore','pipe','pipe']});
@@ -14,9 +14,10 @@ test('real core HTTP handler streams last-good large board through provider 429 
   await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(new Error(log)),10000);const poll=setInterval(()=>{if(log.includes('AUTOSCOUT_APEX_CORE listening')){clearTimeout(timeout);clearInterval(poll);resolve();}else if(child.exitCode!==null){clearTimeout(timeout);clearInterval(poll);reject(new Error(log));}},20);});
   const root=`http://127.0.0.1:${port}`;
   const responses=await Promise.all(Array.from({length:10},()=>fetch(root+'/api/props?sport=NFL').then(async r=>({status:r.status,body:await r.json()}))));
-  assert.ok(responses.every(r=>r.status===200&&r.body.props.length===2&&r.body.meta.stale));
+  assert.ok(responses.every(r=>r.status===200&&r.body.props.length===0&&r.body.meta.knownStaleRejected===true),
+    'known-stale cached prices must not be emitted as live customer props');
   const response=await fetch(root+'/api/props?sport=MLB');assert.equal(response.status,200);
-  const big=await response.json();assert.equal(big.props.length,23000);assert.equal(big.props[22999].price,-105);
+  const hidden=await response.json();assert.equal(hidden.props.length,0);assert.equal(hidden.meta.knownStaleRejected,true);
   const cold=await fetch(root+'/api/props?sport=WNBA');assert.equal(cold.status,503);assert.equal((await cold.json()).code,'PROVIDER_COOLDOWN');
   const health=await fetch(root+'/api/health').then(r=>r.json());assert.equal(health.ok,true);assert.equal(child.exitCode,null);
   assert.equal(health.provider.requestControl.circuit,'OPEN');assert.equal(health.provider.requestControl.active,0);

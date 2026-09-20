@@ -3,6 +3,8 @@ import { chromium } from 'playwright';
 const BASE = process.env.AUTOSCOUT_PUBLIC_URL || 'https://autoprop-live-production.up.railway.app';
 const EXPECTED_SHA = process.env.AUTOSCOUT_EXPECTED_SHA || '';
 const SPORTS = (process.env.AUTOSCOUT_SMOKE_SPORTS || 'NFL,MLB').split(',').map(v=>v.trim()).filter(Boolean);
+const SMOKE_EMAIL = String(process.env.AUTOSCOUT_SMOKE_EMAIL || '').trim();
+const SMOKE_PASSWORD = String(process.env.AUTOSCOUT_SMOKE_PASSWORD || '');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function waitForHealth() {
@@ -22,15 +24,14 @@ async function waitForHealth() {
 async function sessionCookie() {
   const h=await fetch(`${BASE}/api/account/health`,{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null);
   if(h?.gate?.active!==true)return null;
-  if(h?.password?.available!==true)throw new Error('Account gate is active but smoke sign-up is unavailable.');
-  const email=`smoke-${Date.now()}-${Math.random().toString(36).slice(2,8)}@smoke.autoscout.test`;
-  const password=`Smoke-${Math.random().toString(36).slice(2)}-${Date.now()}!`;
-  const r=await fetch(`${BASE}/api/account/register`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});
+  if(!SMOKE_EMAIL||!SMOKE_PASSWORD)throw new Error('Authenticated production smoke requires a pre-provisioned AUTOSCOUT_SMOKE_EMAIL and AUTOSCOUT_SMOKE_PASSWORD; it will not create customer accounts.');
+  if(h?.password?.available!==true)throw new Error('Account gate is active but password sign-in is unavailable.');
+  const r=await fetch(`${BASE}/api/account/login`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:SMOKE_EMAIL,password:SMOKE_PASSWORD,rememberMe:false})});
   const b=await r.json().catch(()=>null);
-  if(!r.ok||b?.ok!==true)throw new Error(`Could not create smoke account: HTTP ${r.status} ${b?.code||''}`.trim());
+  if(!r.ok||b?.ok!==true)throw new Error(`Could not sign in smoke account: HTTP ${r.status} ${b?.code||''}`.trim());
   const values=r.headers.getSetCookie?r.headers.getSetCookie():[];
   const cookie=values.map(v=>String(v).split(';')[0]).find(v=>v.startsWith('sp_account='));
-  if(!cookie)throw new Error('Registration returned no session cookie.');
+  if(!cookie)throw new Error('Smoke sign-in returned no session cookie.');
   return cookie;
 }
 

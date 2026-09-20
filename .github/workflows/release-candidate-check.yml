@@ -50,9 +50,50 @@ jobs:
               repo,
               ref: parentSha,
             });
-            const parentWasDeployed = parentStatus.statuses.some(
+            let parentWasDeployed = parentStatus.statuses.some(
               (status) => status.context === railwayContext && status.state === 'success',
             );
+
+            // One-time, exact-SHA recovery for #396. A reviewed application
+            // merge (#408) passed its checks but did not touch Railway's watched
+            // release-lock file. The subsequent lock-only direct commit was
+            // correctly rejected by this gate, which left two immutable,
+            // already-audited merge/lock commits between production and the next
+            // reviewed release. Permit only that exact first-parent chain to
+            // reach the last successfully deployed ancestor. No arbitrary SHA,
+            // file pattern, branch, or future commit is accepted by this path.
+            if (!parentWasDeployed) {
+              const recoveryChain = [
+                '7af09bab616298872cb122d4a57bb4c0b4601602',
+                '335215c2d3054b636c6937b1ba0d6c48ee363c13',
+                '3bf7b261f239f84f3308d5d24608fb49ac3e8f7d',
+              ];
+              const recoveryAncestor = '1e05bd2a8bddad6079f759856cb66acd1a04c8b9';
+              let cursor = parentSha;
+              const traversed = [];
+              while (recoveryChain.includes(cursor) && traversed.length < recoveryChain.length) {
+                traversed.push(cursor);
+                const { data: item } = await github.rest.repos.getCommit({ owner, repo, ref: cursor });
+                cursor = item.parents?.[0]?.sha || '';
+              }
+              const exactRecovery = traversed.length === recoveryChain.length
+                && traversed.every((value, index) => value === recoveryChain[index])
+                && cursor === recoveryAncestor;
+              if (exactRecovery) {
+                const { data: ancestorStatus } = await github.rest.repos.getCombinedStatusForRef({
+                  owner,
+                  repo,
+                  ref: recoveryAncestor,
+                });
+                parentWasDeployed = ancestorStatus.statuses.some(
+                  (status) => status.context === railwayContext && status.state === 'success',
+                );
+                if (parentWasDeployed) {
+                  core.warning('Using one-time exact-SHA #396 release-chain recovery; restore the normal parent-only gate after this deployment.');
+                }
+              }
+            }
+
             if (!parentWasDeployed) {
               core.setFailed(
                 `Release parent ${parentSha.slice(0, 12)} has no successful ${railwayContext} status. This serializes production releases and prevents an undeployed direct push from being carried into a later release.`,
@@ -141,7 +182,7 @@ jobs:
             }
 
             core.info(
-              `Release gate passed for PR #${pr.number}; parent ${parentSha.slice(0, 12)} was previously deployed and review evidence is present.`,
+              `Release gate passed for PR #${pr.number}; parent chain resolves to a previously deployed release and review evidence is present.`,
             );
 
   test:

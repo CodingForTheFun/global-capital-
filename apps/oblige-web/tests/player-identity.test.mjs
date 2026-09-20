@@ -60,7 +60,7 @@ test('every supported board sport uses shared identity, category, and exact-book
 });
 
 test('full team names verify provider tags within the actual league',()=>{
- for(const [sport,player,tag,team,opponent] of [['MLB','Agustin Ramirez','MIA','Miami Marlins','San Diego Padres'],['MLB','Alec Burleson','STL','St. Louis Cardinals','Washington Nationals'],['NBA','Fixture Athlete','BOS','Boston Celtics','Los Angeles Lakers'],['WNBA','Fixture Athlete','MIN','Minnesota Lynx','Seattle Storm'],['NHL','Fixture Athlete','BOS','Boston Bruins','New York Rangers']]){
+ for(const [sport,player,tag,team,opponent] of [['MLB','Agustin Ramirez','MIA','Miami Marlins','San Diego Padres'],['MLB','Alec Burleson','STL','St. Louis Cardinals','Washington Nationals'],['NBA','Fixture Athlete','BOS','Boston Celtics','Los Angeles Lakers'],['WNBA','Fixture Athlete','MIN','Minnesota Lynx','Seattle Storm'],['WNBA',"A'ja Wilson",'LVA','Las Vegas Aces','Seattle Storm'],['NHL','Fixture Athlete','BOS','Boston Bruins','New York Rangers']]){
   const base=row({sport,playerName:player,providerPlayerId:null,team,homeTeam:team,awayTeam:opponent});
   const decorated={...base,eventId:'other-book',playerName:`${player} (${tag})`,team:null};
   const groups=groupProps([base,decorated],sport);

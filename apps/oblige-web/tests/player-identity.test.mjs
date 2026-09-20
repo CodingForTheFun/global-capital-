@@ -44,6 +44,9 @@ test('opposing namesakes without provider IDs retain separate quote groups',()=>
  const groups=groupProps([row({providerPlayerId:null,playerName:'Alex Smith (PIT)'}),row({providerPlayerId:null,playerName:'Alex Smith (NE)',team:'NE'})],'NFL');
  assert.equal(groups.length,2);assert.equal(groupPlayerCards(groups).length,2);
  assert.deepEqual(groups.map(group=>group.quotes[0].playerName),['Alex Smith (PIT)','Alex Smith (NE)']);
+ const missingTeams=groupProps([row({providerPlayerId:null,playerName:'Alex Smith (PIT)',team:null}),row({providerPlayerId:null,playerName:'Alex Smith (NE)',team:null})],'NFL');
+ assert.equal(groupPlayerCards(missingTeams).length,2,'verified name tags retain opposing-team evidence when team is absent');
+ assert.deepEqual(missingTeams.map(group=>group.team),['pittsburgh steelers','new england patriots']);
 });
 
 test('every supported board sport uses shared identity, category, and exact-book grouping',()=>{

@@ -9,7 +9,7 @@ import type {
   Side,
 } from './types';
 import { isDfs, quotePeriod, variantKey } from './prop-signals';
-import { researchPlayerName } from './player-identity';
+import { knownTeam, researchPlayerName } from './player-identity';
 
 /**
  * Every call goes through this app's own /api/* proxy, which forwards to the
@@ -211,6 +211,10 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
   const groups = new Map<string, PropGroup>();
   for (const row of rows) {
     const player = researchPlayerName(row.playerName, { ...row, sport });
+    // A removed tag was verified against this game's metadata. Retain that
+    // team evidence when the source omitted its separate team field.
+    const verifiedTag = player !== String(row.playerName || '').trim() ? String(row.playerName).match(/\(([A-Z0-9]{2,5})\)$/)?.[1] : null;
+    const team = row.team || (verifiedTag ? knownTeam(verifiedTag, sport) || verifiedTag : null);
     const market = String(row.market || '').trim();
     const line = num(row.line);
     if (!player || !market || line === null) continue;
@@ -231,7 +235,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         marketId: row.marketId || null,
         line,
         sport,
-        team: row.team || null,
+        team,
         position: row.position || null,
         opponent: row.opponent || null,
         homeTeam: row.homeTeam || null,

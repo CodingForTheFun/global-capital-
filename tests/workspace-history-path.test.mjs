@@ -102,6 +102,35 @@ test('legacy fallback never treats fractional total rounds or generic esports as
 });
 
 
+test('canonical workspace tries nflverse after PropLine and ESPN miss', async()=>{
+  const sport='football_nfl',marketKey='player_pass_yds';
+  const event={id:'fixture-event-nfl',sport,startsAt:'2026-09-20T20:00:00Z',homeTeam:'ATL',awayTeam:'CAR',aliases:[]};
+  const odds={id:event.id,sport_key:sport,commence_time:event.startsAt,bookmakers:[{key:'prizepicks',markets:[{key:marketKey,outcomes:[{name:'Over',description:'Fallback Player',player_id:'provider-id',point:250.5,price:null}]}]}]};
+  const normalized=normalizeOffers(odds,event),player=normalized.players[0],market=player.markets[0];
+  let espnCalls=0,nflCalls=0;
+  const handler=createWorkspaceHandler({
+    authenticate:async()=>({id:'fixture-user'}),
+    now:()=>Date.parse('2026-09-19T23:00:00Z'),
+    historyFallback:async()=>{espnCalls++;return{available:false,code:'NO_GAME_LOG_DATA',gameLog:[]};},
+    nflHistoryFallback:async params=>{nflCalls++;assert.equal(params.sport,'NFL');return{available:true,source:'nflverse weekly player stats',gameLog:[{gameId:'nfl:2026_02_CAR_ATL',date:'2026-09-13T12:00:00.000Z',value:278}]};},
+    read:async path=>{
+      if(path==='/v1/sports')return[{key:sport,title:'NFL'}];
+      if(path.endsWith('/events'))return[{id:event.id,sport_key:sport,commence_time:event.startsAt,home_team:'ATL',away_team:'CAR'}];
+      if(path.endsWith('/markets'))return[{key:marketKey}];
+      if(path.endsWith('/odds'))return odds;
+      if(path.includes('/players/')&&path.endsWith('/games'))return{sport_key:sport,player_name:player.name,player_id:player.playerId,games:[]};
+      throw Error('unexpected provider call '+path);
+    },
+  });
+  const query=new URLSearchParams({action:'history',sport,event:event.id,player:player.key,market:market.key});
+  let status,body;
+  assert.equal(await handler({url:`/api/oblige-workspace?${query}`,method:'GET'},{writeHead(v){status=v;},end(v){body=JSON.parse(v);}}),true);
+  assert.equal(status,200);assert.equal(body.available,true);assert.equal(body.sourceProvider,'nflverse weekly player stats');
+  assert.deepEqual(body.attemptedSources,['PropLine','ESPN','nflverse']);
+  assert.equal(espnCalls,1);assert.equal(nflCalls,1);
+});
+
+
 test('canonical workspace tries NCAA archive after PropLine and ESPN miss', async()=>{
   const sport='football_ncaaf',marketKey='player_pass_yds';
   const event={id:'fixture-event-cfb',sport,startsAt:'2026-09-20T20:00:00Z',homeTeam:'Fixture State',awayTeam:'Carolina',aliases:[]};

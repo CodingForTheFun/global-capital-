@@ -21,17 +21,15 @@ export function PostedModel({ group, side, book, researchLine }: { group: PropGr
   React.useEffect(() => {
     if (!quote) return;
     const controller = new AbortController();
-    setState({ key });
-    void fetchPredictions([selected], controller.signal).then(async results => {
-      if (controller.signal.aborted) return;
-      const prediction = results[modelKey];
-      const referenceLoading = !usablePrediction(prediction);
-      setState({ key, prediction, referenceLoading });
-      if (referenceLoading) {
-        const references = await fetchMarketReferences([selected], controller.signal);
-        if (!controller.signal.aborted) setState({ key, prediction, reference: references[marketKey], referenceLoading: false });
-      }
-    });
+    setState({ key, referenceLoading: true });
+    void Promise.allSettled([
+      fetchPredictions([selected], controller.signal, results => {
+        if (!controller.signal.aborted) setState(current => ({ ...current, key, prediction: results[modelKey] }));
+      }, 12000),
+      fetchMarketReferences([selected], controller.signal, references => {
+        if (!controller.signal.aborted) setState(current => ({ ...current, key, reference: references[marketKey], referenceLoading: false }));
+      }),
+    ]);
     return () => controller.abort();
     // The key contains the exact provider selection; adjusted research lines do not fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps

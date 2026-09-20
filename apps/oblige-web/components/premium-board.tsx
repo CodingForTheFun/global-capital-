@@ -1,428 +1,159 @@
 'use client';
-
 import * as React from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, Menu, Search, SlidersHorizontal } from 'lucide-react';
-import { ApiError, fetchAccount, fetchBoard, fetchResearch, windowOf } from '@/lib/api';
-import { computeWindow, playable, sortRecentFirst } from '@/lib/analytics';
-import { collapsePlayerCards, playerResearchHref, restrictBook } from '@/lib/player-cards';
-import type { BoardMeta, PropGroup, PropRow, ResearchResponse } from '@/lib/types';
-import { pctValue } from '@/lib/utils';
-import { finiteNumber as numberOf, isDfs, quotePriceLabel, quoteSeenLabel, quoteVariant, variantLabel } from '@/lib/prop-signals';
+import { ArrowRight, BarChart3, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, RefreshCw, Search, SlidersHorizontal, Star, User } from 'lucide-react';
+import { ApiError, fetchAccount, fetchBoard, fetchResearch } from '@/lib/api';
+import { collapsePlayerCards, playerResearchHref, restrictBook, type PlayerCardGroup } from '@/lib/player-cards';
+import type { BoardMeta, PropGroup, ResearchResponse } from '@/lib/types';
+import { quotePriceLabel, quoteSeenLabel, quoteVariant, variantLabel, isDfs } from '@/lib/prop-signals';
+import { cardHistory } from '@/lib/card-history';
+import { marketName, periodName } from '@/lib/market-display';
+import { legacyPeriod } from '@/lib/legacy-research-presentation';
 import { fetchMarketReferences, referenceKey, type MarketReference } from '@/lib/market-reference';
 import { bestEv, fetchPredictions, modelLabel, predictionKey, usablePrediction, type Prediction } from '@/lib/model-data';
 import { PlayerHeadshot } from '@/components/player-headshot';
 import { SignInPanel } from '@/components/sign-in';
 import styles from './premium-board.module.css';
-
-const ALL = 'ALL';
-const PAGE_SIZE = 60;
-const RESEARCH_WORKERS = 6;
-
-type ResearchStat = { rate: number | null; hits: number | null; sample: number; source: 'window' | 'game-log' | 'unavailable' } | null;
-
-function text(value: unknown) {
-  return String(value || '').trim();
+const ALL = 'ALL', PAGE_SIZE = 12, RESEARCH_WORKERS = 3;
+const text = (value: unknown) => String(value || '').trim();
+const quoteBook = (row: PropGroup['quotes'][number]) => text(row.sportsbook || row.sportsbookKey);
+function SelectPill({ label, value, options, onChange }: { label: string; value: string; options: {value: string; label: string}[]; onChange(value: string): void }) {
+  return <label className={styles.filterPill}><span>{label}</span><select aria-label={label} value={value} onChange={event => onChange(event.target.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select><ChevronDown size={13}/></label>;
 }
-
-function quoteBook(row: PropRow | null | undefined) {
-  return text(row?.sportsbook || row?.sportsbookKey) || 'Book unavailable';
+function statLabel(group: PropGroup) {
+  const scope = legacyPeriod(group);
+  return [marketName({label:scope.label,marketKey:group.marketId||scope.label}),scope.period?periodName(scope.period):''].filter(Boolean).join(' · ');
 }
-
-function displayQuote(group: PropGroup) {
-  const candidates = [group.bestOver, group.bestUnder, ...group.quotes]
-    .filter((row): row is PropRow => Boolean(row));
-  return candidates.find((row) => {
-    const price = numberOf(row.price);
-    return !isDfs(row) && price !== null && price !== 0;
-  }) || candidates[0] || null;
+function timeLabel(value: string | null) {
+  return value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString(undefined,{weekday:'short',hour:'numeric',minute:'2-digit'}) : 'Time unavailable';
 }
-
-function boardResearchStat(response: ResearchResponse, line: number): ResearchStat {
-  const last10 = windowOf(response, 'last10', 'l10', 'lastTen');
-  const rate = pctValue(last10?.hitRate ?? null);
-  const sampleRaw = numberOf(last10?.sampleSize ?? last10?.games);
-  const hitsRaw = numberOf(last10?.hits);
-  if (response.available !== false && last10?.available !== false && rate !== null && sampleRaw !== null && sampleRaw > 0) {
-    return {
-      rate,
-      hits: hitsRaw,
-      sample: sampleRaw === null ? 0 : Math.max(0, Math.round(sampleRaw)),
-      source: 'window',
-    };
-  }
-
-  // Some research providers return a verified game log before they materialize
-  // window summaries. Recompute L10 from that exact log + posted line using the
-  // same analytics policy as the player page; never invent missing history.
-  const fallback = computeWindow(
-    sortRecentFirst(playable(response.available === false ? [] : response.gameLog || [])),
-    line,
-    'OVER',
-    'l10',
-    'L10',
-    10,
-  );
-  if (fallback.hitRate !== null) {
-    return {
-      rate: fallback.hitRate,
-      hits: fallback.hits,
-      sample: fallback.games,
-      source: 'game-log',
-    };
-  }
-  return { rate: null, hits: null, sample: 0, source: 'unavailable' };
-}
-
-function matchupTime(value: string | null) {
-  if (!value) return 'Time unavailable';
-  const d = new Date(value);
-  if (!Number.isFinite(d.getTime())) return 'Time unavailable';
-  return d.toLocaleString(undefined, { hour: 'numeric', minute: '2-digit' });
-}
-
-function bookShort(name: string) {
-  const clean = name.replace(/[^a-z0-9]/gi, '');
-  return (clean.slice(0, 2) || '?').toUpperCase();
-}
-
-function SelectPill({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className={styles.filterPill}>
-      <span className="sr-only">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
-      </select>
-      <ChevronDown size={14} aria-hidden="true" />
-    </label>
-  );
-}
-
 export function PremiumBoard() {
   const router = useRouter();
-  const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
-  const [checking, setChecking] = React.useState(true);
-  const [sport, setSport] = React.useState('NFL');
-  const [sports, setSports] = React.useState<string[]>(['NFL']);
-  const [groups, setGroups] = React.useState<PropGroup[]>([]);
-  const [meta, setMeta] = React.useState<BoardMeta>({});
-  const [query, setQuery] = React.useState('');
-  const [market, setMarket] = React.useState(ALL);
-  const [opponent, setOpponent] = React.useState(ALL);
-  const [team, setTeam] = React.useState(ALL);
-  const [book, setBook] = React.useState(ALL);
-  const [line, setLine] = React.useState(ALL);
-  const [variant, setVariant] = React.useState(ALL);
-  const [retry, setRetry] = React.useState(0);
-  const [now, setNow] = React.useState(Date.now());
-  const [sort, setSort] = React.useState('EV');
-  const [predictions, setPredictions] = React.useState<Record<string, Prediction>>({});
-  const [marketRefs, setMarketRefs] = React.useState<Record<string, MarketReference>>({});
-  const [research, setResearch] = React.useState<Record<string, ResearchStat>>({});
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState('');
-
+  const [account,setAccount] = React.useState<{id: string; email?: string} | null>(null);
+  const [checking,setChecking] = React.useState(true);
+  const [sport,setSport] = React.useState('NFL');
+  const [sports,setSports] = React.useState(['NFL']);
+  const [groups,setGroups] = React.useState<PropGroup[]>([]);
+  const [meta,setMeta] = React.useState<BoardMeta>({});
+  const [query,setQuery] = React.useState('');
+  const deferredQuery = React.useDeferredValue(query);
+  const [market,setMarket] = React.useState(ALL), [opponent,setOpponent] = React.useState(ALL), [team,setTeam] = React.useState(ALL);
+  const [book,setBook] = React.useState(ALL), [line,setLine] = React.useState(ALL), [variant,setVariant] = React.useState(ALL), [venue,setVenue] = React.useState(ALL);
+  const [sort,setSort] = React.useState('PLAYER'), [pageIndex,setPageIndex] = React.useState(0);
+  const [filtersOpen,setFiltersOpen] = React.useState(false), [savedOnly,setSavedOnly] = React.useState(false);
+  const [saved,setSaved] = React.useState<string[]>([]);
+  const [research,setResearch] = React.useState<Record<string,ResearchResponse | null>>({});
+  const [predictions,setPredictions] = React.useState<Record<string,Prediction>>({});
+  const [marketRefs,setMarketRefs] = React.useState<Record<string,MarketReference>>({});
+  const [forecastOpen,setForecastOpen] = React.useState<string[]>([]);
+  const forecastRequests = React.useRef(new Map<string,AbortController>());
+  const [loading,setLoading] = React.useState(false), [error,setError] = React.useState('');
+  const [refresh,setRefresh] = React.useState(0), [retry,setRetry] = React.useState(0), [now,setNow] = React.useState(Date.now());
+  React.useEffect(() => { const c = new AbortController(); void fetchAccount(c.signal).then(value => {if(!c.signal.aborted){setAccount(value);setChecking(false);}}); return () => c.abort(); },[]);
+  React.useEffect(() => {try { const data=JSON.parse(localStorage.getItem('oblige.reference.saved.v1') || '[]'); if(Array.isArray(data))setSaved(data.filter(value=>typeof value==='string').slice(0,200)); }catch{} },[]);
+  React.useEffect(() => {const timer=setInterval(()=>setNow(Date.now()),30000);return()=>clearInterval(timer);},[]);
+  React.useEffect(() => () => {for(const c of forecastRequests.current.values())c.abort();},[]);
   React.useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 30000);
-    return () => clearInterval(timer);
-  }, []);
-
-  React.useEffect(() => {
-    const controller = new AbortController();
-    fetchAccount(controller.signal).then(setAccount).finally(() => setChecking(false));
-    return () => controller.abort();
-  }, []);
-
-  React.useEffect(() => {
-    if (checking || !account) return;
-    const controller = new AbortController();
-    setLoading(true);
-    setError('');
-    fetchBoard(sport, controller.signal)
-      .then((board) => {
-        setGroups(board.groups);
-        setMeta(board.meta);
-        if (board.supportedSports.length) {
-          setSports([...new Set(board.supportedSports.map((s) => text(s).toUpperCase()).filter(Boolean))]);
-        }
-        setMarket(ALL);
-        setOpponent(ALL);
-        setTeam(ALL);
-        setBook(ALL);
-        setLine(ALL);
-        setVariant(ALL);
-        setPredictions({});
-        setMarketRefs({});
-        setResearch({});
-      })
-      .catch((cause) => {
-        if (cause instanceof ApiError && cause.status === 401) setAccount(null);
-        else if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'The live prop board is unavailable.');
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
-      });
-    return () => controller.abort();
-  }, [account, checking, sport]);
-
-  const markets = React.useMemo(() => [...new Set(groups.map((g) => g.market).filter(Boolean))].sort(), [groups]);
-  const opponents = React.useMemo(() => [...new Set(groups.map((g) => g.opponent).filter((v): v is string => Boolean(v)))].sort(), [groups]);
-  const teams = React.useMemo(() => [...new Set(groups.map((g) => g.team).filter((v): v is string => Boolean(v)))].sort(), [groups]);
-  const lines = React.useMemo(() => [...new Set(groups.map((g) => String(g.line)))].sort((a, b) => Number(a) - Number(b)), [groups]);
-  const books = React.useMemo(() => {
-    const names = new Set<string>();
-    for (const group of groups) {
-      for (const quote of group.quotes) {
-        const name = quoteBook(quote);
-        if (name !== 'Book unavailable') names.add(name);
-      }
-    }
-    return [...names].sort();
-  }, [groups]);
-
-  const filtered = React.useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    const rows = groups
-      .map((group) => (book === ALL ? group : restrictBook(group, book)))
-      .filter((group) => {
-        if (variant !== ALL && quoteVariant(group.quotes[0]) !== variant) return false;
-        if (market !== ALL && group.market !== market) return false;
-        if (opponent !== ALL && group.opponent !== opponent) return false;
-        if (team !== ALL && group.team !== team) return false;
-        if (line !== ALL && String(group.line) !== line) return false;
-        if (book !== ALL && !group.quotes.some((quote) => quoteBook(quote) === book)) return false;
-        if (needle && !`${group.player} ${group.market} ${group.matchup} ${group.team || ''} ${group.opponent || ''}`.toLowerCase().includes(needle)) return false;
-        return true;
-      });
-
-    const collapsed = collapsePlayerCards(rows, groups);
-    return [...collapsed].sort((a, b) => {
-      if (sort === 'PLAYER') return a.player.localeCompare(b.player);
-      if (sort === 'LINE') return b.line - a.line;
-      if (sort === 'HIT') return (research[b.key]?.rate ?? -1) - (research[a.key]?.rate ?? -1);
-      const ev = (group: PropGroup) => bestEv(group, predictions[predictionKey(group)], now) ?? (marketRefs[referenceKey(group)]?.expiresAt > now ? marketRefs[referenceKey(group)]?.ev : null) ?? -Infinity;
-      return ev(b) - ev(a);
-    });
-  }, [book, groups, line, market, opponent, predictions, query, research, sort, team, variant, now, marketRefs]);
-
-  const page = filtered.slice(0, PAGE_SIZE);
-  const pageKey = page.map(predictionKey).sort().join('|');
-
-  React.useEffect(() => {
-    if (!account || !page.length) return;
-    const controller = new AbortController();
-    const pending = page.filter(group => predictions[predictionKey(group)] === undefined);
-    void fetchPredictions(pending, controller.signal, results => {
-      if (!controller.signal.aborted) setPredictions(current => ({ ...current, ...results }));
-    });
-    return () => controller.abort();
+    if(!account || checking)return;
+    const c = new AbortController(); setLoading(true); setError('');
+    // Sport switches never show the previous sport's cards beneath the new label.
+    setGroups([]);setResearch({});setPredictions({});setMarketRefs({});setForecastOpen([]);setPageIndex(0);
+    for(const controller of forecastRequests.current.values())controller.abort();forecastRequests.current.clear();
+    void fetchBoard(sport,c.signal).then(board=>{if(c.signal.aborted)return;setGroups(board.groups);setMeta(board.meta);if(board.supportedSports.length)setSports([...new Set(board.supportedSports.map(s=>text(s).toUpperCase()))]);})
+      .catch(cause=>{if(c.signal.aborted)return;if(cause instanceof ApiError&&cause.status===401)setAccount(null);else setError(cause instanceof Error?cause.message:'The board could not load.');})
+      .finally(()=>{if(!c.signal.aborted)setLoading(false);});
+    return()=>c.abort();
+  },[account,checking,sport,refresh]);
+  function changeSport(next: string) {setSport(next);setMarket(ALL);setOpponent(ALL);setTeam(ALL);setBook(ALL);setLine(ALL);setVariant(ALL);setVenue(ALL);setPageIndex(0);}
+  const options = React.useMemo(()=>({
+    markets:[...new Map(groups.map(g=>[g.market,{value:g.market,label:statLabel(g)}])).values()].sort((a,b)=>a.label.localeCompare(b.label)),opponents:[...new Set(groups.map(g=>g.opponent).filter((v):v is string=>!!v))].sort(),teams:[...new Set(groups.map(g=>g.team).filter((v):v is string=>!!v))].sort(),
+    lines:[...new Set(groups.map(g=>String(g.line)))].sort((a,b)=>Number(a)-Number(b)),books:[...new Set(groups.flatMap(g=>g.quotes.map(quoteBook)).filter(Boolean))].sort(),
+  }),[groups]);
+  // Expensive identity reconciliation depends on filters, not each arriving history/forecast.
+  const filtered = React.useMemo(()=>{
+    const needle=deferredQuery.trim().toLowerCase();
+    const rows=groups.map(g=>book===ALL?g:restrictBook(g,book)).filter(g=>
+      (market===ALL||g.market===market)&&(opponent===ALL||g.opponent===opponent)&&(team===ALL||g.team===team)&&(line===ALL||String(g.line)===line)&&
+      (variant===ALL||quoteVariant(g.quotes[0])===variant)&&(book===ALL||g.quotes.some(q=>quoteBook(q)===book))&&
+      (venue===ALL||(venue==='home'?!!g.team&&g.team===g.homeTeam:!!g.team&&g.team===g.awayTeam))&&
+      (!needle||`${g.player} ${statLabel(g)} ${g.matchup} ${g.team||''}`.toLowerCase().includes(needle)));
+    return collapsePlayerCards(rows,groups).filter(g=>!savedOnly||saved.includes(g.playerCardKey)).sort((a,b)=>sort==='LINE'?b.line-a.line:a.player.localeCompare(b.player));
+  },[groups,book,market,opponent,team,line,variant,venue,deferredQuery,savedOnly,saved,sort]);
+  React.useEffect(()=>setPageIndex(0),[sport,market,opponent,team,line,book,variant,venue,deferredQuery,savedOnly,sort]);
+  const lastPage=Math.max(0,Math.ceil(filtered.length/PAGE_SIZE)-1), currentPage=Math.min(pageIndex,lastPage);
+  const page=filtered.slice(currentPage*PAGE_SIZE,(currentPage+1)*PAGE_SIZE);
+  const pageKey=page.map(g=>g.key).join('|');
+  React.useEffect(()=>{
+    if(!account||!page.length)return;
+    const c=new AbortController(),queue=page.filter(g=>research[g.key]===undefined);
+    async function worker(){while(queue.length&&!c.signal.aborted){const group=queue.shift()!;try{const response=await fetchResearch(group,'OVER',c.signal);if(!c.signal.aborted)setResearch(previous=>({...previous,[group.key]:response}));}catch{if(!c.signal.aborted)setResearch(previous=>({...previous,[group.key]:null}));}}}
+    void Promise.all(Array.from({length:Math.min(RESEARCH_WORKERS,queue.length)},worker));return()=>c.abort();
+    // The page cohort stays stable while data streams in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, pageKey, retry]);
-
-  const referenceTargets = page.filter(group => predictions[predictionKey(group)] !== undefined && !usablePrediction(predictions[predictionKey(group)], now));
-  const referencePageKey = referenceTargets.map(referenceKey).sort().join('|');
-  React.useEffect(() => {
-    if (!account || !referenceTargets.length) return;
-    const controller = new AbortController();
-    void fetchMarketReferences(referenceTargets.filter(group => marketRefs[referenceKey(group)] === undefined), controller.signal, values => {
-      if (!controller.signal.aborted) setMarketRefs(current => ({ ...current, ...values }));
-    });
-    return () => controller.abort();
-    // Visible selection changes and explicit retries are the only triggers; no provider polling.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, referencePageKey, retry]);
-
-  React.useEffect(() => {
-    if (!account || !page.length) return;
-    const controller = new AbortController();
-    const queue = page.filter((group) => research[group.key] === undefined);
-    if (!queue.length) return () => controller.abort();
-
-    const worker = async () => {
-      while (queue.length && !controller.signal.aborted) {
-        const group = queue.shift();
-        if (!group) break;
-        try {
-          const response = await fetchResearch(group, 'OVER', controller.signal);
-          const result = boardResearchStat(response, group.line);
-          if (!controller.signal.aborted) {
-            setResearch((current) => ({ ...current, [group.key]: result }));
-          }
-        } catch {
-          if (!controller.signal.aborted) {
-            setResearch((current) => ({ ...current, [group.key]: null }));
-          }
-        }
-      }
-    };
-    void Promise.all(Array.from({ length: Math.min(RESEARCH_WORKERS, queue.length) }, worker));
-    return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, pageKey, retry]);
-
-  if (checking) return <div className={styles.loading}>Loading prop board…</div>;
-  if (!account) return <div className={styles.signIn}><SignInPanel onSignedIn={setAccount} /></div>;
-
-  return (
-    <main className={styles.shell}>
-      <div className={styles.board}>
-        <div className={styles.topRow}>
-          <nav className={styles.sportNav} aria-label="Sports">
-            {sports.slice(0, 7).map((option) => (
-              <button key={option} type="button" className={sport === option ? styles.activeSport : ''} onClick={() => setSport(option)}>
-                {option}
-              </button>
-            ))}
-            {sports.length > 7 ? <button type="button">More <ChevronDown size={14} /></button> : null}
-          </nav>
-
-          <label className={styles.search}>
-            <Search size={18} aria-hidden="true" />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search players, teams, or props…" />
-          </label>
-          <button className={styles.menuButton} type="button" aria-label="Menu"><Menu size={22} /></button>
-        </div>
-
-        <div className={styles.filters}>
-          <SelectPill label="Opponent" value={opponent} onChange={setOpponent} options={[{ value: ALL, label: 'Opponent' }, ...opponents.map((v) => ({ value: v, label: v }))]} />
-          <SelectPill label="Stat" value={market} onChange={setMarket} options={[{ value: ALL, label: 'Stat' }, ...markets.map((v) => ({ value: v, label: v }))]} />
-          <SelectPill label="Season" value={ALL} onChange={() => {}} options={[{ value: ALL, label: 'Season' }]} />
-          <SelectPill label="Home/Away" value={ALL} onChange={() => {}} options={[{ value: ALL, label: 'Home/Away' }]} />
-          <SelectPill label="Team" value={team} onChange={setTeam} options={[{ value: ALL, label: 'Team' }, ...teams.map((v) => ({ value: v, label: v }))]} />
-          <SelectPill label="Book" value={book} onChange={setBook} options={[{ value: ALL, label: 'Book' }, ...books.map((v) => ({ value: v, label: v }))]} />
-          <SelectPill label="Line" value={line} onChange={setLine} options={[{ value: ALL, label: 'Line' }, ...lines.map((v) => ({ value: v, label: v }))]} />
-          <SelectPill label="Prop type" value={variant} onChange={setVariant} options={[
-            { value: ALL, label: 'All prop types' }, { value: 'standard', label: 'Standard' },
-            { value: 'goblin', label: '🟢 Goblin' }, { value: 'demon', label: '🔴 Demon' },
-            { value: 'boost', label: 'Underdog boost' }, { value: 'discount', label: 'Underdog discount' }, { value: 'alternate', label: 'Alternates' },
-          ]} />
-          <span className={styles.filterSpacer} />
-          <button className={styles.sortIcon} type="button" aria-label="Sort"><SlidersHorizontal size={16} /></button>
-          <SelectPill label="Sort" value={sort} onChange={setSort} options={[
-            { value: 'EV', label: 'EV%' },
-            { value: 'HIT', label: 'Hit rate' },
-            { value: 'LINE', label: 'Line' },
-            { value: 'PLAYER', label: 'Player' },
-          ]} />
-        </div>
-
-        <section className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Player</th>
-                <th>Matchup</th>
-                <th>Stat</th>
-                <th>Line</th>
-                <th>Odds</th>
-                <th>Proj</th>
-                <th>EV%</th>
-                <th>Hit rate</th>
-                <th>Books</th>
-                <th aria-label="Open" />
-              </tr>
-            </thead>
-            <tbody>
-              {page.map((group) => {
-                const prediction = predictions[predictionKey(group)];
-                const predictionLoading = prediction === undefined;
-                const reference = marketRefs[referenceKey(group)];
-                const freshReference = reference && reference.expiresAt > now ? reference : null;
-                const modelEv = bestEv(group, prediction, now);
-                const ev = modelEv ?? freshReference?.ev ?? null;
-                const researchStat = research[group.key];
-                const hitLoading = researchStat === undefined;
-                const hit = researchStat?.rate ?? null;
-                const projection = usablePrediction(prediction, now)
-                  ? Number(prediction.projection)
-                  : freshReference?.projection ?? null;
-                const projectionSource = usablePrediction(prediction, now) ? modelLabel(prediction) : 'Market implied';
-                const projectionLoading = predictionLoading || (!usablePrediction(prediction, now) && reference === undefined);
-                const bestQuote = displayQuote(group);
-                const badges = [...new Map(group.specialVariants.map(item => [quoteVariant(item.quotes[0]), item])).values()];
-                const forecastReason = reference && reference.expiresAt <= now ? 'Market reference expired. Retry data to refresh.' : prediction?.available && !usablePrediction(prediction, now) ? 'Forecast expired. Retry data to refresh.' : [prediction?.message, reference?.reason].filter(Boolean).join(' ') || 'No verified projection for this selection.';
-                const bookNames = group.bookNames.slice(0, 4);
-                const sampleLabel = researchStat?.sample
-                  ? `${researchStat.hits ?? '—'}/${researchStat.sample} L10`
-                  : hitLoading ? 'Loading L10' : 'No verified L10 sample';
-                return (
-                  <tr
-                    key={group.playerCardKey}
-                    data-player-card={group.playerCardKey}
-                    onClick={() => router.push(playerResearchHref(group, group.playerCardKey, book === ALL ? null : book))}
-                  >
-                    <td>
-                      <div className={styles.player}>
-                        <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />
-                        <span><b>{group.player}</b><small>{group.team || 'Team unavailable'}</small></span>
-                      </div>
-                    </td>
-                    <td data-label="Matchup"><span className={styles.matchup}>{group.matchup}</span><small>{matchupTime(group.startsAt)}</small></td>
-                    <td data-label="Stat" className={styles.statCell}>
-                      <span>{group.market}</span>
-                      {group.categoryCount > 1 ? <small>{group.categoryCount} stats inside</small> : null}
-                      {badges.length > 0 && <div className={styles.variants}>{badges.map(item => <a key={item.key} data-variant={quoteVariant(item.quotes[0])} href={playerResearchHref(item, group.playerCardKey, item.quotes[0]?.sportsbookKey || item.quotes[0]?.sportsbook)} onClick={event => event.stopPropagation()} title={`${item.market} · ${item.line} · ${item.quotes[0]?.sportsbook || ''}`}>{variantLabel(item.quotes[0])}</a>)}</div>}
-                    </td>
-                    <td data-label="Line" className={styles.number}>{Number.isFinite(group.line) ? group.line : 'N/A'}</td>
-                    <td data-label="Odds"><span className={styles.odds}>{quotePriceLabel(bestQuote)}</span><small>{quoteSeenLabel(bestQuote, now)}</small>{numberOf(bestQuote?.liquidity) !== null && <small title="Provider-reported amount available at this quote">Liquidity {Number(bestQuote?.liquidity).toLocaleString()}</small>}</td>
-                    <td data-label="Proj" className={styles.number} title={projection === null ? forecastReason : projectionSource === 'Market implied' ? `PropLine market reference · ${freshReference?.booksContributing ?? 'Unknown'} contributing books` : `${modelLabel(prediction)} · ${prediction?.modelVersion}`}>
-                      {projectionLoading ? '…' : projection === null ? 'No estimate' : projection.toFixed(1)}
-                      {projection !== null && <small>{projectionSource}</small>}
-                    </td>
-                    <td data-label="EV%" title={isDfs(bestQuote) ? 'DFS entry payouts do not provide single-leg sportsbook EV.' : ev === null ? forecastReason : modelEv !== null ? `${modelLabel(prediction)} · exact book and line, with pushes` : `PropLine no-vig reference · ${freshReference?.book} ${freshReference?.side} · line ${group.line}`} className={styles.ev} data-positive={ev !== null && ev > 0 ? 'true' : 'false'}>
-                      {isDfs(bestQuote) ? 'Entry payout' : projectionLoading ? '…' : ev === null ? 'No estimate' : `${ev >= 0 ? '+' : ''}${ev.toFixed(1)}%`}
-                      {ev !== null && modelEv === null && <small>Market no-vig</small>}
-                    </td>
-                    <td data-label="Hit rate" title={sampleLabel}>
-                      <div className={styles.hit}>
-                        <span>{hitLoading ? '…' : hit === null ? 'No history' : `${Math.round(hit)}%`}</span>
-                        <i><b style={{ width: hit === null ? '0%' : `${Math.max(0, Math.min(100, hit))}%` }} /></i>
-                      </div>
-                    </td>
-                    <td data-label="Books">
-                      <div className={styles.books}>
-                        {bookNames.length
-                          ? bookNames.map((name) => <span key={name} title={name}>{bookShort(name)}</span>)
-                          : <em className={styles.unavailable}>No quotes</em>}
-                        {group.bookCount > bookNames.length && <span title={`${group.bookCount} books at this stat and line`}>+{group.bookCount - bookNames.length}</span>}
-                      </div>
-                    </td>
-                    <td className={styles.chevron}>›</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-
-          {loading ? <div className={styles.overlay}>Refreshing board…</div> : null}
-          {error ? <div className={styles.empty}>{error}</div> : null}
-          {!loading && !error && !page.length ? <div className={styles.empty}>No props match these filters.</div> : null}
-        </section>
-
-        <div className={styles.footerMeta}>
-          <span>{filtered.length.toLocaleString()} players</span>
-          <button type="button" onClick={() => {
-            setPredictions(current => Object.fromEntries(Object.entries(current).filter(([, value]) => usablePrediction(value))));
-            setMarketRefs(current => Object.fromEntries(Object.entries(current).filter(([, value]) => value.expiresAt > Date.now() && (value.projection !== null || value.ev !== null))));
-            setResearch(current => Object.fromEntries(Object.entries(current).filter(([, value]) => value?.rate !== null && value !== null)));
-            setRetry(value => value + 1);
-          }}>Retry missing data</button>
-          <span>{(meta.sportsbookCount ?? books.length) || 0} books</span>
-          <span>{meta.stale ? 'Cached feed' : 'Live board'}</span>
-        </div>
+  },[account,pageKey,retry]);
+  function toggleSaved(key:string){setSaved(previous=>{const next=previous.includes(key)?previous.filter(value=>value!==key):[...previous,key].slice(-200);try{localStorage.setItem('oblige.reference.saved.v1',JSON.stringify(next));}catch{}return next;});}
+  function loadForecast(group:PropGroup){
+    setForecastOpen(previous=>previous.includes(group.key)?previous:[...previous,group.key]);
+    if(forecastRequests.current.has(group.key))return;
+    const c=new AbortController();forecastRequests.current.set(group.key,c);
+    // Independent reads start together; a slow model never blocks a market reference.
+    void Promise.allSettled([
+      fetchPredictions([group],c.signal,values=>{if(!c.signal.aborted)setPredictions(previous=>({...previous,...values}));},12000),
+      fetchMarketReferences([group],c.signal,values=>{if(!c.signal.aborted)setMarketRefs(previous=>({...previous,...values}));}),
+    ]).finally(()=>{if(forecastRequests.current.get(group.key)===c)forecastRequests.current.delete(group.key);});
+  }
+  const choices=(values:string[],label:string)=>[{value:ALL,label},...values.map(value=>({value,label:value}))];
+  function openResearch(group:PlayerCardGroup){router.push(playerResearchHref(group,group.playerCardKey,book===ALL?null:book));}
+  if(checking)return <div className={styles.loading} role="status">Opening your workspace…</div>;
+  if(!account)return <div className={styles.signIn}><SignInPanel onSignedIn={setAccount}/></div>;
+  return <section className={styles.shell} data-design="reference-cards-v1">
+    <aside className={styles.sidebar} aria-label="Workspace navigation">
+      <span className={styles.sideCaption}>WORKSPACE</span>
+      <button aria-pressed={!savedOnly} onClick={()=>setSavedOnly(false)}><LayoutGrid size={18}/> All props</button>
+      <button aria-pressed={savedOnly} onClick={()=>setSavedOnly(true)}><Star size={18}/> Saved props <small>{saved.length}</small></button>
+      <Link href="/research"><BarChart3 size={18}/> Player research</Link>
+      <Link href="/account"><User size={18}/> My account</Link>
+      <div className={styles.sideNote}><span/> Research with real numbers.<p>Compare the line. Explore the history. Make your own call.</p></div>
+    </aside>
+    <div className={styles.board}>
+      <div className={styles.heading}><div><span className={styles.eyebrow}>THE RESEARCH DESK</span><h1>{savedOnly?'Saved props':'Player props'}</h1></div><button className={styles.refresh} aria-label="Refresh props" disabled={loading} onClick={()=>setRefresh(value=>value+1)}><RefreshCw size={16}/> <span>Refresh</span></button></div>
+      <nav className={styles.sportNav} aria-label="Sports">{sports.slice(0,7).map(value=><button key={value} aria-pressed={sport===value} onClick={()=>changeSport(value)}>{value}</button>)}{sports.length>7&&<label className={styles.moreSports}>More <ChevronDown size={13}/><select aria-label="All sports" value={sport} onChange={event=>changeSport(event.target.value)}>{sports.map(value=><option key={value} value={value}>{value}</option>)}</select></label>}</nav>
+      <div className={styles.toolbar}><label className={styles.search}><Search size={18}/><input aria-label="Search players, teams, or props" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search players, teams, or props…"/></label><button className={styles.filterToggle} aria-label="Filters" aria-expanded={filtersOpen} aria-controls="board-filters" onClick={()=>setFiltersOpen(value=>!value)}><SlidersHorizontal size={17}/><span>Filters</span>{[market,opponent,team,book,line,variant,venue].filter(value=>value!==ALL).length>0&&<i/>}</button><button className={styles.savedToggle} aria-label="Show saved props" aria-pressed={savedOnly} onClick={()=>setSavedOnly(value=>!value)}><Star size={18} fill={savedOnly?'currentColor':'none'}/></button></div>
+      <div id="board-filters" className={styles.filters} data-open={filtersOpen}>
+        <SelectPill label="Stat" value={market} onChange={setMarket} options={[{value:ALL,label:'All stats'},...options.markets]}/><SelectPill label="Book" value={book} onChange={setBook} options={choices(options.books,'All books')}/>
+        <SelectPill label="Prop type" value={variant} onChange={setVariant} options={[{value:ALL,label:'All prop types'},{value:'standard',label:'Standard'},{value:'goblin',label:'Green Goblin'},{value:'demon',label:'Red Demon'},{value:'boost',label:'Underdog boost'},{value:'discount',label:'Underdog discount'},{value:'alternate',label:'Alternates'}]}/>
+        <SelectPill label="Opponent" value={opponent} onChange={setOpponent} options={choices(options.opponents,'Any opponent')}/><SelectPill label="Team" value={team} onChange={setTeam} options={choices(options.teams,'Any team')}/><SelectPill label="Line" value={line} onChange={setLine} options={choices(options.lines,'Any line')}/>
+        <SelectPill label="Home/Away" value={venue} onChange={setVenue} options={[{value:ALL,label:'Home & away'},{value:'home',label:'Home'},{value:'away',label:'Away'}]}/>
+        <SelectPill label="Sort" value={sort} onChange={setSort} options={[{value:'PLAYER',label:'Player name'},{value:'LINE',label:'Highest line'}]}/>
+        <button className={styles.reset} onClick={()=>{setMarket(ALL);setOpponent(ALL);setTeam(ALL);setBook(ALL);setLine(ALL);setVariant(ALL);setVenue(ALL);}}>Reset filters</button>
       </div>
-    </main>
-  );
+      <div className={styles.resultBar}><span>{loading?'Loading slate…':`${filtered.length.toLocaleString()} players`} <i>·</i> {sport}</span><span>{meta.stale?'Cached feed':'Latest board snapshot'}</span></div>
+      {error&&<div className={styles.empty} role="alert"><strong>We couldn’t load this slate.</strong><p>{error}</p><button onClick={()=>setRefresh(value=>value+1)}>Try again</button></div>}
+      {loading&&<div className={styles.cards} aria-label="Loading props" aria-busy="true">{[0,1,2,3].map(value=><div key={value} className={styles.skeleton}><div/><div/><div/></div>)}</div>}
+      {!loading&&!error&&<div className={styles.cards}>{page.map(group=>{
+        const result=research[group.key], metrics=cardHistory(result,group), savedCard=saved.includes(group.playerCardKey);
+        const badges=[...new Map(group.specialVariants.map(item=>[quoteVariant(item.quotes[0]),item])).values()];
+        const books=[...new Map(group.quotes.map(quote=>[quoteBook(quote),quote])).entries()];
+        const prediction=predictions[predictionKey(group)], reference=marketRefs[referenceKey(group)];
+        const valid=usablePrediction(prediction,now), fresh=reference&&reference.expiresAt>now?reference:null;
+        const projection=valid?prediction.projection:fresh?.projection;
+        const modelEv=bestEv(group,prediction,now), ev=modelEv??fresh?.ev;
+        return <article key={group.playerCardKey} className={styles.card} data-player-card={group.playerCardKey}>
+          <div className={styles.cardHeader}><button className={styles.identity} onClick={()=>openResearch(group)} aria-label={`Research ${group.player}`}><span className={styles.portrait}><PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId}/></span><span className={styles.playerInfo}><strong>{group.player} {group.position&&<small>({group.position})</small>}</strong><span className={styles.propTitle}>O/U <b>{group.line}</b> {statLabel(group)}</span><small>{group.matchup} <i>·</i> {timeLabel(group.startsAt)}</small></span></button><button className={styles.save} aria-label={`${savedCard?'Unsave':'Save'} ${group.player}`} aria-pressed={savedCard} onClick={()=>toggleSaved(group.playerCardKey)}><Star size={19} fill={savedCard?'currentColor':'none'}/></button></div>
+          <div className={styles.context}><span>{group.sport}</span>{group.team&&<span>{group.team}</span>}{group.categoryCount>1&&<button onClick={()=>openResearch(group)}>{group.categoryCount} stat categories <ChevronRight size={12}/></button>}{badges.map(item=><Link prefetch={false} key={item.key} className={styles.variant} data-variant={quoteVariant(item.quotes[0])} href={playerResearchHref(item,group.playerCardKey,item.quotes[0]?.sportsbookKey||item.quotes[0]?.sportsbook)}>{variantLabel(item.quotes[0])}</Link>)}</div>
+          <div className={styles.metrics} aria-label="Historical over results">{metrics.map(metric=>{
+            const tone=metric.value===null?'none':metric.tone||(metric.percent?(metric.value>=60?'positive':metric.value<40?'negative':'neutral'):metric.label==='DIFF'?(metric.value>=0?'positive':'negative'):'neutral');
+            return <div key={metric.label} className={styles.metric} data-tone={tone} title={metric.value===null?(result===undefined?'Loading verified history':result===null?'History request failed. Use Retry history.':'No verified sample for this statistic'):`${metric.note||'Historical overs'}${metric.sample?` · ${metric.sample} games`:''}`}><span>{metric.label}</span><strong>{result===undefined?'…':metric.value===null?'—':`${metric.label==='DIFF'&&metric.value>0?'+':''}${Number(metric.value.toFixed(metric.percent?0:1))}${metric.percent?'%':''}`}</strong></div>;
+          })}</div>
+          <div className={styles.bookStrip} aria-label="Available sportsbook prices">{books.map(([name,quote])=>{const pair=group.quotes.filter(q=>quoteBook(q)===name);return <Link prefetch={false} key={name} href={playerResearchHref(group,group.playerCardKey,name)} className={styles.bookQuote}><span className={styles.bookLogo} data-book={quote.sportsbookKey}>{name.replace(/[^a-z0-9]/gi,'').slice(0,2).toUpperCase()}</span><span><b>{name}</b><span data-label="Odds">{isDfs(quote)?quotePriceLabel(quote):<><i>O</i> {quotePriceLabel(pair.find(q=>q.side==='OVER'))} <em>U</em> {quotePriceLabel(pair.find(q=>q.side==='UNDER'))}</>}</span></span></Link>;})}</div>
+          <div className={styles.cardFooter}><span>{quoteSeenLabel(group.quotes[0],now)}</span><button onClick={()=>loadForecast(group)}>Forecast</button>{result===null&&<button onClick={()=>{setResearch(previous=>{const next={...previous};delete next[group.key];return next;});setRetry(value=>value+1);}}>Retry history</button>}<button className={styles.researchLink} onClick={()=>openResearch(group)}>Research <ArrowRight size={14}/></button></div>
+          {forecastOpen.includes(group.key)&&<div className={styles.forecast} aria-live="polite"><span data-label="Proj">Projection <strong>{projection!=null?projection.toFixed(1):prediction===undefined||reference===undefined?'…':'Unavailable'}</strong><small>{valid?modelLabel(prediction):'Market implied'}</small></span><span>EV <strong>{ev!=null?`${ev>0?'+':''}${ev.toFixed(1)}%`:isDfs(group.quotes[0])?'Entry payout':prediction===undefined||reference===undefined?'…':'Unavailable'}</strong><small>{modelEv!=null?modelLabel(prediction):'Market no-vig'}</small></span><button aria-label="Close forecast" onClick={()=>setForecastOpen(previous=>previous.filter(key=>key!==group.key))}>×</button></div>}
+        </article>;
+      })}</div>}
+      {!loading&&!error&&!page.length&&<div className={styles.empty}><strong>{savedOnly?'No saved props in this slate':'No matching props'}</strong><p>{savedOnly?'Tap a star on any player to keep them here on this device.':'Try another sport or reset your filters.'}</p></div>}
+      {filtered.length>PAGE_SIZE&&<nav className={styles.pagination} aria-label="Prop pages"><button disabled={currentPage===0} onClick={()=>{setPageIndex(currentPage-1);window.scrollTo({top:0,behavior:'instant'});}}><ChevronLeft size={16}/> Previous</button><span>{currentPage+1} / {lastPage+1}</span><button disabled={currentPage===lastPage} onClick={()=>{setPageIndex(currentPage+1);window.scrollTo({top:0,behavior:'instant'});}}>Next <ChevronRight size={16}/></button></nav>}
+      <p className={styles.footnote}>History tiles measure overs at the displayed line. — means no verified sample. Saved props stay on this device.</p>
+    </div>
+  </section>;
 }

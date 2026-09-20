@@ -1,3 +1,3 @@
-deploy: show PropLine variants, exact market references and outcome history
-release-parent: dd977859dd7aae3ccbdb751b35c318000648b8ee
-reason: preserve the current board design while repairing missing data requests and exposing verified provider fields; retain existing authentication and deployment gates
+deploy: reference-inspired player cards and responsive research navigation
+release-parent: 741f909397905d67f9d36235c2eeb610639848b4
+reason: user requested replacement design from supplied references; Alpha saved at design/alpha; bounded visible history and independent on-demand forecasts

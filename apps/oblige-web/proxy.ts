@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 // Issue #326: terminate the proven duplicated reserved chunk prefix locally
 // before Next.js fallback rewrites can send it to the backend bridge.
+// Release rollout also validates this guard through the canonical www host.
 const DUPLICATE_CHUNK_PREFIX = '/_next/static/chunks/static/chunks/';
 
 export function proxy(request: NextRequest) {

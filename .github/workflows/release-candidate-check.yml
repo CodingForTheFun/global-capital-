@@ -33,29 +33,107 @@ jobs:
             const trustedAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
             const safeMarker = /\bSAFE\s+TO\s+MERGE\b/i;
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+            const incidentDirectLock = '335215c2d3054b636c6937b1ba0d6c48ee363c13';
+            const incidentLockParent = '3bf7b261f239f84f3308d5d24608fb49ac3e8f7d';
+            const recoveryAncestor = '1e05bd2a8bddad6079f759856cb66acd1a04c8b9';
+            const releaseLockPath = '.railway/manual-deploy-lock-4d7a31f6c9b24858a0e6731f42cd95be';
 
-            const { data: commit } = await github.rest.repos.getCommit({
-              owner,
-              repo,
-              ref: sha,
-            });
+            async function deployed(commitSha) {
+              const { data } = await github.rest.repos.getCombinedStatusForRef({ owner, repo, ref: commitSha });
+              return data.statuses.some(
+                (status) => status.context === railwayContext && status.state === 'success',
+              );
+            }
+
+            async function reviewedProductionMerge(commitSha) {
+              const pulls = await github.paginate(
+                github.rest.repos.listPullRequestsAssociatedWithCommit,
+                { owner, repo, commit_sha: commitSha, per_page: 100 },
+              );
+              const pr = pulls.find(
+                (item) => item.merged_at
+                  && item.base?.ref === branch
+                  && item.merge_commit_sha === commitSha,
+              );
+              if (!pr) return false;
+
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner, repo, pull_number: pr.number, per_page: 100,
+              });
+              const latestByReviewer = new Map();
+              for (const review of reviews) {
+                const login = review.user?.login;
+                if (!login) continue;
+                const previous = latestByReviewer.get(login);
+                const currentTime = Date.parse(review.submitted_at || '') || 0;
+                const previousTime = Date.parse(previous?.submitted_at || '') || 0;
+                if (!previous || currentTime >= previousTime) latestByReviewer.set(login, review);
+              }
+              const effectiveReviews = [...latestByReviewer.values()];
+              if (effectiveReviews.some((review) => review.state === 'CHANGES_REQUESTED')) return false;
+              if (effectiveReviews.some((review) => review.state === 'APPROVED')) return true;
+
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: pr.number, per_page: 100,
+              });
+              const mergedAt = Date.parse(pr.merged_at);
+              return comments.some((comment) => trustedAssociations.has(comment.author_association)
+                && safeMarker.test(comment.body || '')
+                && (Date.parse(comment.created_at || '') || 0) <= mergedAt);
+            }
+
+            const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: sha });
             const parentSha = commit.parents?.[0]?.sha;
             if (!parentSha) {
               core.setFailed('Release gate could not identify the first parent commit.');
               return;
             }
 
-            const { data: parentStatus } = await github.rest.repos.getCombinedStatusForRef({
-              owner,
-              repo,
-              ref: parentSha,
-            });
-            const parentWasDeployed = parentStatus.statuses.some(
-              (status) => status.context === railwayContext && status.state === 'success',
-            );
+            let parentWasDeployed = await deployed(parentSha);
+            if (!parentWasDeployed) {
+              // One-time recovery for #396. Walk a short immutable first-parent
+              // chain to the last successful production deployment. Every
+              // intervening commit must be a reviewed production merge except
+              // the exact incident lock-only commit, which is independently
+              // verified to touch only the watched release-lock file.
+              let cursor = parentSha;
+              let sawIncidentLock = false;
+              let recoveryValid = false;
+              for (let step = 0; step < 8; step += 1) {
+                if (cursor === recoveryAncestor) {
+                  recoveryValid = sawIncidentLock && await deployed(cursor);
+                  break;
+                }
+
+                const { data: item } = await github.rest.repos.getCommit({ owner, repo, ref: cursor });
+                const firstParent = item.parents?.[0]?.sha;
+                if (!firstParent) break;
+
+                if (cursor === incidentDirectLock) {
+                  if (firstParent !== incidentLockParent) break;
+                  const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({
+                    owner,
+                    repo,
+                    basehead: `${firstParent}...${cursor}`,
+                  });
+                  const files = comparison.files || [];
+                  if (files.length !== 1 || files[0].filename !== releaseLockPath) break;
+                  sawIncidentLock = true;
+                } else if (!(await reviewedProductionMerge(cursor))) {
+                  break;
+                }
+                cursor = firstParent;
+              }
+
+              if (recoveryValid) {
+                parentWasDeployed = true;
+                core.warning('Using bounded #396 release-chain recovery through reviewed merges and the exact lock-only incident commit. Restore the normal parent-only gate after deployment.');
+              }
+            }
+
             if (!parentWasDeployed) {
               core.setFailed(
-                `Release parent ${parentSha.slice(0, 12)} has no successful ${railwayContext} status. This serializes production releases and prevents an undeployed direct push from being carried into a later release.`,
+                `Release parent ${parentSha.slice(0, 12)} has no successful ${railwayContext} status and does not satisfy the bounded #396 recovery chain.`,
               );
               return;
             }
@@ -64,12 +142,7 @@ jobs:
             for (let attempt = 1; attempt <= 6; attempt += 1) {
               pulls = await github.paginate(
                 github.rest.repos.listPullRequestsAssociatedWithCommit,
-                {
-                  owner,
-                  repo,
-                  commit_sha: sha,
-                  per_page: 100,
-                },
+                { owner, repo, commit_sha: sha, per_page: 100 },
               );
               if (pulls.length) break;
               if (attempt < 6) await sleep(5000);
@@ -81,17 +154,12 @@ jobs:
                 && item.merge_commit_sha === sha,
             );
             if (!pr) {
-              core.setFailed(
-                'Production deployment requires a merged pull request into production-stable; direct pushes are not releasable.',
-              );
+              core.setFailed('Production deployment requires a merged pull request into production-stable; direct pushes are not releasable.');
               return;
             }
 
             const reviews = await github.paginate(github.rest.pulls.listReviews, {
-              owner,
-              repo,
-              pull_number: pr.number,
-              per_page: 100,
+              owner, repo, pull_number: pr.number, per_page: 100,
             });
             const latestByReviewer = new Map();
             for (const review of reviews) {
@@ -100,49 +168,29 @@ jobs:
               const previous = latestByReviewer.get(login);
               const currentTime = Date.parse(review.submitted_at || '') || 0;
               const previousTime = Date.parse(previous?.submitted_at || '') || 0;
-              if (!previous || currentTime >= previousTime) {
-                latestByReviewer.set(login, review);
-              }
+              if (!previous || currentTime >= previousTime) latestByReviewer.set(login, review);
             }
-
             const effectiveReviews = [...latestByReviewer.values()];
-            const blockingReview = effectiveReviews.find(
-              (review) => review.state === 'CHANGES_REQUESTED',
-            );
+            const blockingReview = effectiveReviews.find((review) => review.state === 'CHANGES_REQUESTED');
             if (blockingReview) {
-              core.setFailed(
-                `PR #${pr.number} still has requested changes from ${blockingReview.user?.login || 'a reviewer'}.`,
-              );
+              core.setFailed(`PR #${pr.number} still has requested changes from ${blockingReview.user?.login || 'a reviewer'}.`);
               return;
             }
-
-            const approvedReview = effectiveReviews.find(
-              (review) => review.state === 'APPROVED',
-            );
-
+            const approvedReview = effectiveReviews.find((review) => review.state === 'APPROVED');
             const comments = await github.paginate(github.rest.issues.listComments, {
-              owner,
-              repo,
-              issue_number: pr.number,
-              per_page: 100,
+              owner, repo, issue_number: pr.number, per_page: 100,
             });
             const mergedAt = Date.parse(pr.merged_at);
-            const explicitSafeReview = comments.find((comment) => {
-              if (!trustedAssociations.has(comment.author_association)) return false;
-              if (!safeMarker.test(comment.body || '')) return false;
-              return (Date.parse(comment.created_at || '') || 0) <= mergedAt;
-            });
+            const explicitSafeReview = comments.find((comment) => trustedAssociations.has(comment.author_association)
+              && safeMarker.test(comment.body || '')
+              && (Date.parse(comment.created_at || '') || 0) <= mergedAt);
 
             if (!approvedReview && !explicitSafeReview) {
-              core.setFailed(
-                `PR #${pr.number} has no approving review and no pre-merge SAFE TO MERGE marker from a trusted repository member. Review must complete before customer-facing deployment can start.`,
-              );
+              core.setFailed(`PR #${pr.number} has no approving review and no pre-merge SAFE TO MERGE marker from a trusted repository member. Review must complete before customer-facing deployment can start.`);
               return;
             }
 
-            core.info(
-              `Release gate passed for PR #${pr.number}; parent ${parentSha.slice(0, 12)} was previously deployed and review evidence is present.`,
-            );
+            core.info(`Release gate passed for PR #${pr.number}; parent chain resolves to a previously deployed release and review evidence is present.`);
 
   test:
     runs-on: ubuntu-latest

@@ -1,5 +1,4 @@
-deploy: verified full-league opponent picker
-source-pr: #431
-recovery-pr: #432
-release-sha: 8c61994937475ba2d31a7caff82394440c04890d
-reason: reviewed Railway release request after green opponent-directory checks and serialized-parent recovery
+deploy: contain malformed duplicate Next chunk paths on backend
+source-pr: #439
+release-sha: fd48380cb7d2f233289ae45b551e8b8f85a46fb7
+reason: current-base exact-prefix fast-fail for issue #326 after focused checks passed

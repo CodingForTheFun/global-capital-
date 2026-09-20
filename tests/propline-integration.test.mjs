@@ -9,13 +9,14 @@ import {
 import {
   bookKey,
   defaultPlayerPropMarkets,
+  isAlternateOutcome,
   proplineSportKey,
 } from '../lib/data-sources/propline/markets.mjs';
 import {
   __resetProplineProvider,
   fetchBoard,
 } from '../lib/autoscout/providers/propline.mjs';
-import { proplineSupplementPolicy } from '../lib/ingestion/propline-supplement.mjs';
+import { proplineSupplementPolicy, maybeRefreshProplineSupplement, mergeCachedPropline, __resetProplineSupplement } from '../lib/ingestion/propline-supplement.mjs';
 
 const originalKey = process.env.PROPLINE_API_KEY;
 const originalMarkets = process.env.PROPLINE_MARKETS;
@@ -194,6 +195,9 @@ test('PropLine board always sends markets and emits the existing flat prop contr
   assert.equal(board.props.length, 2);
   assert.equal(board.props[0].provider, 'propline');
   assert.equal(board.props[0].providerPlayerId, 'pl-123');
+  assert.equal(board.props[0].proplinePlayerId, 'pl-123');
+  assert.equal(board.props[0].proplineEventId, 'evt-1');
+  assert.equal(board.props[0].proplineOutcomeId, 'out-1');
   assert.equal(board.props[0].sportsbookKey, 'draftkings');
   assert.equal(board.props[0].providerOutcomeId, 'out-1');
   assert.equal(board.props[0].bookOutcomeId, 'book-out-1');
@@ -234,6 +238,8 @@ test('PropLine flat rows retain verified PrizePicks and Underdog modifiers witho
           { key: 'underdog', title: 'Underdog', markets: [{ key: 'player_pass_yds', outcomes: [
             { name: 'Over', description: 'Example Quarterback', player_id: 'espn:7', point: 249.5, price: 100, payout_multiplier: 1.0, outcome_id: 'ud-standard' },
             { name: 'Over', description: 'Example Quarterback', player_id: 'espn:7', point: 255.5, price: 100, payout_multiplier: 1.4, outcome_id: 'ud-boost', book_outcome_id: 'option-4' },
+            { name: 'Over', description: 'Example Quarterback', player_id: 'espn:7', point: 240.5, price: 100, payout_multiplier: null, outcome_id: 'ud-null' },
+            { name: 'Over', description: 'Example Quarterback', player_id: 'espn:7', point: 239.5, price: 100, payout_multiplier: '', outcome_id: 'ud-empty' },
           ] }] },
         ],
       }, { quota: { limit: 250000, used: 11, remaining: 249989 } });
@@ -254,6 +260,62 @@ test('PropLine flat rows retain verified PrizePicks and Underdog modifiers witho
   assert.equal(boost.specialType, 'boost');
   assert.equal(boost.payoutMultiplier, 1.4);
   assert.equal(boost.bookOutcomeId, 'option-4');
+  for (const id of ['ud-null', 'ud-empty']) {
+    const regular = board.props.find(row => row.providerOutcomeId === id);
+    assert.ok(regular);
+    assert.equal(regular.isAlternate, false);
+    assert.equal(regular.specialVerified, false);
+    assert.equal(regular.specialType, null);
+  }
+});
+
+test('missing and invalid payout multipliers never hide regular props as alternates', () => {
+  for (const payout_multiplier of [undefined, null, '', false, true, 0, -1, 'unknown', 1]) assert.equal(isAlternateOutcome({ payout_multiplier }), false);
+  assert.equal(isAlternateOutcome({ payout_multiplier: 0.8 }), true);
+  assert.equal(isAlternateOutcome({ payout_multiplier: 1.4 }), true);
+  assert.equal(isAlternateOutcome({ dfs_odds_type: 'goblin', payout_multiplier: null }), true);
+});
+
+test('cached supplement attaches native IDs only to the verified game and exact quote period', async t => {
+  const env = ['PROPLINE_SUPPLEMENT_ENABLED', 'PROPLINE_SUPPLEMENT_SPORTS'];
+  const saved = Object.fromEntries(env.map(key => [key, process.env[key]]));
+  t.after(() => { for (const key of env) { if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key]; } __resetProplineSupplement(); });
+  process.env.PROPLINE_API_KEY = 'test-only-key';
+  process.env.PROPLINE_SUPPLEMENT_ENABLED = 'true';
+  process.env.PROPLINE_SUPPLEMENT_SPORTS = 'NFL';
+  process.env.PROPLINE_MARKETS_NFL = 'player_pass_yds';
+  process.env.PROPLINE_BOOKMAKERS = 'prizepicks';
+  __resetProplineProvider(); __resetProplineClient(); __resetProplineSupplement();
+  const start = new Date(Date.now() + 3_600_000).toISOString();
+  const event = { id: 'native-enrichment-game', sport_key: 'football_nfl', commence_time: start, home_team: 'Home', away_team: 'Away' };
+  let calls = 0;
+  globalThis.fetch = async input => {
+    calls++;
+    const path = new URL(String(input)).pathname;
+    const quota = { limit: 25000, remaining: 24990 };
+    if (path === '/v1/sports') return jsonResponse([], { quota });
+    if (path.endsWith('/events')) return jsonResponse([event], { quota });
+    if (path.endsWith('/odds')) return jsonResponse({ ...event, bookmakers: [{ key: 'prizepicks', markets: [{ key: 'player_pass_yds', outcomes: [{ name: 'Over', description: 'Fixture Quarterback', player_id: 'native-player', point: 250.5, price: 100, dfs_odds_type: 'standard', outcome_id: 'native-outcome' }] }] }] }, { quota });
+    throw new Error('Unexpected fixture request');
+  };
+  await proplineGet('/v1/sports');
+  const refreshed = await maybeRefreshProplineSupplement();
+  assert.equal(refreshed.skipped, false, JSON.stringify(refreshed));
+  const before = calls;
+  const base = { sport: 'NFL', provider: 'prizepicks', eventId: 'public-event', playerName: 'Fixture Quarterback', marketId: 'player_pass_yds', sportsbookKey: 'prizepicks', side: 'OVER', line: 250.5, gameStartTime: start, homeTeam: 'Home', awayTeam: 'Away' };
+  const merged = mergeCachedPropline({ props: [{ ...base, id: 'exact' }, { ...base, id: 'period', period: 'h1' }, { ...base, id: 'other-player', playerName: 'Different Player' }, { ...base, id: 'other-game', gameStartTime: new Date(Date.parse(start) + 3_600_000).toISOString() }] }, 'NFL');
+  const exact = merged.props.find(row => row.id === 'exact');
+  assert.equal(exact.eventId, 'public-event');
+  assert.equal(exact.proplineEventId, 'native-enrichment-game');
+  assert.equal(exact.proplinePlayerId, 'native-player');
+  assert.equal(exact.proplineOutcomeId, 'native-outcome');
+  for (const id of ['period', 'other-player']) {
+    const row = merged.props.find(row => row.id === id);
+    assert.equal(row.proplineEventId, 'native-enrichment-game');
+    assert.equal(row.proplineOutcomeId, undefined);
+  }
+  assert.equal(merged.props.find(row => row.id === 'other-game').proplineEventId, undefined);
+  assert.equal(calls, before, 'enrichment is a zero-network cache operation');
 });
 
 test('Free-tier PropLine supplement stays within a conservative daily request budget', () => {

@@ -87,7 +87,7 @@ test('model action falls back to exact PropLine market projection and no-vig EV 
   if(path==='/v1/sports/football_nfl/events/e1/markets')return[{key:'player_rush_yds'}];
   if(path==='/v1/sports/football_nfl/events/e1/odds')return payload('draftkings','player_rush_yds',[quote('Test Player',50.5)]);
   if(path==='/v1/sports/football_nfl/events/e1/projections')return{projections:[{player_id:'nfl:1',player_name:'Test Player',market:'player_rush_yds',projection:53.2}]};
-  if(path==='/v1/sports/football_nfl/events/e1/ev')return{plays:[{player_id:'nfl:1',player_name:'Test Player',market:'player_rush_yds',point:50.5,bookmaker:'draftkings',ev_percent:4.7,fair_probability:.55,fair_price:-122}]};
+  if(path==='/v1/sports/football_nfl/events/e1/ev')return{plays:[{player_id:'nfl:1',player_name:'Test Player',market:'player_rush_yds',point:50.5,bookmaker:'draftkings',side:'OVER',price:-110,ev_percent:4.7,fair_probability:.55,fair_price:-122}]};
   throw new Error('unexpected '+path);
  };
  const handler=createWorkspaceHandler({authenticate:async()=>({id:'u'}),read,predict:async()=>({available:false,code:'MODEL_NOT_READY'})});

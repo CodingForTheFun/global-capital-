@@ -1,0 +1,5 @@
+Manual release: TypeSafe connection
+Reviewed PR: #437
+Merge: fe80f2ac847482e6de59ce659febc6a8d5999ad6
+All six frontend PR workflows passed at 6345fd6b17d9a1df8310b1f078ffd39e6c689a31.
+Scope: oblige-web only. Preserve watch patterns, backend and ingestion services.

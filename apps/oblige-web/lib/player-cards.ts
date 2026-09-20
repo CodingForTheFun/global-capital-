@@ -294,6 +294,7 @@ export function restrictBook(group: PropGroup, book: string | null): PropGroup {
 }
 
 function previewScore(group: PropGroup): number {
+  const period = group.period || quotePeriod(group.quotes[0]) || /(?:^|[\s_·])(?:[1-4][HQ]|[HQ][1-4]|half|quarter|inning|period)(?:$|[\s_·])/i.test(`${group.market} ${group.marketId || ''}`);
   const pricedQuotes = group.quotes.filter(row => {
     if (isDfs(row)) return false;
     if (row.price === null || row.price === undefined || String(row.price).trim() === '') return false;
@@ -303,6 +304,7 @@ function previewScore(group: PropGroup): number {
   const books = new Set(group.quotes.map(bookKey).filter(Boolean)).size;
   return (
     (quoteVariant(group.quotes[0]) === 'standard' ? 100 : 0) +
+    (period ? 0 : 40) +
     (Number.isFinite(group.line) ? 100 : 0) +
     Math.min(pricedQuotes, 4) * 12 +
     Math.min(books, 4) * 4 +

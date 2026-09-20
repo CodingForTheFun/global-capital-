@@ -45,6 +45,15 @@ test('category choices are unique across lines but exact periods remain separate
  const groups=[g('one'),g('two',{line:21.5}),g('three',{market:'Points · First half',line:10.5})];
  assert.equal(playerCategories(groups).length,2);assert.notEqual(playerMarketKey(groups[0]),playerMarketKey(groups[2]));
 });
+test('equally complete full-game quotes lead the preview while period props remain selectable',()=>{
+ const full=g('z-full');
+ for(const half of [g('a-half',{period:'h1',market:'Points · First half'}),g('a-half',{market:'Points · First half'})]){
+  const rows=collapsePlayerCards([half,full],[half,full]);
+  assert.equal(rows[0].key,'z-full');
+  assert.equal(rows[0].categoryCount,2);
+  assert.equal(groupPlayerCards([half,full])[0].variants.length,2);
+ }
+});
 test('changing books chooses that book real line and never borrows an unavailable quote',()=>{
  const groups=[g('one'),g('two',{line:21.5,quotes:[{sportsbook:'Book B',sportsbookKey:'book_b',line:21.5,price:125,side:'OVER'}]})];
  const selected=postedSelection(groups,playerMarketKey(groups[0]),'book_b',20.5);assert.equal(selected.line,21.5);assert.equal(selected.bestOver.price,125);assert.equal(selected.bestUnder,null);

@@ -30,6 +30,7 @@ try{
    else if(!signedIn){privatePaths.push(url.pathname);status=401;body={ok:false};}
    else if(url.pathname==='/api/apex/props'){const sport=url.searchParams.get('sport')||'NFL';const standard=rows(sport),seed=standard[0];
     const special=(flavor,line,extra={})=>({...seed,id:`ui-${flavor}-${line}`,proplineOutcomeId:`ui-${flavor}-${line}`,line,sportsbook:'PrizePicks',sportsbookKey:'prizepicks',price:100,dfsOddsType:flavor,specialType:flavor,specialVerified:true,isAlternate:true,...extra});
+    for(const quote of standard)if(quote.sportsbookKey==='fanduel'&&quote.market===(names[sport]||names.NFL)[0])quote.market=(names[sport]||names.NFL)[1];
     if(sport==='NFL')for(const quote of standard){Object.assign(quote,{homeTeam:'NE Patriots',awayTeam:'PIT Steelers',team:'PIT',opponent:'NE'});if(quote.sportsbookKey==='draftkings')quote.playerName='UI Test Player (PIT)';}
     body={ok:true,props:specialMode?[...standard,special('goblin',16.5),special('demon',26.5),special('demon',30.5,{playerName:'UI Test Special Only',providerPlayerId:'fixture:special-only'})]:standard,supportedSports:Object.keys(names),meta:{sportsbookCount:specialMode?3:2}};}
    else if(url.pathname==='/api/apex/research'){

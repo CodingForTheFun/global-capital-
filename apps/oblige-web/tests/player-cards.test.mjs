@@ -252,3 +252,26 @@ test('saved card aliases survive identity repair and unsave removes every old ke
  assert.deepEqual(toggleSavedCard(card,[previous,card.playerCardKey,'another-card']),['another-card']);
  assert.deepEqual(toggleSavedCard(card,['another-card']),['another-card',card.playerCardKey]);
 });
+
+test('readable provider labels and raw market keys share one exact category across sports',()=>{
+ for(const [sport,key,label] of [['NBA','player_points','Points'],['WNBA','player_assists','Assists'],['MLB','batter_total_bases','Total Bases'],['NHL','player_shots_on_goal','Shots on Goal'],['TENNIS','player_aces','Aces'],['CS2','player_kills','Kills'],['NFL','player_pass_completions','Pass Completions'],['NFL','player_pass_rush_yds','Pass+Rush Yds']]){
+  const readable=g('readable',{sport,marketId:key,market:label}),raw=g('raw',{sport,marketId:key,market:key});
+  assert.equal(playerCategories([readable,raw]).length,1,`${sport}: ${label}`);
+  assert.equal(playerCategories([readable,{...raw,period:'h1'}]).length,2,'periods stay distinct');
+  assert.equal(playerCategories([readable,{...raw,quotes:[{...raw.quotes[0],dfsOddsType:'demon'}]}]).length,2,'specials stay distinct');
+  const previous=JSON.stringify([key,label.toLowerCase(),'','standard']);
+  assert.equal(postedSelection([raw],previous,null,raw.line)?.key,'raw','old category URLs still resolve');
+ }
+ for(const [alias,key,label] of [['player_longest_rush','player_rush_longest','Longest Rush'],['player_longest_completion','player_pass_longest','Longest Completion']]){
+  assert.equal(playerCategories([g('one',{marketId:alias,market:label}),g('two',{marketId:key,market:key})]).length,1);
+ }
+});
+test('best prices combine every book at the exact selected line without taking DFS synthetic odds',()=>{
+ const pp=g('pp',{market:'Points',homeTeam:null,awayTeam:null,quotes:[{sportsbook:'PrizePicks',sportsbookKey:'prizepicks',price:100,line:20.5,side:'OVER'}]});
+ const dk=g('dk',{market:'player_points',quotes:[{sportsbook:'DraftKings',sportsbookKey:'draftkings',price:-107,line:20.5,side:'OVER'}]});
+ const fd=g('fd',{market:'Points',quotes:[{sportsbook:'FanDuel',sportsbookKey:'fanduel',price:105,line:20.5,side:'UNDER'}]});
+ const alt=g('alt',{market:'Points',line:22.5,quotes:[{sportsbook:'Alt',sportsbookKey:'alt',price:150,line:22.5,side:'OVER'}]});
+ const result=postedSelection([pp,dk,fd,alt],playerMarketKey(pp),null,20.5);
+ assert.equal(result.bestOver.price,-107);assert.equal(result.bestUnder.price,105);assert.equal(result.quotes.length,3);assert.equal(result.homeTeam,'TEST');
+ const dfs=postedSelection([pp,dk,fd,alt],playerMarketKey(pp),'prizepicks',20.5);assert.equal(dfs.quotes.length,1);assert.equal(dfs.bestOver,null);
+});

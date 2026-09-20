@@ -1,5 +1,6 @@
 import type { PropGroup, PropRow } from './types';
 import { knownNflTeam, sameExplicitTeam } from './player-identity';
+import { canonicalMarketLabel } from './market-display';
 import { isDfs, quotePeriod, quoteVariant, variantKey } from './prop-signals';
 
 const clean = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -135,15 +136,31 @@ const knownMarketLabels: Record<string, RegExp> = {
   player_reception_yds: /^(?:rec|receiving|reception) (?:yards|yds)$/,
   player_receptions: /^receptions$/,
   player_pass_attempts: /^(?:pass|passing) attempts$/,
+  player_pass_completions: /^(?:(?:pass|passing) )?completions$/,
+  player_pass_rush_yds: /^(?:pass|passing)[\s+]+(?:rush|rushing) (?:yards|yds)$/,
+  player_pass_longest: /^longest (?:pass|completion)$/,
+  player_rush_longest: /^longest rush$/,
   player_rush_attempts: /^(?:rush|rushing) attempts$/,
   player_pass_tds: /^(?:pass|passing) (?:tds|touchdowns)$/,
   player_rush_tds: /^(?:rush|rushing) (?:tds|touchdowns)$/,
   player_rush_reception_yds: /^(?:rush\s*\+\s*rec) (?:yards|yds)$/,
 };
+const marketAliases: Record<string, string> = {
+  player_longest_rush: 'player_rush_longest', player_longest_completion: 'player_pass_longest',
+  player_rec_yds: 'player_reception_yds', player_receiving_yds: 'player_reception_yds', player_rec_longest: 'player_reception_longest',
+};
+function categoryIdentity(rawKey: string, label: string, period: string, variant: string): string {
+  const key = marketAliases[rawKey] || rawKey;
+  const sameLabel = label === rawKey || label === key || label === clean(canonicalMarketLabel(key)) || knownMarketLabels[key]?.test(label);
+  return JSON.stringify([key, sameLabel ? key : label, period, variant]);
+}
+function canonicalCategory(value: string): string {
+  try { const parts = JSON.parse(value); return Array.isArray(parts) && parts.length === 4 && parts.every(part => typeof part === 'string') ? categoryIdentity(parts[0], parts[1], parts[2], parts[3]) : value; } catch { return value; }
+}
 export function playerMarketKey(group: PropGroup): string {
   const row = group.quotes[0], key = clean(group.marketId || group.market), label = clean(group.market);
   // Only audited label aliases share a category. Unknown same-ID labels stay distinct.
-  return JSON.stringify([key, knownMarketLabels[key]?.test(label) ? key : label, clean(group.period || quotePeriod(row)), variantKey(row)]);
+  return categoryIdentity(key, label, clean(group.period || quotePeriod(row)), variantKey(row));
 }
 export type PlayerCard = { key: string; variants: PropGroup[]; aliases?: string[] };
 export type PlayerCardGroup = PropGroup & { playerCardKey: string; cardAliases: string[]; categoryCount: number; bookCount: number; bookNames: string[]; specialVariants: PropGroup[] };
@@ -312,7 +329,7 @@ export function restrictBook(group: PropGroup, book: string | null): PropGroup {
   const rows = group.quotes.filter(q => !book || bookKey(q) === clean(book) || clean(bookLabel(q)) === clean(book));
   // Repeated ingestion rows are not repeated quote choices.
   const quotes = [...new Map(rows.map(q => [JSON.stringify([bookKey(q), clean(q.side), q.line, q.price]), q])).values()];
-  const best = (side: string) => quotes.filter(q => clean(q.side) === side && q.price !== undefined && q.price !== null && String(q.price).trim() !== '' && Number.isFinite(Number(q.price)) && Number(q.price) !== 0).sort((a, b) => Number(b.price) - Number(a.price))[0] || null;
+  const best = (side: string) => quotes.filter(q => !isDfs(q) && clean(q.side) === side && q.price !== undefined && q.price !== null && String(q.price).trim() !== '' && Number.isFinite(Number(q.price)) && Number(q.price) !== 0).sort((a, b) => Number(b.price) - Number(a.price))[0] || null;
   return { ...group, quotes, bestOver: best('over'), bestUnder: best('under') };
 }
 
@@ -397,14 +414,19 @@ export function playerCategories(groups: PropGroup[]): { key: string; label: str
   return [...categories.values()];
 }
 export function postedSelection(groups: PropGroup[], category: string, book: string | null, line: number | null, market = ''): PropGroup | null {
-  const categoryRows = groups.filter(g => playerMarketKey(g) === category);
+  const categoryRows = groups.filter(g => playerMarketKey(g) === canonicalCategory(category));
   const marketRows = categoryRows.length ? categoryRows : groups.filter(g => g.market === market);
   const candidates = marketRows.length ? marketRows : groups;
   const inBook = book ? candidates.filter(g => g.quotes.some(q => bookKey(q) === clean(book) || clean(bookLabel(q)) === clean(book))) : candidates;
   // An explicit book with no offer is unavailable, never another book's quote.
   if (!inBook.length) return null;
-  const selected = inBook.find(g => g.line === line) || inBook[0];
-  return selected ? restrictBook(selected, book) : null;
+  const selectedLine = inBook.some(g => g.line === line) ? line : inBook[0].line;
+  const sameLine = inBook.filter(g => g.line === selectedLine).sort((a,b) => previewScore(b) - previewScore(a));
+  const selected = sameLine[0];
+  if (!selected) return null;
+  // Combine only this category and posted line; preserve original quote IDs.
+  const exact = sameLine.filter(g => playerMarketKey(g) === playerMarketKey(selected));
+  return restrictBook({...selected, quotes: exact.flatMap(g => g.quotes)}, book);
 }
 
 /** Old local-device saves keep matching after a presentation identity repair. */

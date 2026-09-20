@@ -27,6 +27,8 @@ const MARKET_NAMES: Record<string, string> = {
   player_deaths: 'Deaths', player_headshots: 'Headshots',
 };
 const WORDS: Record<string, string> = { yds: 'Yards', pts: 'Points', ast: 'Assists', reb: 'Rebounds', rbis: 'RBIs', rbi: 'RBIs', td: 'TD', tds: 'TDs', fg: 'Field Goals', fg3: 'Three-Pointers', ot: 'OT', h2h: 'H2H' };
+/** Exact audited labels, also used to reconcile readable and raw-key categories. */
+export const canonicalMarketLabel = (key: string): string | null => MARKET_NAMES[key] || null;
 export function humanize(value: string): string {
   return String(value || '').trim().replace(/^player[_\s]+/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').split(' ').filter(Boolean).map(word => WORDS[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }

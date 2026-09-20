@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { patchResearchUi } from '../lib/autoscout/research-ui-runtime-patch.mjs';
 import { patchFantasyH2HUi } from '../lib/autoscout/fantasy-h2h-runtime-patch.mjs';
@@ -13,6 +14,11 @@ import { patchProplineRealtimeUi } from '../lib/autoscout/propline-realtime-runt
 import { patchProplineMarketUi } from '../lib/autoscout/propline-market-runtime-patch.mjs';
 
 const source = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
+
+function assertParses(value, label = 'generated UI') {
+  try { new vm.Script(value, { filename: label.replace(/[^a-z0-9_-]+/gi, '-') + '.js' }); }
+  catch (error) { assert.fail(error?.stack || error?.message || String(error)); }
+}
 
 function productionChain() {
   const research = patchResearchUi(source);
@@ -43,7 +49,7 @@ test('PropLine market rail survives the exact production UI patch order', () => 
   assert.match(patched, /asTeamLogo/);
   assert.match(patched, /Underdog modifiers/);
   assert.match(patched, /vs standard/);
-  assert.doesNotThrow(() => new Function(patched));
+  assertParses(patched, 'propline-market-production-chain');
 });
 
 test('PropLine rail preserves the per-prop sportsbook selector and excludes alternates from ranking', () => {
@@ -72,5 +78,5 @@ test('available lines stays compact and the header search icon is font-independe
   assert.match(patched, /#as5 \.asHeaderSearchIcon\{[^}]*font-size:0!important/);
   assert.match(patched, /#as5 \.asHeaderSearchIcon:before\{[^}]*border:2px solid #9ebce2!important/);
   assert.match(patched, /#as5 \.asHeaderSearchIcon:after\{[^}]*transform:rotate\(45deg\)!important/);
-  assert.doesNotThrow(() => new Function(patched));
+  assertParses(patched, 'propline-market-production-chain');
 });

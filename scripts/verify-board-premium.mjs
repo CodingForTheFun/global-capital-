@@ -64,7 +64,7 @@ try{
   if(await researchButton.count())await researchButton.click();else await card.getByRole('button',{name:'Research UI Test Player',exact:true}).click();
   await page.waitForURL(/\/research\?/);
   const opened=new URL(page.url());assert.equal(opened.searchParams.get('player'),'UI Test Player');assert.equal(opened.searchParams.has('playerKey'),false,'Reproduce the legacy link path missed by the original deployment');
-  const main=page.locator('main[data-research-route="legacy-board-premium-v2"]');await main.waitFor();
+  const main=page.locator('[data-research-route="legacy-board-premium-v2"]');await main.waitFor();
   await page.getByLabel('Player stat category',{exact:true}).selectOption({label:'Longest Reception'});await page.locator('.op-chart-bar').first().waitFor();
   assert.ok(!(await main.innerText()).match(/\b(?:player|batter|pitcher)_[a-z_]+\b/),'Raw provider keys never appear in the visible research page');
   assert.equal(await page.locator('.player-cinematic-hero').count(),0,'The old oversized research renderer is not mounted');
@@ -91,11 +91,14 @@ try{
   await page.getByRole('button',{name:'Follow UI Test Player',exact:true}).click();assert.equal(await page.getByRole('button',{name:'Unfollow UI Test Player',exact:true}).getAttribute('aria-pressed'),'true');
   await page.getByRole('group',{name:'Available game periods',exact:true}).getByRole('button',{name:'1H',exact:true}).click();
   await page.getByText('UI test: exact first-half history unavailable.',{exact:true}).waitFor();assert.equal(await page.locator('.op-chart-bar').count(),0,'No substituted full-game history for a half');
+  const failedCalls=historyCalls.length;await page.getByRole('button',{name:'Retry history',exact:true}).click();await page.waitForFunction(()=>!!document.querySelector('.op-no-history'));await page.waitForTimeout(100);assert.ok(historyCalls.length>failedCalls,'HTTP 200 unavailable history can be retried');
   if(width===390)await main.screenshot({path:`${out}/width-${width}-unavailable.png`});
   await page.getByRole('group',{name:'Available game periods',exact:true}).getByRole('button',{name:'Full game',exact:true}).click();await page.locator('.op-chart-bar').first().waitFor();
   await page.evaluate(()=>scrollTo(0,0));
-  const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,heroHeight:document.querySelector('main[data-design] header')?.getBoundingClientRect().height,chartTop:document.querySelector('.op-chart-section')?.getBoundingClientRect().top}));
-  assert.ok(dimensions.scrollWidth<=width+1,'No horizontal page overflow');assert.ok(dimensions.heroHeight<210,'Compact identity hero');assert.ok(dimensions.chartTop<900,'Chart not buried below repeated oversized fields');
+  const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,heroHeight:document.querySelector('[data-research-hero]')?.getBoundingClientRect().height,chartTop:document.querySelector('.op-chart-section')?.getBoundingClientRect().top}));
+  assert.ok(dimensions.scrollWidth<=width+1,'No horizontal page overflow');
+  const heroBounds=await page.locator('[data-research-hero]').boundingBox();assert.ok(heroBounds.x>=0&&heroBounds.x+heroBounds.width<=width+1,'Identity is fully inside mobile viewport');
+  assert.equal(await page.locator('main main').count(),0,'A single main landmark');assert.ok(dimensions.heroHeight<210,'Compact identity hero');assert.ok(dimensions.chartTop<900,'Chart not buried below repeated oversized fields');
   await main.screenshot({path:`${out}/width-${width}.png`});
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
   if(width===390)console.log('REFERENCE_RESEARCH_390='+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));

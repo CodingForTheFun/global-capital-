@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import { loadLib } from './load-lib.mjs';
-const {groupPlayerCards,collapsePlayerCards,playerMarketKey,playerCategories,postedSelection,playerResearchHref,restrictBook}=await loadLib('player-cards');
+const {groupPlayerCards,collapsePlayerCards,playerMarketKey,playerCategories,postedSelection,playerResearchHref,restrictBook,isSavedCard,toggleSavedCard}=await loadLib('player-cards');
 const g=(key,extra={})=>({key,propId:key,player:'Test Player',providerPlayerId:'espn:42',market:'Points',marketId:'player_points',line:20.5,sport:'NBA',team:'TEST',opponent:'OTHER',homeTeam:'TEST',awayTeam:'OTHER',matchup:'OTHER @ TEST',startsAt:'2050-10-01T19:00:00Z',live:false,quotes:[{eventId:'game-one',sportsbook:'Book A',sportsbookKey:'book_a',side:'OVER',line:20.5,price:-110}],bestOver:null,bestUnder:null,...extra});
 test('one player/game card retains all stats, alternate lines, books and sides',()=>{
  const groups=[g('a'),g('b',{line:21.5}),g('c',{market:'Rebounds',marketId:'player_rebounds',line:5.5}),g('d',{market:'Points · First half',line:10.5}),g('a')];
@@ -226,4 +226,29 @@ test('nearby kickoff reconciliation never merges conflicting full opponents', ()
     quotes: [{ eventId: 'other-full-game', sportsbook: 'Book B', sportsbookKey: 'book_b', side: 'OVER', line: 34.5, price: -110 }],
   });
   assert.equal(groupPlayerCards([first, second]).length, 2);
+});
+
+test('NFL abbreviated mascots and suffix variants produce one card, keeping exact book quotes',()=>{
+ const full=eventGroup('full',{player:'Aaron Jones Sr.',team:'Minnesota Vikings',homeTeam:'Chicago Bears',awayTeam:'Minnesota Vikings',opponent:'Chicago Bears',market:'Receiving Yards',marketId:'player_reception_yds'});
+ const short=eventGroup('short',{player:'Aaron Jones',team:'MIN',homeTeam:'CHI Bears',awayTeam:'MIN Vikings',opponent:'CHI Bears',market:'Rec Yards',marketId:'player_reception_yds',quotes:[{eventId:'another-id',sportsbook:'Book B',sportsbookKey:'book_b',side:'OVER',line:34.5,price:-110}]});
+ const partial=partialEventGroup('partial',{player:'Aaron Jones',team:'MIN',market:'Rush Yards',marketId:'player_rush_yds'});
+ const rows=collapsePlayerCards([full,short,partial],[full,short,partial]);
+ assert.equal(rows.length,1);assert.equal(rows[0].categoryCount,2);assert.equal(rows[0].bookCount,2);assert.equal(rows[0].quotes.length,2);
+ assert.equal(groupPlayerCards([full,{...short,key:'tomorrow',startsAt:'2050-10-02T19:00:00Z'}]).length,2);
+ assert.equal(groupPlayerCards([full,{...short,key:'combo',player:"Aaron Jones + D'Andre Swift"}]).length,2);
+});
+test('main box-score markets lead previews without removing specialty props',()=>{
+ const longest=eventGroup('a-longest',{market:'Longest Reception',marketId:'player_longest_reception'});
+ const main=eventGroup('z-main',{market:'Receiving Yards',marketId:'player_reception_yds'});
+ assert.equal(collapsePlayerCards([longest,main],[longest,main])[0].key,'z-main');
+ assert.equal(playerCategories([longest,main]).length,2);
+});
+
+test('saved card aliases survive identity repair and unsave removes every old key',()=>{
+ const row=eventGroup('old',{player:'Aaron Jones Sr.',homeTeam:'CHI Bears',awayTeam:'MIN Vikings',team:'MIN',opponent:'CHI Bears'});
+ const card=collapsePlayerCards([row],[row])[0];
+ const previous=JSON.stringify([JSON.stringify(['nfl','chi bears','min vikings',Date.parse(row.startsAt)]),'aaron jones sr.']);
+ assert.ok(card.cardAliases.includes(previous));assert.ok(isSavedCard(card,[previous]));
+ assert.deepEqual(toggleSavedCard(card,[previous,card.playerCardKey,'another-card']),['another-card']);
+ assert.deepEqual(toggleSavedCard(card,['another-card']),['another-card',card.playerCardKey]);
 });

@@ -43,11 +43,11 @@ export function PremiumPlayerResearch({ player, market, selected, side, favourit
     const samePeriod = player.markets.find(item => marketFamily(item) === marketFamily(next) && item.period === market.period);
     onCategory((samePeriod || next).key);
   }
-  return <main className={s.page} data-release="canonical-workspace-v1" data-design="premium-player-research-v1" data-research-route={routeKind}>
+  return <div className={s.page} data-release="canonical-workspace-v1" data-design="premium-player-research-v1" data-research-route={routeKind}>
     <div className={s.breadcrumb}><Link href="/board"><ArrowLeft size={16} aria-hidden="true"/> Back to props</Link><span>Player research</span></div>
     <div className={s.layout}>
       <section className={s.primary} aria-label="Player research workspace">
-        <header className={s.hero}>
+        <div className={s.hero} data-research-hero>
           <div className={s.identity}>
             <span className={s.avatar}><PlayerHeadshot sport={player.sport} name={player.name} providerPlayerId={player.playerId} team={team}/></span>
             <div className={s.playerInfo}><h1>{player.name}</h1><p>{game}</p><div className={s.meta}><span className={s.league}>{sportName(player.sport)}</span><time>{shortTime(player.startsAt) || 'Time unavailable'}</time></div></div>
@@ -58,7 +58,7 @@ export function PremiumPlayerResearch({ player, market, selected, side, favourit
             <div className={s.marketInfo}><h2>{title}</h2><p><span>{selected.side === 'OVER' ? 'O' : selected.side === 'UNDER' ? 'U' : selected.choice} {selected.line ?? ''}</span><strong data-side={selected.side} data-variant={selected.dfsOddsType}>{offerPrice(selected)}</strong><span className={s.periodCaption}>{periodName(market.period)}</span></p></div>
             <label className={s.bookSelect}><span className={s.srOnly}>Sportsbook</span><select aria-label="Selected book" value={currentBook || ''} onChange={event => onBook(event.target.value)}>{allowBestPrices && <option value="">Best prices · all books</option>}{applicableBooks.map(book => <option key={book.key} value={book.key}>{book.name}</option>)}</select><ChevronDown size={15} aria-hidden="true"/></label>
           </div>
-        </header>
+        </div>
         <div className={s.statControls}>
           <div className={s.statRail} role="group" aria-label="Stat categories">
             {families.map(item => <button key={marketFamily(item)} type="button" aria-pressed={marketFamily(item) === family} title={marketOptionName(item)} onClick={() => category(item)}>{marketName(item)}{offerVariantLabel(item.offers[0]) && <span className={s.variant} data-variant={item.offers[0]?.dfsOddsType}>{offerVariantLabel(item.offers[0])}</span>}</button>)}
@@ -106,5 +106,5 @@ export function PremiumPlayerResearch({ player, market, selected, side, favourit
       <div className={s.modelChoiceTitle}><span>MODEL CHOICE</span><h2>Model choice pick</h2><p>Exact to the selected player, stat, posted line and book.</p></div>
       <div className={s.modelChoiceBody}>{model}</div>
     </section>
-  </main>;
+  </div>;
 }

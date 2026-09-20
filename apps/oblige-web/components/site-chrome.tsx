@@ -94,7 +94,7 @@ export function SiteHeader() {
       >
         <Link href="/" className={cn("flex min-w-0 flex-none items-center gap-2.5")} aria-label="Oblige Props home">
           <span aria-hidden="true" className="op-brand-mark">
-            <img src="/icon.svg" alt="" width="32" height="32" />
+            {workspace ? <BarChart3 size={27}/> : <img src="/icon.svg" alt="" width="32" height="32" />}
           </span>
           <Wordmark />
         </Link>

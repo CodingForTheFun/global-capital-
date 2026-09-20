@@ -73,7 +73,7 @@ export function PlayerView() {
       .then(board => {
         if (controller.signal.aborted) return;
         const cards = groupPlayerCards(board.groups);
-        const selected = cardKey ? cards.find(card => card.key === cardKey) : cards.find(card => card.variants.some(candidate => candidate.player === player));
+        const selected = cardKey ? cards.find(card => card.key === cardKey || card.aliases?.includes(cardKey)) : cards.find(card => card.variants.some(candidate => candidate.player === player));
         const mine = selected?.variants || [];
         setResolvedCardKey(selected?.key || cardKey);
         if (!mine.length) setError(`${player} is not on the ${sport} board right now.`);
@@ -171,7 +171,7 @@ export function PlayerView() {
     onFavourite={() => toggleFavourite(group.key)}
     research={<>
       <PropExplorer group={displayGroup} games={games} loading={pending} unavailableReason={unavailable} currentOpponent={activeResearch?.matchup?.opponent ?? group.opponent} hideBookFilter state={state} onState={setState} favourite={favourite} onFavourite={() => toggleFavourite(group.key)}/>
-      {activeError && <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button>}
+      {!pending && unavailable && <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button>}
     </>}
     supporting={!pending && !unavailable && games.length > 0 ? <SplitSummary games={games} group={displayGroup} line={state.line} side={state.side}/> : null}
     model={<PostedModel group={group} side={state.side} book={presentation.selected.book} researchLine={state.line}/>}

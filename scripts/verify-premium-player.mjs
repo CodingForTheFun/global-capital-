@@ -30,7 +30,7 @@ try{
   });
   await page.goto(url,{waitUntil:'domcontentloaded'});
   await page.locator('[data-design="premium-player-research-v1"]').waitFor();await page.locator('.op-chart-bar').first().waitFor();
-  const text=await page.locator('main[data-design]').innerText();assert.ok(!text.includes('player_rush_'),'No raw provider names in customer-visible text');
+  const text=await page.locator('[data-design]').innerText();assert.ok(!text.includes('player_rush_'),'No raw provider names in customer-visible text');
   assert.equal(await page.getByRole('group',{name:'Stat categories',exact:true}).locator('button').count(),2,'No duplicate category per period, book or line');
   assert.equal(await page.getByRole('group',{name:'Available game periods',exact:true}).locator('button').count(),2,'Only actual supported periods');
   assert.equal(await page.locator('.op-research-title:visible').count(),0,'No duplicated research heading');

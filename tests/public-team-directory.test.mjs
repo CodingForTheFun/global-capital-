@@ -4,9 +4,10 @@ import { createPublicResearch } from '../lib/data-sources/espn/research.mjs';
 
 test('public league team directory is sanitized, complete, and cached', async () => {
   let calls = 0;
+  let seenUrl = '';
   const fetchImpl = async (url) => {
     calls += 1;
-    assert.match(String(url), /\/site\/v2\/sports\/football\/nfl\/teams\?limit=1000$/);
+    seenUrl = String(url);
     return {
       ok: true,
       status: 200,
@@ -43,6 +44,7 @@ test('public league team directory is sanitized, complete, and cached', async ()
     { id: '13', abbreviation: 'LV', name: 'Las Vegas Raiders' },
   ]);
   assert.deepEqual(second, first);
+  assert.match(seenUrl, /\/site\/v2\/sports\/football\/nfl\/teams\?limit=1000$/);
   assert.equal(calls, 1, 'league directory should reuse the existing 24-hour public cache');
 });
 

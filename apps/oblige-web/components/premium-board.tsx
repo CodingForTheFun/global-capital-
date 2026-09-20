@@ -1,4 +1,5 @@
 'use client';
+// Release path marker: this board is covered by the guarded frontend verification workflows.
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';

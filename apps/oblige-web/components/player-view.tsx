@@ -355,6 +355,7 @@ export function PlayerView() {
                     ? research.message || 'No verified game log is available for this player and market yet.'
                     : null
               }
+              leagueTeams={research?.leagueTeams || []}
               state={state}
               onState={setState}
               favourite={favourite}

@@ -2,13 +2,12 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, BarChart3, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, RefreshCw, Search, SlidersHorizontal, Star, User } from 'lucide-react';
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, Search, SlidersHorizontal, Star } from 'lucide-react';
 import { ApiError, fetchAccount, fetchBoard, fetchResearch } from '@/lib/api';
 import { collapsePlayerCards, playerResearchHref, restrictBook, isSavedCard, toggleSavedCard, type PlayerCardGroup } from '@/lib/player-cards';
 import type { BoardMeta, PropGroup, ResearchResponse } from '@/lib/types';
 import { quotePriceLabel, quoteSeenLabel, quoteVariant, variantLabel, isDfs } from '@/lib/prop-signals';
 import { cardHistory } from '@/lib/card-history';
-import { sortRecentFirst } from '@/lib/analytics';
 import { marketName, periodName } from '@/lib/market-display';
 import { legacyPeriod } from '@/lib/legacy-research-presentation';
 import { fetchMarketReferences, referenceKey, type MarketReference } from '@/lib/market-reference';
@@ -108,17 +107,9 @@ export function PremiumBoard() {
   function openResearch(group:PlayerCardGroup){router.push(playerResearchHref(group,group.playerCardKey,book===ALL?null:book));}
   if(checking)return <div className={styles.loading} role="status">Opening your workspace…</div>;
   if(!account)return <div className={styles.signIn}><SignInPanel onSignedIn={setAccount}/></div>;
-  return <section className={styles.shell} data-design="reference-cards-v1">
-    <aside className={styles.sidebar} aria-label="Workspace navigation">
-      <span className={styles.sideCaption}>WORKSPACE</span>
-      <button aria-pressed={!savedOnly} onClick={()=>setSavedOnly(false)}><LayoutGrid size={18}/> All props</button>
-      <button aria-pressed={savedOnly} onClick={()=>setSavedOnly(true)}><Star size={18}/> Saved props <small>{saved.length}</small></button>
-      <Link href="/research"><BarChart3 size={18}/> Player research</Link>
-      <Link href="/account"><User size={18}/> My account</Link>
-      <div className={styles.sideNote}><span/> Research with real numbers.<p>Compare the line. Explore the history. Make your own call.</p></div>
-    </aside>
+  return <section className={styles.shell} data-design="alpha">
     <div className={styles.board}>
-      <div className={styles.heading}><div><span className={styles.eyebrow}>THE RESEARCH DESK</span><h1>{savedOnly?'Saved props':'Player props'}</h1></div><button className={styles.refresh} aria-label="Refresh props" disabled={loading} onClick={()=>setRefresh(value=>value+1)}><RefreshCw size={16}/> <span>Refresh</span></button></div>
+      <div className={styles.heading}><div><h1>{savedOnly?'Saved props':'Player props'}</h1></div><button className={styles.refresh} aria-label="Refresh props" disabled={loading} onClick={()=>setRefresh(value=>value+1)}><RefreshCw size={16}/> <span>Refresh</span></button></div>
       <nav className={styles.sportNav} aria-label="Sports">{sports.slice(0,7).map(value=><button key={value} aria-pressed={sport===value} onClick={()=>changeSport(value)}>{value}</button>)}{sports.length>7&&<label className={styles.moreSports}>More <ChevronDown size={13}/><select aria-label="All sports" value={sport} onChange={event=>changeSport(event.target.value)}>{sports.map(value=><option key={value} value={value}>{value}</option>)}</select></label>}</nav>
       <div className={styles.toolbar}><label className={styles.search}><Search size={18}/><input aria-label="Search players, teams, or props" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search players, teams, or props…"/></label><button className={styles.filterToggle} aria-label="Filters" aria-expanded={filtersOpen} aria-controls="board-filters" onClick={()=>setFiltersOpen(value=>!value)}><SlidersHorizontal size={17}/><span>Filters</span>{[market,opponent,team,book,line,variant,venue].filter(value=>value!==ALL).length>0&&<i/>}</button><button className={styles.savedToggle} aria-label="Show saved props" aria-pressed={savedOnly} onClick={()=>setSavedOnly(value=>!value)}><Star size={18} fill={savedOnly?'currentColor':'none'}/></button></div>
       <div id="board-filters" className={styles.filters} data-open={filtersOpen}>
@@ -132,34 +123,31 @@ export function PremiumBoard() {
       <div className={styles.resultBar}><span>{loading?'Loading slate…':`${filtered.length.toLocaleString()} players`} <i>·</i> {sport}</span><span>{meta.stale?'Cached feed':'Latest board snapshot'}</span></div>
       {error&&<div className={styles.empty} role="alert"><strong>We couldn’t load this slate.</strong><p>{error}</p><button onClick={()=>setRefresh(value=>value+1)}>Try again</button></div>}
       {loading&&<div className={styles.cards} aria-label="Loading props" aria-busy="true">{[0,1,2,3].map(value=><div key={value} className={styles.skeleton}><div/><div/><div/></div>)}</div>}
-      {!loading&&!error&&<div className={styles.cards}>{page.map(group=>{
-        const result=research[group.key], metrics=cardHistory(result,group).filter(m=>['L5','L10','L15','H2H','AVG'].includes(m.label)), savedCard=isSavedCard(group,saved);
-        const history=result?.available!==false?sortRecentFirst((result?.gameLog||[]).filter(g=>typeof g.value==='number'&&Number.isFinite(g.value))).slice(0,15).reverse():[];
-        const chartMax=Math.max(1,group.line,...history.map(g=>g.value!))*1.15, chartMin=Math.min(0,group.line,...history.map(g=>g.value!))*1.15, chartRange=chartMax-chartMin;
-        const chartPosition=(value:number)=>(value-chartMin)/chartRange*100;
+      {!loading&&!error&&page.length>0&&<div className={styles.tableWrap}><table className={styles.table} aria-label="Player props"><thead><tr><th>Player</th><th>Matchup</th><th>Stat</th><th>Line</th><th>Odds</th><th>Proj</th><th>EV%</th><th>Hit rate</th><th>Books</th><th>Research</th></tr></thead><tbody>{page.map(group=>{
+        const result=research[group.key], hit=cardHistory(result,group).find(metric=>metric.label==='L10'), savedCard=isSavedCard(group,saved);
         const badges=[...new Map(group.specialVariants.map(item=>[quoteVariant(item.quotes[0]),item])).values()];
         const books=[...new Map(group.quotes.map(quote=>[quoteBook(quote),quote])).entries()];
         const prediction=predictions[predictionKey(group)], reference=marketRefs[referenceKey(group)];
         const valid=usablePrediction(prediction,now), fresh=reference&&reference.expiresAt>now?reference:null;
         const projection=valid?prediction.projection:fresh?.projection;
         const modelEv=bestEv(group,prediction,now), ev=modelEv??fresh?.ev;
-        return <article key={group.playerCardKey} className={styles.card} data-player-card={group.playerCardKey}>
-          <div className={styles.cardHeader}><button className={styles.identity} onClick={()=>openResearch(group)} aria-label={`Research ${group.player}`}><span className={styles.portrait}><PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId}/></span><span className={styles.playerInfo}><strong>{group.player} {group.position&&<small>({group.position})</small>}</strong><span className={styles.playerLeague}>{group.sport}</span><small>{group.matchup} <i>·</i> {timeLabel(group.startsAt)}</small></span></button><button className={styles.save} aria-label={`${savedCard?'Unsave':'Save'} ${group.player}`} aria-pressed={savedCard} onClick={()=>toggleSaved(group)}><Star size={19} fill={savedCard?'currentColor':'none'}/></button></div>
-          <button className={styles.marketBand} onClick={()=>openResearch(group)}><BarChart3 size={20}/><span><strong>{statLabel(group)}</strong><small>O/U {group.line} <b>{quotePriceLabel(group.bestOver||group.quotes[0])}</b></small></span><ChevronRight size={17}/></button>
-          <div className={styles.context}><span>{group.sport}</span>{group.team&&<span>{group.team}</span>}{group.categoryCount>1&&<button onClick={()=>openResearch(group)}>{group.categoryCount} stat categories <ChevronRight size={12}/></button>}{badges.map(item=><Link prefetch={false} key={item.key} className={styles.variant} data-variant={quoteVariant(item.quotes[0])} href={playerResearchHref(item,group.playerCardKey,item.quotes[0]?.sportsbookKey||item.quotes[0]?.sportsbook)}>{variantLabel(item.quotes[0])}</Link>)}</div>
-          <div className={styles.metrics} data-empty={result!==undefined&&!metrics.some(m=>m.value!==null)} aria-label="Historical over results">{metrics.map(metric=>{
-            const tone=metric.value===null?'none':metric.tone||(metric.percent?(metric.value>=60?'positive':metric.value<40?'negative':'neutral'):metric.label==='DIFF'?(metric.value>=0?'positive':'negative'):'neutral');
-            return <div key={metric.label} className={styles.metric} data-tone={tone} title={metric.value===null?(result===undefined?'Loading verified history':result===null?'History request failed. Use Retry history.':'No verified sample for this statistic'):`${metric.note||'Historical overs'}${metric.sample?` · ${metric.sample} games`:''}`}><span>{metric.label}</span><strong>{result===undefined?'…':metric.value===null?'—':`${metric.label==='DIFF'&&metric.value>0?'+':''}${Number(metric.value.toFixed(metric.percent?0:1))}${metric.percent?'%':''}`}</strong></div>;
-          })}</div>
-          {history.length>0?<div className={styles.trend} aria-label="Last 15 completed games"><div className={styles.trendTitle}><span>Last {history.length} games</span><span><i/> Over <em/> Under</span></div><div className={styles.chart} role="img" aria-label={`${group.player}: ${history.map(g=>g.value).join(', ')}. Posted line ${group.line}.`}><div className={styles.threshold} style={{bottom:`${chartPosition(group.line)}%`}}/>{history.map((game,index)=><span key={`${game.gameId||game.date}-${index}`} title={`${game.date}: ${game.value}`} data-result={game.value!>group.line?'over':game.value!<group.line?'under':'push'} style={{height:`${Math.max(1,Math.abs(game.value!)/chartRange*100)}%`,bottom:`${chartPosition(Math.min(0,game.value!))}%`,left:`${index/history.length*100}%`,width:`${Math.max(1,100/history.length-1)}%`}}/>)}</div></div>:result!==undefined&&<div className={styles.historyStatus}><span>{result===null?'History could not load.':result?.message||'No completed-game history for this market.'}</span><button onClick={()=>{setResearch(previous=>{const next={...previous};delete next[group.key];return next;});setRetry(value=>value+1);}}>Retry history</button></div>}
-          <div className={styles.bookStrip} aria-label="Available sportsbook prices">{books.map(([name,quote])=>{const pair=group.quotes.filter(q=>quoteBook(q)===name);return <Link prefetch={false} key={name} href={playerResearchHref(group,group.playerCardKey,name)} className={styles.bookQuote}><span className={styles.bookLogo} data-book={quote.sportsbookKey}>{name.replace(/[^a-z0-9]/gi,'').slice(0,2).toUpperCase()}</span><span><b>{name}</b><span data-label="Odds">{isDfs(quote)?quotePriceLabel(quote):<><i>O</i> {quotePriceLabel(pair.find(q=>q.side==='OVER'))} <em>U</em> {quotePriceLabel(pair.find(q=>q.side==='UNDER'))}</>}</span></span></Link>;})}</div>
-          <div className={styles.cardFooter}><span>{quoteSeenLabel(group.quotes[0],now)}</span><button onClick={()=>loadForecast(group)}>Forecast</button><button className={styles.researchLink} onClick={()=>openResearch(group)}>Research <ArrowRight size={14}/></button></div>
-          {forecastOpen.includes(group.key)&&<div className={styles.forecast} aria-live="polite"><span data-label="Proj">Projection <strong>{projection!=null?projection.toFixed(1):prediction===undefined||reference===undefined?'…':'Unavailable'}</strong><small>{valid?modelLabel(prediction):'Market implied'}</small></span><span>EV <strong>{ev!=null?`${ev>0?'+':''}${ev.toFixed(1)}%`:isDfs(group.quotes[0])?'Entry payout':prediction===undefined||reference===undefined?'…':'Unavailable'}</strong><small>{modelEv!=null?modelLabel(prediction):'Market no-vig'}</small></span><button aria-label="Close forecast" onClick={()=>setForecastOpen(previous=>previous.filter(key=>key!==group.key))}>×</button></div>}
-        </article>;
-      })}</div>}
+        const requested=forecastOpen.includes(group.key), pending=requested&&(prediction===undefined||reference===undefined);
+        return <tr key={group.playerCardKey} data-player-card={group.playerCardKey} onClick={event=>{if(!(event.target as HTMLElement).closest('button,a,select,input'))openResearch(group);}}>
+          <td className={styles.playerCell}><div className={styles.player}><button className={styles.identity} onClick={()=>openResearch(group)} aria-label={`Research ${group.player}`}><PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId}/><span><b>{group.player}</b><small>{[group.team,group.position].filter(Boolean).join(' · ')||group.sport}</small></span></button><button className={styles.save} aria-label={`${savedCard?'Unsave':'Save'} ${group.player}`} aria-pressed={savedCard} onClick={()=>toggleSaved(group)}><Star size={17} fill={savedCard?'currentColor':'none'}/></button></div></td>
+          <td data-label="Matchup" className={styles.matchupCell}><span className={styles.matchup}>{group.matchup}</span><small>{timeLabel(group.startsAt)}</small></td>
+          <td data-label="Stat" className={styles.statCell}><button onClick={()=>openResearch(group)}>{statLabel(group)}</button>{group.categoryCount>1&&<small>{group.categoryCount} stat categories</small>}<div className={styles.variants}>{badges.map(item=><Link prefetch={false} key={item.key} className={styles.variant} data-variant={quoteVariant(item.quotes[0])} href={playerResearchHref(item,group.playerCardKey,item.quotes[0]?.sportsbookKey||item.quotes[0]?.sportsbook)}>{variantLabel(item.quotes[0])}</Link>)}</div></td>
+          <td data-label="Line" className={styles.number}>{group.line}</td>
+          <td data-label="Odds"><span className={styles.odds}>{quotePriceLabel(group.bestOver||group.quotes[0])}</span></td>
+          <td data-label="Proj" className={styles.forecastCell}><strong>{projection!=null?projection.toFixed(1):pending?'…':requested?'Unavailable':'—'}</strong>{requested&&<small>{valid?modelLabel(prediction):fresh?.projection!=null?'Market implied':'No verified forecast'}</small>}</td>
+          <td data-label="EV%" className={styles.ev} data-positive={ev!=null&&ev>0}><strong>{ev!=null?`${ev>0?'+':''}${ev.toFixed(1)}%`:isDfs(group.quotes[0])?'Entry payout':pending?'…':requested?'Unavailable':'—'}</strong>{requested&&<small>{modelEv!=null?modelLabel(prediction):fresh?.ev!=null?'Market no-vig':isDfs(group.quotes[0])?'DFS payout':'No verified edge'}</small>}</td>
+          <td data-label="Hit rate" className={styles.historyCell}><div className={styles.hit}><span>{result===undefined?'…':hit?.value!=null?`${Math.round(hit.value)}%`:'Unavailable'}</span><i><b style={{width:`${Math.max(0,Math.min(100,hit?.value??0))}%`}}/></i></div><small>{hit?.sample?`L10 · ${hit.sample} games`:result===undefined?'Loading history':result===null?'History could not load':result?.message||'No verified L10 sample'}</small>{result!==undefined&&hit?.value==null&&<button onClick={()=>{setResearch(previous=>{const next={...previous};delete next[group.key];return next;});setRetry(value=>value+1);}}>Retry history</button>}</td>
+          <td data-label="Books" className={styles.bookCell}><div className={styles.books}>{books.map(([name,quote])=><Link prefetch={false} key={name} title={name} aria-label={`Research ${name} quote`} href={playerResearchHref(group,group.playerCardKey,name)} data-book={quote.sportsbookKey}>{name.replace(/[^a-z0-9]/gi,'').slice(0,2).toUpperCase()}</Link>)}</div><small>{quoteSeenLabel(group.quotes[0],now)}</small></td>
+          <td className={styles.actions}><button onClick={()=>loadForecast(group)}>Forecast</button><button className={styles.researchLink} onClick={()=>openResearch(group)}>Research <ArrowRight size={14}/></button></td>
+        </tr>;
+      })}</tbody></table></div>}
       {!loading&&!error&&!page.length&&<div className={styles.empty}><strong>{savedOnly?'No saved props in this slate':'No matching props'}</strong><p>{savedOnly?'Tap a star on any player to keep them here on this device.':'Try another sport or reset your filters.'}</p></div>}
       {filtered.length>PAGE_SIZE&&<nav className={styles.pagination} aria-label="Prop pages"><button disabled={currentPage===0} onClick={()=>{setPageIndex(currentPage-1);window.scrollTo({top:0,behavior:'instant'});}}><ChevronLeft size={16}/> Previous</button><span>{currentPage+1} / {lastPage+1}</span><button disabled={currentPage===lastPage} onClick={()=>{setPageIndex(currentPage+1);window.scrollTo({top:0,behavior:'instant'});}}>Next <ChevronRight size={16}/></button></nav>}
-      <p className={styles.footnote}>History tiles measure overs at the displayed line. — means no verified sample. Saved props stay on this device.</p>
+      <p className={styles.footnote}>Hit rates measure overs at the displayed line. Open Research for all history windows. Forecast loads on request. Saved props stay on this device.</p>
     </div>
   </section>;
 }

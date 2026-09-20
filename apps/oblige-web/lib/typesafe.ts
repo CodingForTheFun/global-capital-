@@ -22,10 +22,11 @@ export type TypeSafeConnection = {
 
 // One tiny synthetic request: never send account data, props, or secrets as state.
 // Connectivity is not evidence of validated sports prediction performance.
-export async function verifyTypeSafeConnection(client = createTypeSafeClient()): Promise<TypeSafeConnection> {
-  if (!client) return { status: 'not_configured' };
+export async function verifyTypeSafeConnection(client?: TypeSafeClient | null): Promise<TypeSafeConnection> {
   try {
-    const response = await client.systemOne({
+    const activeClient = client === undefined ? createTypeSafeClient() : client;
+    if (!activeClient) return { status: 'not_configured' };
+    const response = await activeClient.systemOne({
       state: { message: 'This is an Oblige Props connection test.' },
       questions: {
         purpose: choice('What is the stated purpose of the message?', {

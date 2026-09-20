@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, BarChart3, ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, RefreshCw, Search, SlidersHorizontal, Star, User } from 'lucide-react';
 import { ApiError, fetchAccount, fetchBoard, fetchResearch } from '@/lib/api';
-import { collapsePlayerCards, playerResearchHref, restrictBook, type PlayerCardGroup } from '@/lib/player-cards';
+import { collapsePlayerCards, playerResearchHref, restrictBook, isSavedCard, toggleSavedCard, type PlayerCardGroup } from '@/lib/player-cards';
 import type { BoardMeta, PropGroup, ResearchResponse } from '@/lib/types';
 import { quotePriceLabel, quoteSeenLabel, quoteVariant, variantLabel, isDfs } from '@/lib/prop-signals';
 import { cardHistory } from '@/lib/card-history';
@@ -79,7 +79,7 @@ export function PremiumBoard() {
       (variant===ALL||quoteVariant(g.quotes[0])===variant)&&(book===ALL||g.quotes.some(q=>quoteBook(q)===book))&&
       (venue===ALL||(venue==='home'?!!g.team&&g.team===g.homeTeam:!!g.team&&g.team===g.awayTeam))&&
       (!needle||`${g.player} ${statLabel(g)} ${g.matchup} ${g.team||''}`.toLowerCase().includes(needle)));
-    return collapsePlayerCards(rows,groups).filter(g=>!savedOnly||saved.includes(g.playerCardKey)).sort((a,b)=>sort==='LINE'?b.line-a.line:a.player.localeCompare(b.player));
+    return collapsePlayerCards(rows,groups).filter(g=>!savedOnly||isSavedCard(g,saved)).sort((a,b)=>sort==='LINE'?b.line-a.line:a.player.localeCompare(b.player));
   },[groups,book,market,opponent,team,line,variant,venue,deferredQuery,savedOnly,saved,sort]);
   React.useEffect(()=>setPageIndex(0),[sport,market,opponent,team,line,book,variant,venue,deferredQuery,savedOnly,sort]);
   const lastPage=Math.max(0,Math.ceil(filtered.length/PAGE_SIZE)-1), currentPage=Math.min(pageIndex,lastPage);
@@ -93,7 +93,7 @@ export function PremiumBoard() {
     // The page cohort stays stable while data streams in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[account,pageKey,retry]);
-  function toggleSaved(key:string){setSaved(previous=>{const next=previous.includes(key)?previous.filter(value=>value!==key):[...previous,key].slice(-200);try{localStorage.setItem('oblige.reference.saved.v1',JSON.stringify(next));}catch{}return next;});}
+  function toggleSaved(group:PlayerCardGroup){setSaved(previous=>{const next=toggleSavedCard(group,previous);try{localStorage.setItem('oblige.reference.saved.v1',JSON.stringify(next));}catch{}return next;});}
   function loadForecast(group:PropGroup){
     setForecastOpen(previous=>previous.includes(group.key)?previous:[...previous,group.key]);
     if(forecastRequests.current.has(group.key))return;
@@ -133,7 +133,7 @@ export function PremiumBoard() {
       {error&&<div className={styles.empty} role="alert"><strong>We couldn’t load this slate.</strong><p>{error}</p><button onClick={()=>setRefresh(value=>value+1)}>Try again</button></div>}
       {loading&&<div className={styles.cards} aria-label="Loading props" aria-busy="true">{[0,1,2,3].map(value=><div key={value} className={styles.skeleton}><div/><div/><div/></div>)}</div>}
       {!loading&&!error&&<div className={styles.cards}>{page.map(group=>{
-        const result=research[group.key], metrics=cardHistory(result,group).filter(m=>['L5','L10','L15','H2H','AVG'].includes(m.label)), savedCard=saved.includes(group.playerCardKey);
+        const result=research[group.key], metrics=cardHistory(result,group).filter(m=>['L5','L10','L15','H2H','AVG'].includes(m.label)), savedCard=isSavedCard(group,saved);
         const history=result?.available!==false?sortRecentFirst((result?.gameLog||[]).filter(g=>typeof g.value==='number'&&Number.isFinite(g.value))).slice(0,15).reverse():[];
         const chartMax=Math.max(1,group.line,...history.map(g=>g.value!))*1.15, chartMin=Math.min(0,group.line,...history.map(g=>g.value!))*1.15, chartRange=chartMax-chartMin;
         const chartPosition=(value:number)=>(value-chartMin)/chartRange*100;
@@ -144,7 +144,7 @@ export function PremiumBoard() {
         const projection=valid?prediction.projection:fresh?.projection;
         const modelEv=bestEv(group,prediction,now), ev=modelEv??fresh?.ev;
         return <article key={group.playerCardKey} className={styles.card} data-player-card={group.playerCardKey}>
-          <div className={styles.cardHeader}><button className={styles.identity} onClick={()=>openResearch(group)} aria-label={`Research ${group.player}`}><span className={styles.portrait}><PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId}/></span><span className={styles.playerInfo}><strong>{group.player} {group.position&&<small>({group.position})</small>}</strong><span className={styles.playerLeague}>{group.sport}</span><small>{group.matchup} <i>·</i> {timeLabel(group.startsAt)}</small></span></button><button className={styles.save} aria-label={`${savedCard?'Unsave':'Save'} ${group.player}`} aria-pressed={savedCard} onClick={()=>toggleSaved(group.playerCardKey)}><Star size={19} fill={savedCard?'currentColor':'none'}/></button></div>
+          <div className={styles.cardHeader}><button className={styles.identity} onClick={()=>openResearch(group)} aria-label={`Research ${group.player}`}><span className={styles.portrait}><PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId}/></span><span className={styles.playerInfo}><strong>{group.player} {group.position&&<small>({group.position})</small>}</strong><span className={styles.playerLeague}>{group.sport}</span><small>{group.matchup} <i>·</i> {timeLabel(group.startsAt)}</small></span></button><button className={styles.save} aria-label={`${savedCard?'Unsave':'Save'} ${group.player}`} aria-pressed={savedCard} onClick={()=>toggleSaved(group)}><Star size={19} fill={savedCard?'currentColor':'none'}/></button></div>
           <button className={styles.marketBand} onClick={()=>openResearch(group)}><BarChart3 size={20}/><span><strong>{statLabel(group)}</strong><small>O/U {group.line} <b>{quotePriceLabel(group.bestOver||group.quotes[0])}</b></small></span><ChevronRight size={17}/></button>
           <div className={styles.context}><span>{group.sport}</span>{group.team&&<span>{group.team}</span>}{group.categoryCount>1&&<button onClick={()=>openResearch(group)}>{group.categoryCount} stat categories <ChevronRight size={12}/></button>}{badges.map(item=><Link prefetch={false} key={item.key} className={styles.variant} data-variant={quoteVariant(item.quotes[0])} href={playerResearchHref(item,group.playerCardKey,item.quotes[0]?.sportsbookKey||item.quotes[0]?.sportsbook)}>{variantLabel(item.quotes[0])}</Link>)}</div>
           <div className={styles.metrics} data-empty={result!==undefined&&!metrics.some(m=>m.value!==null)} aria-label="Historical over results">{metrics.map(metric=>{

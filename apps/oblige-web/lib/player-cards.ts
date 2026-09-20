@@ -152,7 +152,7 @@ export function playerMarketKey(group: PropGroup): string {
   return JSON.stringify([key, knownMarketLabels[key]?.test(label) ? key : label, clean(group.period || quotePeriod(row)), variantKey(row)]);
 }
 export type PlayerCard = { key: string; variants: PropGroup[]; aliases?: string[] };
-export type PlayerCardGroup = PropGroup & { playerCardKey: string; categoryCount: number; bookCount: number; bookNames: string[]; specialVariants: PropGroup[] };
+export type PlayerCardGroup = PropGroup & { playerCardKey: string; cardAliases: string[]; categoryCount: number; bookCount: number; bookNames: string[]; specialVariants: PropGroup[] };
 
 /** One card per athlete per game; source-local IDs never create duplicate player cards by themselves. */
 export function groupPlayerCards(groups: PropGroup[]): PlayerCard[] {
@@ -375,6 +375,7 @@ export function collapsePlayerCards(matching: PropGroup[], universe: PropGroup[]
     rows.push({
       ...combined,
       playerCardKey: card.key,
+      cardAliases: card.aliases || [],
       categoryCount: new Set(card.variants.map(playerMarketKey)).size,
       bookCount: books.length,
       bookNames: books.map(book => book.label),
@@ -409,4 +410,13 @@ export function postedSelection(groups: PropGroup[], category: string, book: str
   if (!inBook.length) return null;
   const selected = inBook.find(g => g.line === line) || inBook[0];
   return selected ? restrictBook(selected, book) : null;
+}
+
+/** Old local-device saves keep matching after a presentation identity repair. */
+export function isSavedCard(card: Pick<PlayerCardGroup, 'playerCardKey' | 'cardAliases'>, saved: string[]): boolean {
+  return saved.some(key => key === card.playerCardKey || card.cardAliases.includes(key));
+}
+export function toggleSavedCard(card: Pick<PlayerCardGroup, 'playerCardKey' | 'cardAliases'>, saved: string[]): string[] {
+  const remaining = saved.filter(key => key !== card.playerCardKey && !card.cardAliases.includes(key));
+  return isSavedCard(card, saved) ? remaining : [...remaining, card.playerCardKey].slice(-200);
 }

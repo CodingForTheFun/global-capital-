@@ -21,3 +21,5 @@ body:has([data-design="reference-cards-v1"]),body:has([data-design="premium-play
 header[data-workspace="true"] .op-brand-mark{background:none!important;border:0!important;box-shadow:none!important;color:#27ddb0;width:27px;height:30px;display:grid;place-items:center}
 header[data-workspace="true"]{box-shadow:none!important}
 @media(max-width:767px){body:has([data-design="premium-player-research-v1"]) #main{min-width:0;width:100%}header[data-workspace="true"]{position:relative!important;top:auto!important}header[data-workspace="true"]>div{height:54px!important}header[data-workspace="true"] .op-wordmark{font-style:italic;font-size:19px!important}}
+
+header[data-workspace="true"] a[aria-label="Oblige Props home"]>.op-brand-mark{background:transparent!important;border:0!important;box-shadow:none!important}

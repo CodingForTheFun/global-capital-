@@ -617,3 +617,367 @@
  .resultBar { font-size:9px; }.resultBar>span:last-child { font-size:8px; }
  .odds { font-size:12px; }.variant { min-height:30px; }.footnote { font-size:9px; }
 }
+
+
+/* Modern dense comparison board */
+.shell {
+  background: #0b0f17;
+  padding: 12px 14px 86px;
+}
+.board { width: min(1760px,100%); }
+.heading { margin-bottom: 10px; }
+.heading h1 { font-size: 18px; font-weight: 750; }
+.refresh {
+  min-height: 38px;
+  border-color: rgba(51,65,85,.68);
+  border-radius: 10px;
+  background: rgba(15,23,42,.72);
+  color: #cbd5e1;
+}
+.topRow {
+  grid-template-columns: minmax(610px,1fr) minmax(300px,430px) 44px;
+  gap: 10px;
+}
+.sportNav {
+  height: 44px;
+  gap: 3px;
+  padding: 3px;
+  border-color: rgba(51,65,85,.62);
+  border-radius: 11px;
+  background: rgba(15,23,42,.72);
+}
+.sportNav button {
+  min-width: 65px;
+  height: 36px;
+  border-radius: 8px;
+  padding: 0 11px;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .01em;
+}
+.sportNav button[aria-pressed=true] {
+  color: #86efac;
+  border: 1px solid rgba(34,197,94,.24);
+  background: rgba(34,197,94,.12);
+  box-shadow: 0 0 18px rgba(34,197,94,.07), inset 0 -1px 0 rgba(74,222,128,.7);
+}
+.moreSports {
+  min-width: 68px;
+  min-height: 36px;
+  justify-content: center;
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+.search {
+  height: 44px;
+  border-color: rgba(51,65,85,.7);
+  border-radius: 11px;
+  background: rgba(15,23,42,.74);
+  padding: 0 13px;
+}
+.search input { font-size: 12px; }
+.savedToggle {
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border-color: rgba(51,65,85,.7);
+  border-radius: 11px;
+  background: rgba(15,23,42,.74);
+}
+.filters {
+  position: sticky;
+  top: 54px;
+  z-index: 25;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 7px;
+  margin: 9px 0 0;
+  padding: 5px 0 10px;
+  overflow-x: auto;
+  background: linear-gradient(180deg, rgba(11,15,23,.99) 0%, rgba(11,15,23,.96) 72%, rgba(11,15,23,0) 100%);
+  scrollbar-width: none;
+}
+.filters::-webkit-scrollbar { display: none; }
+.filterPill {
+  display: flex;
+  min-width: max-content;
+  height: 38px;
+  flex: 0 0 auto;
+  align-items: center;
+  border-color: rgba(51,65,85,.68);
+  border-radius: 9px;
+  background: rgba(15,23,42,.78);
+  padding: 0;
+}
+.filterPill > span { display: none; }
+.filterPill select {
+  min-width: 92px;
+  height: 38px;
+  padding: 0 29px 0 11px;
+  font-size: 11px;
+  font-weight: 650;
+  color: #cbd5e1;
+}
+.filterPill svg { right: 9px; bottom: auto; }
+.reset {
+  min-height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(51,65,85,.45);
+  border-radius: 9px;
+  padding: 0 11px;
+  color: #94a3b8;
+  background: rgba(15,23,42,.45);
+}
+.resultBar {
+  margin: 6px 2px 7px;
+  color: #64748b;
+  font-size: 9px;
+}
+.tableWrap {
+  border-color: rgba(30,41,59,.9);
+  border-radius: 12px;
+  background: #0d131f;
+  box-shadow: 0 18px 60px rgba(0,0,0,.22);
+}
+.table {
+  min-width: 1220px;
+  background: #0d131f;
+}
+.table th {
+  height: 40px;
+  border-bottom-color: rgba(30,41,59,.9);
+  background: rgba(11,17,29,.96);
+  color: #64748b;
+  padding-inline: 12px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+.table th:nth-child(1) { width: 205px; }
+.table th:nth-child(2) { width: 145px; }
+.table th:nth-child(3) { width: 150px; }
+.table th:nth-child(4) { width: 68px; }
+.table th:nth-child(5) { width: 80px; }
+.table th:nth-child(6) { width: 82px; }
+.table th:nth-child(7) { width: 82px; }
+.table th:nth-child(8) { width: 145px; }
+.table th:nth-child(9) { width: 150px; }
+.table th:nth-child(10) { width: 74px; text-align: center; }
+.table td {
+  height: 58px;
+  border-bottom-color: rgba(30,41,59,.58);
+  background: rgba(16,23,38,.60);
+  padding: 8px 12px;
+  font-size: 11px;
+}
+.table tbody tr:hover td {
+  background: #162035;
+}
+.table tbody tr:hover {
+  box-shadow: inset 2px 0 0 rgba(34,197,94,.75);
+}
+.player { gap: 8px; }
+.identity { gap: 9px; }
+.identity > span:first-child,
+.player img {
+  width: 38px;
+  height: 38px;
+}
+.player b { color: #f8fafc; font-size: 12px; font-weight: 750; }
+.player small,
+.table td small { margin-top: 2px; color: #64748b; font-size: 9px; }
+.matchup { color: #dbe4ef; font-size: 11px; font-weight: 650; }
+.statCell > button {
+  min-height: 20px;
+  color: #e2e8f0;
+  font-size: 11px;
+  font-weight: 650;
+}
+.statCell > small { color: #64748b; font-size: 8px; }
+.variants { gap: 3px; margin-top: 3px; }
+.variant {
+  min-height: 22px;
+  border-radius: 5px;
+  padding: 1px 4px;
+  font-size: 8px;
+}
+.linePill {
+  display: inline-flex;
+  min-width: 45px;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(71,85,105,.72);
+  border-radius: 7px;
+  background: rgba(30,41,59,.72);
+  color: #f8fafc;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 800;
+}
+.odds {
+  min-width: 56px;
+  height: 28px;
+  border: 1px solid rgba(51,65,85,.48);
+  border-radius: 7px;
+  background: rgba(30,41,59,.52);
+  font-size: 10px;
+}
+.forecastCell strong,
+.ev strong {
+  display: inline-flex;
+  min-height: 25px;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 750;
+}
+.ev[data-positive=true] strong {
+  border: 1px solid rgba(34,197,94,.20);
+  border-radius: 6px;
+  background: rgba(34,197,94,.09);
+  color: #4ade80;
+  padding: 0 6px;
+  box-shadow: 0 0 14px rgba(34,197,94,.06);
+}
+.hit { gap: 8px; }
+.hit > span {
+  min-width: 32px;
+  color: #e2e8f0;
+  font-size: 10px;
+}
+.hit i {
+  width: 68px;
+  height: 5px;
+  background: #1e293b;
+}
+.hit i b {
+  background: #22c55e;
+  box-shadow: 0 0 7px rgba(34,197,94,.25);
+}
+.historyCell small {
+  max-height: 28px;
+  color: #64748b;
+  font-size: 8px;
+}
+.books {
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow: hidden;
+}
+.books a {
+  display: grid;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  place-items: center;
+  border-color: rgba(51,65,85,.64);
+  border-radius: 7px;
+  background: #111827;
+  color: #cbd5e1;
+}
+.books a > span {
+  font-size: 7px;
+  font-weight: 900;
+}
+.books a[data-book=prizepicks] {
+  color: #d8b4fe;
+  border-color: rgba(168,85,247,.28);
+  background: rgba(126,34,206,.12);
+}
+.books a[data-book=underdog] {
+  color: #fde047;
+  border-color: rgba(250,204,21,.26);
+  background: rgba(161,98,7,.12);
+}
+.books a[data-book=draftkings] {
+  color: #4ade80;
+  border-color: rgba(34,197,94,.25);
+  background: rgba(21,128,61,.10);
+}
+.books a[data-book=fanduel] {
+  color: #60a5fa;
+  border-color: rgba(59,130,246,.26);
+  background: rgba(30,64,175,.12);
+}
+.actionControls {
+  justify-content: center;
+  gap: 2px;
+}
+.actions .save,
+.actions .researchLink {
+  width: 30px;
+  min-height: 30px;
+  border-radius: 7px;
+  color: #64748b;
+}
+.actions .save:hover,
+.actions .researchLink:hover {
+  background: rgba(51,65,85,.48);
+  color: #f8fafc;
+}
+.actions .researchLink { color: #94a3b8; }
+.pagination { margin-top: 13px; }
+.footnote { margin-top: 13px; color: #64748b; font-size: 9px; }
+
+@media (max-width: 980px) {
+  .topRow { grid-template-columns: minmax(0,1fr) 44px; }
+  .sportNav { grid-column: 1 / -1; order: 1; }
+  .search { order: 2; }
+  .savedToggle { order: 3; }
+  .filters { top: 52px; margin-top: 7px; }
+  .table { min-width: 1080px; }
+}
+
+@media (max-width: 640px) {
+  .shell { padding: 7px 6px 78px; }
+  .heading { padding-inline: 3px; }
+  .sportNav {
+    height: 42px;
+    border-radius: 10px;
+  }
+  .sportNav button {
+    min-width: 54px;
+    height: 34px;
+    padding: 0 8px;
+    font-size: 10px;
+  }
+  .moreSports { min-width: 61px; min-height: 34px; padding: 0 8px; }
+  .search { height: 40px; border-radius: 9px; }
+  .savedToggle { width: 40px; min-height: 40px; border-radius: 9px; }
+  .filters {
+    position: sticky;
+    margin-inline: -6px;
+    padding-inline: 6px;
+    padding-bottom: 8px;
+  }
+  .filterPill { height: 36px; border-radius: 8px; }
+  .filterPill select {
+    min-width: 82px;
+    height: 36px;
+    padding-left: 9px;
+    font-size: 11px;
+  }
+  .tableWrap { border-radius: 9px; }
+  .table { min-width: 990px; }
+  .table th { height: 36px; padding-inline: 9px; font-size: 8px; }
+  .table td { height: 54px; padding: 7px 9px; }
+  .table th:first-child,
+  .table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+  }
+  .table th:first-child {
+    z-index: 7;
+    background: #0b111d;
+  }
+  .table td:first-child { background: #101726; }
+  .table tbody tr:hover td:first-child { background: #162035; }
+  .identity > span:first-child,
+  .player img { width: 34px; height: 34px; }
+  .player b { font-size: 11px; }
+}

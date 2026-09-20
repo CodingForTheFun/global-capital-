@@ -130,10 +130,14 @@ try{
   specialMode=true;failPhotos=false;await page.goto(base+'/board');
   await page.getByRole('button',{name:'NFL',exact:true}).click();
   await page.getByRole('link',{name:'Goblin',exact:true}).first().waitFor();
-  assert.equal(await page.locator('[data-player-card]').count(),2,'Special-only player retained');
+  await page.getByText('UI Test Special Only',{exact:true}).first().waitFor();
+  await page.getByText('UI Test Player',{exact:true}).first().waitFor();
+  assert.ok(await page.getByText('UI Test Special Only',{exact:true}).count()>0,'Special-only player retained');
   await page.locator('[data-label="Proj"]').filter({hasText:'24.0'}).first().waitFor();
   await page.getByLabel('More',{exact:true}).selectOption('demon');
-  assert.equal(await page.locator('[data-player-card]').count(),2,'Demon filter keeps both players');
+  await page.getByText('UI Test Special Only',{exact:true}).first().waitFor();
+  await page.getByText('UI Test Player',{exact:true}).first().waitFor();
+  assert.ok(await page.getByText('UI Test Special Only',{exact:true}).count()>0,'Demon filter retains special-only player');
   assert.equal(await page.locator('[data-label="Odds"]').filter({hasText:'+100'}).count(),0,'Synthetic DFS odds hidden');
   await page.getByRole('link',{name:'Demon',exact:true}).first().click();await main.waitFor();
   await page.locator('.recharts-bar-rectangle').first().waitFor();

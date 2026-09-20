@@ -69,33 +69,43 @@ const days = flag('days', 7);
 const limit = flag('limit', 50_000);
 const asJson = process.argv.includes('--json');
 
-/** Read a bounded recent proof set. Direct table reads remain paged for service-role use. */
+/** Read a bounded recent proof set. Both RPC and direct reads page around PostgREST's row cap. */
 async function fetchSnapshots(sinceIso, cred) {
-  if (cred.mode === 'proof-rpc') {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/autoscout_line_history_proof`, {
-      method: 'POST',
-      headers: {
-        apikey: cred.key,
-        authorization: `Bearer ${cred.key}`,
-        accept: 'application/json',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        p_token: cred.token,
-        p_days: days,
-        p_limit: limit,
-      }),
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!response.ok) {
-      throw new Error(`line history proof RPC failed with HTTP ${response.status}`);
-    }
-    const rows = await response.json();
-    return Array.isArray(rows) ? rows : [];
-  }
-
   const rows = [];
   const pageSize = 1000;
+
+  if (cred.mode === 'proof-rpc') {
+    for (let offset = 0; offset < limit; offset += pageSize) {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/autoscout_line_history_proof`, {
+        method: 'POST',
+        headers: {
+          apikey: cred.key,
+          authorization: `Bearer ${cred.key}`,
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'range-unit': 'items',
+          range: `${offset}-${Math.min(offset + pageSize - 1, limit - 1)}`,
+        },
+        body: JSON.stringify({
+          p_token: cred.token,
+          p_days: days,
+          p_limit: limit,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) {
+        throw new Error(`line history proof RPC failed with HTTP ${response.status}`);
+      }
+      const page = await response.json();
+      if (!Array.isArray(page)) {
+        throw new Error('line history proof RPC returned a non-array response');
+      }
+      rows.push(...page);
+      if (page.length < pageSize) break;
+    }
+    return rows;
+  }
+
   for (let offset = 0; offset < limit; offset += pageSize) {
     const query = new URLSearchParams({
       select: 'prop_id,bookmaker_key,side,line,price,created_at',

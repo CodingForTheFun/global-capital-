@@ -133,3 +133,20 @@ test('public research uses platform scores and recomputes hits at the current li
     __resetProplineClient();
   }
 });
+
+test('raw upstream and prefixed player IDs are validated against every returned identifier', () => {
+  for (const requested of ['42','propline:42']) {
+    const data = fixture(); data.archive.player_id = '42'; data.history.player_id = '42';
+    assert.equal(normalize(data,{providerPlayerId:requested}).available,true);
+    for (const target of [data.archive,data.history,data.archive.games[0],data.history.entries[0]]) {
+      const previous=target.player_id; target.player_id='wrong';
+      assert.equal(normalize(data,{providerPlayerId:requested}).available,false);
+      if(previous===undefined)delete target.player_id; else target.player_id=previous;
+    }
+  }
+});
+
+test('reopened saved selections exclude their own event and later completed games', () => {
+  const result=normalize(fixture(),{gameStartTime:'2026-09-17T00:00:00Z',eventId:'2'});
+  assert.deepEqual(result.gameLog.map(row=>row.gameId),['3']);
+});

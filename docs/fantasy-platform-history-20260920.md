@@ -30,3 +30,12 @@ Underdog, identities, zero/negative values, missing/void/redacted records,
 conflicts, current/future games, periods, combos and transport failures. This is
 contract coverage, not a claim that the provider has historical data for every
 sport or player. Production coverage must be checked after rollout.
+
+Production integration also admits full-game fantasy research for every known
+board sport without enabling automatic provider polling. Source-native periods
+and season tags remain restricted. Legacy per-prop book selection participates
+in request/cache identity; queued requests capture the original selection and
+cannot reuse another platform's generic base cache. Single and batch requests
+both retain event cutoff, period and player role. Raw and prefixed upstream player
+IDs are checked against all IDs returned by history and archive. Regression tests
+execute the composed production client's real functions and the batch parser.

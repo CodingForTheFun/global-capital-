@@ -8,7 +8,7 @@ test('verified history event identity catches a source event played before a sti
  const target={sport:'WNBA',homeTeam:'NY',awayTeam:'LV',gameStartTime:'2026-09-20T18:00:00Z'};
  const rows=[
   {gameId:'wnba:11',date:'2026-09-20T16:30:00Z',team:'NY',teamName:'New York Liberty',opponent:'LV',opponentName:'Las Vegas Aces'},
-  {gameId:'wnba:10',date:'2026-09-18T18:00:00Z',team:'NY',opponent:'LV'},
+  {gameId:'wnba:10',date:'2026-09-18T18:00:00Z',team:'NY',opponent:'CON'},
  ];
  const identity=resolveHistoryEventIdentity(rows,target);
  assert.equal(identity.available,true);assert.equal(identity.gameId,'wnba:11');assert.equal(identity.sourceEventId,'11');

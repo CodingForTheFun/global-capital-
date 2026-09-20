@@ -62,6 +62,20 @@ test('basketball split rebounds use exact verified fields across ESPN and PropLi
   assert.equal(rawStatFor({ sport:'NBA', market:'Defensive Rebounds', providerMarketKey:'player_defensive_rebounds', period:'game' }), 'defensive_rebounds');
 });
 
+test('basketball shooting-count markets use exact made/attempted fields', () => {
+  const fgm = marketContract({ sport:'WNBA', market:'FG Made', providerMarketKey:'player_fg_made' });
+  const fta = marketContract({ sport:'WNBA', market:'Free Throws Attempted', providerMarketKey:'player_free_throws_attempted' });
+  const fg3a = marketContract({ sport:'NBA', market:'3-Pointers Attempted', providerMarketKey:'player_three_pointers_attempted' });
+  assert.deepEqual(fgm.fields, ['FieldGoalsMade']);
+  assert.deepEqual(fta.fields, ['FreeThrowsAttempted']);
+  assert.deepEqual(fg3a.fields, ['ThreePointersAttempted']);
+  assert.equal(statValue({ 'fieldGoalsMade-fieldGoalsAttempted':'7-13' }, fgm), 7);
+  assert.equal(statValue({ 'freeThrowsMade-freeThrowsAttempted':'6-9' }, fta), 9);
+  assert.equal(statValue({ 'threePointFieldGoalsMade-threePointFieldGoalsAttempted':'2-6' }, fg3a), 6);
+  assert.equal(rawStatFor({ sport:'WNBA', market:'FG Made', providerMarketKey:'player_fg_made', period:'game' }), 'field_goals_made');
+  assert.equal(rawStatFor({ sport:'WNBA', market:'Free Throws Attempted', providerMarketKey:'player_free_throws_attempted', period:'game' }), 'free_throws_attempted');
+});
+
 test('MLB pitches, batters faced and innings pitched use measured source fields', () => {
   const pitches = marketContract({ sport:'MLB', market:'Pitches' });
   const batters = marketContract({ sport:'MLB', market:'Batters Faced' });

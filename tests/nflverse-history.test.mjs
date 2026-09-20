@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 import { statsUrl, parseCsv, fetchNflverseResearch } from '../lib/data-sources/nflverse/nfl-game-research.mjs';
 
-const statsHeader='player_id,player_name,player_display_name,position,position_group,season,week,season_type,team,opponent_team,completions,attempts,passing_yards,passing_tds,passing_interceptions,carries,rushing_yards,rushing_tds,targets,receptions,receiving_yards,receiving_tds,sacks_suffered,def_tackles_solo,def_tackle_assists,def_sacks,fg_made,pat_made';
+const statsHeader='player_id,player_name,player_display_name,position,position_group,season,week,season_type,recent_team,opponent_team,completions,attempts,passing_yards,passing_tds,passing_interceptions,carries,rushing_yards,rushing_tds,targets,receptions,receiving_yards,receiving_tds,sacks_suffered,def_tackles_solo,def_tackle_assists,def_sacks,fg_made,pat_made';
 const statsRows=[
  ['00-0099999','F.Player','Fixture Player','QB','QB','2026','2','REG','ATL','CAR','22','31','278','2','1','4','24','0','0','0','0','0','2','0','0','0','0','0'],
  ['00-0099999','F.Player','Fixture Player','QB','QB','2026','1','REG','ATL','TB','19','27','241','1','0','5','31','1','0','0','0','0','1','0','0','0','0','0'],
@@ -60,6 +60,27 @@ test('NFL archive sums exact combo components without borrowing another market',
   games:5,gameStartTime:'2026-09-20T20:00:00Z',period:'game',
  },{fetcher:source(),now:()=>Date.parse('2026-09-19T23:00:00Z'),cacheEnabled:false});
  assert.deepEqual(result.gameLog.map(x=>x.value),[302,272,309]);
+});
+
+
+test('NFL archive falls back to prior season when current weekly release is missing',async()=>{
+ const missingCurrent=async url=>{
+  const u=String(url);
+  if(u.includes('stats_player_week_2026'))return new Response('',{status:404});
+  let body;
+  if(u.includes('stats_player_week_2025'))body=stats2025;
+  else if(u.endsWith('/schedules/games.csv.gz'))body=schedule;
+  else return new Response('',{status:404});
+  const gz=gzipSync(Buffer.from(body));
+  return new Response(gz,{status:200,headers:{'content-type':'application/gzip','content-length':String(gz.length)}});
+ };
+ const result=await fetchNflverseResearch({
+  sport:'NFL',playerName:'Fixture Player',team:'ATL',market:'Passing Yards',providerMarketKey:'player_pass_yds',
+  games:5,gameStartTime:'2026-09-20T20:00:00Z',period:'game',
+ },{fetcher:missingCurrent,now:()=>Date.parse('2026-09-19T23:00:00Z'),cacheEnabled:false});
+ assert.equal(result.available,true);
+ assert.deepEqual(result.gameLog.map(x=>x.value),[301]);
+ assert.equal(result.coverage.historyPartial,true);
 });
 
 test('unsupported longest-play and partial-game markets fail closed',async()=>{

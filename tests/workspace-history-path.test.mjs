@@ -70,6 +70,36 @@ test('canonical WNBA workspace exhausts PropLine and ESPN before verified WNBA S
  assert.equal(espnCalls,1);assert.equal(archiveCalls,1);
 });
 
+
+test('canonical NCAAF workspace exhausts PropLine and ESPN before verified SportsDataverse CFB archive', async () => {
+ const sport='football_ncaaf',marketKey='player_pass_yds';
+ const event={id:'ncaaf-current',sport,startsAt:'2026-09-20T20:00:00Z',homeTeam:'GT',awayTeam:'CLEM',aliases:[]};
+ const odds={id:event.id,sport_key:sport,commence_time:event.startsAt,bookmakers:[{key:'prizepicks',markets:[{key:marketKey,outcomes:[{name:'Over',description:'Fixture Quarterback',player_id:'999001',point:250.5,price:null}]}]}]};
+ const normalized=normalizeOffers(odds,event),p=normalized.players[0],m=p.markets[0];
+ let espnCalls=0,archiveCalls=0;
+ const handler=createWorkspaceHandler({
+  authenticate:async()=>({id:'fixture-user'}),
+  now:()=>NOW,
+  historyFallback:async params=>{espnCalls++;assert.equal(params.sport,'NCAAF');assert.equal(params.providerMarketKey,marketKey);return{available:false,code:'NO_GAME_LOG_DATA',gameLog:[]};},
+  ncaafHistoryFallback:async params=>{archiveCalls++;assert.equal(params.sport,'NCAAF');assert.equal(params.playerName,'Fixture Quarterback');return{available:true,source:'SportsDataverse ESPN CFB player box',gameLog:[{gameId:'ncaaf:401000002',date:'2026-09-13T19:30:00.000Z',value:278}]};},
+  read:async path=>{
+   if(path==='/v1/sports')return[{key:sport,title:'NCAAF'}];
+   if(path.endsWith('/events'))return[{id:event.id,sport_key:sport,commence_time:event.startsAt,home_team:'GT',away_team:'CLEM'}];
+   if(path.endsWith('/markets'))return[{key:marketKey}];
+   if(path.endsWith('/odds'))return odds;
+   if(path.includes('/players/')&&path.endsWith('/games'))return{sport_key:sport,player_name:p.name,player_id:p.playerId,games:[]};
+   throw Error('unexpected path '+path);
+  },
+ });
+ const query=new URLSearchParams({action:'history',sport,event:event.id,player:p.key,market:m.key});
+ let status,body;
+ assert.equal(await handler({url:'/api/oblige-workspace?'+query,method:'GET'},{writeHead(value){status=value;},end(value){body=JSON.parse(value);}}),true);
+ assert.equal(status,200);assert.equal(body.available,true);assert.equal(body.gameLog[0].value,278);
+ assert.equal(body.sourceProvider,'SportsDataverse ESPN CFB player box');
+ assert.deepEqual(body.attemptedSources,['PropLine','ESPN','SportsDataverse CFB']);
+ assert.equal(espnCalls,1);assert.equal(archiveCalls,1);
+});
+
 const player={name:'Fixture',aliases:['Fixture'],sport:'tennis',playerId:'fixture-id',eventId:'current',startsAt:'2026-09-20T12:00:00Z'};
 const market={marketKey:'total_games',period:null};
 const row=(event_id,value,extra={})=>({event_id,status:'final',commence_time:'2026-09-10T12:00:00Z',stats:{total_games:value},...extra});

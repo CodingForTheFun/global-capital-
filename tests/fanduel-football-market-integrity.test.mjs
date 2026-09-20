@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { fetchFanDuelPublic } from '../lib/ingestion/fanduel-public.mjs';
 import { isVerifiedPlayerPropRow } from '../lib/ingestion/player-prop-integrity.mjs';
 
 const base = {
@@ -12,6 +13,13 @@ const base = {
   awayTeam: 'Jacksonville Jaguars',
   team: '',
 };
+
+const jsonResponse = (payload) => ({
+  ok: true,
+  status: 200,
+  headers: { get: () => null },
+  text: async () => JSON.stringify(payload),
+});
 
 test('FanDuel football rejects baseball market artifacts produced by player text', () => {
   assert.equal(isVerifiedPlayerPropRow({
@@ -63,6 +71,20 @@ test('generic home/away team sentinels are never accepted as player identities',
   }), false);
 });
 
+test('truncated event-team identities are rejected without suppressing real MLB players', () => {
+  const event = {
+    ...base,
+    sport: 'MLB',
+    marketId: 'pitcher_strikeouts',
+    homeTeam: 'Arizona Diamondbacks (B Pfaadt)',
+    awayTeam: 'New York Yankees (L Gil)',
+  };
+
+  assert.equal(isVerifiedPlayerPropRow({ ...event, playerName: 'Arizona Diamondbac' }), false);
+  assert.equal(isVerifiedPlayerPropRow({ ...event, playerName: 'Brandon Pfaadt' }), true);
+  assert.equal(isVerifiedPlayerPropRow({ ...event, playerName: 'Luis Gil' }), true);
+});
+
 test('valid football and baseball player markets remain allowed', () => {
   assert.equal(isVerifiedPlayerPropRow({
     ...base,
@@ -81,6 +103,43 @@ test('valid football and baseball player markets remain allowed', () => {
     homeTeam: 'Pittsburgh Pirates',
     awayTeam: 'Chicago Cubs',
   }), true);
+});
+
+test('FanDuel public MLB parsing drops a truncated team label and keeps the real pitcher', async () => {
+  const event = {
+    eventId: 'fd-mlb-396',
+    name: 'New York Yankees (L Gil) @ Arizona Diamondbacks (B Pfaadt)',
+    openDate: new Date(Date.now() + 60 * 60_000).toISOString(),
+  };
+  const pagePayload = { attachments: { events: [event] } };
+  const eventPayload = {
+    attachments: {
+      events: [event],
+      markets: [
+        {
+          marketId: 'bad-team-label',
+          marketName: 'Arizona Diamondbac Strikeouts',
+          runners: [
+            { runnerName: 'Over 2.5', handicap: 2.5, americanOdds: -110 },
+            { runnerName: 'Under 2.5', handicap: 2.5, americanOdds: -110 },
+          ],
+        },
+        {
+          marketId: 'real-pitcher',
+          marketName: 'Brandon Pfaadt Strikeouts',
+          runners: [
+            { runnerName: 'Over 5.5', handicap: 5.5, americanOdds: -105 },
+            { runnerName: 'Under 5.5', handicap: 5.5, americanOdds: -115 },
+          ],
+        },
+      ],
+    },
+  };
+  let calls = 0;
+  const fetcher = async () => jsonResponse(calls++ === 0 ? pagePayload : eventPayload);
+
+  const result = await fetchFanDuelPublic('MLB', { fetcher, force: true });
+  assert.deepEqual(result.records.map((row) => row.playerName), ['Brandon Pfaadt']);
 });
 
 test('the football restriction is isolated to FanDuel', () => {

@@ -1,3 +1,3 @@
-Reviewed release retry: PR #463 / 4ced670b1c644802f33a4864bfe66d5569802d8b
-Release parent: d537c230306c35502340a9e9ab8a92bf5ab8c9a1
-Deploy fail-closed incomplete fantasy-history correction through existing Railway gates after #464 was blocked before customer deployment by the review gate.
+Release: shared platform-specific fantasy history, 2026-09-20
+Release parent: 4c8d3f67a06342aa5744e1f5f5b4c62c585a46cb
+Deploy reviewed fantasy history fallback through existing Railway gates. Preserve complete-sample validation, retryable provider failures and the Alpha frontend.

@@ -83,6 +83,26 @@ test('NFL archive falls back to prior season when current weekly release is miss
  assert.equal(result.coverage.historyPartial,true);
 });
 
+
+test('NFL archive fails closed when current weekly release errors instead of falling back stale',async()=>{
+ const brokenCurrent=async url=>{
+  const u=String(url);
+  if(u.includes('stats_player_week_2026'))return new Response('',{status:500});
+  let body;
+  if(u.includes('stats_player_week_2025'))body=stats2025;
+  else if(u.endsWith('/schedules/games.csv.gz'))body=schedule;
+  else return new Response('',{status:404});
+  const gz=gzipSync(Buffer.from(body));
+  return new Response(gz,{status:200,headers:{'content-type':'application/gzip','content-length':String(gz.length)}});
+ };
+ const result=await fetchNflverseResearch({
+  sport:'NFL',playerName:'Fixture Player',team:'ATL',market:'Passing Yards',providerMarketKey:'player_pass_yds',
+  games:5,gameStartTime:'2026-09-20T20:00:00Z',period:'game',
+ },{fetcher:brokenCurrent,now:()=>Date.parse('2026-09-19T23:00:00Z'),cacheEnabled:false});
+ assert.equal(result.available,false);
+ assert.equal(result.code,'RESEARCH_PROVIDER_ERROR');
+});
+
 test('unsupported longest-play and partial-game markets fail closed',async()=>{
  const common={sport:'NFL',playerName:'Fixture Player',team:'ATL',games:5,gameStartTime:'2026-09-20T20:00:00Z'};
  const longest=await fetchNflverseResearch({...common,market:'Longest Completion',providerMarketKey:'player_pass_longest_completion',period:'game'},{fetcher:source(),now:()=>Date.parse('2026-09-19T23:00:00Z'),cacheEnabled:false});

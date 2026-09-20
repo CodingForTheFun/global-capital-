@@ -32,10 +32,19 @@ jobs:
             const railwayContext = 'AutoProp Scout Pro - autoprop-live';
             const trustedAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
             const safeMarker = /\bSAFE\s+TO\s+MERGE\b/i;
+            const carryMarker = /SAFE TO CARRY IN #396 RECOVERY/i;
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
             const incidentDirectLock = '335215c2d3054b636c6937b1ba0d6c48ee363c13';
             const incidentLockParent = '3bf7b261f239f84f3308d5d24608fb49ac3e8f7d';
             const recoveryAncestor = '1e05bd2a8bddad6079f759856cb66acd1a04c8b9';
+            const auditedLateReviewSha = '97723668d6b45e31b66b97acf399045c0abcda1a';
+            const auditedLateReviewPr = 416;
+            const auditedLateReviewHead = 'a6c9cf7e6f01f78cf046e997a24a5f5bb9ba55b3';
+            const auditedLateReviewFiles = new Set([
+              'scripts/public-production-smoke-driver.mjs',
+              'scripts/public-production-smoke-v2.mjs',
+              'tests/production-smoke-no-signup.test.mjs',
+            ]);
             const releaseLockPath = '.railway/manual-deploy-lock-4d7a31f6c9b24858a0e6731f42cd95be';
 
             async function deployed(commitSha) {
@@ -77,9 +86,31 @@ jobs:
                 owner, repo, issue_number: pr.number, per_page: 100,
               });
               const mergedAt = Date.parse(pr.merged_at);
-              return comments.some((comment) => trustedAssociations.has(comment.author_association)
+              if (comments.some((comment) => trustedAssociations.has(comment.author_association)
                 && safeMarker.test(comment.body || '')
-                && (Date.parse(comment.created_at || '') || 0) <= mergedAt);
+                && (Date.parse(comment.created_at || '') || 0) <= mergedAt)) return true;
+
+              // PR #416 merged while this recovery was being prepared. It had
+              // green branch checks but its automated review completed moments
+              // after merge, so it lacks the normal pre-merge marker. Permit
+              // only its exact immutable merge/head/file set and require a
+              // trusted retrospective carry marker. No other late review is
+              // accepted by this path.
+              if (commitSha === auditedLateReviewSha
+                && pr.number === auditedLateReviewPr
+                && pr.head?.sha === auditedLateReviewHead) {
+                const files = await github.paginate(github.rest.pulls.listFiles, {
+                  owner, repo, pull_number: pr.number, per_page: 100,
+                });
+                const fileNames = new Set(files.map((file) => file.filename));
+                const exactFiles = fileNames.size === auditedLateReviewFiles.size
+                  && [...fileNames].every((name) => auditedLateReviewFiles.has(name));
+                const trustedCarry = comments.some((comment) => trustedAssociations.has(comment.author_association)
+                  && carryMarker.test(comment.body || ''));
+                if (exactFiles && trustedCarry) return true;
+              }
+
+              return false;
             }
 
             const { data: commit } = await github.rest.repos.getCommit({ owner, repo, ref: sha });

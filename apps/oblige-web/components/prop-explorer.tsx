@@ -2,12 +2,13 @@
 
 import * as React from 'react';
 import { Minus, Plus, Star, RotateCcw } from 'lucide-react';
-import type { GameLogRow, PropGroup, PropRow } from '@/lib/types';
+import type { GameLogRow, PropGroup, PropRow, ResearchResponse } from '@/lib/types';
 import { catalogBookRows } from '@/lib/book-catalog';
 import { applyFilters, buildWindows, computeWindow, distinct, EMPTY_FILTERS, filtersActive, headToHead, sampleFor, sortRecentFirst, type SampleFilters, type SampleId, type Side, type Window as ResearchWindow } from '@/lib/analytics';
 import { odds, shortDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppliedFilter } from '@/components/applied-filter';
+import { buildOpponentOptions } from '@/lib/opponent-options';
 
 export type ExplorerState = { line: number; side: Side; book: string | null };
 type ChartSample = SampleId | 'l20';
@@ -50,8 +51,9 @@ function ValueChart({ games, line, side }: { games: GameLogRow[]; line: number; 
 
 /** Same input/output contract and existing research engine. No fetch, provider
  * polling, auth change or new data source is introduced by these controls. */
-export function PropExplorer({ group, games, loading, unavailableReason, state, onState, favourite, onFavourite }: {
+export function PropExplorer({ group, games, loading, unavailableReason, leagueTeams = [], state, onState, favourite, onFavourite }: {
   group: PropGroup; games: GameLogRow[]; loading?: boolean; unavailableReason?: string | null;
+  leagueTeams?: NonNullable<ResearchResponse['leagueTeams']>;
   state: ExplorerState; onState(next: ExplorerState): void; favourite: boolean; onFavourite(): void;
 }) {
   const [filters, setFilters] = React.useState<SampleFilters>(EMPTY_FILTERS);
@@ -69,7 +71,10 @@ export function PropExplorer({ group, games, loading, unavailableReason, state, 
   const h2h = React.useMemo(() => headToHead(filtered, group.opponent, state.line, state.side), [filtered, group.opponent, state.line, state.side]);
   const chartGames = React.useMemo(() => sample === 'l20' ? filtered.slice(0, 20) : sampleFor(filtered, sample, group.opponent), [filtered, sample, group.opponent]);
   const summary = React.useMemo(() => computeWindow(chartGames, state.line, state.side, 'chart', 'Shown'), [chartGames, state.line, state.side]);
-  const opponents = React.useMemo(() => distinct(played.map(game => game.opponent)).sort(), [played]);
+  const opponentOptions = React.useMemo(
+    () => buildOpponentOptions(played.map(game => game.opponent), group, leagueTeams),
+    [played, group.team, group.opponent, group.homeTeam, group.awayTeam, leagueTeams],
+  );
   const seasons = React.useMemo(() => distinct(played.map(game => game.season == null ? null : String(game.season))).sort().reverse(), [played]);
   // Every supported book remains visible for every prop. Missing exact lines are
   // explicit instead of disappearing, while observed future books are retained.
@@ -85,7 +90,7 @@ export function PropExplorer({ group, games, loading, unavailableReason, state, 
   return <div className="research-reference" data-release="oblige-installable-20260918">
     <div className="op-research-title"><div><span>PLAYER RESEARCH</span><h3>{group.market}</h3></div><button type="button" className="op-follow" aria-label={favourite ? `Unfollow ${group.player}` : `Follow ${group.player}`} aria-pressed={favourite} onClick={onFavourite} title="Follow on this device"><Star size={19} fill={favourite ? 'currentColor' : 'none'} /></button></div>
     <div className="op-research-filters">
-      <AppliedFilter key={`${group.key}-opponent`} label="Opponent" value={filters.opponent} options={options(opponents)} onApply={opponent => setFilters(previous => ({ ...previous, opponent }))} />
+      <AppliedFilter key={`${group.key}-opponent`} label="Opponent" value={filters.opponent} options={opponentOptions} onApply={opponent => setFilters(previous => ({ ...previous, opponent }))} />
       <AppliedFilter key={`${group.key}-season`} label="Season" value={filters.season} options={options(seasons)} onApply={season => setFilters(previous => ({ ...previous, season }))} />
       <AppliedFilter key={`${group.key}-venue`} label="Home / Away" value={filters.venue} options={[{ value: 'all', label: 'All' }, { value: 'home', label: 'Home' }, { value: 'away', label: 'Away' }]} onApply={venue => setFilters(previous => ({ ...previous, venue: venue as SampleFilters['venue'] }))} />
       <AppliedFilter key={`${group.key}-book`} label="Book" value={state.book || 'all'} options={[{ value: 'all', label: 'Best prices · all books' }, ...books.map(book => ({ value: book.key, label: book.available ? `${book.name} · Line ${group.line}` : `${book.name} · No line` }))]} onApply={book => onState({ ...state, book: book === 'all' ? null : book })} />

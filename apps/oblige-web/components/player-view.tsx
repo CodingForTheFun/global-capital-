@@ -73,7 +73,7 @@ export function PlayerView() {
       .then(board => {
         if (controller.signal.aborted) return;
         const cards = groupPlayerCards(board.groups);
-        const selected = cardKey ? cards.find(card => card.key === cardKey || card.aliases?.includes(cardKey)) : cards.find(card => card.variants.some(candidate => candidate.player === player));
+        const selected = cardKey ? cards.find(card => card.key === cardKey || card.aliases?.includes(cardKey)) : cards.find(card => card.variants.some(candidate => candidate.player === player || candidate.quotes.some(quote => quote.playerName === player)));
         const mine = selected?.variants || [];
         setResolvedCardKey(selected?.key || cardKey);
         if (!mine.length) setError(`${player} is not on the ${sport} board right now.`);

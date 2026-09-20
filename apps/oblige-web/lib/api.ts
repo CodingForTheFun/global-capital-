@@ -9,6 +9,7 @@ import type {
   Side,
 } from './types';
 import { isDfs, quotePeriod, variantKey } from './prop-signals';
+import { researchPlayerName } from './player-identity';
 
 /**
  * Every call goes through this app's own /api/* proxy, which forwards to the
@@ -209,7 +210,7 @@ function bestQuote(rows: PropRow[], side: Side): PropRow | null {
 export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
   const groups = new Map<string, PropGroup>();
   for (const row of rows) {
-    const player = String(row.playerName || '').trim();
+    const player = researchPlayerName(row.playerName, { ...row, sport });
     const market = String(row.market || '').trim();
     const line = num(row.line);
     if (!player || !market || line === null) continue;

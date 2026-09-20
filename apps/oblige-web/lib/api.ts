@@ -107,14 +107,18 @@ async function fetchGet(path: string, parentSignal?: AbortSignal, timeoutMs = GE
  * never retries auth/client errors. This gives the UI a calmer failure mode
  * without increasing normal polling frequency or touching provider logic.
  */
-export async function getJson<T>(path: string, signal?: AbortSignal, timeoutMs = GET_TIMEOUT_MS): Promise<T> {
+export async function getJson<T>(path: string, signal?: AbortSignal, timeoutMs = GET_TIMEOUT_MS, totalTimeoutMs?: number): Promise<T> {
+  const deadline = totalTimeoutMs === undefined ? Infinity : Date.now() + totalTimeoutMs;
+  const remaining = () => Math.max(0, deadline - Date.now());
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (signal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
+    if (remaining() <= 0) throw new ApiError('Oblige Props took too long to respond.', 0, 'TIMEOUT');
     let result: Awaited<ReturnType<typeof fetchGet>>;
     try {
-      result = await fetchGet(path, signal, timeoutMs);
+      result = await fetchGet(path, signal, Math.min(timeoutMs, remaining()));
     } catch (error) {
       if (attempt === 0 && error instanceof ApiError && ['TIMEOUT', 'NETWORK', 'INVALID_RESPONSE'].includes(error.code)) {
-        await wait(450, signal);
+        await wait(Math.min(450, remaining()), signal);
         continue;
       }
       throw error;
@@ -124,7 +128,7 @@ export async function getJson<T>(path: string, signal?: AbortSignal, timeoutMs =
     if (response.ok) return body as T;
 
     if (attempt === 0 && RETRYABLE_GET_STATUSES.has(response.status)) {
-      await wait(retryAfterMs(response, attempt), signal);
+      await wait(Math.min(retryAfterMs(response, attempt), remaining()), signal);
       continue;
     }
 

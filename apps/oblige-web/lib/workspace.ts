@@ -10,9 +10,10 @@ export type EventWorkspace={ok:boolean;event:WorkspaceEvent;players:WorkspacePla
 export type WorkspaceHistory=ResearchResponse & {sourceStat?:string};
 export class WorkspaceError extends Error { constructor(message:string,public status:number){super(message);this.name='WorkspaceError';} }
 export async function workspaceGet<T>(action:string,params:Record<string,string>={},signal?:AbortSignal):Promise<T>{
- // Two attempts, each bounded through body consumption; at most 45s with backoff.
+ // Keep the existing 45s research allowance. A retry shares that total budget,
+ // rather than cutting a healthy slow lookup short or doubling its deadline.
  try{
-  const body=await getJson<T & {ok?:boolean;message?:string}>(`/api/oblige-workspace?${new URLSearchParams({action,...params})}`,signal,20000);
+  const body=await getJson<T & {ok?:boolean;message?:string}>(`/api/oblige-workspace?${new URLSearchParams({action,...params})}`,signal,45000,45000);
   if(body.ok===false)throw new WorkspaceError(body.message||'This data could not be loaded.',200);
   return body as T;
  }catch(error){

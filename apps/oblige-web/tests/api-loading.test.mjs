@@ -42,6 +42,16 @@ test('a transient network error is retried once', async t => {
   assert.equal(count, 2);
 });
 
+test('an overall workspace deadline is not doubled by retrying', async t => {
+  const fetch = t.mock.method(globalThis, 'fetch', async (_, { signal }) => new Response(new ReadableStream({
+    start(controller) {
+      signal.addEventListener('abort', () => controller.error(new DOMException('Aborted', 'AbortError')), { once: true });
+    },
+  })));
+  await assert.rejects(getJson('/api/test', undefined, 100, 15), { code: 'TIMEOUT' });
+  assert.equal(fetch.mock.callCount(), 1);
+});
+
 test('non-JSON gateway errors preserve retryable HTTP status', async t => {
   let count = 0;
   t.mock.method(globalThis, 'fetch', async () => ++count === 1

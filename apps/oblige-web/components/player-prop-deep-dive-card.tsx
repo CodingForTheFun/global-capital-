@@ -252,7 +252,7 @@ export function PlayerPropDeepDiveCard({
   const patternId = React.useId().replace(/[^a-z0-9]/gi, '');
 
   React.useEffect(() => { setTargetLine(analysis.line); }, [analysis.line, market.key]);
-  React.useEffect(() => { setBookFilter(bookSelection === null ? 'all' : bookSelection || selected.book || 'all'); }, [bookSelection, selected.book]);
+  React.useEffect(() => { if (bookFilter !== 'all' && !market.offers.some(offer => offer.book === bookFilter)) setBookFilter('all'); }, [bookFilter, market.key, market.offers]);
 
   const group = analysis.group;
   const history = analysis.history;

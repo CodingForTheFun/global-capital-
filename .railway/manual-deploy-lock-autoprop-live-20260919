@@ -1,3 +1,3 @@
-deploy: verified WNBA Stats archive fallback
-source-pr: #399
-release-sha: a2c38cd5aaef796360c0cca6a7a675563171dc10
+deploy: canonical WNBA Stats archive fallback
+source-pr: #405
+release-sha: 75a724b3fb8e524a8a27e249b7115026cd3bb3db

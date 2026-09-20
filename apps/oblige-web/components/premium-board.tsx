@@ -1,5 +1,5 @@
 'use client';
-// Release path marker: dense board acceptance covers the guarded frontend verification workflows.
+// Release path marker: dense board acceptance verifies automatic visible-row PROJ and EV loading.
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';

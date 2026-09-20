@@ -1,15 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import ts from 'typescript';
-
-const compile = name => ts.transpileModule(readFileSync(new URL(`../lib/${name}.ts`, import.meta.url), 'utf8'), {
-  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-}).outputText;
-const apiUrl = `data:text/javascript;base64,${Buffer.from(compile('api')).toString('base64')}`;
-const { getJson, fetchResearch } = await import(apiUrl);
-const workspaceJs = compile('workspace').replace("'./api'", JSON.stringify(apiUrl));
-const { workspaceGet, WorkspaceError } = await import(`data:text/javascript;base64,${Buffer.from(workspaceJs).toString('base64')}`);
+import { loadLib } from './load-lib.mjs';
+const { getJson, fetchResearch } = await loadLib('api');
+const { workspaceGet, WorkspaceError } = await loadLib('workspace');
 
 test('successful GET retains same-origin credentials and disables transport caching', async t => {
   const fetch = t.mock.method(globalThis, 'fetch', async (path, init) => {

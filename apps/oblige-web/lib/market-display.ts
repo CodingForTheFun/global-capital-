@@ -48,7 +48,13 @@ export function periodName(period: string | null): string {
 }
 export function marketOptionName(market: WorkspaceMarket): string {
   const name = marketName(market);
-  return market.period ? `${name} · ${periodName(market.period)}` : name;
+  const flavor = offerVariantLabel(market.offers[0]);
+  return [name, flavor && !name.toLowerCase().includes(flavor.toLowerCase()) ? flavor : '', market.period ? periodName(market.period) : ''].filter(Boolean).join(' · ');
+}
+export function offerVariantLabel(offer: WorkspaceOffer | null | undefined): string {
+  const value = offer?.dfsOddsType || '';
+  const flavor = ({ goblin: 'Goblin', demon: 'Demon', boost: 'Boost', discount: 'Discount', alternate: 'Alternate' } as Record<string, string>)[value] || '';
+  return [flavor, offer?.multiplier != null && offer.multiplier > 0 && offer.multiplier !== 1 ? `${offer.multiplier}×` : ''].filter(Boolean).join(' · ');
 }
 export function sportName(sport: string): string {
   const names: Record<string, string> = { football_nfl: 'NFL', americanfootball_nfl: 'NFL', football_ncaaf: 'NCAAF', americanfootball_ncaaf: 'NCAAF', basketball_nba: 'NBA', basketball_wnba: 'WNBA', basketball_ncaab: 'NCAAB', baseball_mlb: 'MLB', icehockey_nhl: 'NHL', hockey_nhl: 'NHL', esports_rocket_league: 'Rocket League' };
@@ -57,6 +63,6 @@ export function sportName(sport: string): string {
 export function offerPrice(offer: WorkspaceOffer | null | undefined): string {
   if (!offer) return '—';
   if (offer.conflict) return 'Unverified';
-  if (offer.dfs) return offer.multiplier !== null && offer.multiplier !== 1 ? `${offer.multiplier}×` : 'DFS';
+  if (offer.dfs) return offerVariantLabel(offer) || 'DFS';
   return offer.price === null || !Number.isFinite(offer.price) || offer.price === 0 ? '—' : `${offer.price > 0 ? '+' : '−'}${Math.abs(offer.price)}`;
 }

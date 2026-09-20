@@ -540,3 +540,11 @@
     height: 36px;
   }
 }
+
+.variants { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.variants a { display: inline-flex; align-items: center; min-height: 28px; padding: 3px 8px; border: 1px solid #48576a; border-radius: 7px; font-size: 11px; color: #dbe8fa; text-decoration: none; }
+.variants a[data-variant="goblin"] { color: #62e8a6; border-color: #28724e; background: #113524; }
+.variants a[data-variant="demon"] { color: #ff8b98; border-color: #8a3545; background: #371d28; }
+.variants a:focus-visible { outline: 2px solid #eaf0f8; outline-offset: 2px; }
+.footerMeta button { cursor: pointer; color: #b2d8f8; background: transparent; border: 0; text-decoration: underline; min-height: 36px; }
+@media (max-width: 720px) { .variants a { min-height: 44px; padding-inline: 10px; } }

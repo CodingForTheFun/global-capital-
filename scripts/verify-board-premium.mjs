@@ -10,15 +10,15 @@ await mkdir(out,{recursive:true});
 const photo=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="#12283f"/><circle cx="64" cy="46" r="23" fill="#5c718a"/><path d="M14 128v-13a50 50 0 0 1 100 0v13" fill="#5c718a"/><text x="64" y="120" fill="white" text-anchor="middle" font-family="sans-serif" font-size="16">UI TEST</text></svg>');
 const names={NFL:['player_reception_longest','Longest Reception'],WNBA:['player_points','Points'],MLB:['batter_total_bases','Total Bases'],NHL:['player_shots_on_goal','Shots on Goal'],TENNIS:['player_aces','Aces'],CS2:['player_kills','Kills']};
 function rows(sport){
- const stat=(names[sport]||names.NFL)[0],common={sport,playerName:'UI Test Player',providerPlayerId:'espn:42',market:stat,marketId:stat,line:22.5,gameStartTime:'2050-09-20T18:00:00Z',homeTeam:'Test Home',awayTeam:'Test Away',team:'QA',opponent:'TST'};
- return [[stat,stat],[sport==='NFL'?'player_reception_yds':'player_assists',sport==='NFL'?'player_reception_yds':'player_assists'],[stat+' · First half',stat]].flatMap(([market,marketId],mi)=>['draftkings','fanduel'].flatMap(book=>(book==='draftkings'?[22.5]:[23.5,24.5]).flatMap(line=>['OVER','UNDER'].map(side=>({...common,market,marketId,line,eventId:`fixture-${book}`,id:`${sport}-${mi}-${book}-${line}-${side}`,sportsbook:book==='draftkings'?'DraftKings':'FanDuel',sportsbookKey:book,price:side==='OVER'?-115:-105,side})))))
+ const stat=(names[sport]||names.NFL)[0],common={sport,provider:'propline',proplineEventId:`native-${sport}`,proplinePlayerId:'espn:42',playerName:'UI Test Player',providerPlayerId:'espn:42',market:stat,marketId:stat,line:22.5,gameStartTime:'2050-09-20T18:00:00Z',homeTeam:'Test Home',awayTeam:'Test Away',team:'QA',opponent:'TST'};
+ return [[stat,stat],[sport==='NFL'?'player_reception_yds':'player_assists',sport==='NFL'?'player_reception_yds':'player_assists'],[stat+' · First half',stat]].flatMap(([market,marketId],mi)=>['draftkings','fanduel'].flatMap(book=>(book==='draftkings'?[22.5]:[23.5,24.5]).flatMap(line=>['OVER','UNDER'].map(side=>({...common,market,marketId,line,eventId:`fixture-${book}`,id:`${sport}-${mi}-${book}-${line}-${side}`,proplineOutcomeId:`${sport}-${mi}-${book}-${line}-${side}`,sportsbook:book==='draftkings'?'DraftKings':'FanDuel',sportsbookKey:book,price:side==='OVER'?-115:-105,side})))))
 }
 const results=[];let browser;
 try{
  browser=await chromium.launch();
  for(const width of [375,390,430,768,1440]){
   const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce',serviceWorkers:'block'}),page=await context.newPage();
-  const errors=[],historyCalls=[],privatePaths=[];let signedIn=true,failPhotos=false;
+  const errors=[],historyCalls=[],privatePaths=[];let signedIn=true,failPhotos=false,specialMode=false,referenceMode=false;
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/_next/image?**',route=>failPhotos?route.abort():route.fulfill({status:200,contentType:'image/svg+xml',body:photo}));
   await page.route('**/api/**',async route=>{
@@ -28,11 +28,21 @@ try{
    // not protected player data; all other signed-out API calls remain failures.
    else if(url.pathname==='/api/account/google/status')body={available:false};
    else if(!signedIn){privatePaths.push(url.pathname);status=401;body={ok:false};}
-   else if(url.pathname==='/api/apex/props'){const sport=url.searchParams.get('sport')||'NFL';body={ok:true,props:rows(sport),supportedSports:Object.keys(names),meta:{sportsbookCount:2}};}
+   else if(url.pathname==='/api/apex/props'){const sport=url.searchParams.get('sport')||'NFL';const standard=rows(sport),seed=standard[0];
+    const special=(flavor,line,extra={})=>({...seed,id:`ui-${flavor}-${line}`,proplineOutcomeId:`ui-${flavor}-${line}`,line,sportsbook:'PrizePicks',sportsbookKey:'prizepicks',price:100,dfsOddsType:flavor,specialType:flavor,specialVerified:true,isAlternate:true,...extra});
+    body={ok:true,props:specialMode?[...standard,special('goblin',16.5),special('demon',26.5),special('demon',30.5,{playerName:'UI Test Special Only',providerPlayerId:'fixture:special-only'})]:standard,supportedSports:Object.keys(names),meta:{sportsbookCount:specialMode?3:2}};}
    else if(url.pathname==='/api/apex/research'){
     const market=url.searchParams.get('market')||'';historyCalls.push({market,sport:url.searchParams.get('sport'),line:url.searchParams.get('line')});
     body=market.includes('First half')?{ok:true,available:false,message:'UI test: exact first-half history unavailable.',gameLog:[]}:{ok:true,available:true,source:'UI TEST FIXTURE - NOT LIVE SPORTS DATA',gameLog:Array.from({length:20},(_,i)=>({gameId:`test-${i}`,date:`2049-09-${String(28-i).padStart(2,'0')}T00:00:00Z`,opponent:i%2?'TST':'QA',value:i===6?null:12+i,isHome:i%2===0,season:2049}))};
-   }else if(url.pathname==='/api/props/ml')body={ok:true,results:{}};
+   }else if(url.pathname==='/api/props/ml'){
+    const targets=route.request().postDataJSON()?.props||[];assert.ok(targets.length<=24,'Model service batch limit');
+    body={ok:true,results:Object.fromEntries(targets.map(target=>[target.key,(target.isAlternate||referenceMode)?{available:false,code:'MARKET_NOT_SUPPORTED',message:'UI test: no model for alternate lines.'}:{available:true,code:'READY',modelVersion:'UI-TEST-ONLY',projection:24,probabilityOver:.6,probabilityUnder:.4,probabilityPush:0,validation:{method:'rolling-player-history'},expiresAt:new Date(Date.now()+600000).toISOString()}]))};
+   }
+   else if(url.pathname==='/api/apex/propline'){
+    const kind=url.searchParams.get('kind'),sport=url.searchParams.get('sport')||'NFL';
+    assert.equal(url.searchParams.get('eventId'),`native-${sport}`,'Only native provider event IDs reach insights');
+    body={available:true,data:kind==='projections'?{projections:[...new Set(rows(sport).map(row=>row.marketId))].map(marketKey=>({playerId:'espn:42',playerName:'UI Test Player',marketKey,projection:24.3,booksContributing:4}))}:kind==='ev'?{plays:rows(sport).map(row=>({playerId:'espn:42',playerName:row.playerName,marketKey:row.marketId,line:row.line,price:row.price,bookmakerKey:row.sportsbookKey,side:row.side,evPercent:4.5}))}:kind==='history'?{points:[{outcomeId:'ui-goblin-16.5',marketKey:names.NFL[0],bookmakerKey:'prizepicks',side:'OVER',line:15.5,price:100,at:'2049-09-20T10:00:00Z'},{outcomeId:'different-outcome',marketKey:names.NFL[0],bookmakerKey:'prizepicks',side:'OVER',line:99.5,price:100,at:'2049-09-20T10:00:00Z'}]}:null};
+   }
    else if(url.pathname==='/api/apex/player-artwork')return failPhotos?route.abort():route.fulfill({status:200,contentType:'image/svg+xml',body:photo});
    else if(url.pathname==='/api/apex/stream')return route.fulfill({status:200,contentType:'text/event-stream',body:'event: ready\ndata: {}\n\n'});
    else{status=404;body={ok:false};}
@@ -85,6 +95,35 @@ try{
   }
   failPhotos=true;await page.reload();await main.waitFor();await page.locator('img[data-player-photo="unavailable"]:visible').first().waitFor();
   assert.equal(await page.locator('img[data-player-photo="unavailable"]:visible').first().evaluate(node=>getComputedStyle(node).visibility),'visible','Missing artwork has a visible bounded fallback');
+  specialMode=true;failPhotos=false;await page.goto(base+'/board');
+  await page.getByRole('link',{name:'Goblin',exact:true}).first().waitFor();
+  assert.equal(await page.locator('[data-player-card]').count(),2,'Special-only player retained');
+  await page.locator('td[data-label="Proj"]').filter({hasText:'24.0'}).first().waitFor();
+  await page.getByLabel('Prop type',{exact:true}).selectOption('demon');
+  assert.equal(await page.locator('[data-player-card]').count(),2,'Demon filter keeps both players');
+  assert.equal(await page.locator('td[data-label="Odds"]').filter({hasText:'+100'}).count(),0,'Synthetic DFS odds hidden');
+  await page.getByRole('link',{name:'Demon',exact:true}).first().click();await main.waitFor();
+  await page.locator('.op-chart-bar').first().waitFor();
+  assert.equal(await page.getByLabel('Selected book',{exact:true}).inputValue(),'prizepicks');
+  await page.getByLabel('Player stat category',{exact:true}).selectOption({label:'Longest Reception · Goblin'});
+  await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='16.5');
+  assert.ok(await page.locator('[data-variant="goblin"]').count()>0,'Green Goblin label in research');
+  const specialDimensions=await page.evaluate(()=>({width:innerWidth,scroll:document.documentElement.scrollWidth}));
+  assert.ok(specialDimensions.scroll<=specialDimensions.width+1,'Variant controls fit the existing mobile layout');
+  await main.screenshot({path:`${out}/width-${width}-specials.png`});
+  if(width===390){
+   await page.getByText('Line history',{exact:true}).click();
+   const history=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Line history'})});
+   await history.getByRole('cell',{name:'15.5',exact:true}).waitFor();
+   assert.equal(await history.getByRole('cell',{name:'99.5',exact:true}).count(),0,'Other outcome history never leaks into the selected quote');
+   assert.equal(await history.getByRole('cell',{name:'+100',exact:true}).count(),0,'History does not present synthetic DFS odds');
+   referenceMode=true;specialMode=false;await page.goto(base+'/board');
+   await page.locator('td[data-label="Proj"]').filter({hasText:'24.3'}).first().waitFor();
+   await page.getByText('Market implied',{exact:true}).first().waitFor();
+   await page.getByText('Market no-vig',{exact:true}).first().waitFor();
+   await page.locator('[data-player-card] td').first().click();await main.waitFor();
+   await page.getByRole('heading',{name:'Market reference',exact:true}).waitFor();
+  }
   signedIn=false;privatePaths.length=0;await page.reload();await page.getByRole('button',{name:/sign in/i}).first().waitFor();assert.equal(await main.count(),0,'Private research hidden when signed out');assert.deepEqual(privatePaths,[],'No protected data requests before authentication');
   assert.deepEqual(errors,[],'No runtime exceptions');
   results.push({width,passed:true,origin:base,syntheticFixtures:true,actualBoardClick:true,savedLinkSports:width===390?Object.keys(names):[],signedOutPrivateRequests:privatePaths.length,...dimensions});await context.close();

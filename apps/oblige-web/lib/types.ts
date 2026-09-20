@@ -15,6 +15,7 @@ export type PropRow = {
   propId?: string;
   playerName?: string;
   providerPlayerId?: string;
+  playerId?: string;
   market?: string;
   marketId?: string;
   line?: number | string;
@@ -29,9 +30,35 @@ export type PropRow = {
   awayTeam?: string;
   gameStartTime?: string;
   eventId?: string;
+  provider?: string;
+  providerEventId?: string;
+  proplineEventId?: string;
+  proplinePlayerId?: string;
+  proplineOutcomeId?: string;
   live?: boolean;
   providerUpdatedAt?: string;
   updatedAt?: string;
+  period?: string;
+  periodKey?: string;
+  isAlternate?: boolean;
+  specialType?: string;
+  specialVerified?: boolean;
+  specialSideVerified?: boolean;
+  dfs?: boolean;
+  dfsOddsType?: string;
+  dfs_odds_type?: string;
+  multiplier?: number | string;
+  payoutMultiplier?: number | string;
+  lineGap?: number | string | null;
+  liquidity?: number | string | null;
+  liquidityUpdatedAt?: string;
+  providerOutcomeId?: string;
+  bookOutcomeId?: string;
+  bookEventId?: string;
+  bookUpdatedAt?: string;
+  lastChangeAt?: string;
+  lastSeenAt?: string;
+  conflict?: boolean;
 };
 
 export type BoardMeta = {
@@ -47,6 +74,7 @@ export type BoardMeta = {
 export type BoardResponse = {
   ok?: boolean;
   props?: PropRow[];
+  data?: { players?: Array<{ id: string; providerPlayerId?: string; position?: string; team?: string }> };
   meta?: BoardMeta;
   supportedSports?: string[];
   message?: string;
@@ -71,6 +99,7 @@ export type PropGroup = {
   matchup: string;
   startsAt: string | null;
   live: boolean;
+  period?: string | null;
   quotes: PropRow[];
   bestOver: PropRow | null;
   bestUnder: PropRow | null;

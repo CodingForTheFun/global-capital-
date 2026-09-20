@@ -6,12 +6,13 @@ import {ChevronRight} from 'lucide-react';
 import {fetchAccount} from '@/lib/api';
 import {PlayerHeadshot as VerifiedHeadshot} from '@/components/player-headshot';
 import {odds,shortTime} from '@/lib/utils';
-import {workspaceGet,WorkspaceError,booksFor,chooseOffer,toResearchGroup,expectedValue,type WorkspaceSport,type WorkspaceEvent,type WorkspacePlayer,type WorkspaceMarket,type WorkspaceOffer,type WorkspacePrediction,type WorkspaceHistory,type EventWorkspace} from '@/lib/workspace';
+import {workspaceGet,WorkspaceError,booksFor,chooseOffer,toResearchGroup,expectedValue,type WorkspaceSport,type WorkspaceEvent,type WorkspacePlayer,type WorkspaceMarket,type WorkspaceOffer,type WorkspacePrediction,type MarketReference,type WorkspaceHistory,type EventWorkspace} from '@/lib/workspace';
 import {SignInPanel} from '@/components/sign-in';
 import {PlayerView} from '@/components/player-view';
 import {PropExplorer,type ExplorerState} from '@/components/prop-explorer';
 import {GameLog} from '@/components/research';
 import {PremiumPlayerResearch} from '@/components/premium-player-research';
+import {QuoteHistory} from '@/components/quote-history';
 import {marketName} from '@/lib/market-display';
 import styles from './workspace.module.css';
 
@@ -152,23 +153,29 @@ function WorkspaceDetail({sport,eventId,playerKey,categoryKey}:{sport:string;eve
    <PropExplorer group={displayGroup} games={unavailable?[]:history?.gameLog||[]} loading={historyLoading} unavailableReason={unavailable} currentOpponent={history?.matchup?.opponent ?? null} hideBookFilter state={analysis} onState={next=>{if(next.side!==analysis.side){const quote=chooseOffer(market,selected.book,selected.line,next.side);if(quote?.side===next.side)setSelected(quote);}setAnalysis({...next,book:selected.book});}} favourite={favourite} onFavourite={toggleFavourite}/>
    {historyError&&<button className={styles.button} onClick={()=>setRetry(n=>n+1)}>Retry history</button>}
   </>:<p className={styles.status}>This is a {selected.choice} outcome, not a numeric Over/Under line. Its quote is preserved; a numeric history chart is not substituted.</p>}
-  model={<ModelPanel player={player} market={market} offer={selected} researchLine={analysis.line} researchSide={analysis.side}/>}
+  model={<ModelPanel key={JSON.stringify([player.key,market.key,selected.key])} player={player} market={market} offer={selected} researchLine={analysis.line} researchSide={analysis.side}/>}
+  quoteHistory={group?<QuoteHistory group={group} side={selected.side||analysis.side} book={selected.book}/>:null}
   gameLog={group&&history?.available&&!historyError?<GameLog games={history.gameLog||[]} line={analysis.line} market={marketName(market)} loading={historyLoading}/>:null}
  />;
 }
 function ModelPanel({player,market,offer,researchLine,researchSide}:{player:WorkspacePlayer;market:WorkspaceMarket;offer:WorkspaceOffer;researchLine:number;researchSide:string}){
+ const [reference,setReference]=React.useState<MarketReference|null>(null);
+ const [retry,setRetry]=React.useState(0);
  const [model,setModel]=React.useState<WorkspacePrediction|null>(null),[loading,setLoading]=React.useState(false),[error,setError]=React.useState(''),[now,setNow]=React.useState(Date.now());
  React.useEffect(()=>{const id=setInterval(()=>setNow(Date.now()),30000);return()=>clearInterval(id);},[]);
  React.useEffect(()=>{
-  const c=new AbortController();setModel(null);setError('');setLoading(true);
-  void workspaceGet<{prediction:WorkspacePrediction}>('model',{sport:player.sport,event:player.eventId,player:player.key,market:market.key,offer:offer.key},c.signal).then(body=>{if(!c.signal.aborted)setModel(body.prediction);}).catch(cause=>{if(!c.signal.aborted)setError(message(cause));}).finally(()=>{if(!c.signal.aborted)setLoading(false);});
+  const c=new AbortController();setModel(null);setReference(null);setError('');setLoading(true);
+  void workspaceGet<{prediction:WorkspacePrediction;marketReference?:MarketReference|null}>('model',{sport:player.sport,event:player.eventId,player:player.key,market:market.key,offer:offer.key},c.signal).then(body=>{if(!c.signal.aborted){setModel(body.prediction);setReference(body.marketReference||null);}}).catch(cause=>{if(!c.signal.aborted)setError(message(cause));}).finally(()=>{if(!c.signal.aborted)setLoading(false);});
   return()=>c.abort();
- },[player.key,player.sport,player.eventId,market.key,offer.key]);
+ },[player.key,player.sport,player.eventId,market.key,offer.key,retry]);
  const exact=offer.line!==null&&researchLine===offer.line&&researchSide===offer.side;
  const fresh=!!model?.expiresAt&&Number.isFinite(Date.parse(model.expiresAt))&&Date.parse(model.expiresAt)>now;
  const valid=exact&&fresh&&model?.available&&model.code==='READY'&&model.modelVersion&&model.validation?.method==='chronological-heldout-real-lines';
  const ev=valid?expectedValue(model,offer,now):null;
+ const referenceValid=exact&&reference?.available&&!!reference.expiresAt&&Date.parse(reference.expiresAt)>now&&reference.line===offer.line&&reference.side===offer.side&&reference.price===offer.price;
+ const referenceEv=referenceValid&&!offer.dfs&&reference.bookmaker===offer.book?reference.evPercent:null;
  return <section className={styles.panel} aria-label="Trained model prediction"><h2>Model prediction</h2>
-  {!valid?<p className={styles.muted}>{!exact?'Select a posted line to request an exact model forecast. The adjusted research line is not a book quote.':loading?'Checking the validated model registry…':error||(model?.available&&!fresh?'This forecast has expired and is not being reused.':model?.message)||'No trained model has passed validation for this selection yet.'}</p>:<><div className={styles.forecast}><span>Projection<strong>{typeof model.projection==='number'?model.projection.toFixed(2):'—'}</strong></span><span>Over<strong>{typeof model.probabilityOver==='number'?`${(model.probabilityOver*100).toFixed(1)}%`:'—'}</strong></span><span>Under<strong>{typeof model.probabilityUnder==='number'?`${(model.probabilityUnder*100).toFixed(1)}%`:'—'}</strong></span><span>Selected-quote EV<strong>{ev===null?'—':`${ev>0?'+':''}${ev.toFixed(1)}%`}</strong></span></div><p className={styles.muted}>Version {model.modelVersion} · Generated {shortTime(model.generatedAt)} · {model.validation?.events??'—'} held-out events. {offer.dfs?'DFS entry payouts are not treated as single-leg American odds.':'Pushes contribute zero profit to EV.'}</p></>}
+  {!valid&&referenceValid?<><div className={styles.forecast}><span>Market-implied projection<strong>{reference.projection===null?'Unavailable':reference.projection.toFixed(1)}</strong></span><span>Selected-quote market EV<strong>{referenceEv===null?offer.dfs?'Entry payout':'No estimate':`${referenceEv>0?'+':''}${referenceEv.toFixed(1)}%`}</strong></span></div><p className={styles.muted}>{reference.basis}{reference.booksContributing ? ` · ${reference.booksContributing} contributing books` : ''}. A market reference, not an independent model forecast.{reference.updatedAt ? ` Updated ${shortTime(reference.updatedAt)}.` : ''}</p></>:!valid?<p className={styles.muted}>{!exact?'Select a posted line to request an exact model forecast. The adjusted research line is not a book quote.':loading?'Checking the validated model registry…':error||(model?.available&&!fresh?'This forecast has expired and is not being reused.':model?.message)||'No trained model has passed validation for this selection yet.'}</p>:<><div className={styles.forecast}><span>Projection<strong>{typeof model.projection==='number'?model.projection.toFixed(2):'—'}</strong></span><span>Over<strong>{typeof model.probabilityOver==='number'?`${(model.probabilityOver*100).toFixed(1)}%`:'—'}</strong></span><span>Under<strong>{typeof model.probabilityUnder==='number'?`${(model.probabilityUnder*100).toFixed(1)}%`:'—'}</strong></span><span>Selected-quote EV<strong>{ev===null?'—':`${ev>0?'+':''}${ev.toFixed(1)}%`}</strong></span></div><p className={styles.muted}>Version {model.modelVersion} · Generated {shortTime(model.generatedAt)} · {model.validation?.events??'—'} held-out events. {offer.dfs?'DFS entry payouts are not treated as single-leg American odds.':'Pushes contribute zero profit to EV.'}</p></>}
+  {!loading&&<button type="button" className={styles.button} onClick={()=>setRetry(value=>value+1)}>Refresh forecast</button>}
  </section>;
 }

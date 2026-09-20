@@ -1,13 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import ts from 'typescript';
-
-const js=ts.transpileModule(
-  readFileSync(new URL('../lib/api.ts',import.meta.url),'utf8'),
-  {compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}
-).outputText;
-const {groupProps,fetchResearch}=await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+import { loadLib } from './load-lib.mjs';
+const {groupProps,fetchResearch}=await loadLib('api');
 
 test('PrizePicks fantasy line keeps source-qualified market identity and player role',()=>{
   const rows=[

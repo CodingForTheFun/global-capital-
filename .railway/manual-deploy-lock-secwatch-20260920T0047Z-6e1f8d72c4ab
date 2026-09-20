@@ -1,3 +1,2 @@
-deploy: preserve PropLine native identities and current reference schemas
-release-parent: 441b71347349562ec98d6c6e53e3db8db6380a52
-reason: repair verified quote metadata, null payout modifiers and exact-market reference matching; retain authentication, scheduler ownership, paid polling scope and deployment gates
+Reviewed release: PR #460 / 44f4c4ae6a700d6db9d980435402d950f10ff67a
+Deploy complete-game fantasy history recovery through existing Railway gates.

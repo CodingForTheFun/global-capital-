@@ -2,7 +2,8 @@
 /**
  * Prove — or disprove — that line history is actually accumulating.
  *
- * Reads recent `line_snapshots` straight from PostgREST, analyses them with
+ * Reads recent `line_snapshots` through the narrow token-protected proof RPC
+ * (or directly with a service-role key), analyses them with
  * lib/diagnostics/line-history.mjs, prints a report, and appends one JSON line
  * to a ledger so that running it daily builds the week-long evidence rather
  * than only ever showing a single moment.
@@ -11,9 +12,10 @@
  *
  *   node scripts/line-history-report.mjs [--days 7] [--limit 50000] [--json]
  *
- * Needs a Supabase URL plus either a service-role key or a publishable/anon key.
- * The report accepts both the legacy AUTOSCOUT_* names and the current Railway
- * SUPABASE_* publishable-key contract. Credential values are never printed.
+ * Needs a Supabase URL plus either a service-role key, or the existing
+ * publishable/anon key together with AUTOSCOUT_SUPABASE_INGEST_TOKEN. The
+ * report accepts both legacy AUTOSCOUT_* and current SUPABASE_* key names.
+ * Credential values are never printed.
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -27,21 +29,34 @@ const PUBLIC_KEY = text(
   process.env.SUPABASE_PUBLISHABLE_KEY ||
   process.env.SUPABASE_ANON_KEY,
 );
+const INGEST_TOKEN = text(process.env.AUTOSCOUT_SUPABASE_INGEST_TOKEN);
 
 /**
- * Which credential we get to read with, and whether it is actually allowed to
- * see rows.
+ * Which credential path we get to read with, and whether it is actually allowed
+ * to see rows.
  *
- * RLS on line_snapshots grants select to the `authenticated` role. A service
- * role key satisfies that; the publishable key authenticates as `anon` and gets
- * an empty set with HTTP 200 rather than a refusal. So with the publishable key
- * an empty result is genuinely ambiguous, and the report must say so instead of
- * announcing that history has stopped.
+ * Production intentionally does not grant anon broad SELECT on line_snapshots.
+ * When the existing ingest token is present, use a narrow SECURITY DEFINER RPC
+ * that validates that token and returns only recent proof rows. A service-role
+ * key remains a supported direct-read fallback for other environments.
  */
 function credential() {
-  if (SERVICE_KEY) return { key: SERVICE_KEY, tier: 'service', privileged: true };
-  if (PUBLIC_KEY) return { key: PUBLIC_KEY, tier: 'publishable', privileged: false };
-  return { key: '', tier: 'none', privileged: false };
+  if (SERVICE_KEY) {
+    return { key: SERVICE_KEY, tier: 'service', privileged: true, mode: 'table' };
+  }
+  if (PUBLIC_KEY && INGEST_TOKEN) {
+    return {
+      key: PUBLIC_KEY,
+      token: INGEST_TOKEN,
+      tier: 'token-rpc',
+      privileged: true,
+      mode: 'proof-rpc',
+    };
+  }
+  if (PUBLIC_KEY) {
+    return { key: PUBLIC_KEY, tier: 'publishable', privileged: false, mode: 'table' };
+  }
+  return { key: '', tier: 'none', privileged: false, mode: 'table' };
 }
 
 function flag(name, fallback) {
@@ -54,15 +69,38 @@ const days = flag('days', 7);
 const limit = flag('limit', 50_000);
 const asJson = process.argv.includes('--json');
 
-/** PostgREST pages at 1000 rows by default; walk it with Range headers. */
+/** Read a bounded recent proof set. Direct table reads remain paged for service-role use. */
 async function fetchSnapshots(sinceIso, cred) {
+  if (cred.mode === 'proof-rpc') {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/autoscout_line_history_proof`, {
+      method: 'POST',
+      headers: {
+        apikey: cred.key,
+        authorization: `Bearer ${cred.key}`,
+        accept: 'application/json',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_token: cred.token,
+        p_days: days,
+        p_limit: limit,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      throw new Error(`line history proof RPC failed with HTTP ${response.status}`);
+    }
+    const rows = await response.json();
+    return Array.isArray(rows) ? rows : [];
+  }
+
   const rows = [];
   const pageSize = 1000;
   for (let offset = 0; offset < limit; offset += pageSize) {
     const query = new URLSearchParams({
       select: 'prop_id,bookmaker_key,side,line,price,created_at',
       created_at: `gte.${sinceIso}`,
-      order: 'created_at.asc',
+      order: 'created_at.desc',
     });
     const response = await fetch(`${SUPABASE_URL}/rest/v1/line_snapshots?${query}`, {
       headers: {
@@ -150,7 +188,7 @@ async function main() {
   // a failure it did not actually observe.
   if (report.unverifiable) {
     console.error('\n  Cannot distinguish "no history" from "not allowed to read it".');
-    console.error('  Use a service-role credential or grant select on line_snapshots to the reading role.');
+    console.error('  Configure the token-protected proof RPC path or a service-role credential.');
     process.exit(3);
   }
   process.exit(report.ok ? 0 : 1);

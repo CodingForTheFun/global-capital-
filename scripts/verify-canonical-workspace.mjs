@@ -23,7 +23,7 @@ try{
  for(const [name,viewport] of [['mobile390',{width:390,height:844}],['desktop1440',{width:1440,height:1000}]]){
   const context=await browser.newContext({viewport,reducedMotion:'reduce'}),page=await context.newPage(),errors=[],targets=[];
   page.on('pageerror',e=>errors.push(e.message));
-  let failHistory=false;
+  let failHistory=0,historyRequests=0;
   await page.route('**/api/**',async route=>{
    const u=new URL(route.request().url());let body,status=200;
    if(u.pathname==='/api/account/me')body={authenticated:true,user:{id:'fixture-user'}};
@@ -33,7 +33,8 @@ try{
     else if(action==='events')body={ok:true,events:[f.event]};
     else if(action==='event')body=f;
     else if(action==='history'){
-     if(failHistory){failHistory=false;status=502;body={ok:false,message:'Fixture transient history failure'};}
+     historyRequests++;
+     if(failHistory>0){failHistory--;status=502;body={ok:false,message:'Fixture transient history failure'};}
      else if(u.searchParams.get('market')==='half')body={ok:true,available:false,message:'Exact period history unavailable.',gameLog:[]};
      else body={ok:true,available:true,source:'Synthetic UI test fixture',gameLog:Array.from({length:20},(_,i)=>({gameId:`test-${i}`,date:`2049-09-${String(28-i).padStart(2,'0')}T00:00:00Z`,opponent:'Test Opponent',value:sport==='golf'?(i%5)-3:i%2?60:40,isHome:i%2===0,season:2049}))};
     }else if(action==='model'){targets.push(u.searchParams.get('offer'));body={ok:true,prediction:{available:true,code:'READY',modelVersion:'SYNTHETIC-TEST-ONLY',projection:52,probabilityOver:.5,probabilityUnder:.4,probabilityPush:.1,generatedAt:new Date().toISOString(),expiresAt:new Date(Date.now()+600000).toISOString(),validation:{method:'chronological-heldout-real-lines',events:100}}};}
@@ -52,9 +53,12 @@ try{
   await page.getByRole('button',{name:'Select PrizePicks',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='45.5');
   assert.ok(await page.getByLabel('Trained model prediction').innerText().then(t=>!t.includes('Selected-quote EV\n+')),'no synthetic DFS singles EV');
-  failHistory=true;await page.getByLabel('Player stat category').selectOption('receptions');
+  // Exhaust both bounded automatic attempts before asserting the manual recovery UI.
+  failHistory=2;const beforeFailure=historyRequests;await page.getByLabel('Player stat category').selectOption('receptions');
   await page.getByRole('button',{name:'Retry history',exact:true}).waitFor();
+  assert.equal(historyRequests-beforeFailure,2,'history automatically retries at most once');
   await page.getByRole('button',{name:'Retry history',exact:true}).click();await page.locator('.op-chart-bar').first().waitFor();
+  assert.equal(historyRequests-beforeFailure,3,'manual retry performs a new successful request');
   await page.getByLabel('Player stat category').selectOption('half');
   await page.getByText('Exact period history unavailable.',{exact:true}).waitFor();
   assert.equal(await page.locator('.op-sample').count(),0,'compact unavailable history instead of empty stat tiles');

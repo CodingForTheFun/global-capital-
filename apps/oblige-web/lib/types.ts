@@ -143,6 +143,9 @@ export type ResearchResponse = {
   streak?: { count?: number | null; type?: string | null } | number | null;
   diff?: number | null;
   gameLog?: GameLogRow[];
+  /** Verified public team directory for this league. Used only to populate the
+   * opponent picker; it never creates history rows or changes hit rates. */
+  leagueTeams?: Array<{ id?: string; abbreviation?: string; name?: string }>;
   coverage?: Record<string, unknown>;
 };
 

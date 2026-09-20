@@ -1,4 +1,4 @@
-deploy: PropLine current market metadata
-source-pr: #400
-release-sha: 3f09434f10c8c18782308201ecf003eccc3d5acb
-reason: trigger autoprop-live exact watched release lock after green release checks
+deploy: canonical verified-history fallback with source-event exclusion
+source-pr: #401
+base-release: production-stable
+reason: trigger autoprop-live exact watched release lock after current-head green release and review gates

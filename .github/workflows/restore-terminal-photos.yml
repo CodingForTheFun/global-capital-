@@ -25,7 +25,7 @@ jobs:
         working-directory: apps/oblige-web
       - name: Unit tests, TypeScript, production build
         working-directory: apps/oblige-web
-        run: node --test tests/player-headshots.test.mjs tests/workspace.test.mjs && npm run typecheck && npm run build
+        run: node --test tests/*.test.mjs && npm run typecheck && npm run build
       - run: npx playwright install --with-deps chromium
       - name: Previous mobile/desktop board and existing research interactions
         run: |
@@ -68,12 +68,14 @@ jobs:
               try{
                 const response=await fetch(origin+'/board?verify=restored-terminal',{signal:AbortSignal.timeout(10000),redirect:'error',cache:'no-store'});
                 const html=await response.text();
-                report.board={status:response.status,restoredTitle:html.includes('<title>Research Terminal'),imageCsp:response.headers.get('content-security-policy')?.match(/img-src[^;]*/)?.[0]||null};
-                if(response.ok&&report.board.restoredTitle)break;
+                const healthResponse=await fetch(origin+'/api/frontend-health',{signal:AbortSignal.timeout(10000),redirect:'error',cache:'no-store'});
+                const health=await healthResponse.json();
+                report.board={status:response.status,boardSurface:html.includes('<meta name="oblige-surface" content="prop-board"'),revision:health.revision||null,exactRelease:healthResponse.ok&&health.service==='oblige-web'&&health.revision===process.env.GITHUB_SHA,imageCsp:response.headers.get('content-security-policy')?.match(/img-src[^;]*/)?.[0]||null};
+                if(response.ok&&report.board.boardSurface&&report.board.exactRelease)break;
               }catch(e){report.board={status:'UNVERIFIABLE',error:e.name};}
               if(attempt<11)await new Promise(r=>setTimeout(r,12000));
             }
-            assert.ok(report.board?.restoredTitle,'public /board must serve the restored route, not the rejected workspace');
+            assert.ok(report.board?.status===200&&report.board.boardSurface&&report.board.exactRelease,'public /board must serve the prop-board surface on the exact expected frontend release');
             // ESPN primary player identity: https://www.espn.com/nfl/player/_/id/3139477/patrick-mahomes
             // This checks delivery only; it is not a prop fixture or model data.
             const photos=[

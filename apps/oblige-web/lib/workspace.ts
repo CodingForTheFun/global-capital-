@@ -1,4 +1,5 @@
 import type { PropGroup, ResearchResponse, Side } from './types';
+import { ApiError, getJson } from './api';
 export type WorkspaceSport={key:string;title:string;active:boolean};
 export type WorkspaceEvent={id:string;sport:string;startsAt:string|null;homeTeam:string|null;awayTeam:string|null;status:string|null;aliases:string[]};
 export type WorkspaceOffer={key:string;outcomeId:string|null;book:string;bookName:string;line:number|null;choice:string;side:Side|null;price:number|null;multiplier:number|null;updatedAt:string|null;dfs:boolean;conflict:boolean};
@@ -9,15 +10,19 @@ export type EventWorkspace={ok:boolean;event:WorkspaceEvent;players:WorkspacePla
 export type WorkspaceHistory=ResearchResponse & {sourceStat?:string};
 export class WorkspaceError extends Error { constructor(message:string,public status:number){super(message);this.name='WorkspaceError';} }
 export async function workspaceGet<T>(action:string,params:Record<string,string>={},signal?:AbortSignal):Promise<T>{
- const controller=new AbortController();const abort=()=>controller.abort();
- if(signal?.aborted)throw new DOMException('Aborted','AbortError');
- signal?.addEventListener('abort',abort,{once:true});const timer=setTimeout(abort,45000);
+ // Keep the existing 45s research allowance. A retry shares that total budget,
+ // rather than cutting a healthy slow lookup short or doubling its deadline.
  try{
-  const response=await fetch(`/api/oblige-workspace?${new URLSearchParams({action,...params})}`,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
-  const body=await response.json().catch(()=>null);
-  if(!response.ok||!body||body.ok===false)throw new WorkspaceError(body?.message||'This data could not be loaded.',response.status);
+  const body=await getJson<T & {ok?:boolean;message?:string}>(`/api/oblige-workspace?${new URLSearchParams({action,...params})}`,signal,45000,45000);
+  if(body.ok===false)throw new WorkspaceError(body.message||'This data could not be loaded.',200);
   return body as T;
- }finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
+ }catch(error){
+  if(error instanceof ApiError){
+   if(error.code==='ABORTED')throw new DOMException('Aborted','AbortError');
+   throw new WorkspaceError(error.message,error.status);
+  }
+  throw error;
+ }
 }
 export function booksFor(market:WorkspaceMarket){return [...new Map(market.offers.map(o=>[o.book,{key:o.book,name:o.bookName}])).values()].sort((a,b)=>a.name.localeCompare(b.name));}
 export function chooseOffer(market:WorkspaceMarket,book:string|null,line:number|null,side:Side='OVER'){

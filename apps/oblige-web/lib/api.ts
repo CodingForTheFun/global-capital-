@@ -62,25 +62,38 @@ function wait(ms: number, signal?: AbortSignal) {
   });
 }
 
-async function fetchGet(path: string, parentSignal?: AbortSignal) {
+async function fetchGet(path: string, parentSignal?: AbortSignal, timeoutMs = GET_TIMEOUT_MS) {
   if (parentSignal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
 
   const controller = new AbortController();
   const abortFromParent = () => controller.abort();
   parentSignal?.addEventListener('abort', abortFromParent, { once: true });
-  const timeout = setTimeout(() => controller.abort(), GET_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(path, {
+    const response = await fetch(path, {
       credentials: 'same-origin',
       cache: 'no-store',
       signal: controller.signal,
     });
-  } catch {
+    // Keep cancellation and the deadline active until the body is consumed.
+    // Headers alone do not mean that research finished loading.
+    const raw = await response.text();
+    let body: Record<string, unknown> = {};
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid JSON envelope');
+      body = parsed as Record<string, unknown>;
+    } catch {
+      if (response.ok) throw new ApiError('The service returned an incomplete response. Please retry.', response.status, 'INVALID_RESPONSE');
+    }
+    return { response, body };
+  } catch (error) {
     if (parentSignal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
     if (controller.signal.aborted) {
       throw new ApiError('Oblige Props took too long to respond.', 0, 'TIMEOUT');
     }
+    if (error instanceof ApiError) throw error;
     throw new ApiError('Oblige Props could not be reached.', 0, 'NETWORK');
   } finally {
     clearTimeout(timeout);
@@ -94,22 +107,35 @@ async function fetchGet(path: string, parentSignal?: AbortSignal) {
  * never retries auth/client errors. This gives the UI a calmer failure mode
  * without increasing normal polling frequency or touching provider logic.
  */
-async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function getJson<T>(path: string, signal?: AbortSignal, timeoutMs = GET_TIMEOUT_MS, totalTimeoutMs?: number): Promise<T> {
+  const deadline = totalTimeoutMs === undefined ? Infinity : Date.now() + totalTimeoutMs;
+  const remaining = () => Math.max(0, deadline - Date.now());
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await fetchGet(path, signal);
-    const body = (await response.json().catch(() => ({}))) as T & { message?: string; code?: string };
+    if (signal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
+    if (remaining() <= 0) throw new ApiError('Oblige Props took too long to respond.', 0, 'TIMEOUT');
+    let result: Awaited<ReturnType<typeof fetchGet>>;
+    try {
+      result = await fetchGet(path, signal, Math.min(timeoutMs, remaining()));
+    } catch (error) {
+      if (attempt === 0 && error instanceof ApiError && ['TIMEOUT', 'NETWORK', 'INVALID_RESPONSE'].includes(error.code)) {
+        await wait(Math.min(450, remaining()), signal);
+        continue;
+      }
+      throw error;
+    }
+    const { response, body } = result;
 
-    if (response.ok) return body;
+    if (response.ok) return body as T;
 
     if (attempt === 0 && RETRYABLE_GET_STATUSES.has(response.status)) {
-      await wait(retryAfterMs(response, attempt), signal);
+      await wait(Math.min(retryAfterMs(response, attempt), remaining()), signal);
       continue;
     }
 
     throw new ApiError(
-      body?.message || 'That request could not be completed.',
+      typeof body.message === 'string' ? body.message : 'That request could not be completed.',
       response.status,
-      body?.code || 'REQUEST_FAILED',
+      typeof body.code === 'string' ? body.code : 'REQUEST_FAILED',
     );
   }
 
@@ -289,7 +315,9 @@ export async function fetchResearch(
   if (cached) researchCache.delete(path);
 
   const value = await getJson<ResearchResponse>(path, signal);
-  rememberResearch(path, value);
+  // A provider miss is not a successful sample: an explicit UI retry must
+  // reach the service instead of replaying the same unavailable cache entry.
+  if (value.available !== false) rememberResearch(path, value);
   return value;
 }
 

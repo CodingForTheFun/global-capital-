@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTypeSafeClient, verifyTypeSafeConnection } from '../lib/typesafe.ts';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+if (!process.execArgv.includes('--conditions=react-server')) {
+  test('server-only TypeSafe connection regressions', () => {
+    const result = spawnSync(process.execPath, [
+      '--conditions=react-server', '--experimental-strip-types', '--test', fileURLToPath(import.meta.url),
+    ], { encoding: 'utf8', timeout: 30000 });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  });
+} else {
+const { createTypeSafeClient, verifyTypeSafeConnection } = await import('../lib/typesafe.ts');
 
 test('missing key makes no provider call', async () => {
   assert.equal(createTypeSafeClient('  '), null);
@@ -43,3 +54,5 @@ test('malformed answer cannot be reported as connected', async () => {
   const client = createTypeSafeClient('test-secret', async () => Response.json({ answers: {} }));
   assert.notEqual((await verifyTypeSafeConnection(client)).status, 'connected');
 });
+
+}

@@ -71,3 +71,13 @@ test('source failure, unsupported sport and old event stay unavailable without e
  assert.equal((await client.matchup(target)).available,false);assert.equal(calls,1);
 });
 test('matchup route is covered by the existing research account gate',()=>{assert.equal(gatedApi('/api/apex/research-matchup'),true);});
+
+test('pregame odds retain source numbers and closing prices never become live odds',()=>{
+ const {summary}=fixture();summary.pickcenter=[{provider:{name:'Fixture book'},homeTeamOdds:{moneyLine:-140},awayTeamOdds:{moneyLine:120},details:'CIN -3.5',overUnder:44.5}];
+ const r=run(summary);assert.equal(r.odds.homeMoneyline,-140);assert.equal(r.odds.awayMoneyline,120);assert.equal(r.odds.total,44.5);
+ summary.header.competitions[0].status.type.state='post';assert.equal(run(summary).odds.available,false);
+});
+test('bench membership requires an explicit non-starter designation',()=>{
+ const {summary}=fixture();summary.rosters=[{team:{id:'4'},homeAway:'home',roster:[{athlete:{id:'12',displayName:'Verified bench'},starter:false},{athlete:{id:'13',displayName:'Unclassified player'}}]}];
+ const r=run(summary);assert.equal(r.teams[0].lineup.bench.length,1);assert.equal(r.teams[0].lineup.bench[0].status,'Status not reported');
+});

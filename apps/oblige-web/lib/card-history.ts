@@ -11,7 +11,7 @@ export function cardHistory(response: ResearchResponse | null | undefined, group
     const count = finiteNumber(window?.sampleSize ?? window?.games);
     const raw = finiteNumber(window?.hitRate);
     if (window?.available !== false && count !== null && count > 0 && raw !== null && raw >= 0 && raw <= 100) {
-      return { label, value: raw <= 1 ? raw * 100 : raw, percent: true, sample: count, note: window?.partial ? 'Partial sample' : undefined };
+      return { label, value: raw, percent: true, sample: count, note: window?.partial ? 'Partial sample' : undefined };
     }
     if (take && games.length) {
       const w = computeWindow(games, group.line, 'OVER', label, label, take);

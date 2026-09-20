@@ -22,8 +22,15 @@ test('season and H2H require their verified provider summaries',()=>{
  let tiles=cardHistory({available:true,gameLog},group);
  assert.equal(tiles.find(m=>m.label==='SZN').value,null);
  assert.equal(tiles.find(m=>m.label==='H2H').value,null);
- tiles=cardHistory({available:true,gameLog,windows:{season:{available:true,hitRate:.6,games:50},last5:{available:false,hitRate:1,games:5}},h2h:{hitRate:.25,games:4}},group);
+ tiles=cardHistory({available:true,gameLog,windows:{season:{available:true,hitRate:60,games:50},last5:{available:false,hitRate:1,games:5}},h2h:{hitRate:25,games:4}},group);
  assert.equal(tiles.find(m=>m.label==='SZN').value,60);
  assert.equal(tiles.find(m=>m.label==='H2H').value,25);
  assert.equal(tiles.find(m=>m.label==='L5').value,100);
+});
+
+test('the research API uses percentage units: one percent never becomes 100 percent',()=>{
+ const metrics=cardHistory({available:true,windows:{season:{games:100,hits:1,hitRate:1},last10:{games:10,hits:0,hitRate:0}},h2h:{games:100,hits:1,hitRate:1}},group);
+ assert.equal(metrics.find(m=>m.label==='SZN').value,1);
+ assert.equal(metrics.find(m=>m.label==='H2H').value,1);
+ assert.equal(metrics.find(m=>m.label==='L10').value,0);
 });

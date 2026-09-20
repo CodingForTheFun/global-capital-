@@ -127,7 +127,7 @@ export function PremiumBoard() {
       <div className={styles.resultBar}><span>{loading?'Loading slate…':`${filtered.length.toLocaleString()} players`} <i>·</i> {sport}</span><span>{meta.stale?'Cached feed':'Latest board snapshot'}</span></div>
       {error&&<div className={styles.empty} role="alert"><strong>We couldn’t load this slate.</strong><p>{error}</p><button onClick={()=>setRefresh(value=>value+1)}>Try again</button></div>}
       {loading&&<div className={styles.cards} aria-label="Loading props" aria-busy="true">{[0,1,2,3].map(value=><div key={value} className={styles.skeleton}><div/><div/><div/></div>)}</div>}
-      {!loading&&!error&&page.length>0&&<div className={styles.tableWrap}><table className={styles.table} aria-label="Player props"><thead><tr><th>Player</th><th>Matchup</th><th>Stat</th><th>Line</th><th>Odds</th><th>Proj</th><th>EV%</th><th>Hit rate</th><th>Books</th><th>Research</th></tr></thead><tbody>{page.map(group=>{
+      {!loading&&!error&&page.length>0&&<div className={styles.tableWrap} role="region" aria-label="Scrollable prop comparison" tabIndex={0}><table className={styles.table} aria-label="Player props"><thead><tr><th>Player</th><th>Matchup</th><th>Stat</th><th>Line</th><th>Odds</th><th>Proj</th><th>EV%</th><th>Hit rate</th><th>Books</th><th>Research</th></tr></thead><tbody>{page.map(group=>{
         const result=research[group.key], hit=cardHistory(result,group).find(metric=>metric.label==='L10'), savedCard=isSavedCard(group,saved);
         const badges=[...new Map(group.specialVariants.map(item=>[quoteVariant(item.quotes[0]),item])).values()];
         const books=[...new Map(group.quotes.map(quote=>[quoteBook(quote),quote])).entries()];

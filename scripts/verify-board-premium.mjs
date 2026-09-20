@@ -63,7 +63,13 @@ try{
   await page.locator('[data-label="Hit rate"] > div > span').first().filter({hasText:/[0-9]/}).waitFor();
   assert.equal(modelCalls,0,'Initial board never waits for or requests optional models');
   assert.equal(await page.locator('[data-design="alpha"]').count(),1,'Alpha is the shared board layout');
-  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Cards fit viewport');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Table scroll stays inside viewport');
+  const comparison=page.getByRole('region',{name:'Scrollable prop comparison'});
+  const alphaLayout=await comparison.evaluate(el=>({scroll:el.scrollWidth,client:el.clientWidth,row:getComputedStyle(el.querySelector('tbody tr')).display,head:getComputedStyle(el.querySelector('thead')).display,bar:el.querySelector('td[data-label="Hit rate"] i').getBoundingClientRect().width}));
+  assert.equal(alphaLayout.row,'table-row','Alpha keeps continuous rows on mobile');
+  assert.equal(alphaLayout.head,'table-header-group','Alpha keeps visible column headings');
+  assert.ok(alphaLayout.bar>0,'Alpha hit-rate bars remain visible');
+  if(width<980)assert.ok(alphaLayout.scroll>alphaLayout.client,'Swipe reveals the remaining Alpha columns');
   await page.screenshot({path:`${out}/width-${width}-cards.png`,fullPage:true});
   if(width===390||width===1440)console.log(`REFERENCE_CARDS_${width}=`+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
   const researchButton=card.getByRole('button',{name:'Research',exact:true});

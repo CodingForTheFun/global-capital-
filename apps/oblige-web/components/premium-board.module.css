@@ -181,6 +181,8 @@
 }
 
 .tableWrap {
+  max-width: 100%;
+  overscroll-behavior-x: contain;
   position: relative;
   overflow-x: auto;
   border: 1px solid #1c2a3c;
@@ -541,7 +543,7 @@
   }
 }
 
-/* Alpha presentation, with working shared controls and responsive rows. */
+/* Alpha: continuous comparison table at every viewport; only its frame scrolls. */
 .shell { min-width:0; }
 .shell button, .shell a { -webkit-tap-highlight-color:transparent; }
 .shell button { cursor:pointer; }
@@ -569,13 +571,13 @@
 .resultBar i { font-style:normal; margin:0 6px; }
 .table { min-width:1150px; }
 .table th { padding-inline:10px; }
-.table th:nth-child(1) { width:19%; }.table th:nth-child(2) { width:13%; }.table th:nth-child(3) { width:14%; }.table th:nth-child(4) { width:5%; }.table th:nth-child(5) { width:7%; }.table th:nth-child(6) { width:7%; }.table th:nth-child(7) { width:7%; }.table th:nth-child(8) { width:11%; }.table th:nth-child(9) { width:9%; }.table th:nth-child(10) { width:8%; }
+.table th:nth-child(1) { width:18%; }.table th:nth-child(2) { width:15%; }.table th:nth-child(3) { width:11%; }.table th:nth-child(4) { width:5%; }.table th:nth-child(5) { width:7%; }.table th:nth-child(6) { width:7%; }.table th:nth-child(7) { width:7%; }.table th:nth-child(8) { width:14%; }.table th:nth-child(9) { width:10%; }.table th:nth-child(10) { width:6%; }
 .table td { padding:10px; font-size:12px; }
 .player { gap:4px; }
 .identity { display:flex; align-items:center; min-width:0; flex:1; gap:9px; border:0; padding:0; background:none; text-align:left; color:inherit; }
 .identity>span:first-child { flex:none; width:42px; height:42px; }
 .identity>span:last-child { min-width:0; }
-.player b { white-space:normal; line-height:1.35; overflow-wrap:anywhere; }
+.player b { white-space:nowrap; line-height:1.35; }
 .save { display:grid; place-items:center; flex:0 0 32px; width:32px; min-height:44px; border:0; background:none; color:#8396ac; padding:0; }
 .save[aria-pressed=true] { color:#65e8b3; }
 .matchup { font-size:11px; line-height:1.4; }
@@ -587,9 +589,9 @@
 .forecastCell strong,.ev strong { font-size:11px; font-weight:600; overflow-wrap:anywhere; }
 .historyCell small { white-space:normal!important; line-height:1.4; max-height:56px; overflow:auto!important; }
 .historyCell button { border:0; background:none; color:#65e8b3; min-height:36px; font-size:10px; padding:0; }
-.hit { flex-wrap:wrap; gap:5px; }
+.hit { flex-wrap:nowrap; gap:10px; }
 .hit span { font-size:12px; }
-.hit i { width:58px; }
+.hit i { width:74px; min-width:24px; flex:0 1 74px; }
 .books { flex-wrap:wrap; gap:4px; }
 .books a { display:grid; place-items:center; min-width:30px; height:32px; border:1px solid #24354c; border-radius:8px; background:#101d2e; color:#b9c8da; font-family:var(--font-mono); font-size:9px; text-decoration:none; }
 .books a[data-book=prizepicks] { color:#c5a4ff; border-color:#634890; }.books a[data-book=draftkings] { color:#78dfab; }
@@ -601,29 +603,7 @@
 .empty { display:block; padding:35px 18px; }.empty strong { color:#cbd8e9; }.empty p { margin:10px 0; }.empty button { min-height:44px; padding:0 14px; border:1px solid #3d8c6e; border-radius:10px; background:#153c2d; color:#a4edcd; }
 .cards { display:grid; gap:10px; }.skeleton { height:80px; border:1px solid #203148; border-radius:12px; background:linear-gradient(110deg,#0b1726,#17283b,#0b1726); }
 @media(max-width:980px) {
- .tableWrap { overflow:visible; border:0; background:none; box-shadow:none; }
- .table,.table tbody { display:block; min-width:0; width:100%; }
- .table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
- .table tbody { display:grid; gap:12px; }
- .table tbody tr { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border:1px solid #24354a; border-radius:13px; padding:10px 12px; background:#091522; }
- .table td { height:auto; min-width:0; padding:7px 5px; border:0; font-size:13px; }
- .table td[data-label]::before { content:attr(data-label); display:block; color:#788ba3; font-size:9px; margin-bottom:4px; }
- .table .playerCell { grid-column:1/-1; padding:0 0 5px; }
- .table .matchupCell { grid-column:1/-1; display:flex; gap:9px; align-items:baseline; padding:3px 0 7px; }
- .table .matchupCell::before { display:none; }
- .table .matchupCell small { flex:none; font-size:9px; }
- .table .matchup { font-size:10px; overflow-wrap:anywhere; }
- .table .statCell { grid-column:span 2; }.table .statCell>button { min-height:24px; }
- .table .forecastCell,.table .ev { grid-column:span 1; }
- .table .historyCell { grid-column:span 2; }
- .table .bookCell { grid-column:1/-1; border-top:1px solid #203046; margin-top:6px; }
- .table .bookCell small { display:inline-block; margin-top:6px; }
- .table .actions { grid-column:1/-1; display:flex; gap:18px; justify-content:flex-end; border-top:1px solid #203046; padding:3px 0 0; }
- .actions button { width:auto; min-height:40px; padding:0 8px; font-size:11px; }
- .player b { font-size:15px; }.player img { width:42px; height:42px; }.identity>span:first-child { width:42px; height:42px; }
- .table td.forecastCell small { white-space:normal; font-size:8px; line-height:1.4; }
- .historyCell small { max-height:42px; }
- .books a { min-width:36px; height:36px; }.hit i { width:64px; }
+ .table { min-width:1120px; }
 }
 @media(max-width:640px) {
  .shell { padding:10px 10px 82px; }.heading { margin-bottom:10px; }.heading h1 { font-size:17px; }
@@ -634,5 +614,5 @@
  .filters { margin:10px 0 0; padding:0; }.filterPill { flex-basis:calc(50% - 8px); }.filterPill select { font-size:16px; }.moreSports select { font-size:16px; }
  .resultBar { font-size:9px; }.resultBar>span:last-child { font-size:8px; }
  .table .statCell { font-size:11px; }.statCell>small { font-size:9px; }.odds { min-width:0; font-size:11px; }
- .table tbody tr { padding:10px; }.variant { min-height:30px; }.footnote { font-size:9px; }
+ .table { min-width:980px; }.variant { min-height:30px; }.footnote { font-size:9px; }
 }

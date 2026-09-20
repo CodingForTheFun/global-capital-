@@ -151,15 +151,15 @@ export function PremiumBoard() {
         <button className={styles.savedToggle} aria-label="Show saved props" aria-pressed={savedOnly} onClick={()=>setSavedOnly(value=>!value)}><Star size={18} fill={savedOnly?'currentColor':'none'}/></button>
       </div>
       <div id="board-filters" className={styles.filters}>
-        <SelectPill label="Opponent" value={opponent} onChange={setOpponent} options={choices(options.opponents,'Any opponent')}/>
-        <SelectPill label="Stat" value={market} onChange={setMarket} options={[{value:ALL,label:'All stats'},...options.markets]}/>
-        <SelectPill label="Season" value={season} onChange={setSeason} options={choices(options.seasons,'All seasons')}/>
-        <SelectPill label="Home/Away" value={venue} onChange={setVenue} options={[{value:ALL,label:'Home & away'},{value:'home',label:'Home'},{value:'away',label:'Away'}]}/>
-        <SelectPill label="Team" value={team} onChange={setTeam} options={choices(options.teams,'Any team')}/>
-        <SelectPill label="Book" value={book} onChange={setBook} options={choices(options.books,'All books')}/>
-        <SelectPill label="Line" value={line} onChange={setLine} options={choices(options.lines,'Any line')}/>
-        <SelectPill label="More" value={variant} onChange={setVariant} options={[{value:ALL,label:'All prop types'},{value:'standard',label:'Standard'},{value:'goblin',label:'Green Goblin'},{value:'demon',label:'Red Demon'},{value:'boost',label:'Underdog boost'},{value:'discount',label:'Underdog discount'},{value:'alternate',label:'Alternates'}]}/>
-        <SelectPill label="EV% Sort" value={sort} onChange={setSort} options={[{value:'EV',label:'Highest EV'},{value:'PLAYER',label:'Player A–Z'},{value:'LINE',label:'Highest line'}]}/>
+        <SelectPill label="Opponent" value={opponent} onChange={setOpponent} options={choices(options.opponents,'Opponent')}/>
+        <SelectPill label="Stat" value={market} onChange={setMarket} options={[{value:ALL,label:'Stat'},...options.markets]}/>
+        <SelectPill label="Season" value={season} onChange={setSeason} options={choices(options.seasons,'Season')}/>
+        <SelectPill label="Home/Away" value={venue} onChange={setVenue} options={[{value:ALL,label:'Home/Away'},{value:'home',label:'Home'},{value:'away',label:'Away'}]}/>
+        <SelectPill label="Team" value={team} onChange={setTeam} options={choices(options.teams,'Team')}/>
+        <SelectPill label="Book" value={book} onChange={setBook} options={choices(options.books,'Book')}/>
+        <SelectPill label="Line" value={line} onChange={setLine} options={choices(options.lines,'Line')}/>
+        <SelectPill label="More" value={variant} onChange={setVariant} options={[{value:ALL,label:'More'},{value:'standard',label:'Standard'},{value:'goblin',label:'Green Goblin'},{value:'demon',label:'Red Demon'},{value:'boost',label:'Underdog boost'},{value:'discount',label:'Underdog discount'},{value:'alternate',label:'Alternates'}]}/>
+        <SelectPill label="EV% Sort" value={sort} onChange={setSort} options={[{value:'EV',label:'EV% Sort'},{value:'PLAYER',label:'Player A–Z'},{value:'LINE',label:'Highest line'}]}/>
         <button className={styles.reset} onClick={()=>{setMarket(ALL);setOpponent(ALL);setTeam(ALL);setSeason(ALL);setBook(ALL);setLine(ALL);setVariant(ALL);setVenue(ALL);setSort('EV');}}>Reset filters</button>
       </div>
       <div className={styles.resultBar}><span>{loading?'Loading slate…':`${filtered.length.toLocaleString()} players`} <i>·</i> {sport}</span><span>{meta.stale?'Cached feed':'Latest board snapshot'}</span></div>

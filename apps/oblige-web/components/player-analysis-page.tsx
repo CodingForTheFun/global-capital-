@@ -1,7 +1,8 @@
 'use client';
 import * as React from 'react';
 import { Target } from 'lucide-react';
-import { PremiumPlayerResearch, type PremiumPlayerResearchProps } from './premium-player-research';
+import type { PremiumPlayerResearchProps } from './premium-player-research';
+import { PlayerPropDeepDiveCard } from './player-prop-deep-dive-card';
 import { DefenseVsPosition } from './defense-vs-position';
 import { AnalysisGameLog } from './analysis-game-log';
 import { MatchContext } from './match-context';
@@ -37,5 +38,5 @@ export function PlayerAnalysisPage({analysis,...props}:PremiumPlayerResearchProp
     {group&&<MatchContext key={JSON.stringify([sport,props.player.eventId])} group={group}/>}
     <AnalysisGameLog games={games} line={line} side={props.side} sport={sport} market={marketName(props.market)} loading={loading}/>
   </div>;
-  return <PremiumPlayerResearch {...props} supporting={averages} gameLog={undefined} analysisSections={sections}/>;
+  return <PlayerPropDeepDiveCard analysis={analysis} {...props} supporting={averages} gameLog={undefined} analysisSections={sections}/>;
 }

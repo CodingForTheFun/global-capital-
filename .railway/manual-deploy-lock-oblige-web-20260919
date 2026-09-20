@@ -1,1 +1,1 @@
-Dense props board gated release: source PR #473 merged at 98f89d4292c9fcd157187028c91afae768667af4. Frontend path marker included so all required push verification workflows run before Railway rollout.
+Dense props board acceptance release: source PR #473 plus updated synthetic acceptance for NBA default, always-visible filters, More, Season, EV% Sort, and chevron research action. Run all guarded frontend workflows before Railway rollout.

@@ -1,4 +1,5 @@
 deploy: verified full-league opponent picker
 source-pr: #431
+recovery-pr: #432
 release-sha: 8c61994937475ba2d31a7caff82394440c04890d
-reason: current watched Railway release lock after green opponent-directory checks
+reason: reviewed Railway release request after green opponent-directory checks and serialized-parent recovery

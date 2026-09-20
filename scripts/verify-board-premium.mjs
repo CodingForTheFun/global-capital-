@@ -58,21 +58,26 @@ try{
   });
   // Use the actual deployed board's click handler, not a handcrafted canonical URL.
   await page.goto(base+'/board',{waitUntil:'domcontentloaded'});
+  await page.getByRole('button',{name:'NBA',exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'NBA',exact:true}).getAttribute('aria-pressed'),'true','NBA is the default active league');
+  modelCalls=0;await page.getByRole('button',{name:'NFL',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('button[aria-pressed="true"]')?.textContent?.trim()==='NFL');
   const card=page.locator('[data-player-card]:visible').first();await card.waitFor({timeout:30000});
   assert.equal(await page.locator('[data-player-card]:visible').count(),1,'Existing cross-book deduplication is preserved');
   await page.locator('[data-label="Hit rate"] > div > span').first().filter({hasText:/[0-9]/}).waitFor();
-  assert.equal(modelCalls,0,'Initial board never waits for or requests optional models');
-  assert.equal(await page.locator('[data-design="alpha"]').count(),1,'Alpha is the shared board layout');
+  await page.locator('[data-label="Proj"]').filter({hasText:'24.0'}).first().waitFor();
+  assert.ok(modelCalls>=1&&modelCalls<=2,'Initial board uses only bounded visible-page model batches for PROJ/EV');
+  assert.equal(await page.locator('[data-design="modern-dense"]').count(),1,'Modern dense board is the shared board layout');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Table scroll stays inside viewport');
   const comparison=page.getByRole('region',{name:'Scrollable prop comparison'});
   const alphaLayout=await comparison.evaluate(el=>({scroll:el.scrollWidth,client:el.clientWidth,row:getComputedStyle(el.querySelector('tbody tr')).display,head:getComputedStyle(el.querySelector('thead')).display,bar:el.querySelector('td[data-label="Hit rate"] i').getBoundingClientRect().width}));
-  assert.equal(alphaLayout.row,'table-row','Alpha keeps continuous rows on mobile');
-  assert.equal(alphaLayout.head,'table-header-group','Alpha keeps visible column headings');
-  assert.ok(alphaLayout.bar>0,'Alpha hit-rate bars remain visible');
-  if(width<980)assert.ok(alphaLayout.scroll>alphaLayout.client,'Swipe reveals the remaining Alpha columns');
+  assert.equal(alphaLayout.row,'table-row','Dense board keeps continuous rows on mobile');
+  assert.equal(alphaLayout.head,'table-header-group','Dense board keeps visible column headings');
+  assert.ok(alphaLayout.bar>0,'Dense board hit-rate bars remain visible');
+  if(width<980)assert.ok(alphaLayout.scroll>alphaLayout.client,'Swipe reveals the remaining dense-board columns');
   await page.screenshot({path:`${out}/width-${width}-cards.png`,fullPage:true});
   if(width===390||width===1440)console.log(`REFERENCE_CARDS_${width}=`+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
-  const researchButton=card.getByRole('button',{name:'Research',exact:true});
+  const researchButton=card.getByRole('button',{name:/^Open .* research$/});
   if(await researchButton.count())await researchButton.click();else await card.getByRole('button',{name:'Research UI Test Player',exact:true}).click();
   await page.waitForURL(/\/research\?/);
   const opened=new URL(page.url());assert.equal(opened.searchParams.get('player'),'UI Test Player');assert.equal(opened.searchParams.has('playerKey'),false,'Reproduce the legacy link path missed by the original deployment');
@@ -123,12 +128,11 @@ try{
   failPhotos=true;await page.reload();await main.waitFor();await page.locator('img[data-player-photo="unavailable"]:visible').first().waitFor();
   assert.equal(await page.locator('img[data-player-photo="unavailable"]:visible').first().evaluate(node=>getComputedStyle(node).visibility),'visible','Missing artwork has a visible bounded fallback');
   specialMode=true;failPhotos=false;await page.goto(base+'/board');
+  await page.getByRole('button',{name:'NFL',exact:true}).click();
   await page.getByRole('link',{name:'Goblin',exact:true}).first().waitFor();
   assert.equal(await page.locator('[data-player-card]').count(),2,'Special-only player retained');
-  await page.getByRole('button',{name:'Forecast',exact:true}).first().click();
   await page.locator('[data-label="Proj"]').filter({hasText:'24.0'}).first().waitFor();
-  await page.getByRole('button',{name:'Filters',exact:true}).click();
-  await page.getByLabel('Prop type',{exact:true}).selectOption('demon');
+  await page.getByLabel('More',{exact:true}).selectOption('demon');
   assert.equal(await page.locator('[data-player-card]').count(),2,'Demon filter keeps both players');
   assert.equal(await page.locator('[data-label="Odds"]').filter({hasText:'+100'}).count(),0,'Synthetic DFS odds hidden');
   await page.getByRole('link',{name:'Demon',exact:true}).first().click();await main.waitFor();
@@ -146,13 +150,14 @@ try{
    await history.getByRole('cell',{name:'15.5',exact:true}).waitFor();
    assert.equal(await history.getByRole('cell',{name:'99.5',exact:true}).count(),0,'Other outcome history never leaks into the selected quote');
    assert.equal(await history.getByRole('cell',{name:'+100',exact:true}).count(),0,'History does not present synthetic DFS odds');
-   referenceMode=true;holdModel=true;specialMode=false;await page.goto(base+'/board');
-   await page.getByRole('button',{name:'Forecast',exact:true}).first().click();
+   referenceMode=false;holdModel=false;specialMode=false;await page.goto(base+'/board');
+   await page.locator('[data-player-card]').first().waitFor();
+   referenceMode=true;holdModel=true;releaseModel=undefined;await page.getByRole('button',{name:'NFL',exact:true}).click();
    await page.locator('[data-label="Proj"]').filter({hasText:'24.3'}).first().waitFor();
    await page.getByText('Market implied',{exact:true}).first().waitFor();
    await page.getByText('Market no-vig',{exact:true}).first().waitFor();
    assert.ok(releaseModel,'Market reference appears while model response is still pending');releaseModel();holdModel=false;
-   await page.locator('[data-player-card]').first().getByRole('button',{name:'Research',exact:true}).click();await main.waitFor();
+   await page.locator('[data-player-card]').first().getByRole('button',{name:/^Open .* research$/}).click();await main.waitFor();
    await page.getByRole('heading',{name:'Market reference',exact:true}).waitFor();
   }
   if(width===390){
@@ -160,7 +165,7 @@ try{
    await page.goto(base+'/board');await page.locator('[data-player-card]').first().waitFor();
    await page.waitForFunction(()=>document.querySelectorAll('[data-player-card]').length===12);
    await page.locator('[data-label="Hit rate"] > div > span').last().filter({hasText:/[—0-9]/}).waitFor();
-   assert.equal(historyCalls.length,12,'Only the first 12 visible players request history');assert.ok(maxHistory<=3,'At most three history requests in flight');assert.equal(modelCalls,0);
+   assert.equal(historyCalls.length,12,'Only the first 12 visible players request history');assert.ok(maxHistory<=3,'At most three history requests in flight');assert.ok(modelCalls>=1&&modelCalls<=2,'Only bounded visible-page model batches are requested');
    const firstNames=await page.locator('[data-player-card]').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('data-player-card')));
    await page.getByRole('button',{name:'Next',exact:true}).click();
    await page.waitForFunction(first=>!first.includes(document.querySelector('[data-player-card]')?.getAttribute('data-player-card')),firstNames);

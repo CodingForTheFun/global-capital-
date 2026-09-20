@@ -27,7 +27,7 @@ try{
     const common={sport,playerName,providerPlayerId,eventId:'fixture-event',market:'Points',marketId:'player_points',line:20.5,price:-110,gameStartTime:'2050-09-20T18:00:00Z',homeTeam:'Test Home',awayTeam:'Test Away',team:'TEST',opponent:'OPP'};
     const props=['Points','Rebounds','Points · First half'].flatMap((market,mi)=>['book-a','book-b'].flatMap(book=>(book==='book-b'?[21.5,22.5]:[20.5]).flatMap(line=>['OVER','UNDER'].map(side=>({...common,market,marketId:mi===1?'player_rebounds':'player_points',line,id:`${sport}-${mi}-${book}-${line}-${side}`,sportsbook:book,sportsbookKey:book,side})))));
     props.push({...props[0]},{...props[0],id:'no-id-duplicate',providerPlayerId:null},{...common,id:'blank-row',playerName:''});
-    body={ok:true,props,supportedSports:['NFL','WNBA'],meta:{sportsbookCount:2}};
+    body={ok:true,props,supportedSports:['NBA','WNBA','MLB','NFL','NHL','NCAAF','NCAAB'],meta:{sportsbookCount:2}};
    }else if(u.pathname==='/api/apex/research'){researchCalls++;body={ok:true,available:false,message:'Synthetic test: verified history unavailable.',gameLog:[]};}
    else if(u.pathname==='/api/props/ml')body={ok:true,results:{}};
    else if(u.pathname==='/api/apex/player-artwork'){
@@ -37,26 +37,25 @@ try{
    return route.fulfill({status:body?200:404,contentType:'application/json',body:JSON.stringify(body||{})});
   });
   await page.goto(base+'/board');
-  await page.getByRole('button',{name:'Filters',exact:true}).click();
   await page.getByLabel('Opponent').waitFor();
+  assert.equal(await page.getByRole('button',{name:'NBA',exact:true}).getAttribute('aria-pressed'),'true','NBA is the default active league');
   const unit=page.locator('[data-player-card]:visible');
   await unit.first().waitFor();
   assert.equal(await unit.count(),1,'one player/game row despite duplicate ingestion, three stats, multiple lines and books');
   assert.equal(await page.getByText('Apply',{exact:true}).count(),0,'filters update directly without an Apply box');
   assert.equal(await page.getByText('Clear',{exact:true}).count(),0,'filters update directly without a Clear box');
-  for(const label of ['Opponent','Stat','Home/Away','Team','Book','Line','Prop type'])assert.equal(await page.getByLabel(label,{exact:true}).count(),1,`compact ${label} filter exists`);
-  assert.deepEqual(await page.getByLabel('Prop type',{exact:true}).locator('option').evaluateAll(options=>options.map(option=>option.value)),['ALL','standard','goblin','demon','boost','discount','alternate'],'the former placeholder filter exposes all verified prop types');
+  for(const label of ['Opponent','Stat','Season','Home/Away','Team','Book','Line','More','EV% Sort'])assert.equal(await page.getByLabel(label,{exact:true}).count(),1,`compact ${label} filter exists`);
+  assert.deepEqual(await page.getByLabel('More',{exact:true}).locator('option').evaluateAll(options=>options.map(option=>option.value)),['ALL','standard','goblin','demon','boost','discount','alternate'],'More exposes all verified prop types');
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].filter(n=>n.getBoundingClientRect().width>0).every(n=>n.complete&&n.naturalWidth>0));
   const imgSrc=await page.locator('img[data-player-photo]:visible').first().getAttribute('src');
-  assert.ok(new URL(imgSrc,base).searchParams.get('url').includes('/nfl/players/full/42.png'));
-  await page.getByRole('button',{name:'Filters',exact:true}).click();
+  assert.ok(new URL(imgSrc,base).searchParams.get('url').includes('/nba/players/full/42.png'));
   await page.screenshot({path:`${out}/${name}-board.png`,fullPage:true});
   console.log(`REFERENCE_BOARD_${viewport.width}=`+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
   await writeFile(`${out}/${name}-dimensions.json`,JSON.stringify(dimensions,null,2));
   assert.ok(dimensions.scrollWidth<=dimensions.viewport+1,'reference cards fit the viewport');
   assert.ok(await unit.first().evaluate(node=>node.getBoundingClientRect().height)<560,'Cards do not inherit the page footer safe-area padding');
-  await unit.first().getByRole('button',{name:'Research',exact:true}).click();
+  await unit.first().getByRole('button',{name:/^Open .* research$/}).click();
   await page.getByLabel('Player stat category',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Player inspector',{exact:true}).count(),0,'no intermediate inspector');
   assert.equal(await page.getByLabel('Player stat category').locator('option').count(),3,'one category per stat, not per book/line');

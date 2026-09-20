@@ -7,3 +7,10 @@ test('missing history cannot turn into zero-score games; zero itself remains val
 test('season sample excludes backfilled years and playoffs',()=>{const rows=[{season:2026,value:20},{season:2025,value:99},{season:2026,seasonType:3,value:40}];assert.deepEqual(currentSeasonGames(rows,2026),[rows[0]]);assert.deepEqual(currentSeasonGames(rows,null),[]);});
 test('tennis and other sport logs use their actual metrics',()=>{assert.equal(sportFamily('tennis_atp'),'tennis');assert.ok(gameColumns('TENNIS',[{aces:3,gamesWon:12}]).includes('aces'));assert.ok(!gameColumns('TENNIS',[]).includes('passingYards'));assert.ok(gameColumns('NBA',[]).includes('points'));assert.ok(gameColumns('MLB',[]).includes('hits'));});
 test('sort is numeric and missing values stay last in either direction',()=>{for(const d of [1,-1])assert.ok(compareGames({points:null},{points:0},'points',d)>0);assert.ok(compareGames({points:9},{points:20},'points',1)<0);assert.ok(compareGames({date:'2026-09-10'},{date:'2026-09-01'},'date',-1)<0);});
+
+test('tennis H2H opponent matching never aliases different people by initials',async()=>{
+ const {buildOpponentOptions}=await loadLib('opponent-options');
+ const options=buildOpponentOptions(['Jack Smith','John Smith'],{opponent:'John Smith',team:null,homeTeam:null,awayTeam:null},true);
+ assert.equal(options.find(o=>o.value==='Jack Smith').label,'Jack Smith');
+ assert.equal(options.find(o=>o.value==='John Smith').label,'John Smith ★');
+});

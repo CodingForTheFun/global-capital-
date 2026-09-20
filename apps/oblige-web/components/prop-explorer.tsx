@@ -6,7 +6,7 @@ import {applyFilters,buildWindows,computeWindow,distinct,EMPTY_FILTERS,filtersAc
 import {isDfs,quotePriceLabel,quoteVariant} from '@/lib/prop-signals';
 import {DfsVariantIcon} from '@/components/dfs-variant-icon';
 import dynamic from 'next/dynamic';
-import {currentSeasonGames} from '@/lib/player-analysis';
+import {currentSeasonGames,sportFamily} from '@/lib/player-analysis';
 const HitRateChart=dynamic(()=>import('./hit-rate-chart').then(m=>m.HitRateChart),{ssr:false,loading:()=> <div style={{height:280}} role="status">Loading chart…</div>});
 import {shortDate} from '@/lib/utils';
 import {Skeleton} from '@/components/ui/skeleton';
@@ -21,13 +21,14 @@ function SampleTile({window:item,selected,onSelect}:{window:ResearchWindow;selec
 /** Presentation over the existing research engine. Book controls may be supplied
  * by the canonical player workspace, which also knows books at other lines. */
 export function PropExplorer({group,games,loading,unavailableReason,state,onState,favourite,onFavourite,hideBookFilter=false,currentOpponent=null,season=null}:{group:PropGroup;games:GameLogRow[];loading?:boolean;unavailableReason?:string|null;state:ExplorerState;onState(next:ExplorerState):void;favourite:boolean;onFavourite():void;hideBookFilter?:boolean;currentOpponent?:string|null;season?:number|string|null}){
+ const tennis=sportFamily(group.sport)==='tennis';
  const [filters,setFilters]=React.useState<SampleFilters>(EMPTY_FILTERS),[sample,setSample]=React.useState<ChartSample>('l15');
  React.useEffect(()=>{setFilters(EMPTY_FILTERS);setSample('l15');},[group.key]);
  const played=React.useMemo(()=>unavailableReason?[]:sortRecentFirst(games.filter(g=>numberOrNull(g.value)!==null).map(g=>({...g,value:numberOrNull(g.value)}))),[games,unavailableReason]);
  const filtered=React.useMemo(()=>applyFilters(played,filters),[played,filters]);
  const windows=React.useMemo(()=>{const result=buildWindows(filtered,state.line,state.side);result[3]=computeWindow(currentSeasonGames(filtered,filters.season==='all'?season:filters.season),state.line,state.side,'season','Season');result.splice(3,0,computeWindow(filtered,state.line,state.side,'l20','L20',20));return result;},[filtered,state.line,state.side,filters.season,season]);
  const opponentIdentity=currentOpponent||group.opponent;
- const opponentOptions=React.useMemo(()=>buildOpponentOptions(distinct(played.map(g=>g.opponent)),{...group,opponent:opponentIdentity}),[played,opponentIdentity,group.team,group.homeTeam,group.awayTeam]);
+ const opponentOptions=React.useMemo(()=>buildOpponentOptions(distinct(played.map(g=>g.opponent)),{...group,opponent:opponentIdentity},tennis),[played,opponentIdentity,group.team,group.homeTeam,group.awayTeam,tennis]);
  const currentOpponentValue=React.useMemo(()=>opponentOptions.find(option=>option.label.endsWith(' ★'))?.value||null,[opponentOptions]);
  const h2hOpponent=filters.opponent!=='all'?filters.opponent:currentOpponentValue;
  const seasonGames=React.useMemo(()=>currentSeasonGames(filtered,filters.season==='all'?season:filters.season),[filtered,filters.season,season]);
@@ -47,10 +48,10 @@ export function PropExplorer({group,games,loading,unavailableReason,state,onStat
  function step(amount:number){onState({...state,line:Math.max(-1e6,Math.min(1e6,Math.round((state.line+amount)*100)/100))});}
  return <div className="research-reference" data-release="canonical-workspace-v1">
   <div className="op-research-title"><div><span>PLAYER RESEARCH</span><h3>{group.market}</h3></div><button type="button" className="op-follow" aria-label={favourite?`Unfollow ${group.player}`:`Follow ${group.player}`} aria-pressed={favourite} onClick={onFavourite} title="Follow on this device"><Star size={19} fill={favourite?'currentColor':'none'}/></button></div>
-  <div className="op-research-filters" style={hideBookFilter?{gridTemplateColumns:'repeat(3,minmax(0,1fr))'}:undefined}>
+  <div className="op-research-filters" style={{gridTemplateColumns:`repeat(${(tennis?2:3)+(hideBookFilter?0:1)},minmax(0,1fr))`}}>
    <AppliedFilter key={`${group.key}-opponent`} label="Opponent" value={filters.opponent} options={opponentOptions} onApply={opponent=>setFilters(old=>({...old,opponent}))}/>
    <AppliedFilter key={`${group.key}-season`} label="Season" value={filters.season} options={options(seasons)} onApply={season=>setFilters(old=>({...old,season}))}/>
-   <AppliedFilter key={`${group.key}-venue`} label="Home / Away" value={filters.venue} options={[{value:'all',label:'All'},{value:'home',label:'Home'},{value:'away',label:'Away'}]} onApply={venue=>setFilters(old=>({...old,venue:venue as SampleFilters['venue']}))}/>
+   {!tennis&&<AppliedFilter key={`${group.key}-venue`} label="Home / Away" value={filters.venue} options={[{value:'all',label:'All'},{value:'home',label:'Home'},{value:'away',label:'Away'}]} onApply={venue=>setFilters(old=>({...old,venue:venue as SampleFilters['venue']}))}/>}
    {!hideBookFilter&&<AppliedFilter key={`${group.key}-book`} label="Book" value={state.book||'all'} options={[{value:'all',label:'Best prices'},...books.map(b=>({value:b.key,label:b.name}))]} onApply={book=>onState({...state,book:book==='all'?null:book})}/>}
   </div>
   <div className="op-sample-caption"><span className="op-sample-count">{unavailableReason?'History unavailable':`${filtered.length} of ${played.length} verified games`}</span>{filtersActive(filters)&&<button type="button" onClick={()=>setFilters(EMPTY_FILTERS)}><RotateCcw size={12}/> Clear all history filters</button>}</div>

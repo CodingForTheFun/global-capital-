@@ -1,3 +1,3 @@
-deploy: bounded research loading and public search metadata on oblige-web
-release-parent: 43167893fd1bc1a321eb5c3704e892d668264474
-reason: reviewed frontend-only release; preserve board visuals and all predeploy gates; no backend release, DNS mutation or history writes
+deploy: expose non-secret board release identity for public verification
+release-parent: bb041c03e322eaf2f2b833da349c4a51d156efa6
+reason: retain backend API authentication; verify the exact frontend revision on the board response; no board redesign or deployment-gate changes

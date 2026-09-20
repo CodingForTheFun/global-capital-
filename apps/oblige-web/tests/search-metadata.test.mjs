@@ -23,9 +23,11 @@ test('public QA uses a semantic board marker and exact revision, not obsolete ma
   assert.match(read('../app/api/frontend-health/route.ts'), /revision: process\.env\.RAILWAY_GIT_COMMIT_SHA \|\| null/);
   const workflow = read('../../../.github/workflows/restore-terminal-photos.yml');
   assert.doesNotMatch(workflow, /<title>Research Terminal/);
-  assert.match(workflow, /health\.revision===process\.env\.GITHUB_SHA/);
+  assert.match(workflow, /revision===process\.env\.GITHUB_SHA/);
+  assert.match(workflow, /response\.headers\.get\('x-oblige-revision'\)/);
+  assert.doesNotMatch(workflow, /origin\+'\/api\/frontend-health'/);
   const cards = read('../../../scripts/verify-player-cards-live.mjs');
   assert.doesNotMatch(cards, /html\.includes\('Research Terminal'\)/);
   assert.match(cards, /data-player-card/);
-  assert.match(cards, /health\.revision!==report\.expectedCommit/);
+  assert.match(cards, /report\.observedCommit!==report\.expectedCommit/);
 });

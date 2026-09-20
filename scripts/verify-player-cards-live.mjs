@@ -11,9 +11,8 @@ async function get(path){return fetch(new URL(path,base),{signal:AbortSignal.tim
 async function deployed(){
  const r=await get('/board');if(!r.ok)return false;
  const html=await r.text();if(!html.includes('<meta name="oblige-surface" content="prop-board"'))return false;
- const healthResponse=await get('/api/frontend-health');if(!healthResponse.ok)return false;
- const health=await healthResponse.json();report.observedCommit=health.revision||null;
- if(health.service!=='oblige-web'||(report.expectedCommit&&health.revision!==report.expectedCommit))return false;
+ report.observedCommit=r.headers.get('x-oblige-revision');
+ if(!report.observedCommit||(report.expectedCommit&&report.observedCommit!==report.expectedCommit))return false;
  const paths=[...new Set([...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(m=>m[1].replace(/&amp;/g,'&')).filter(p=>p.startsWith('/_next/')))];
  for(const path of paths.slice(0,20)){const asset=await get(path);if(!asset.ok)continue;const js=await asset.text();if(js.includes('data-player-card')&&js.includes('playerCardKey'))return true;}
  return false;

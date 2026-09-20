@@ -7,7 +7,14 @@ const DUPLICATE_CHUNK_PREFIX = '/_next/static/chunks/static/chunks/';
 
 export function proxy(request: NextRequest) {
   if (!request.nextUrl.pathname.startsWith(DUPLICATE_CHUNK_PREFIX)) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    // The public frontdoor owns /api/*, so publish non-secret release identity
+    // on the actual board response instead of opening an unauthenticated API.
+    const revision = process.env.RAILWAY_GIT_COMMIT_SHA;
+    if (request.nextUrl.pathname === '/board' && revision && /^[a-f0-9]{40}$/i.test(revision)) {
+      response.headers.set('x-oblige-revision', revision);
+    }
+    return response;
   }
 
   const headers = new Headers({
@@ -24,5 +31,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: '/_next/static/chunks/static/chunks/:path*',
+  matcher: ['/board', '/_next/static/chunks/static/chunks/:path*'],
 };

@@ -68,9 +68,8 @@ jobs:
               try{
                 const response=await fetch(origin+'/board?verify=restored-terminal',{signal:AbortSignal.timeout(10000),redirect:'error',cache:'no-store'});
                 const html=await response.text();
-                const healthResponse=await fetch(origin+'/api/frontend-health',{signal:AbortSignal.timeout(10000),redirect:'error',cache:'no-store'});
-                const health=await healthResponse.json();
-                report.board={status:response.status,boardSurface:html.includes('<meta name="oblige-surface" content="prop-board"'),revision:health.revision||null,exactRelease:healthResponse.ok&&health.service==='oblige-web'&&health.revision===process.env.GITHUB_SHA,imageCsp:response.headers.get('content-security-policy')?.match(/img-src[^;]*/)?.[0]||null};
+                const revision=response.headers.get('x-oblige-revision');
+                report.board={status:response.status,boardSurface:html.includes('<meta name="oblige-surface" content="prop-board"'),revision,exactRelease:!!process.env.GITHUB_SHA&&revision===process.env.GITHUB_SHA,imageCsp:response.headers.get('content-security-policy')?.match(/img-src[^;]*/)?.[0]||null};
                 if(response.ok&&report.board.boardSurface&&report.board.exactRelease)break;
               }catch(e){report.board={status:'UNVERIFIABLE',error:e.name};}
               if(attempt<11)await new Promise(r=>setTimeout(r,12000));

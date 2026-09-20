@@ -1,4 +1,4 @@
-deploy: contain malformed duplicate Next chunk paths on backend
-source-pr: #439
-release-sha: fd48380cb7d2f233289ae45b551e8b8f85a46fb7
-reason: current-base exact-prefix fast-fail for issue #326 after focused checks passed
+deploy: verified MLB exact history aliases
+source-pr: #449
+release-sha: 82c4a7f64801ef9323a486f50f70357c6ba0429d
+reason: reviewed release request after green exact-market regression tests and production smoke

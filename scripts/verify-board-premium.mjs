@@ -97,6 +97,7 @@ try{
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,heroHeight:document.querySelector('main[data-design] header')?.getBoundingClientRect().height,chartTop:document.querySelector('.op-chart-section')?.getBoundingClientRect().top}));
   assert.ok(dimensions.scrollWidth<=width+1,'No horizontal page overflow');assert.ok(dimensions.heroHeight<210,'Compact identity hero');assert.ok(dimensions.chartTop<900,'Chart not buried below repeated oversized fields');
   await main.screenshot({path:`${out}/width-${width}.png`});
+  await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
   if(width===390)console.log('REFERENCE_RESEARCH_390='+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
   // Saved legacy links without card/category IDs must use the same component for every sport.
   if(width===390)for(const [sport,[stat,title]] of Object.entries(names)){

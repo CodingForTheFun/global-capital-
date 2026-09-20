@@ -1,4 +1,3 @@
-deploy: verified MLB exact history aliases
-source-pr: #449
-release-sha: 82c4a7f64801ef9323a486f50f70357c6ba0429d
-reason: reviewed release request after green exact-market regression tests and production smoke
+deploy: preserve PropLine native identities and current reference schemas
+release-parent: 441b71347349562ec98d6c6e53e3db8db6380a52
+reason: repair verified quote metadata, null payout modifiers and exact-market reference matching; retain authentication, scheduler ownership, paid polling scope and deployment gates

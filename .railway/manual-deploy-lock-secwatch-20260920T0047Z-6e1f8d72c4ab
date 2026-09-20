@@ -1,2 +1,3 @@
-Reviewed release: PR #463 / 4ced670b1c644802f33a4864bfe66d5569802d8b
-Deploy fail-closed incomplete fantasy-history correction through existing Railway gates.
+Reviewed release retry: PR #463 / 4ced670b1c644802f33a4864bfe66d5569802d8b
+Release parent: d537c230306c35502340a9e9ab8a92bf5ab8c9a1
+Deploy fail-closed incomplete fantasy-history correction through existing Railway gates after #464 was blocked before customer deployment by the review gate.

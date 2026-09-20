@@ -36,6 +36,36 @@ test('history exactness: completed games, numeric zero and no future/period subs
  assert.equal(historyForMarket(body,player,{...market,period:'h1'}).available,false);
  assert.equal(historyForMarket({...body,player_name:'Test Somebody'},player,market).code,'IDENTITY_UNVERIFIED');
 });
+test('canonical basketball split rebounds read verified PropLine raw stats',()=>{
+ const basketballEvent={id:'b1',sport:'basketball_wnba',startsAt:'2026-09-20T18:00:00Z',homeTeam:'NY',awayTeam:'LV'};
+ const basketballPayload={id:'b1',sport_key:'basketball_wnba',bookmakers:[{key:'prizepicks',markets:[{key:'player_offensive_rebounds',outcomes:[{name:'Over',description:'Board Player',point:0.5,price:-110,player_id:'wnba:1'}]}]}]};
+ const player=normalizeOffers(basketballPayload,basketballEvent).players[0],market=player.markets[0];
+ const body={sport_key:'basketball_wnba',player_name:'Board Player',player_id:'wnba:1',games:[{event_id:'g1',commence_time:'2026-09-10T00:00:00Z',status:'final',player_id:'wnba:1',player_name:'Board Player',stats:{offensive_rebounds:3,minutes:31}}]};
+ const history=historyForMarket(body,player,market,{now:Date.parse('2026-09-19T00:00:00Z')});
+ assert.equal(history.available,true);assert.equal(history.sourceStat,'offensive_rebounds');assert.equal(history.gameLog[0].value,3);
+});
+
+test('canonical history falls back to verified ESPN only after PropLine lacks the exact stat',async()=>{
+ const reads=[];let fallbackParams=null;
+ const read=async(path)=>{
+  reads.push(path);
+  if(path==='/v1/sports')return[{key:'basketball_wnba',title:'WNBA'}];
+  if(path==='/v1/sports/basketball_wnba/events')return[{id:'b1',sport_key:'basketball_wnba',commence_time:'2026-09-20T18:00:00Z',home_team:'NY',away_team:'LV'}];
+  if(path==='/v1/sports/basketball_wnba/events/b1/markets')return[{key:'player_offensive_rebounds'}];
+  if(path==='/v1/sports/basketball_wnba/events/b1/odds')return{id:'b1',sport_key:'basketball_wnba',bookmakers:[{key:'prizepicks',markets:[{key:'player_offensive_rebounds',outcomes:[{name:'Over',description:'Board Player',point:0.5,price:-110,player_id:'wnba:1'}]}]}]};
+  if(path==='/v1/sports/basketball_wnba/players/Board%20Player/games')return{sport_key:'basketball_wnba',player_name:'Board Player',player_id:'wnba:1',games:[]};
+  throw new Error('unexpected '+path);
+ };
+ const historyFallback=async params=>{fallbackParams=params;return{ok:true,available:true,source:'Historical stats',gameLog:[{gameId:'wnba:10',date:'2026-09-10T00:00:00Z',value:2}]};};
+ const handler=createWorkspaceHandler({authenticate:async()=>({id:'u'}),read,historyFallback,now:()=>Date.parse('2026-09-19T00:00:00Z')});
+ const playerKey=encodeURIComponent(JSON.stringify(['basketball_wnba','b1',['id','wnba:1']]));
+ const marketKey=encodeURIComponent(JSON.stringify(['player_offensive_rebounds',null,'standard']));
+ let body,status;await handler({url:'/api/oblige-workspace?action=history&sport=basketball_wnba&event=b1&player='+playerKey+'&market='+marketKey,method:'GET'},{writeHead(s){status=s;},end(b){body=JSON.parse(b);}});
+ assert.equal(status,200);assert.equal(body.available,true);assert.equal(body.sourceProvider,'ESPN');assert.equal(body.fallback,true);assert.equal(body.primaryCode,'NO_VERIFIED_STAT_HISTORY');
+ assert.equal(fallbackParams.sport,'WNBA');assert.equal(fallbackParams.providerMarketKey,'player_offensive_rebounds');assert.equal(fallbackParams.gameStartTime,'2026-09-20T18:00:00.000Z');
+ assert.ok(reads.some(path=>path.includes('/players/Board%20Player/games')));
+});
+
 test('gateway authenticates before any provider request and rejects writes',async()=>{
  let reads=0;const handler=createWorkspaceHandler({authenticate:async()=>null,read:async()=>{reads++;return[];}});
  const call=async(method)=>{let status,body;await handler({url:'/api/oblige-workspace',method},{writeHead(s){status=s;},end(b){body=JSON.parse(b);}});return{status,body};};

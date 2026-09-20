@@ -1,4 +1,4 @@
-deploy: PropLine current market metadata
-source-pr: #400
-release-sha: 3f09434f10c8c18782308201ecf003eccc3d5acb
-reason: trigger autoprop-live exact watched release lock after green release checks
+deploy: verified WNBA Stats archive fallback
+source-pr: #399
+release-sha: a2c38cd5aaef796360c0cca6a7a675563171dc10
+reason: deploy exact verified public WNBA history fallback after green release and integrated checks

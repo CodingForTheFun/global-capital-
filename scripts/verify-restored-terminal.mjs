@@ -43,7 +43,8 @@ try{
   assert.equal(await unit.count(),1,'one player/game row despite duplicate ingestion, three stats, multiple lines and books');
   assert.equal(await page.getByText('Apply',{exact:true}).count(),0,'filters update directly without an Apply box');
   assert.equal(await page.getByText('Clear',{exact:true}).count(),0,'filters update directly without a Clear box');
-  for(const label of ['Opponent','Stat','Season','Home/Away','Team','Book','Line','More filters'])assert.equal(await page.getByLabel(label).count(),1,`compact ${label} filter exists`);
+  for(const label of ['Opponent','Stat','Season','Home/Away','Team','Book','Line','Prop type'])assert.equal(await page.getByLabel(label).count(),1,`compact ${label} filter exists`);
+  assert.deepEqual(await page.getByLabel('Prop type',{exact:true}).locator('option').evaluateAll(options=>options.map(option=>option.value)),['ALL','standard','goblin','demon','boost','discount','alternate'],'the former placeholder filter exposes all verified prop types');
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].filter(n=>n.getBoundingClientRect().width>0).every(n=>n.complete&&n.naturalWidth>0));
   const imgSrc=await page.locator('img[data-player-photo]:visible').first().getAttribute('src');
   assert.ok(new URL(imgSrc,base).searchParams.get('url').includes('/nfl/players/full/42.png'));

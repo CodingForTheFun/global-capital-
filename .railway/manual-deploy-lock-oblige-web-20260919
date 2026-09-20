@@ -1,4 +1,4 @@
 deploy: contain malformed duplicate Next chunk paths on oblige-web
 source-pr: #438
-release-sha: 939823fca5557660d8e93766d79b49046c65cc8a
-reason: current verified narrow frontend fast-fail for issue #326
+release-parent: 939823fca5557660d8e93766d79b49046c65cc8a
+reason: release-control commit touches both the verified proxy path and Railway deploy lock so push workflows and the frontend predeploy gate evaluate the same deploy SHA

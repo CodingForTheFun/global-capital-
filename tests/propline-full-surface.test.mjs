@@ -40,6 +40,9 @@ function bindSlip(){
   assert.match(patched, /Verified market intelligence/);
   assert.match(patched, /marketKey:g\.marketId\|\|g\.market/);
   assert.match(patched, /Get live SGP price/);
+  assert.match(patched, /Exact outcome line history/);
+  assert.match(patched, /g\.providerEventId\|\|g\.eventId/);
+  assert.match(patched, /providerOutcomeId/);
   assert.equal(patchProplineFullUi(patched), patched);
   assert.doesNotThrow(() => new Function(patched));
 });

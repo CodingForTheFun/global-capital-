@@ -1,3 +1,1 @@
-Release: shared platform-specific fantasy history, 2026-09-20
-Release parent: 4c8d3f67a06342aa5744e1f5f5b4c62c585a46cb
-Deploy reviewed fantasy history fallback through existing Railway gates. Preserve complete-sample validation, retryable provider failures and the Alpha frontend.
+Player Analysis backend release: PR #472. Verified defense-position samples, exact-event pregame odds and bench membership. Preserve existing release gates.

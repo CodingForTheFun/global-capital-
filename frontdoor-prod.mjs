@@ -6,7 +6,7 @@ const maybeServeML = createMLHandler();
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
-import { fetchMatchupResearch } from './lib/data-sources/espn/research.mjs';
+import { fetchMatchupResearch, fetchDefensePosition } from './lib/data-sources/espn/research.mjs';
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
 import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
 import { projectPlayerProp, projectionsConfigured } from './lib/projections/service.mjs';
@@ -174,7 +174,7 @@ function safeParam(url, name, max = 100) {
 
 async function maybeServeResearch(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
-  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup') return false;
+  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup' && url.pathname !== '/api/apex/research-defense-position') return false;
   if (req.method !== 'GET') {
     directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
     return true;
@@ -193,6 +193,10 @@ async function maybeServeResearch(req, res) {
     return true;
   }
   const sport = safeParam(url, 'sport', 90).toUpperCase();
+  if(url.pathname === '/api/apex/research-defense-position') {
+    const result = await fetchDefensePosition({sport}).catch(()=>({ok:true,available:false,message:'Position defense could not load. Try again shortly.',teams:[],rows:[]}));
+    directJson(res,200,sanitizePublicPayload(result,{statsContext:true}));return true;
+  }
   if(url.pathname === '/api/apex/research-matchup') {
     const result = await fetchMatchupResearch({sport,eventId:safeParam(url,'eventId',160),homeTeam:safeParam(url,'homeTeam',100),awayTeam:safeParam(url,'awayTeam',100),gameStartTime:safeParam(url,'gameStartTime',40)}).catch(()=>({ok:true,available:false,code:'MATCHUP_SOURCE_UNAVAILABLE',message:'Game context could not load. Try again shortly.'}));
     directJson(res,result.code==='INVALID_MATCHUP'?400:200,sanitizePublicPayload(result,{statsContext:true}));

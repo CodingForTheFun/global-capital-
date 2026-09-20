@@ -8,6 +8,9 @@ import { computeWindow, playable, sortRecentFirst } from '@/lib/analytics';
 import { collapsePlayerCards, playerResearchHref, restrictBook } from '@/lib/player-cards';
 import type { BoardMeta, PropGroup, PropRow, ResearchResponse } from '@/lib/types';
 import { pctValue } from '@/lib/utils';
+import { finiteNumber as numberOf, isDfs, quotePriceLabel, quoteSeenLabel, quoteVariant, variantLabel } from '@/lib/prop-signals';
+import { fetchMarketReferences, referenceKey, type MarketReference } from '@/lib/market-reference';
+import { bestEv, fetchPredictions, modelLabel, predictionKey, usablePrediction, type Prediction } from '@/lib/model-data';
 import { PlayerHeadshot } from '@/components/player-headshot';
 import { SignInPanel } from '@/components/sign-in';
 import styles from './premium-board.module.css';
@@ -16,58 +19,14 @@ const ALL = 'ALL';
 const PAGE_SIZE = 60;
 const RESEARCH_WORKERS = 6;
 
-type Prediction = {
-  available?: boolean;
-  projection?: number;
-  probabilityOver?: number;
-  probabilityUnder?: number;
-};
-
 type ResearchStat = { rate: number | null; hits: number | null; sample: number; source: 'window' | 'game-log' | 'unavailable' } | null;
 
 function text(value: unknown) {
   return String(value || '').trim();
 }
 
-function numberOf(value: unknown) {
-  if (value === null || value === undefined || String(value).trim() === '') return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function americanDecimal(value: unknown) {
-  const odds = Number(value);
-  if (!Number.isFinite(odds) || odds === 0) return null;
-  return odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
-}
-
 function quoteBook(row: PropRow | null | undefined) {
   return text(row?.sportsbook || row?.sportsbookKey) || 'Book unavailable';
-}
-
-function bestEv(group: PropGroup, prediction?: Prediction) {
-  if (!prediction?.available) return null;
-  const rows = [
-    { probability: prediction.probabilityOver, quote: group.bestOver },
-    { probability: prediction.probabilityUnder, quote: group.bestUnder },
-  ];
-  let best: number | null = null;
-  for (const row of rows) {
-    const raw = numberOf(row.probability);
-    const probability = raw === null ? null : raw > 1 ? raw / 100 : raw;
-    const price = numberOf(row.quote?.price);
-    const decimal = americanDecimal(price);
-    if (probability === null || decimal === null) continue;
-    const ev = (probability * decimal - 1) * 100;
-    if (best === null || ev > best) best = ev;
-  }
-  return best;
-}
-
-function priceLabel(value: unknown) {
-  const n = numberOf(value);
-  if (n === null || n === 0) return 'N/A';
-  return n > 0 ? `+${n}` : String(n);
 }
 
 function displayQuote(group: PropGroup) {
@@ -75,15 +34,8 @@ function displayQuote(group: PropGroup) {
     .filter((row): row is PropRow => Boolean(row));
   return candidates.find((row) => {
     const price = numberOf(row.price);
-    return price !== null && price !== 0;
+    return !isDfs(row) && price !== null && price !== 0;
   }) || candidates[0] || null;
-}
-
-function quotePriceLabel(row: PropRow | null) {
-  const price = numberOf(row?.price);
-  if (price !== null && price !== 0) return priceLabel(price);
-  const book = quoteBook(row).toLowerCase();
-  return book.includes('prizepicks') || book.includes('underdog') ? 'DFS' : 'N/A';
 }
 
 function boardResearchStat(response: ResearchResponse, line: number): ResearchStat {
@@ -91,7 +43,7 @@ function boardResearchStat(response: ResearchResponse, line: number): ResearchSt
   const rate = pctValue(last10?.hitRate ?? null);
   const sampleRaw = numberOf(last10?.sampleSize ?? last10?.games);
   const hitsRaw = numberOf(last10?.hits);
-  if (rate !== null) {
+  if (response.available !== false && last10?.available !== false && rate !== null && sampleRaw !== null && sampleRaw > 0) {
     return {
       rate,
       hits: hitsRaw,
@@ -104,7 +56,7 @@ function boardResearchStat(response: ResearchResponse, line: number): ResearchSt
   // window summaries. Recompute L10 from that exact log + posted line using the
   // same analytics policy as the player page; never invent missing history.
   const fallback = computeWindow(
-    sortRecentFirst(playable(response.gameLog || [])),
+    sortRecentFirst(playable(response.available === false ? [] : response.gameLog || [])),
     line,
     'OVER',
     'l10',
@@ -172,11 +124,20 @@ export function PremiumBoard() {
   const [team, setTeam] = React.useState(ALL);
   const [book, setBook] = React.useState(ALL);
   const [line, setLine] = React.useState(ALL);
+  const [variant, setVariant] = React.useState(ALL);
+  const [retry, setRetry] = React.useState(0);
+  const [now, setNow] = React.useState(Date.now());
   const [sort, setSort] = React.useState('EV');
   const [predictions, setPredictions] = React.useState<Record<string, Prediction>>({});
+  const [marketRefs, setMarketRefs] = React.useState<Record<string, MarketReference>>({});
   const [research, setResearch] = React.useState<Record<string, ResearchStat>>({});
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -201,7 +162,9 @@ export function PremiumBoard() {
         setTeam(ALL);
         setBook(ALL);
         setLine(ALL);
+        setVariant(ALL);
         setPredictions({});
+        setMarketRefs({});
         setResearch({});
       })
       .catch((cause) => {
@@ -234,6 +197,7 @@ export function PremiumBoard() {
     const rows = groups
       .map((group) => (book === ALL ? group : restrictBook(group, book)))
       .filter((group) => {
+        if (variant !== ALL && quoteVariant(group.quotes[0]) !== variant) return false;
         if (market !== ALL && group.market !== market) return false;
         if (opponent !== ALL && group.opponent !== opponent) return false;
         if (team !== ALL && group.team !== team) return false;
@@ -248,87 +212,37 @@ export function PremiumBoard() {
       if (sort === 'PLAYER') return a.player.localeCompare(b.player);
       if (sort === 'LINE') return b.line - a.line;
       if (sort === 'HIT') return (research[b.key]?.rate ?? -1) - (research[a.key]?.rate ?? -1);
-      return (bestEv(b, predictions[b.key]) ?? -Infinity) - (bestEv(a, predictions[a.key]) ?? -Infinity);
+      const ev = (group: PropGroup) => bestEv(group, predictions[predictionKey(group)], now) ?? (marketRefs[referenceKey(group)]?.expiresAt > now ? marketRefs[referenceKey(group)]?.ev : null) ?? -Infinity;
+      return ev(b) - ev(a);
     });
-  }, [book, groups, line, market, opponent, predictions, query, research, sort, team]);
+  }, [book, groups, line, market, opponent, predictions, query, research, sort, team, variant, now, marketRefs]);
 
   const page = filtered.slice(0, PAGE_SIZE);
-  const pageKey = page.map((g) => g.key).join('|');
+  const pageKey = page.map(predictionKey).sort().join('|');
 
   React.useEffect(() => {
     if (!account || !page.length) return;
     const controller = new AbortController();
-    const targets: Array<{ key: string; groupKey: string; payload: Record<string, unknown> }> = [];
-    const unavailable: string[] = [];
-
-    page
-      .filter((group) => predictions[group.key] === undefined)
-      .forEach((group) => {
-        const quote = group.bestOver || group.bestUnder || group.quotes[0];
-        const sportsbookKey = text(quote?.sportsbookKey || quote?.sportsbook);
-        if (!quote?.eventId || !group.providerPlayerId || !group.marketId || !group.startsAt || !sportsbookKey) {
-          unavailable.push(group.key);
-          return;
-        }
-        const key = String(targets.length);
-        targets.push({
-          key,
-          groupKey: group.key,
-          payload: {
-            sport: group.sport,
-            eventId: quote.eventId,
-            playerId: group.providerPlayerId,
-            playerName: group.player,
-            marketId: group.marketId,
-            sportsbookKey,
-            gameStartTime: group.startsAt,
-            line: group.line,
-            entityType: 'player',
-            live: group.live,
-            isAlternate: false,
-            key,
-          },
-        });
-      });
-
-    if (unavailable.length) {
-      setPredictions((current) => {
-        const next = { ...current };
-        unavailable.forEach((key) => { if (next[key] === undefined) next[key] = { available: false }; });
-        return next;
-      });
-    }
-    if (!targets.length) return () => controller.abort();
-
-    fetch('/api/props/ml', {
-      method: 'POST',
-      credentials: 'same-origin',
-      signal: controller.signal,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ props: targets.map((t) => t.payload) }),
-    })
-      .then((r) => r.ok ? r.json() : null)
-      .then((body) => {
-        if (controller.signal.aborted) return;
-        setPredictions((current) => {
-          const next = { ...current };
-          targets.forEach((target) => {
-            next[target.groupKey] = body?.results?.[target.key] || { available: false };
-          });
-          return next;
-        });
-      })
-      .catch(() => {
-        if (controller.signal.aborted) return;
-        setPredictions((current) => {
-          const next = { ...current };
-          targets.forEach((target) => { next[target.groupKey] = { available: false }; });
-          return next;
-        });
-      });
+    const pending = page.filter(group => predictions[predictionKey(group)] === undefined);
+    void fetchPredictions(pending, controller.signal, results => {
+      if (!controller.signal.aborted) setPredictions(current => ({ ...current, ...results }));
+    });
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, pageKey]);
+  }, [account, pageKey, retry]);
+
+  const referenceTargets = page.filter(group => predictions[predictionKey(group)] !== undefined && !usablePrediction(predictions[predictionKey(group)], now));
+  const referencePageKey = referenceTargets.map(referenceKey).sort().join('|');
+  React.useEffect(() => {
+    if (!account || !referenceTargets.length) return;
+    const controller = new AbortController();
+    void fetchMarketReferences(referenceTargets.filter(group => marketRefs[referenceKey(group)] === undefined), controller.signal, values => {
+      if (!controller.signal.aborted) setMarketRefs(current => ({ ...current, ...values }));
+    });
+    return () => controller.abort();
+    // Visible selection changes and explicit retries are the only triggers; no provider polling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account, referencePageKey, retry]);
 
   React.useEffect(() => {
     if (!account || !page.length) return;
@@ -356,7 +270,7 @@ export function PremiumBoard() {
     void Promise.all(Array.from({ length: Math.min(RESEARCH_WORKERS, queue.length) }, worker));
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, pageKey]);
+  }, [account, pageKey, retry]);
 
   if (checking) return <div className={styles.loading}>Loading prop board…</div>;
   if (!account) return <div className={styles.signIn}><SignInPanel onSignedIn={setAccount} /></div>;
@@ -389,7 +303,11 @@ export function PremiumBoard() {
           <SelectPill label="Team" value={team} onChange={setTeam} options={[{ value: ALL, label: 'Team' }, ...teams.map((v) => ({ value: v, label: v }))]} />
           <SelectPill label="Book" value={book} onChange={setBook} options={[{ value: ALL, label: 'Book' }, ...books.map((v) => ({ value: v, label: v }))]} />
           <SelectPill label="Line" value={line} onChange={setLine} options={[{ value: ALL, label: 'Line' }, ...lines.map((v) => ({ value: v, label: v }))]} />
-          <SelectPill label="More filters" value={ALL} onChange={() => {}} options={[{ value: ALL, label: 'More' }]} />
+          <SelectPill label="Prop type" value={variant} onChange={setVariant} options={[
+            { value: ALL, label: 'All prop types' }, { value: 'standard', label: 'Standard' },
+            { value: 'goblin', label: '🟢 Goblin' }, { value: 'demon', label: '🔴 Demon' },
+            { value: 'boost', label: 'Underdog boost' }, { value: 'discount', label: 'Underdog discount' }, { value: 'alternate', label: 'Alternates' },
+          ]} />
           <span className={styles.filterSpacer} />
           <button className={styles.sortIcon} type="button" aria-label="Sort"><SlidersHorizontal size={16} /></button>
           <SelectPill label="Sort" value={sort} onChange={setSort} options={[
@@ -418,16 +336,23 @@ export function PremiumBoard() {
             </thead>
             <tbody>
               {page.map((group) => {
-                const prediction = predictions[group.key];
+                const prediction = predictions[predictionKey(group)];
                 const predictionLoading = prediction === undefined;
-                const ev = bestEv(group, prediction);
+                const reference = marketRefs[referenceKey(group)];
+                const freshReference = reference && reference.expiresAt > now ? reference : null;
+                const modelEv = bestEv(group, prediction, now);
+                const ev = modelEv ?? freshReference?.ev ?? null;
                 const researchStat = research[group.key];
                 const hitLoading = researchStat === undefined;
                 const hit = researchStat?.rate ?? null;
-                const projection = prediction?.available && numberOf(prediction.projection) !== null
+                const projection = usablePrediction(prediction, now)
                   ? Number(prediction.projection)
-                  : null;
+                  : freshReference?.projection ?? null;
+                const projectionSource = usablePrediction(prediction, now) ? modelLabel(prediction) : 'Market implied';
+                const projectionLoading = predictionLoading || (!usablePrediction(prediction, now) && reference === undefined);
                 const bestQuote = displayQuote(group);
+                const badges = [...new Map(group.specialVariants.map(item => [quoteVariant(item.quotes[0]), item])).values()];
+                const forecastReason = reference && reference.expiresAt <= now ? 'Market reference expired. Retry data to refresh.' : prediction?.available && !usablePrediction(prediction, now) ? 'Forecast expired. Retry data to refresh.' : [prediction?.message, reference?.reason].filter(Boolean).join(' ') || 'No verified projection for this selection.';
                 const bookNames = group.bookNames.slice(0, 4);
                 const sampleLabel = researchStat?.sample
                   ? `${researchStat.hits ?? '—'}/${researchStat.sample} L10`
@@ -448,18 +373,21 @@ export function PremiumBoard() {
                     <td data-label="Stat" className={styles.statCell}>
                       <span>{group.market}</span>
                       {group.categoryCount > 1 ? <small>{group.categoryCount} stats inside</small> : null}
+                      {badges.length > 0 && <div className={styles.variants}>{badges.map(item => <a key={item.key} data-variant={quoteVariant(item.quotes[0])} href={playerResearchHref(item, group.playerCardKey, item.quotes[0]?.sportsbookKey || item.quotes[0]?.sportsbook)} onClick={event => event.stopPropagation()} title={`${item.market} · ${item.line} · ${item.quotes[0]?.sportsbook || ''}`}>{variantLabel(item.quotes[0])}</a>)}</div>}
                     </td>
                     <td data-label="Line" className={styles.number}>{Number.isFinite(group.line) ? group.line : 'N/A'}</td>
-                    <td data-label="Odds"><span className={styles.odds}>{quotePriceLabel(bestQuote)}</span></td>
-                    <td data-label="Proj" className={styles.number}>
-                      {predictionLoading ? '…' : projection === null ? 'N/A' : projection.toFixed(1)}
+                    <td data-label="Odds"><span className={styles.odds}>{quotePriceLabel(bestQuote)}</span><small>{quoteSeenLabel(bestQuote, now)}</small>{numberOf(bestQuote?.liquidity) !== null && <small title="Provider-reported amount available at this quote">Liquidity {Number(bestQuote?.liquidity).toLocaleString()}</small>}</td>
+                    <td data-label="Proj" className={styles.number} title={projection === null ? forecastReason : projectionSource === 'Market implied' ? `PropLine market reference · ${freshReference?.booksContributing ?? 'Unknown'} contributing books` : `${modelLabel(prediction)} · ${prediction?.modelVersion}`}>
+                      {projectionLoading ? '…' : projection === null ? 'No estimate' : projection.toFixed(1)}
+                      {projection !== null && <small>{projectionSource}</small>}
                     </td>
-                    <td data-label="EV%" className={styles.ev} data-positive={ev !== null && ev > 0 ? 'true' : 'false'}>
-                      {predictionLoading ? '…' : ev === null ? 'N/A' : `${ev >= 0 ? '+' : ''}${ev.toFixed(1)}%`}
+                    <td data-label="EV%" title={isDfs(bestQuote) ? 'DFS entry payouts do not provide single-leg sportsbook EV.' : ev === null ? forecastReason : modelEv !== null ? `${modelLabel(prediction)} · exact book and line, with pushes` : `PropLine no-vig reference · ${freshReference?.book} ${freshReference?.side} · line ${group.line}`} className={styles.ev} data-positive={ev !== null && ev > 0 ? 'true' : 'false'}>
+                      {isDfs(bestQuote) ? 'Entry payout' : projectionLoading ? '…' : ev === null ? 'No estimate' : `${ev >= 0 ? '+' : ''}${ev.toFixed(1)}%`}
+                      {ev !== null && modelEv === null && <small>Market no-vig</small>}
                     </td>
                     <td data-label="Hit rate" title={sampleLabel}>
                       <div className={styles.hit}>
-                        <span>{hitLoading ? '…' : hit === null ? 'N/A' : `${Math.round(hit)}%`}</span>
+                        <span>{hitLoading ? '…' : hit === null ? 'No history' : `${Math.round(hit)}%`}</span>
                         <i><b style={{ width: hit === null ? '0%' : `${Math.max(0, Math.min(100, hit))}%` }} /></i>
                       </div>
                     </td>
@@ -467,7 +395,8 @@ export function PremiumBoard() {
                       <div className={styles.books}>
                         {bookNames.length
                           ? bookNames.map((name) => <span key={name} title={name}>{bookShort(name)}</span>)
-                          : <em className={styles.unavailable}>N/A</em>}
+                          : <em className={styles.unavailable}>No quotes</em>}
+                        {group.bookCount > bookNames.length && <span title={`${group.bookCount} books at this stat and line`}>+{group.bookCount - bookNames.length}</span>}
                       </div>
                     </td>
                     <td className={styles.chevron}>›</td>
@@ -484,6 +413,12 @@ export function PremiumBoard() {
 
         <div className={styles.footerMeta}>
           <span>{filtered.length.toLocaleString()} players</span>
+          <button type="button" onClick={() => {
+            setPredictions(current => Object.fromEntries(Object.entries(current).filter(([, value]) => usablePrediction(value))));
+            setMarketRefs(current => Object.fromEntries(Object.entries(current).filter(([, value]) => value.expiresAt > Date.now() && (value.projection !== null || value.ev !== null))));
+            setResearch(current => Object.fromEntries(Object.entries(current).filter(([, value]) => value?.rate !== null && value !== null)));
+            setRetry(value => value + 1);
+          }}>Retry missing data</button>
           <span>{(meta.sportsbookCount ?? books.length) || 0} books</span>
           <span>{meta.stale ? 'Cached feed' : 'Live board'}</span>
         </div>

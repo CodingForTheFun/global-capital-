@@ -14,6 +14,8 @@ import { GameLog } from '@/components/research';
 import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
 import { PremiumPlayerResearch } from '@/components/premium-player-research';
+import { PostedModel } from '@/components/posted-model';
+import { QuoteHistory } from '@/components/quote-history';
 
 const FAVOURITES_KEY = 'oblige-followed';
 function readFavourites(): string[] {
@@ -172,7 +174,8 @@ export function PlayerView() {
       {activeError && <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button>}
     </>}
     supporting={!pending && !unavailable && games.length > 0 ? <SplitSummary games={games} group={displayGroup} line={state.line} side={state.side}/> : null}
-    model={<section aria-label="Trained model prediction"><h2>Model prediction</h2><p>No validated forecast is attached to this research selection. Historical hit rates are not model predictions.</p></section>}
+    model={<PostedModel group={group} side={state.side} book={presentation.selected.book} researchLine={state.line}/>}
+    quoteHistory={<QuoteHistory group={group} side={presentation.selected.side || state.side} book={presentation.selected.book}/>}
     gameLog={<GameLog games={games} line={state.line} market={displayGroup.market} loading={pending}/>}
   />;
 }

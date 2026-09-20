@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowLeft, BarChart3, ChevronDown, Star } from 'lucide-react';
 import { PlayerHeadshot } from '@/components/player-headshot';
 import { booksFor, chooseOffer, type WorkspacePlayer, type WorkspaceMarket, type WorkspaceOffer } from '@/lib/workspace';
-import { marketFamily, marketName, marketOptionName, offerPrice, periodName, sportName } from '@/lib/market-display';
+import { marketFamily, marketName, marketOptionName, offerPrice, offerVariantLabel, periodName, sportName } from '@/lib/market-display';
 import { shortTime } from '@/lib/utils';
 import type { Side } from '@/lib/types';
 import s from './premium-player-research.module.css';
@@ -14,7 +14,7 @@ type Props = {
   side: Side; favourite: boolean; canFollow: boolean;
   onCategory(key: string): void; onBook(key: string): void;
   onOffer(offer: WorkspaceOffer): void; onFavourite(): void;
-  research: React.ReactNode; model: React.ReactNode; gameLog?: React.ReactNode;
+  research: React.ReactNode; model: React.ReactNode; gameLog?: React.ReactNode; quoteHistory?: React.ReactNode;
   /** Undefined uses the canonical selected book; null retains legacy best prices. */
   bookSelection?: string | null; allowBestPrices?: boolean; onLine?(line: number): void;
   team?: string | null; matchupLabel?: string; supporting?: React.ReactNode;
@@ -22,7 +22,7 @@ type Props = {
 };
 
 /** Shared presentation only. Both URL formats keep their own verified data adapters. */
-export function PremiumPlayerResearch({ player, market, selected, side, favourite, canFollow, onCategory, onBook, onOffer, onFavourite, research, model, gameLog, bookSelection, allowBestPrices = false, onLine, team, matchupLabel, supporting, routeKind = 'canonical' }: Props) {
+export function PremiumPlayerResearch({ player, market, selected, side, favourite, canFollow, onCategory, onBook, onOffer, onFavourite, research, model, gameLog, quoteHistory, bookSelection, allowBestPrices = false, onLine, team, matchupLabel, supporting, routeKind = 'canonical' }: Props) {
   const family = marketFamily(market);
   const families = [...new Map(player.markets.map(item => [marketFamily(item), item])).values()];
   const periods = player.markets.filter(item => marketFamily(item) === family);
@@ -55,13 +55,13 @@ export function PremiumPlayerResearch({ player, market, selected, side, favourit
           </div>
           <div className={s.marketBand}>
             <BarChart3 size={23} className={s.marketIcon} aria-hidden="true"/>
-            <div className={s.marketInfo}><h2>{title}</h2><p><span>{selected.side === 'OVER' ? 'O' : selected.side === 'UNDER' ? 'U' : selected.choice} {selected.line ?? ''}</span><strong data-side={selected.side}>{offerPrice(selected)}</strong><span className={s.periodCaption}>{periodName(market.period)}</span></p></div>
+            <div className={s.marketInfo}><h2>{title}</h2><p><span>{selected.side === 'OVER' ? 'O' : selected.side === 'UNDER' ? 'U' : selected.choice} {selected.line ?? ''}</span><strong data-side={selected.side} data-variant={selected.dfsOddsType}>{offerPrice(selected)}</strong><span className={s.periodCaption}>{periodName(market.period)}</span></p></div>
             <label className={s.bookSelect}><span className={s.srOnly}>Sportsbook</span><select aria-label="Selected book" value={currentBook || ''} onChange={event => onBook(event.target.value)}>{allowBestPrices && <option value="">Best prices · all books</option>}{applicableBooks.map(book => <option key={book.key} value={book.key}>{book.name}</option>)}</select><ChevronDown size={15} aria-hidden="true"/></label>
           </div>
         </header>
         <div className={s.statControls}>
           <div className={s.statRail} role="group" aria-label="Stat categories">
-            {families.map(item => <button key={marketFamily(item)} type="button" aria-pressed={marketFamily(item) === family} title={marketOptionName(item)} onClick={() => category(item)}>{marketName(item)}</button>)}
+            {families.map(item => <button key={marketFamily(item)} type="button" aria-pressed={marketFamily(item) === family} title={marketOptionName(item)} onClick={() => category(item)}>{marketName(item)}{offerVariantLabel(item.offers[0]) && <span className={s.variant} data-variant={item.offers[0]?.dfsOddsType}>{offerVariantLabel(item.offers[0])}</span>}</button>)}
           </div>
           <label className={s.allStats}><span aria-hidden="true">All stats <ChevronDown size={13}/></span><select aria-label="Player stat category" value={market.key} onChange={event => onCategory(event.target.value)}>{player.markets.map(item => <option key={item.key} value={item.key}>{marketOptionName(item)}</option>)}</select></label>
         </div>
@@ -92,10 +92,13 @@ export function PremiumPlayerResearch({ player, market, selected, side, favourit
               })}</div> : <button type="button" className={s.outcome} onClick={() => onOffer(base)}>{offerPrice(base)}</button>}
             </article>;
           })}</div>
+          {selected.lineGap != null && <p className={s.priceNote}>Line difference from standard: {selected.lineGap > 0 ? '+' : ''}{selected.lineGap}</p>}
+          {selected.liquidity != null && <p className={s.priceNote}>Provider-reported liquidity: {selected.liquidity.toLocaleString()}{selected.liquidityUpdatedAt ? ` · seen ${shortTime(selected.liquidityUpdatedAt)}` : ''}</p>}
           <p className={s.priceNote}>Prices belong to the displayed posted line. DFS multipliers are not sportsbook odds.</p>
           <p className={s.priceNote}>{selected.updatedAt ? `Quote seen ${shortTime(selected.updatedAt)}` : 'Quote timestamp unavailable'}</p>
           <details className={s.allLines}><summary>All posted lines <span>{market.offers.length} quotes</span></summary><div className={s.quoteList}>{market.offers.map(offer => <button key={offer.key} type="button" aria-pressed={selected.key === offer.key} onClick={() => onOffer(offer)}><span>{offer.bookName}<small>{offer.choice} {offer.line ?? ''}</small></span><strong>{offerPrice(offer)}</strong></button>)}</div></details>
         </section>
+        {quoteHistory}
         {gameLog && <details className={s.gameLog}><summary>Game-by-game results</summary>{gameLog}</details>}
       </aside>
     </div>

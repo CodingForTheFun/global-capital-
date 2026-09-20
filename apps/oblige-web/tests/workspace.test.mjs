@@ -1,11 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import ts from 'typescript';
-const compile=path=>ts.transpileModule(readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
-const apiUrl=`data:text/javascript;base64,${Buffer.from(compile('../lib/api.ts')).toString('base64')}`;
-const js=compile('../lib/workspace.ts').replace("'./api'",JSON.stringify(apiUrl));
-const {chooseOffer,toResearchGroup,expectedValue,booksFor}=await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+import { loadLib } from './load-lib.mjs';
+const {chooseOffer,toResearchGroup,expectedValue,booksFor}=await loadLib('workspace');
 const offer=(book,line,side='OVER',price=-110)=>({key:`${book}:${line}:${side}`,outcomeId:null,book,bookName:book,line,choice:side,side,price,multiplier:null,updatedAt:null,dfs:false,conflict:false});
 const market={key:'rush',marketKey:'player_rush_yds',label:'Rushing yards',period:null,variant:'standard',offers:[offer('a',50.5),offer('a',50.5,'UNDER'),offer('b',55.5),offer('b',60.5)]};
 test('book change selects that book real line without cloning the player',()=>{assert.equal(chooseOffer(market,'b',50.5).line,55.5);assert.equal(chooseOffer(market,'b',60.5).line,60.5);assert.equal(booksFor(market).length,2);});

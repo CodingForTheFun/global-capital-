@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import ts from 'typescript';
-async function load(path){const js=ts.transpileModule(readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;return import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);}
+import { loadLib } from './load-lib.mjs';
+const load = path => loadLib(path.replace('../lib/', '').replace('.ts', ''));
 const {legacyPresentation,legacyPeriod}=await load('../lib/legacy-research-presentation.ts');
 const {marketName,marketFamily,offerPrice}=await load('../lib/market-display.ts');
 const row=(book,line,side='OVER',price=-115)=>({id:`${book}:${line}:${side}`,eventId:'actual-event',sportsbook:book==='dk'?'DraftKings':'FanDuel',sportsbookKey:book,line,side,price});

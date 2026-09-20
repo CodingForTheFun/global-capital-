@@ -1,9 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import ts from 'typescript';
-const js=ts.transpileModule(readFileSync(new URL('../lib/player-cards.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
-const {groupPlayerCards,collapsePlayerCards,playerMarketKey,playerCategories,postedSelection,playerResearchHref,restrictBook}=await import(`data:text/javascript;base64,${Buffer.from(js).toString('base64')}`);
+import { loadLib } from './load-lib.mjs';
+const {groupPlayerCards,collapsePlayerCards,playerMarketKey,playerCategories,postedSelection,playerResearchHref,restrictBook}=await loadLib('player-cards');
 const g=(key,extra={})=>({key,propId:key,player:'Test Player',providerPlayerId:'espn:42',market:'Points',marketId:'player_points',line:20.5,sport:'NBA',team:'TEST',opponent:'OTHER',homeTeam:'TEST',awayTeam:'OTHER',matchup:'OTHER @ TEST',startsAt:'2050-10-01T19:00:00Z',live:false,quotes:[{eventId:'game-one',sportsbook:'Book A',sportsbookKey:'book_a',side:'OVER',line:20.5,price:-110}],bestOver:null,bestUnder:null,...extra});
 test('one player/game card retains all stats, alternate lines, books and sides',()=>{
  const groups=[g('a'),g('b',{line:21.5}),g('c',{market:'Rebounds',marketId:'player_rebounds',line:5.5}),g('d',{market:'Points · First half',line:10.5}),g('a')];
@@ -30,7 +29,7 @@ test('filter first, then deduplicate, then paginate without losing selectable st
  const rows=collapsePlayerCards([groups[1]],groups);assert.equal(rows[0].market,'Rebounds');assert.equal(rows[0].categoryCount,2);
  assert.equal(rows[0].playerCardKey,collapsePlayerCards(groups,groups)[0].playerCardKey);
 });
-test('collapsed board chooses the most complete real preview and exposes all books on the player card',()=>{
+test('collapsed board chooses the most complete real preview and shows books offering that stat and line',()=>{
  const sparse=g('sparse',{providerPlayerId:null,marketId:null,quotes:[{eventId:'game-one',sportsbook:'PrizePicks',sportsbookKey:'prizepicks',side:'OVER',line:20.5}],bestOver:null,bestUnder:null});
  const complete=g('complete',{market:'Rebounds',marketId:'player_rebounds',line:6.5,quotes:[
   {eventId:'game-one',sportsbook:'Book A',sportsbookKey:'book_a',side:'OVER',line:6.5,price:-105},
@@ -39,11 +38,21 @@ test('collapsed board chooses the most complete real preview and exposes all boo
  const row=collapsePlayerCards([sparse,complete],[sparse,complete])[0];
  assert.equal(row.key,'complete');
  assert.equal(row.categoryCount,2);
- assert.deepEqual(row.bookNames.sort(),['Book A','Book B','PrizePicks'].sort());
+ assert.deepEqual(row.bookNames.sort(),['Book A','Book B'].sort());
+ assert.equal(groupPlayerCards([sparse,complete])[0].variants.length,2,'the other stat remains available in research');
 });
 test('category choices are unique across lines but exact periods remain separate',()=>{
  const groups=[g('one'),g('two',{line:21.5}),g('three',{market:'Points · First half',line:10.5})];
  assert.equal(playerCategories(groups).length,2);assert.notEqual(playerMarketKey(groups[0]),playerMarketKey(groups[2]));
+});
+test('equally complete full-game quotes lead the preview while period props remain selectable',()=>{
+ const full=g('z-full');
+ for(const half of [g('a-half',{period:'h1',market:'Points · First half'}),g('a-half',{market:'Points · First half'})]){
+  const rows=collapsePlayerCards([half,full],[half,full]);
+  assert.equal(rows[0].key,'z-full');
+  assert.equal(rows[0].categoryCount,2);
+  assert.equal(groupPlayerCards([half,full])[0].variants.length,2);
+ }
 });
 test('changing books chooses that book real line and never borrows an unavailable quote',()=>{
  const groups=[g('one'),g('two',{line:21.5,quotes:[{sportsbook:'Book B',sportsbookKey:'book_b',line:21.5,price:125,side:'OVER'}]})];
@@ -87,7 +96,8 @@ test('full, team-only and missing matchups share one card with a verified player
   assert.equal(cards.length, 1);
   assert.deepEqual(cards[0].variants.map(v => v.line), [43.5, 45.5, 34.5]);
   const board = collapsePlayerCards(groups, groups);
-  assert.equal(board.length, 1); assert.equal(board[0].bookCount, 3);
+  assert.equal(board.length, 1); assert.equal(board[0].bookCount, 1);
+  assert.deepEqual(board[0].bookNames, ['Bovada']);
   assert.equal(JSON.stringify(groups), before, 'never rewrite the supplied lines, quotes or metadata');
 });
 test('cross-book reconciliation is deterministic in every input order', () => {
@@ -147,7 +157,8 @@ test('filtered board and research use the same card and retain actual books, lin
   groups.push(eventGroup('receptions', { market: 'Receptions', marketId: 'receptions', line: 3.5 }));
   groups.push(eventGroup('half', { market: 'Receiving Yards · First half', line: 17.5 }));
   const board = collapsePlayerCards([groups[0]], groups), card = groupPlayerCards(groups)[0];
-  assert.equal(board.length, 1); assert.equal(board[0].categoryCount, 3); assert.equal(board[0].bookCount, 3);
+  assert.equal(board.length, 1); assert.equal(board[0].categoryCount, 3); assert.equal(board[0].bookCount, 1);
+  assert.deepEqual(board[0].bookNames, ['PrizePicks']);
   assert.equal(playerCategories(card.variants).length, 3);
   const selection = postedSelection(card.variants, playerMarketKey(groups[0]), 'underdog', 43.5);
   assert.equal(selection.line, 45.5); assert.equal(selection.bestOver, null);
@@ -201,7 +212,7 @@ test('provider shorthand and full matchup labels still produce one player card a
   const rows = collapsePlayerCards([full, shorthand], [full, shorthand]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].categoryCount, 2);
-  assert.deepEqual(rows[0].bookNames.sort(), ['Bovada', 'PrizePicks'].sort());
+  assert.deepEqual(rows[0].bookNames, ['Bovada']);
 });
 
 test('nearby kickoff reconciliation never merges conflicting full opponents', () => {

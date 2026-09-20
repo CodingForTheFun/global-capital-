@@ -1,4 +1,5 @@
 import type { PropGroup, PropRow } from './types';
+import { isDfs, quotePeriod, quoteVariant, variantKey } from './prop-signals';
 
 const clean = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 const id = (group: PropGroup) => clean(group.providerPlayerId);
@@ -125,11 +126,11 @@ function resolvedGameKeys(groups: PropGroup[]): Map<PropGroup, string> {
 
 /** Lines and books are choices within a category. Periods remain different categories. */
 export function playerMarketKey(group: PropGroup): string {
-  const row = group.quotes[0] as (PropRow & { period?: string; periodKey?: string; dfsOddsType?: string; dfs_odds_type?: string }) | undefined;
-  return JSON.stringify([clean(group.marketId || group.market), clean(group.market), clean(row?.period || row?.periodKey), clean(row?.dfsOddsType || row?.dfs_odds_type)]);
+  const row = group.quotes[0];
+  return JSON.stringify([clean(group.marketId || group.market), clean(group.market), clean(group.period || quotePeriod(row)), variantKey(row)]);
 }
 export type PlayerCard = { key: string; variants: PropGroup[] };
-export type PlayerCardGroup = PropGroup & { playerCardKey: string; categoryCount: number; bookCount: number; bookNames: string[] };
+export type PlayerCardGroup = PropGroup & { playerCardKey: string; categoryCount: number; bookCount: number; bookNames: string[]; specialVariants: PropGroup[] };
 
 /** One card per athlete per game; source-local IDs never create duplicate player cards by themselves. */
 export function groupPlayerCards(groups: PropGroup[]): PlayerCard[] {
@@ -293,13 +294,17 @@ export function restrictBook(group: PropGroup, book: string | null): PropGroup {
 }
 
 function previewScore(group: PropGroup): number {
+  const period = group.period || quotePeriod(group.quotes[0]) || /(?:^|[\s_·])(?:[1-4][HQ]|[HQ][1-4]|half|quarter|inning|period)(?:$|[\s_·])/i.test(`${group.market} ${group.marketId || ''}`);
   const pricedQuotes = group.quotes.filter(row => {
+    if (isDfs(row)) return false;
     if (row.price === null || row.price === undefined || String(row.price).trim() === '') return false;
     const price = Number(row.price);
     return Number.isFinite(price) && price !== 0;
   }).length;
   const books = new Set(group.quotes.map(bookKey).filter(Boolean)).size;
   return (
+    (quoteVariant(group.quotes[0]) === 'standard' ? 100 : 0) +
+    (period ? 0 : 40) +
     (Number.isFinite(group.line) ? 100 : 0) +
     Math.min(pricedQuotes, 4) * 12 +
     Math.min(books, 4) * 4 +
@@ -334,13 +339,14 @@ export function collapsePlayerCards(matching: PropGroup[], universe: PropGroup[]
     seen.add(card.key);
     const preview = [...(matchesByCard.get(card.key) || [firstMatch])]
       .sort((a, b) => previewScore(b) - previewScore(a) || a.key.localeCompare(b.key))[0];
-    const books = quotedBooks(card.variants);
+    const books = quotedBooks((matchesByCard.get(card.key) || [preview]).filter(row => playerMarketKey(row) === playerMarketKey(preview) && row.line === preview.line));
     rows.push({
       ...preview,
       playerCardKey: card.key,
       categoryCount: new Set(card.variants.map(playerMarketKey)).size,
       bookCount: books.length,
       bookNames: books.map(book => book.label),
+      specialVariants: (matchesByCard.get(card.key) || []).filter(row => quoteVariant(row.quotes[0]) !== 'standard'),
     });
   }
   return rows;

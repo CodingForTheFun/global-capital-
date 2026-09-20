@@ -8,6 +8,7 @@ import type {
   ResearchResponse,
   Side,
 } from './types';
+import { isDfs, quotePeriod, variantKey } from './prop-signals';
 
 /**
  * Every call goes through this app's own /api/* proxy, which forwards to the
@@ -197,7 +198,7 @@ function bestQuote(rows: PropRow[], side: Side): PropRow | null {
   return (
     rows
       .filter((row) => String(row.side || '').toUpperCase() === side)
-      .sort((a, b) => Number(b.price ?? -1e6) - Number(a.price ?? -1e6))[0] || null
+      .sort((a, b) => Number(isDfs(a)) - Number(isDfs(b)) || Number(b.price ?? -1e6) - Number(a.price ?? -1e6))[0] || null
   );
 }
 
@@ -214,7 +215,8 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
     if (!player || !market || line === null) continue;
 
     const playerIdentity = String(row.providerPlayerId || '').trim() || player.toLowerCase();
-    const key = [row.eventId || matchupLabel(row), playerIdentity, market, line].join('|');
+    const period = quotePeriod(row);
+    const key = [row.eventId || matchupLabel(row), playerIdentity, market, period || '', variantKey(row), line].join('|');
     let group = groups.get(key);
     if (!group) {
       group = {
@@ -234,6 +236,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         matchup: matchupLabel(row),
         startsAt: row.gameStartTime || null,
         live: row.live === true,
+        period,
         quotes: [],
         bestOver: null,
         bestUnder: null,
@@ -264,12 +267,17 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
 
 export async function fetchBoard(sport: string, signal?: AbortSignal) {
   const body = await getJson<BoardResponse>(
-    `/api/apex/props?sport=${encodeURIComponent(sport)}`,
+    `/api/apex/props?sport=${encodeURIComponent(sport)}&alternates=1`,
     signal,
   );
   const rows = Array.isArray(body?.props) ? body.props : [];
+  const players = new Map((body?.data?.players || []).map(player => [player.id, player]));
+  const quotes = rows.map(row => {
+    const player = row.playerId ? players.get(row.playerId) : undefined;
+    return player ? { ...row, providerPlayerId: row.providerPlayerId || player.providerPlayerId, position: row.position || player.position, team: row.team || player.team } : row;
+  });
   return {
-    groups: groupProps(rows, sport),
+    groups: groupProps(quotes, sport),
     meta: body?.meta || {},
     supportedSports: body?.supportedSports || [],
     quoteCount: rows.length,
@@ -308,13 +316,17 @@ export async function fetchResearch(
   if (group.opponent) params.set('opponent', group.opponent);
   if (group.homeTeam) params.set('homeTeam', group.homeTeam);
   if (group.awayTeam) params.set('awayTeam', group.awayTeam);
+  if (group.period) params.set('period', group.period);
+  if (group.startsAt) params.set('gameStartTime', group.startsAt);
+  const eventId = group.quotes?.find(row => row.eventId)?.eventId;
+  if (eventId) params.set('eventId', eventId);
 
   const path = `/api/apex/research?${params}`;
   const cached = researchCache.get(path);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   if (cached) researchCache.delete(path);
 
-  const value = await getJson<ResearchResponse>(path, signal);
+  const value = await getJson<ResearchResponse>(path, signal, 45000, 45000);
   // A provider miss is not a successful sample: an explicit UI retry must
   // reach the service instead of replaying the same unavailable cache entry.
   if (value.available !== false) rememberResearch(path, value);

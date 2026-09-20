@@ -17,18 +17,25 @@ async function historyFor(stats) {
     fetchImpl:async()=>({ok:true,json:async()=>({names,seasonTypes:[{categories:[{type:'event',events:stats.map((values,i)=>({eventId:String(i+1),stats:values}))}]}]})}),
   });
 }
-test('one incomplete game does not erase independently complete fantasy games',async()=>{
+test('one incomplete game keeps the full fantasy history line-only',async()=>{
   const result=await historyFor([complete,[...complete.slice(0,5),null],['0','0','0','0','0','0']]);
-  assert.equal(result.available,true);
-  assert.deepEqual(result.gameLog.map(row=>row.value),[44.5,0]);
-  assert.equal(result.coverage.fantasyGamesScored,2);
-  assert.equal(result.coverage.fantasyGamesExcluded,1);
-  assert.equal(result.coverage.seasonComplete,false);
-  assert.equal(result.coverage.partial,true);
+  assert.equal(result.available,false);
+  assert.equal(result.lineOnly,true);
+  assert.equal(result.code,'FANTASY_COMPONENTS_INCOMPLETE');
+  assert.deepEqual(result.gameLog,[]);
 });
 test('complete fantasy histories retain complete coverage',async()=>{
   const result=await historyFor([complete,complete]);
+  assert.equal(result.available,true);
+  assert.deepEqual(result.gameLog.map(row=>row.value),[44.5,44.5]);
   assert.equal(result.coverage.seasonComplete,true);
+  assert.equal(result.coverage.fantasyGamesScored,2);
+  assert.equal(result.coverage.fantasyGamesExcluded,0);
+});
+test('completed zero-stat fantasy games are retained as verified zeroes',async()=>{
+  const result=await historyFor([complete,['0','0','0','0','0','0']]);
+  assert.equal(result.available,true);
+  assert.deepEqual(result.gameLog.map(row=>row.value),[44.5,0]);
   assert.equal(result.coverage.fantasyGamesExcluded,0);
 });
 test('no complete component rows stays unavailable without manufactured scores',async()=>{

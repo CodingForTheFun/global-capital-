@@ -1,1 +1,1 @@
-Dense props board release: source PR #473 merged at 98f89d4292c9fcd157187028c91afae768667af4. Run existing frontend verification and Railway pre-deploy gates before production rollout.
+Dense props board gated release: source PR #473 merged at 98f89d4292c9fcd157187028c91afae768667af4. Frontend path marker included so all required push verification workflows run before Railway rollout.

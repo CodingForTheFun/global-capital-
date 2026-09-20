@@ -103,3 +103,33 @@ test('ambiguous competitions, no settled data and transport failures have distin
   assert.equal(error.retryable, true);
   assert.notEqual(error.lineOnly, true);
 });
+
+test('public research uses platform scores and recomputes hits at the current line', async () => {
+  const { researchPlayerProp } = await import('../lib/autoscout/research-service-v2.mjs');
+  const { __resetProplineClient } = await import('../lib/data-sources/propline/client.mjs');
+  const data = fixture(), previousFetch = globalThis.fetch, previousKey = process.env.PROPLINE_API_KEY;
+  process.env.PROPLINE_API_KEY = 'fixture-key'; __resetProplineClient();
+  globalThis.fetch = async url => {
+    const target = new URL(url);
+    if (target.hostname === 'api.prop-line.com') {
+      assert.ok(target.pathname.includes('/basketball_wnba/players/Fixture%20Player/'));
+      const payload = target.pathname.endsWith('/history') ? data.history : data.archive;
+      return new Response(JSON.stringify(payload), { status: 200 });
+    }
+    return new Response('{}', { status: 404 }); // Optional league directory.
+  };
+  try {
+    // The old 15-point line was 1/3 over. A 30-point line must be 0/3,
+    // proving old win/loss grades are not reused as current-line hit rates.
+    const result = await researchPlayerProp({ ...params, line: 30, side: 'OVER' });
+    assert.equal(result.available, true);
+    assert.deepEqual(result.gameLog.map(row => row.value), [29.8, 0, -2.5]);
+    assert.equal(result.windows.l5.hits, 0);
+    assert.equal(result.windows.l5.games, 3);
+    assert.equal(result.fantasyScoring.platform, 'prizepicks');
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousKey === undefined) delete process.env.PROPLINE_API_KEY; else process.env.PROPLINE_API_KEY = previousKey;
+    __resetProplineClient();
+  }
+});

@@ -1,4 +1,4 @@
-deploy: canonical verified-history fallback
-source-pr: #397
-release-sha: 340d39be1a85f139551df3a288cadc34e733eb38
-reason: trigger autoprop-live exact watched release lock after green release checks
+deploy: canonical verified-history fallback cutoff
+source-pr: follow-up to #397
+base-release: cebe03f213570d3372aeb9b415daa86330f169b5
+reason: deploy review-found selected-event leakage fix after green gates

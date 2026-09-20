@@ -39,10 +39,10 @@ test('completed zero-stat fantasy games are retained as verified zeroes',async()
   assert.deepEqual(result.gameLog.map(row=>row.value),[44.5,0]);
   assert.equal(result.coverage.fantasyGamesExcluded,0);
 });
-test('component transport failures stay line-only and retryable',async()=>{
+test('component transport failures stay retryable instead of becoming line-only',async()=>{
   const result=await historyFor([complete],async()=>({ok:false,status:503}));
   assert.equal(result.available,false);
-  assert.equal(result.lineOnly,true);
+  assert.notEqual(result.lineOnly,true);
   assert.equal(result.retryable,true);
   assert.equal(result.code,'RESEARCH_PROVIDER_ERROR');
   assert.deepEqual(result.gameLog,[]);

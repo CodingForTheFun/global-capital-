@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import {
   BarChart3,
   Check,
@@ -11,6 +12,19 @@ import {
 import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/motion';
 import { LandingBoardPreview } from '@/components/landing-board-preview';
+
+export const metadata: Metadata = {
+  title: 'Player Prop Research & Sportsbook Line Comparison',
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    url: '/',
+    siteName: 'Oblige Props',
+    title: 'Oblige Props — Player Prop Research',
+    description: 'Compare available sportsbook lines and explore player performance, line movement and verified game history. Coverage varies by sport and market.',
+  },
+  twitter: { card: 'summary', title: 'Oblige Props — Player Prop Research', description: 'Compare sportsbook lines and research player performance using available verified history.' },
+};
 
 const FEATURES = [
   {

@@ -5,12 +5,15 @@ import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 const base='https://www.obligeprops.com',out='artifacts/player-card-live';
 await mkdir(out,{recursive:true});
-const report={publicCode:'UNVERIFIABLE',photos:[],authenticated:'UNVERIFIABLE',viewports:[]};
+const report={expectedCommit:process.env.EXPECTED_FRONTEND_SHA||process.env.GITHUB_SHA||null,observedCommit:null,publicCode:'UNVERIFIABLE',photos:[],authenticated:'UNVERIFIABLE',viewports:[]};
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function get(path){return fetch(new URL(path,base),{signal:AbortSignal.timeout(12000),headers:{'cache-control':'no-cache'}});}
 async function deployed(){
  const r=await get('/board');if(!r.ok)return false;
- const html=await r.text();if(!html.includes('Research Terminal'))return false;
+ const html=await r.text();if(!html.includes('<meta name="oblige-surface" content="prop-board"'))return false;
+ const healthResponse=await get('/api/frontend-health');if(!healthResponse.ok)return false;
+ const health=await healthResponse.json();report.observedCommit=health.revision||null;
+ if(health.service!=='oblige-web'||(report.expectedCommit&&health.revision!==report.expectedCommit))return false;
  const paths=[...new Set([...html.matchAll(/<script[^>]+src="([^"]+)"/g)].map(m=>m[1].replace(/&amp;/g,'&')).filter(p=>p.startsWith('/_next/')))];
  for(const path of paths.slice(0,20)){const asset=await get(path);if(!asset.ok)continue;const js=await asset.text();if(js.includes('data-player-card')&&js.includes('playerCardKey'))return true;}
  return false;

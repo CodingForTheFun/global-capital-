@@ -1,4 +1,3 @@
-deploy: verified NFL + NCAAF history repairs
-source-prs: #419, #423
-release-sha: e4f73fa027162feb83a0beb8686b5f55f85964df
-reason: current watched Railway security release lock after green verified-history checks
+deploy: verified full-league opponent picker
+source: chatgpt/all-opponents-every-sport-20260919
+reason: current watched Railway release lock after green verified opponent-directory checks

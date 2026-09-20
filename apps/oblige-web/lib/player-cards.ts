@@ -1,5 +1,5 @@
 import type { PropGroup, PropRow } from './types';
-import { knownNflTeam, sameExplicitTeam } from './player-identity';
+import { knownTeam, sameExplicitTeam } from './player-identity';
 import { canonicalMarketLabel } from './market-display';
 import { isDfs, quotePeriod, quoteVariant, variantKey } from './prop-signals';
 
@@ -7,7 +7,7 @@ const clean = (value: unknown) => String(value ?? '').normalize('NFD').replace(/
 const id = (group: PropGroup) => clean(group.providerPlayerId);
 // Presentation identity only; original player names and provider IDs stay on quotes.
 const name = (group: PropGroup) => clean(group.player).replace(/[.’']/g, '').replace(/\s+(?:jr|sr|ii|iii|iv)$/i, '').trim();
-const gameTeam = (value: unknown, sport: string) => clean(sport) === 'nfl' ? knownNflTeam(value) || teamLabel(value) : teamLabel(value);
+const gameTeam = (value: unknown, sport: string) => knownTeam(value, sport) || teamLabel(value);
 
 
 /** A game, not merely a matchup. Doubleheaders and separate dates stay separate. */
@@ -138,7 +138,7 @@ const knownMarketLabels: Record<string, RegExp> = {
   player_pass_attempts: /^(?:pass|passing) attempts$/,
   player_pass_completions: /^(?:(?:pass|passing) )?completions$/,
   player_pass_rush_yds: /^(?:pass|passing)[\s+]+(?:rush|rushing) (?:yards|yds)$/,
-  player_pass_longest: /^longest (?:pass|completion)$/,
+  player_pass_longest_completion: /^longest (?:pass|completion)$/,
   player_rush_longest: /^longest rush$/,
   player_rush_attempts: /^(?:rush|rushing) attempts$/,
   player_pass_tds: /^(?:pass|passing) (?:tds|touchdowns)$/,
@@ -146,7 +146,7 @@ const knownMarketLabels: Record<string, RegExp> = {
   player_rush_reception_yds: /^(?:rush\s*\+\s*rec) (?:yards|yds)$/,
 };
 const marketAliases: Record<string, string> = {
-  player_longest_rush: 'player_rush_longest', player_longest_completion: 'player_pass_longest',
+  player_longest_rush: 'player_rush_longest', player_longest_completion: 'player_pass_longest_completion', player_pass_longest: 'player_pass_longest_completion',
   player_rec_yds: 'player_reception_yds', player_receiving_yds: 'player_reception_yds', player_rec_longest: 'player_reception_longest',
 };
 function categoryIdentity(rawKey: string, label: string, period: string, variant: string): string {

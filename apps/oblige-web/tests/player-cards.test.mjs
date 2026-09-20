@@ -262,7 +262,7 @@ test('readable provider labels and raw market keys share one exact category acro
   const previous=JSON.stringify([key,label.toLowerCase(),'','standard']);
   assert.equal(postedSelection([raw],previous,null,raw.line)?.key,'raw','old category URLs still resolve');
  }
- for(const [alias,key,label] of [['player_longest_rush','player_rush_longest','Longest Rush'],['player_longest_completion','player_pass_longest','Longest Completion']]){
+ for(const [alias,key,label] of [['player_longest_rush','player_rush_longest','Longest Rush'],['player_longest_completion','player_pass_longest_completion','Longest Completion'],['player_pass_longest','player_pass_longest_completion','Longest Completion']]){
   assert.equal(playerCategories([g('one',{marketId:alias,market:label}),g('two',{marketId:key,market:key})]).length,1);
  }
 });

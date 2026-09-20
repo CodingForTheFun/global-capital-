@@ -4,7 +4,7 @@ import type { WorkspaceMarket, WorkspaceOffer } from './workspace';
 const MARKET_NAMES: Record<string, string> = {
   player_rush_longest: 'Longest Rush', player_longest_rush: 'Longest Rush',
   player_reception_longest: 'Longest Reception', player_rec_longest: 'Longest Reception',
-  player_pass_longest: 'Longest Completion', player_pass_yds: 'Passing Yards',
+  player_pass_longest: 'Longest Completion', player_pass_longest_completion: 'Longest Completion', player_pass_yds: 'Passing Yards',
   player_rush_yds: 'Rushing Yards', player_reception_yds: 'Receiving Yards',
   player_receiving_yds: 'Receiving Yards', player_rec_yds: 'Receiving Yards',
   player_receptions: 'Receptions', player_targets: 'Targets',

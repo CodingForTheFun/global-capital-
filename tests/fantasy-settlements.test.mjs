@@ -150,3 +150,10 @@ test('reopened saved selections exclude their own event and later completed game
   const result=normalize(fixture(),{gameStartTime:'2026-09-17T00:00:00Z',eventId:'2'});
   assert.deepEqual(result.gameLog.map(row=>row.gameId),['3']);
 });
+
+
+test('a score settled after the selected event cutoff cannot enter its pre-game history', () => {
+  const data=fixture();
+  data.history.entries[0].resolved_at='2026-09-18T05:00:00Z';
+  assert.equal(normalize(data,{gameStartTime:'2026-09-18T04:00:00Z'}).available,false);
+});

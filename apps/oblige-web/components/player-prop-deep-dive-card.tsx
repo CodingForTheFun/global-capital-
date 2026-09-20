@@ -348,7 +348,7 @@ export function PlayerPropDeepDiveCard({
     const next = numericPosted ? chooseOffer(market, currentBook, Number(value), side) : activePostedOffers.find(offer => offer.key === value);
     if (next) onOffer(next);
   }
-  function renderBarLabel(props: Record<string, unknown>) {
+  function renderBarLabel(props: any) {
     const x = Number(props.x || 0), y = Number(props.y || 0), width = Number(props.width || 0), index = Number(props.index || 0);
     const row = chartRows[index];
     if (!row) return null;

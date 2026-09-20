@@ -2,7 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeOffers,normalizeCatalog,historyForMarket,number} from '../lib/web/prop-workspace.mjs';
 import {createWorkspaceHandler} from '../lib/web/workspace-api.mjs';
+import {resolveNearbyMatchupEvent} from '../lib/data-sources/espn/matchup.mjs';
 const event={id:'e1',sport:'football_nfl',startsAt:'2026-09-20T18:00:00Z',homeTeam:'A',awayTeam:'B'};
+test('nearby ESPN event identity tolerates provider drift but refuses ambiguous same-team events',()=>{
+ const team=(id,abbreviation)=>({id:String(id),abbreviation,displayName:abbreviation});
+ const competition=(id,date,home,away)=>({id:String(id),date,competitors:[{homeAway:'home',team:home},{homeAway:'away',team:away}]});
+ const target={sport:'WNBA',homeTeam:'NY',awayTeam:'LV',gameStartTime:'2026-09-20T18:00:00Z'};
+ const leagues=[{slug:'wnba'}],ny=team(1,'NY'),lv=team(2,'LV');
+ const shifted=competition(11,'2026-09-20T16:30:00Z',ny,lv);
+ const other=competition(12,'2026-09-22T16:00:00Z',ny,lv);
+ const scoreboard={leagues,events:[{id:'11',competitions:[shifted]},{id:'12',competitions:[other]}]};
+ assert.equal(resolveNearbyMatchupEvent(scoreboard,target)?.id,'11');
+ const ambiguous={leagues,events:[{id:'11',competitions:[shifted]},{id:'13',competitions:[competition(13,'2026-09-20T19:00:00Z',ny,lv)]}]};
+ assert.equal(resolveNearbyMatchupEvent(ambiguous,target),null);
+});
 const quote=(description,point,extra={})=>({name:'Over',description,point,price:-110,player_id:'nfl:1',...extra});
 const payload=(book,market,outcomes,extra={})=>({id:'e1',sport_key:'football_nfl',bookmakers:[{key:book,markets:[{key:market,outcomes,...extra}]}]});
 test('one player owns all books, lines and category variants',()=>{
@@ -56,12 +69,18 @@ test('canonical history falls back to verified ESPN only after PropLine lacks th
   if(path==='/v1/sports/basketball_wnba/players/Board%20Player/games')return{sport_key:'basketball_wnba',player_name:'Board Player',player_id:'wnba:1',games:[]};
   throw new Error('unexpected '+path);
  };
- const historyFallback=async params=>{fallbackParams=params;return{ok:true,available:true,source:'Historical stats',gameLog:[{gameId:'wnba:10',date:'2026-09-10T00:00:00Z',value:2}]};};
+ const historyFallback=async params=>{fallbackParams=params;return{ok:true,available:true,source:'Historical stats',selectedSourceGameId:'wnba:11',coverage:{returnedGames:3},gameLog:[
+  {gameId:'wnba:10',date:'2026-09-10T00:00:00Z',value:2},
+  // Same selected game, but ESPN reports an earlier timestamp than PropLine.
+  {gameId:'wnba:11',date:'2026-09-20T16:30:00Z',value:5},
+  {gameId:'wnba:12',date:'2026-09-21T00:00:00Z',value:4},
+ ]};};
  const handler=createWorkspaceHandler({authenticate:async()=>({id:'u'}),read,historyFallback,now:()=>Date.parse('2026-09-19T00:00:00Z')});
  const playerKey=encodeURIComponent(JSON.stringify(['basketball_wnba','b1',['id','wnba:1']]));
  const marketKey=encodeURIComponent(JSON.stringify(['player_offensive_rebounds',null,'standard']));
  let body,status;await handler({url:'/api/oblige-workspace?action=history&sport=basketball_wnba&event=b1&player='+playerKey+'&market='+marketKey,method:'GET'},{writeHead(s){status=s;},end(b){body=JSON.parse(b);}});
  assert.equal(status,200);assert.equal(body.available,true);assert.equal(body.sourceProvider,'ESPN');assert.equal(body.fallback,true);assert.equal(body.primaryCode,'NO_VERIFIED_STAT_HISTORY');
+ assert.deepEqual(body.gameLog.map(row=>row.gameId),['wnba:10']);assert.equal(body.coverage.returnedGames,1);assert.equal(body.coverage.selectedEventCutoff,'2026-09-20T18:00:00.000Z');
  assert.equal(fallbackParams.sport,'WNBA');assert.equal(fallbackParams.providerMarketKey,'player_offensive_rebounds');assert.equal(fallbackParams.gameStartTime,'2026-09-20T18:00:00.000Z');
  assert.ok(reads.some(path=>path.includes('/players/Board%20Player/games')));
 });

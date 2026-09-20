@@ -11,7 +11,7 @@ import {SignInPanel} from '@/components/sign-in';
 import {PlayerView} from '@/components/player-view';
 import {PropExplorer,type ExplorerState} from '@/components/prop-explorer';
 import {GameLog} from '@/components/research';
-import {PremiumPlayerResearch} from '@/components/premium-player-research';
+import {PlayerAnalysisPage} from '@/components/player-analysis-page';
 import {QuoteHistory} from '@/components/quote-history';
 import {marketName} from '@/lib/market-display';
 import styles from './workspace.module.css';
@@ -119,7 +119,7 @@ function WorkspaceDetail({sport,eventId,playerKey,categoryKey}:{sport:string;eve
  const {account,setAccount,checking}=useWorkspaceAccount();
  const [player,setPlayer]=React.useState<WorkspacePlayer|null>(null),[error,setError]=React.useState('');
  const [category,setCategory]=React.useState(categoryKey),[selected,setSelected]=React.useState<WorkspaceOffer|null>(null);
- const [history,setHistory]=React.useState<WorkspaceHistory|null>(null),[historyError,setHistoryError]=React.useState(''),[historyLoading,setHistoryLoading]=React.useState(false),[retry,setRetry]=React.useState(0);
+ const [historyResult,setHistory]=React.useState<{scope:string;value:WorkspaceHistory}|null>(null),[historyError,setHistoryError]=React.useState(''),[historyLoading,setHistoryLoading]=React.useState(false),[retry,setRetry]=React.useState(0);
  const [analysis,setAnalysis]=React.useState<ExplorerState>({line:0,side:'OVER',book:null});
  const [favourite,setFavourite]=React.useState(false);
  React.useEffect(()=>{
@@ -128,13 +128,15 @@ function WorkspaceDetail({sport,eventId,playerKey,categoryKey}:{sport:string;eve
   return()=>c.abort();
  },[account,sport,eventId,playerKey,categoryKey,setAccount]);
  const market=player?.markets.find(m=>m.key===category)||null;
+ const historyScope=JSON.stringify([sport,eventId,player?.key,market?.key]);
+ const history=historyResult?.scope===historyScope?historyResult.value:null;
  React.useEffect(()=>{
   if(!market)return;const offer=chooseOffer(market,null,null);setSelected(offer);
   if(offer)setAnalysis({line:offer.line??0,side:offer.side||'OVER',book:offer.book});
  },[market]);
  React.useEffect(()=>{
   if(!player||!market)return;const c=new AbortController();setHistory(null);setHistoryError('');setHistoryLoading(true);
-  void workspaceGet<WorkspaceHistory>('history',{sport,event:eventId,player:player.key,market:market.key},c.signal).then(body=>{if(!c.signal.aborted)setHistory(body);}).catch(cause=>{if(!c.signal.aborted)setHistoryError(message(cause));}).finally(()=>{if(!c.signal.aborted)setHistoryLoading(false);});
+  void workspaceGet<WorkspaceHistory>('history',{sport,event:eventId,player:player.key,market:market.key},c.signal).then(body=>{if(!c.signal.aborted)setHistory({scope:historyScope,value:body});}).catch(cause=>{if(!c.signal.aborted)setHistoryError(message(cause));}).finally(()=>{if(!c.signal.aborted)setHistoryLoading(false);});
   return()=>c.abort();
  },[player,market,sport,eventId,retry]);
  const group=React.useMemo(()=>player&&market&&selected&&selected.line!==null&&selected.side?toResearchGroup(player,market,selected):null,[player,market,selected]);
@@ -146,11 +148,11 @@ function WorkspaceDetail({sport,eventId,playerKey,categoryKey}:{sport:string;eve
  if(checking)return <main className={styles.shell}><p className={styles.status}>Opening research…</p></main>;
  if(!account)return <main className={styles.shell}><SignInPanel onSignedIn={setAccount}/></main>;
  if(error)return <main className={styles.shell}><Link href="/board" className={styles.back}>Back to props</Link><p role="alert" className={styles.status}>{error}</p></main>;
- if(!player||!market||!selected)return <main className={styles.shell}><p className={styles.status}>Loading this player’s markets…</p></main>;
+ if(!player||!market||!selected||!market.offers.some(o=>o.key===selected.key))return <main className={styles.shell}><p className={styles.status}>Loading this player’s markets…</p></main>;
  const unavailable=historyError||(history?.available===false?history.message||'No verified history for this exact statistic.':null);
- return <PremiumPlayerResearch player={player} market={market} selected={selected} side={analysis.side} favourite={favourite} canFollow={!!group} onCategory={setCategory} onBook={selectBook} onOffer={select} onFavourite={toggleFavourite}
+ return <PlayerAnalysisPage analysis={{group:displayGroup,history,line:analysis.line,loading:historyLoading,unavailable}} player={player} market={market} selected={selected} side={analysis.side} favourite={favourite} canFollow={!!group} onCategory={setCategory} onBook={selectBook} onOffer={select} onFavourite={toggleFavourite}
   research={displayGroup?<>
-   <PropExplorer group={displayGroup} games={unavailable?[]:history?.gameLog||[]} loading={historyLoading} unavailableReason={unavailable} currentOpponent={history?.matchup?.opponent ?? null} hideBookFilter state={analysis} onState={next=>{if(next.side!==analysis.side){const quote=chooseOffer(market,selected.book,selected.line,next.side);if(quote?.side===next.side)setSelected(quote);}setAnalysis({...next,book:selected.book});}} favourite={favourite} onFavourite={toggleFavourite}/>
+   <PropExplorer group={displayGroup} games={unavailable?[]:history?.gameLog||[]} loading={historyLoading} unavailableReason={unavailable} currentOpponent={history?.matchup?.opponent ?? null} season={history?.season} hideBookFilter state={analysis} onState={next=>{if(next.side!==analysis.side){const quote=chooseOffer(market,selected.book,selected.line,next.side);if(quote?.side===next.side)setSelected(quote);}setAnalysis({...next,book:selected.book});}} favourite={favourite} onFavourite={toggleFavourite}/>
    {historyError&&<button className={styles.button} onClick={()=>setRetry(n=>n+1)}>Retry history</button>}
   </>:<p className={styles.status}>This is a {selected.choice} outcome, not a numeric Over/Under line. Its quote is preserved; a numeric history chart is not substituted.</p>}
   model={<ModelPanel key={JSON.stringify([player.key,market.key,selected.key])} player={player} market={market} offer={selected} researchLine={analysis.line} researchSide={analysis.side}/>}

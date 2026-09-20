@@ -49,7 +49,8 @@ export function computeWindow(
   label: string,
   take?: number,
 ): Window {
-  const slice = take ? games.slice(0, take) : games;
+  const valid = playable(games);
+  const slice = take ? valid.slice(0, take) : valid;
   const values = slice.map((game) => Number(game.value)).filter(Number.isFinite);
   if (!values.length) {
     return { id, label, games: 0, hits: 0, misses: 0, pushes: 0, hitRate: null, average: null };

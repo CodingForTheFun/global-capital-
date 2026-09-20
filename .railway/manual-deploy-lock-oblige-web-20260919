@@ -1,2 +1,1 @@
-Reviewed release: PR #459 / c26d034ba857fccba055491990a4b941ae8bc8cc
-Deploy Demon/Goblin icons and DFS quote fixes through existing Railway gates.
+Player Analysis release: PR #471. Preserve Alpha and DFS updates; run existing frontend verification and deployment gates.

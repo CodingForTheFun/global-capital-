@@ -64,10 +64,11 @@ export function currentOpponentLabels(group: Pick<PropGroup, 'team' | 'opponent'
 export function buildOpponentOptions(
   opponents: Array<string | null | undefined>,
   group: Pick<PropGroup, 'team' | 'opponent' | 'homeTeam' | 'awayTeam'>,
+  individual = false,
 ): OpponentFilterOption[] {
   const values = [...new Set(opponents.map(text).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const current = currentOpponentLabels(group);
-  const isCurrent = (value: string) => current.some(label => sameTeamLabel(value, label));
+  const current = individual ? [text(group.opponent)].filter(Boolean) : currentOpponentLabels(group);
+  const isCurrent = (value: string) => current.some(label => individual ? text(value).toLowerCase() === text(label).toLowerCase() : sameTeamLabel(value, label));
 
   if (!values.some(isCurrent) && current[0]) {
     values.push(current[0]);

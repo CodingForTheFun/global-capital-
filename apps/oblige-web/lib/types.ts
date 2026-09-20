@@ -123,6 +123,17 @@ export type ResearchWindow = {
 };
 
 export type GameLogRow = {
+  gameResult?: string | null;
+  scoreFor?: number | null;
+  scoreAgainst?: number | null;
+  points?: number | null;
+  rebounds?: number | null;
+  assists?: number | null;
+  threes?: number | null;
+  started?: boolean | null;
+  dnp?: boolean;
+  didNotPlay?: boolean;
+  [stat: string]: unknown;
   gameId?: string;
   date?: string;
   opponent?: string;
@@ -144,7 +155,7 @@ export type ResearchResponse = {
   source?: string;
   fetchedAt?: string;
   cached?: boolean;
-  player?: { playerName?: string; providerPlayerId?: string; team?: string | null };
+  player?: { position?: string | null; playerName?: string; providerPlayerId?: string; team?: string | null };
   matchup?: {
     opponent?: string | null;
     isHome?: boolean | null;

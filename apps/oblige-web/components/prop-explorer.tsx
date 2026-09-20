@@ -6,7 +6,7 @@ import {applyFilters,buildWindows,computeWindow,distinct,EMPTY_FILTERS,filtersAc
 import {isDfs,quotePriceLabel,quoteVariant} from '@/lib/prop-signals';
 import {DfsVariantIcon} from '@/components/dfs-variant-icon';
 import dynamic from 'next/dynamic';
-import {currentSeasonGames,sportFamily} from '@/lib/player-analysis';
+import {analysisOpponent,currentSeasonGames,sportFamily} from '@/lib/player-analysis';
 const HitRateChart=dynamic(()=>import('./hit-rate-chart').then(m=>m.HitRateChart),{ssr:false,loading:()=> <div style={{height:280}} role="status">Loading chart…</div>});
 import {shortDate} from '@/lib/utils';
 import {Skeleton} from '@/components/ui/skeleton';
@@ -27,7 +27,7 @@ export function PropExplorer({group,games,loading,unavailableReason,state,onStat
  const played=React.useMemo(()=>unavailableReason?[]:sortRecentFirst(games.filter(g=>numberOrNull(g.value)!==null).map(g=>({...g,value:numberOrNull(g.value)}))),[games,unavailableReason]);
  const filtered=React.useMemo(()=>applyFilters(played,filters),[played,filters]);
  const windows=React.useMemo(()=>{const result=buildWindows(filtered,state.line,state.side);result[3]=computeWindow(currentSeasonGames(filtered,filters.season==='all'?season:filters.season),state.line,state.side,'season','Season');result.splice(3,0,computeWindow(filtered,state.line,state.side,'l20','L20',20));return result;},[filtered,state.line,state.side,filters.season,season]);
- const opponentIdentity=currentOpponent||group.opponent;
+ const opponentIdentity=analysisOpponent(group,currentOpponent);
  const opponentOptions=React.useMemo(()=>buildOpponentOptions(distinct(played.map(g=>g.opponent)),{...group,opponent:opponentIdentity},tennis),[played,opponentIdentity,group.team,group.homeTeam,group.awayTeam,tennis]);
  const currentOpponentValue=React.useMemo(()=>opponentOptions.find(option=>option.label.endsWith(' ★'))?.value||null,[opponentOptions]);
  const h2hOpponent=filters.opponent!=='all'?filters.opponent:currentOpponentValue;

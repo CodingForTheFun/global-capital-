@@ -14,3 +14,11 @@ test('tennis H2H opponent matching never aliases different people by initials',a
  assert.equal(options.find(o=>o.value==='Jack Smith').label,'Jack Smith');
  assert.equal(options.find(o=>o.value==='John Smith').label,'John Smith ★');
 });
+
+test('tennis upcoming opponent is resolved from exact event participants only',async()=>{
+ const {analysisOpponent}=await loadLib('player-analysis');
+ const group={sport:'TENNIS',player:'Aliaksandra Sasnovich',opponent:null,awayTeam:'Aliaksandra Sasnovich',homeTeam:'Daria Kasatkina'};
+ assert.equal(analysisOpponent(group),'Daria Kasatkina');
+ assert.equal(analysisOpponent({...group,player:'Other Player'}),null);
+ assert.equal(analysisOpponent({...group,homeTeam:null}),null);
+});

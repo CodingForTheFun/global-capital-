@@ -6,7 +6,7 @@ import { DefenseVsPosition } from './defense-vs-position';
 import { AnalysisGameLog } from './analysis-game-log';
 import { MatchContext } from './match-context';
 import type { PropGroup, ResearchResponse } from '@/lib/types';
-import { average, currentSeasonGames, finite, leagueKey, sportFamily, statLabels } from '@/lib/player-analysis';
+import { analysisOpponent, average, currentSeasonGames, finite, leagueKey, sportFamily, statLabels } from '@/lib/player-analysis';
 import { sameTeamLabel } from '@/lib/opponent-options';
 import { marketName } from '@/lib/market-display';
 import s from './player-analysis.module.css';
@@ -19,7 +19,7 @@ const metricNames: Record<string,RegExp>={points:/^(points|pts)$/i,rebounds:/^(r
 export function PlayerAnalysisPage({analysis,...props}:PremiumPlayerResearchProps&{analysis:AnalysisInput}) {
   const {group,history,line,loading,unavailable}=analysis;
   const games=React.useMemo(()=>!loading&&!unavailable&&history?.available===true?(history.gameLog||[]).filter(g=>finite(g.value)!==null&&g.dnp!==true&&g.didNotPlay!==true):[],[history,loading,unavailable]);
-  const opponent=history?.matchup?.opponent||group?.opponent||null,sport=group?.sport||props.player.sport,family=sportFamily(sport),league=leagueKey(sport);
+  const opponent=group?analysisOpponent(group,history?.matchup?.opponent):history?.matchup?.opponent||null,sport=group?.sport||props.player.sport,family=sportFamily(sport),league=leagueKey(sport);
   const season=currentSeasonGames(games,history?.season);
   const sameOpponent=(value:unknown)=>family==='tennis'?String(value||'').trim().toLowerCase()===String(opponent||'').trim().toLowerCase():sameTeamLabel(value,opponent);
   const h2h=games.filter(g=>opponent&&sameOpponent(g.opponent));

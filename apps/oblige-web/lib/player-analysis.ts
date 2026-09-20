@@ -1,4 +1,4 @@
-import type { GameLogRow, ResearchResponse } from './types';
+import type { GameLogRow, ResearchResponse, PropGroup } from './types';
 
 export const finite = (value: unknown): number | null => value == null || typeof value === 'boolean' || String(value).trim() === '' || !Number.isFinite(Number(value)) ? null : Number(value);
 export function sportFamily(sport: string) {
@@ -45,4 +45,14 @@ export function compareGames(a:GameLogRow,b:GameLogRow,key:string,direction:1|-1
   const x=key==='date' ? finite(Date.parse(a.date||'')) : finite(a[key]);
   const y=key==='date' ? finite(Date.parse(b.date||'')) : finite(b[key]);
   return x===null ? (y===null?0:1) : y===null ? -1 : direction*(x-y);
+}
+
+/** Individual opponents require the player's exact event-side identity. */
+export function analysisOpponent(group: Pick<PropGroup,'sport'|'player'|'opponent'|'homeTeam'|'awayTeam'>, reported?: string|null) {
+  if(reported||group.opponent)return reported||group.opponent||null;
+  if(sportFamily(group.sport)!=='tennis')return null;
+  const key=(v:unknown)=>String(v||'').normalize('NFKC').trim().toLowerCase();
+  const player=key(group.player),home=key(group.homeTeam),away=key(group.awayTeam);
+  if(!player||!home||!away||home===away)return null;
+  return player===home?group.awayTeam:player===away?group.homeTeam:null;
 }

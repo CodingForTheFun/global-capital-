@@ -37,6 +37,39 @@ for(const [sport,marketKey,stat] of fixtures){
   assert.equal(archives.length,1);assert.equal(archives[0].options.ttlSeconds,900);assert.equal(archives[0].options.bypassCache,undefined);
  });
 }
+test('canonical WNBA workspace exhausts PropLine and ESPN before verified WNBA Stats archive', async () => {
+ const sport='basketball_wnba',marketKey='player_offensive_rebounds';
+ const event={id:'wnba-current',sport,startsAt:'2026-09-20T12:00:00Z',homeTeam:'ATL',awayTeam:'CON',aliases:[]};
+ const odds={id:event.id,sport_key:sport,commence_time:event.startsAt,bookmakers:[{key:'prizepicks',markets:[{key:marketKey,outcomes:[{name:'Over',description:'Angel Reese',player_id:'1642291',point:4.5,price:null}]}]}]};
+ const normalized=normalizeOffers(odds,event);
+ const p=normalized.players[0],m=p.markets[0];
+ let espnCalls=0,archiveCalls=0;
+ const handler=createWorkspaceHandler({
+  authenticate:async()=>({id:'fixture-user'}),
+  now:()=>NOW,
+  historyFallback:async params=>{espnCalls++;assert.equal(params.sport,'WNBA');assert.equal(params.providerMarketKey,marketKey);return {available:false,code:'STAT_NOT_AVAILABLE',gameLog:[]};},
+  wnbaHistoryFallback:async params=>{
+   archiveCalls++;assert.equal(params.sport,'WNBA');assert.equal(params.playerName,'Angel Reese');assert.equal(params.eventId,event.id);
+   return {available:true,source:'WNBA Stats archive via SportsDataverse',gameLog:[{gameId:'wnba:prior',date:'2026-09-17T00:00:00.000Z',value:3,offensiveRebounds:3,rebounds:10}]};
+  },
+  read:async path=>{
+   if(path==='/v1/sports')return [{key:sport,title:'WNBA'}];
+   if(path.endsWith('/events'))return [{id:event.id,sport_key:sport,commence_time:event.startsAt,home_team:'ATL',away_team:'CON'}];
+   if(path.endsWith('/markets'))return [{key:marketKey}];
+   if(path.endsWith('/odds'))return odds;
+   if(path.endsWith('/players/Angel%20Reese/games'))return {sport_key:sport,player_name:'Angel Reese',player_id:'1642291',games:[]};
+   throw Error('unexpected path '+path);
+  },
+ });
+ const query=new URLSearchParams({action:'history',sport,event:event.id,player:p.key,market:m.key});
+ let status,body;
+ assert.equal(await handler({url:`/api/oblige-workspace?${query}`,method:'GET'},{writeHead(value){status=value;},end(value){body=JSON.parse(value);}}),true);
+ assert.equal(status,200);assert.equal(body.available,true);assert.equal(body.gameLog[0].value,3);
+ assert.equal(body.sourceProvider,'WNBA Stats archive via SportsDataverse');
+ assert.deepEqual(body.attemptedSources,['PropLine','ESPN','WNBA Stats archive']);
+ assert.equal(espnCalls,1);assert.equal(archiveCalls,1);
+});
+
 const player={name:'Fixture',aliases:['Fixture'],sport:'tennis',playerId:'fixture-id',eventId:'current',startsAt:'2026-09-20T12:00:00Z'};
 const market={marketKey:'total_games',period:null};
 const row=(event_id,value,extra={})=>({event_id,status:'final',commence_time:'2026-09-10T12:00:00Z',stats:{total_games:value},...extra});

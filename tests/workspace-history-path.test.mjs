@@ -129,3 +129,32 @@ test('canonical workspace tries nflverse after PropLine and ESPN miss', async()=
   assert.deepEqual(body.attemptedSources,['PropLine','ESPN','nflverse']);
   assert.equal(espnCalls,1);assert.equal(nflCalls,1);
 });
+
+
+test('canonical workspace tries NCAA archive after PropLine and ESPN miss', async()=>{
+  const sport='football_ncaaf',marketKey='player_pass_yds';
+  const event={id:'fixture-event-cfb',sport,startsAt:'2026-09-20T20:00:00Z',homeTeam:'Fixture State',awayTeam:'Carolina',aliases:[]};
+  const odds={id:event.id,sport_key:sport,commence_time:event.startsAt,bookmakers:[{key:'prizepicks',markets:[{key:marketKey,outcomes:[{name:'Over',description:'College Fixture',player_id:'provider-id',point:250.5,price:null}]}]}]};
+  const normalized=normalizeOffers(odds,event),player=normalized.players[0],market=player.markets[0];
+  let espnCalls=0,ncaaCalls=0;
+  const handler=createWorkspaceHandler({
+    authenticate:async()=>({id:'fixture-user'}),
+    now:()=>Date.parse('2026-09-19T23:00:00Z'),
+    historyFallback:async()=>{espnCalls++;return{available:false,code:'NO_GAME_LOG_DATA',gameLog:[]};},
+    ncaafHistoryFallback:async params=>{ncaaCalls++;assert.equal(params.sport,'NCAAF');return{available:true,source:'NCAA stats archive via SportsDataverse',gameLog:[{gameId:'ncaaf:c3',date:'2026-09-12T00:00:00.000Z',value:278}]};},
+    read:async path=>{
+      if(path==='/v1/sports')return[{key:sport,title:'NCAAF'}];
+      if(path.endsWith('/events'))return[{id:event.id,sport_key:sport,commence_time:event.startsAt,home_team:'Fixture State',away_team:'Carolina'}];
+      if(path.endsWith('/markets'))return[{key:marketKey}];
+      if(path.endsWith('/odds'))return odds;
+      if(path.includes('/players/')&&path.endsWith('/games'))return{sport_key:sport,player_name:player.name,player_id:player.playerId,games:[]};
+      throw Error('unexpected provider call '+path);
+    },
+  });
+  const query=new URLSearchParams({action:'history',sport,event:event.id,player:player.key,market:market.key});
+  let status,body;
+  assert.equal(await handler({url:`/api/oblige-workspace?${query}`,method:'GET'},{writeHead(v){status=v;},end(v){body=JSON.parse(v);}}),true);
+  assert.equal(status,200);assert.equal(body.available,true);assert.equal(body.sourceProvider,'NCAA stats archive via SportsDataverse');
+  assert.deepEqual(body.attemptedSources,['PropLine','ESPN','NCAA Stats archive']);
+  assert.equal(espnCalls,1);assert.equal(ncaaCalls,1);
+});

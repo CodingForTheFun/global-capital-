@@ -19,9 +19,11 @@ function eventOdds() {
   return {
     id: '210404', sport_key: 'baseball_mlb', commence_time: '2026-09-15T01:40:00+00:00',
     home_team: 'Arizona Diamondbacks', away_team: 'Miami Marlins',
+    home_team_key: 'arizona_diamondbacks', away_team_key: 'miami_marlins',
+    home_team_id: 'mlb:109', away_team_id: 'mlb:146', merged_from_event_ids: ['210399'],
     bookmakers: [
-      { key: 'draftkings', title: 'DraftKings', markets: [ { key: 'pitcher_strikeouts', title: 'Strikeouts', outcomes: [
-        { name: 'Over', description: 'Corbin Burnes', player_id: 'mlb:592450', point: 5.5, price: -115, outcome_id: 'a1', last_change_at: '2026-09-15T01:00:00Z' },
+      { key: 'draftkings', title: 'DraftKings', book_event_id: 'dk-event-210404', app_link: 'draftkings://event/210404', markets: [ { key: 'pitcher_strikeouts', title: 'Strikeouts', outcomes: [
+        { name: 'Over', description: 'Corbin Burnes', player_id: 'mlb:592450', point: 5.5, price: -115, outcome_id: 'a1', book_outcome_id: 'dk-outcome-a1', last_change_at: '2026-09-15T01:00:00Z', last_seen_at: '2026-09-15T01:01:00Z', book_updated_at: '2026-09-15T00:59:59Z', liquidity: 1250, liquidity_updated_at: '2026-09-15T01:00:02Z', dfs_odds_type: 'standard' },
         { name: 'Under', description: 'Corbin Burnes', player_id: 'mlb:592450', point: 5.5, price: -105, outcome_id: 'a2' },
       ] } ] },
       { key: 'prizepicks', title: 'PrizePicks', markets: [ { key: 'pitcher_strikeouts', title: 'Strikeouts', outcomes: [
@@ -78,10 +80,29 @@ test('an event payload normalizes into board rows', () => {
   assert.equal(out.events.length, 1);
   assert.equal(out.events[0].sport, 'MLB');
   assert.equal(out.events[0].homeTeam, 'Arizona Diamondbacks');
+  assert.equal(out.events[0].homeTeamKey, 'arizona_diamondbacks');
+  assert.equal(out.events[0].awayTeamKey, 'miami_marlins');
+  assert.equal(out.events[0].homeTeamProviderId, 'mlb:109');
+  assert.deepEqual(out.events[0].mergedFromProviderEventIds, ['210399']);
   assert.equal(out.players.length, 1, 'the same player across books is one player row');
   assert.equal(out.players[0].providerPlayerId, 'mlb:592450', 'the stable league id must survive');
   assert.equal(out.lines.length, 3, 'two DraftKings sides plus the PrizePicks goblin');
   assert.equal(out.skipped.noSide, 1, 'the 5+ threshold outcome has no comparable side and is counted, not thrown');
+});
+
+test('current PropLine book ids, freshness and liquidity metadata survive normalization', () => {
+  const out = normalizeEventOdds(eventOdds(), { sport: 'MLB' });
+  const row = out.lines.find((line) => line.bookmakerKey === 'draftkings' && line.side === 'OVER');
+  assert.equal(row.providerOutcomeId, 'a1');
+  assert.equal(row.bookOutcomeId, 'dk-outcome-a1');
+  assert.equal(row.bookEventId, 'dk-event-210404');
+  assert.equal(row.dfsOddsType, 'standard');
+  assert.equal(row.liquidity, 1250);
+  assert.equal(row.liquidityUpdatedAt, '2026-09-15T01:00:02Z');
+  assert.equal(row.bookUpdatedAt, '2026-09-15T00:59:59Z');
+  assert.equal(row.lastChangeAt, '2026-09-15T01:00:00Z');
+  assert.equal(row.lastSeenAt, '2026-09-15T01:01:00Z');
+  assert.equal(row.appLink, 'draftkings://event/210404');
 });
 
 test('the goblin line is flagged and separated from the standard prop', () => {

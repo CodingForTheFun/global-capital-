@@ -49,7 +49,9 @@ try{
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].filter(n=>n.getBoundingClientRect().width>0).every(n=>n.complete&&n.naturalWidth>0));
   const imgSrc=await page.locator('img[data-player-photo]:visible').first().getAttribute('src');
   assert.ok(new URL(imgSrc,base).searchParams.get('url').includes('/nfl/players/full/42.png'));
+  await page.getByRole('button',{name:'Filters',exact:true}).click();
   await page.screenshot({path:`${out}/${name}-board.png`,fullPage:true});
+  console.log(`REFERENCE_BOARD_${viewport.width}=`+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
   await writeFile(`${out}/${name}-dimensions.json`,JSON.stringify(dimensions,null,2));
   assert.ok(dimensions.scrollWidth<=dimensions.viewport+1,'reference cards fit the viewport');

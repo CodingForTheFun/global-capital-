@@ -59,6 +59,7 @@ try{
   assert.equal(modelCalls,0,'Initial board never waits for or requests optional models');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Cards fit viewport');
   await page.screenshot({path:`${out}/width-${width}-cards.png`,fullPage:true});
+  if(width===390||width===1440)console.log(`REFERENCE_CARDS_${width}=`+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
   const researchButton=card.getByRole('button',{name:'Research',exact:true});
   if(await researchButton.count())await researchButton.click();else await card.getByRole('button',{name:'Research UI Test Player',exact:true}).click();
   await page.waitForURL(/\/research\?/);
@@ -96,6 +97,7 @@ try{
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,heroHeight:document.querySelector('main[data-design] header')?.getBoundingClientRect().height,chartTop:document.querySelector('.op-chart-section')?.getBoundingClientRect().top}));
   assert.ok(dimensions.scrollWidth<=width+1,'No horizontal page overflow');assert.ok(dimensions.heroHeight<210,'Compact identity hero');assert.ok(dimensions.chartTop<900,'Chart not buried below repeated oversized fields');
   await main.screenshot({path:`${out}/width-${width}.png`});
+  if(width===390)console.log('REFERENCE_RESEARCH_390='+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
   // Saved legacy links without card/category IDs must use the same component for every sport.
   if(width===390)for(const [sport,[stat,title]] of Object.entries(names)){
    await page.goto(base+'/research?'+new URLSearchParams({sport,player:'UI Test Player',market:stat,line:'22.5'}));await main.waitFor();await page.locator('.op-chart-bar').first().waitFor();assert.ok(await main.getByRole('heading',{name:title,exact:true}).count()>0,`${sport}: readable label on saved link`);assert.equal(await page.locator('.player-cinematic-hero').count(),0);

@@ -8,7 +8,7 @@ const base=process.env.BOARD_PREMIUM_ORIGIN||'http://127.0.0.1:3100';
 const out=process.env.BOARD_PREMIUM_OUTPUT||'artifacts/board-premium';
 await mkdir(out,{recursive:true});
 const photo=Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect width="128" height="128" fill="#12283f"/><circle cx="64" cy="46" r="23" fill="#5c718a"/><path d="M14 128v-13a50 50 0 0 1 100 0v13" fill="#5c718a"/><text x="64" y="120" fill="white" text-anchor="middle" font-family="sans-serif" font-size="16">UI TEST</text></svg>');
-const names={NFL:['player_reception_longest','Longest Reception'],WNBA:['player_points','Points'],MLB:['batter_total_bases','Total Bases'],NHL:['player_shots_on_goal','Shots on Goal'],TENNIS:['player_aces','Aces'],CS2:['player_kills','Kills']};
+const names={NFL:['player_reception_longest','Longest Reception'],WNBA:['player_points','Points'],MLB:['batter_total_bases','Total Bases'],NHL:['player_shots_on_goal','Shots on Goal'],TENNIS:['player_aces','Aces'],CS2:['player_kills','Kills'],NBA:['player_points','Points'],NCAAF:['player_pass_yds','Passing Yards'],NCAAB:['player_points','Points'],SOCCER:['player_shots','Shots'],CRICKET:['player_runs','Runs'],ROCKETLEAGUE:['player_goals','Goals']};
 function rows(sport){
  const stat=(names[sport]||names.NFL)[0],common={sport,provider:'propline',proplineEventId:`native-${sport}`,proplinePlayerId:'espn:42',playerName:'UI Test Player',providerPlayerId:'espn:42',market:stat,marketId:stat,line:22.5,gameStartTime:'2050-09-20T18:00:00Z',homeTeam:'Test Home',awayTeam:'Test Away',team:'QA',opponent:'TST'};
  return [[stat,stat],[sport==='NFL'?'player_reception_yds':'player_assists',sport==='NFL'?'player_reception_yds':'player_assists'],[stat+' · First half',stat]].flatMap(([market,marketId],mi)=>['draftkings','fanduel'].flatMap(book=>(book==='draftkings'?[22.5]:[23.5,24.5]).flatMap(line=>['OVER','UNDER'].map(side=>({...common,market,marketId,line,eventId:`fixture-${book}`,id:`${sport}-${mi}-${book}-${line}-${side}`,proplineOutcomeId:`${sport}-${mi}-${book}-${line}-${side}`,sportsbook:book==='draftkings'?'DraftKings':'FanDuel',sportsbookKey:book,price:side==='OVER'?-115:-105,side})))))
@@ -57,8 +57,9 @@ try{
   await page.goto(base+'/board',{waitUntil:'domcontentloaded'});
   const card=page.locator('[data-player-card]:visible').first();await card.waitFor({timeout:30000});
   assert.equal(await page.locator('[data-player-card]:visible').count(),1,'Existing cross-book deduplication is preserved');
-  await page.locator('[aria-label="Historical over results"] strong').first().filter({hasText:/[0-9]/}).waitFor();
+  await page.locator('[data-label="Hit rate"] > div > span').first().filter({hasText:/[0-9]/}).waitFor();
   assert.equal(modelCalls,0,'Initial board never waits for or requests optional models');
+  assert.equal(await page.locator('[data-design="alpha"]').count(),1,'Alpha is the shared board layout');
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Cards fit viewport');
   await page.screenshot({path:`${out}/width-${width}-cards.png`,fullPage:true});
   if(width===390||width===1440)console.log(`REFERENCE_CARDS_${width}=`+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
@@ -149,7 +150,7 @@ try{
    manyMode=true;referenceMode=false;specialMode=false;historyCalls.length=0;modelCalls=0;
    await page.goto(base+'/board');await page.locator('[data-player-card]').first().waitFor();
    await page.waitForFunction(()=>document.querySelectorAll('[data-player-card]').length===12);
-   await page.locator('[aria-label="Historical over results"] strong').last().filter({hasText:/[—0-9]/}).waitFor();
+   await page.locator('[data-label="Hit rate"] > div > span').last().filter({hasText:/[—0-9]/}).waitFor();
    assert.equal(historyCalls.length,12,'Only the first 12 visible players request history');assert.ok(maxHistory<=3,'At most three history requests in flight');assert.equal(modelCalls,0);
    const firstNames=await page.locator('[data-player-card]').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('data-player-card')));
    await page.getByRole('button',{name:'Next',exact:true}).click();

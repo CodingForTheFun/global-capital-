@@ -1,5 +1,5 @@
 import type { PropGroup, PropRow } from './types';
-import { knownNflTeam } from './player-identity';
+import { knownNflTeam, sameExplicitTeam } from './player-identity';
 import { isDfs, quotePeriod, quoteVariant, variantKey } from './prop-signals';
 
 const clean = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -161,8 +161,8 @@ export function groupPlayerCards(groups: PropGroup[]): PlayerCard[] {
   const sideOf = (group: PropGroup) => {
     const team = gameTeam(group.team, group.sport), home = gameTeam(group.homeTeam, group.sport), away = gameTeam(group.awayTeam, group.sport);
     if (!team) return '';
-    if (home && team === home) return 'home';
-    if (away && team === away) return 'away';
+    if (home && (team === home || sameExplicitTeam(group.team, group.homeTeam, group.sport))) return 'home';
+    if (away && (team === away || sameExplicitTeam(group.team, group.awayTeam, group.sport))) return 'away';
     return '';
   };
   const sides = new Map<string, Set<string>>();

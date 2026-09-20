@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadLib } from './load-lib.mjs';
+import { BOARD_SPORTS } from '../../../lib/autoscout/models.mjs';
 const { researchPlayerName } = await loadLib('player-identity');
 const { groupProps, fetchResearch } = await loadLib('api');
 const { groupPlayerCards, collapsePlayerCards, isSavedCard } = await loadLib('player-cards');
@@ -14,7 +15,7 @@ test('verified NFL team decoration is removed without guessing ambiguous names',
  assert.equal(researchPlayerName('Aaron Rodgers (PIT)',{...context,team:'NE'}),'Aaron Rodgers (PIT)');
  for(const name of ['Aaron Rodgers (ABC)','Aaron Rodgers (Captain)','Aaron Rodgers + Drake Maye (PIT)'])assert.equal(researchPlayerName(name,context),name);
  assert.equal(researchPlayerName('Aaron Rodgers (PIT)',{sport:'NFL'}),'Aaron Rodgers (PIT)');
- assert.equal(researchPlayerName('Test Player (MIN)',{...context,sport:'NBA',team:'MIN'}),'Test Player (MIN)');
+ assert.equal(researchPlayerName('Test Player (MIN)',{...context,sport:'NBA',team:'Minnesota Timberwolves'}),'Test Player (MIN)');
 });
 
 test('provider-tagged and plain names form one card, preserving raw quotes and old saved links',()=>{
@@ -37,4 +38,23 @@ test('history and prediction requests use clean names and unchanged native ident
  await fetchResearch(group,'OVER');
  assert.equal(params.get('playerName'),'Aaron Rodgers');assert.equal(params.get('providerPlayerId'),'native-rodgers');assert.equal(params.get('eventId'),'native-game');
  const {payload}=predictionTarget(group);assert.equal(payload.playerName,'Aaron Rodgers');assert.equal(payload.playerId,'native-rodgers');assert.equal(payload.line,.5);
+});
+
+test('opposing namesakes without provider IDs retain separate quote groups',()=>{
+ const groups=groupProps([row({providerPlayerId:null,playerName:'Alex Smith (PIT)'}),row({providerPlayerId:null,playerName:'Alex Smith (NE)',team:'NE'})],'NFL');
+ assert.equal(groups.length,2);assert.equal(groupPlayerCards(groups).length,2);
+ assert.deepEqual(groups.map(group=>group.quotes[0].playerName),['Alex Smith (PIT)','Alex Smith (NE)']);
+});
+
+test('every supported board sport uses shared identity, category, and exact-book grouping',()=>{
+ for(const sport of BOARD_SPORTS){
+  const base=row({sport,playerName:'Fixture Athlete',providerPlayerId:null});
+  const tagged={...base,playerName:'Fixture Athlete (PIT)',eventId:'second-book',sportsbook:'FanDuel',sportsbookKey:'fanduel'};
+  const groups=groupProps([base,tagged,{...base,market:'Second stat',marketId:'second_stat'}],sport);
+  const cards=collapsePlayerCards(groups,groups);
+  assert.equal(cards.length,1,`${sport}: one player/game`);assert.equal(cards[0].categoryCount,2,`${sport}: categories retained`);assert.equal(cards[0].bookCount,2,`${sport}: books retained`);
+  assert.equal(groups[1].player,'Fixture Athlete',`${sport}: explicit matching team code`);
+  const other={...tagged,playerName:'Fixture Athlete (NE)',team:'NE',eventId:'opposing-player'};
+  assert.equal(groupPlayerCards(groupProps([base,other],sport)).length,2,`${sport}: opposing namesakes distinct`);
+ }
 });

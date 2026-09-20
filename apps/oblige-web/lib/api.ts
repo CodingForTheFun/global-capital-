@@ -215,7 +215,9 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
     const line = num(row.line);
     if (!player || !market || line === null) continue;
 
-    const playerIdentity = String(row.providerPlayerId || '').trim() || player.toLowerCase();
+    // Keep provider decoration in the fallback identity: opposing namesakes
+    // must remain separate until player cards compare their team evidence.
+    const playerIdentity = String(row.providerPlayerId || '').trim() || String(row.playerName || '').trim().toLowerCase();
     const period = quotePeriod(row);
     const key = [row.eventId || matchupLabel(row), playerIdentity, market, period || '', variantKey(row), line].join('|');
     let group = groups.get(key);

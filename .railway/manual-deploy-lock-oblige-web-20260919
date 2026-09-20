@@ -1,4 +1,4 @@
 deploy: contain malformed duplicate Next chunk paths on oblige-web
 source-pr: #438
-release-parent: 939823fca5557660d8e93766d79b49046c65cc8a
-reason: release-control commit touches both the verified proxy path and Railway deploy lock so push workflows and the frontend predeploy gate evaluate the same deploy SHA
+release-parent: 22b8bc8ccb6d7539ddc80e7cad26d90de14a6668
+reason: release-control commit touches both the verified proxy path and Railway deploy lock so push workflows, canonical www public proof, and the frontend predeploy gate evaluate the same deploy SHA

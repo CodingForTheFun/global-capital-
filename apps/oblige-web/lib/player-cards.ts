@@ -1,14 +1,24 @@
 import type { PropGroup, PropRow } from './types';
+import { TEAMS } from './teams';
 import { isDfs, quotePeriod, quoteVariant, variantKey } from './prop-signals';
 
 const clean = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 const id = (group: PropGroup) => clean(group.providerPlayerId);
-const name = (group: PropGroup) => clean(group.player);
+// Presentation identity only; original player names and provider IDs stay on quotes.
+const name = (group: PropGroup) => clean(group.player).replace(/[.’']/g, '').replace(/\s+(?:jr|sr|ii|iii|iv)$/i, '').trim();
+const nflCodes = new Set('ARI ATL BAL BUF CAR CHI CIN CLE DAL DEN DET GB HOU IND JAX KC LAC LAR LV MIA MIN NE NO NYG NYJ PHI PIT SEA SF TB TEN WAS'.split(' '));
+const nflTeams = new Map<string, string>();
+for (const code of nflCodes) {
+  const full = clean(TEAMS[code].name), mascot = full.split(' ').at(-1)!;
+  for (const label of [code, full, `${code} ${mascot}`]) nflTeams.set(clean(label), full);
+}
+const gameTeam = (value: unknown, sport: string) => clean(sport) === 'nfl' ? nflTeams.get(clean(value)) || teamLabel(value) : teamLabel(value);
+
 
 /** A game, not merely a matchup. Doubleheaders and separate dates stay separate. */
 export function playerGameKey(group: PropGroup): string {
   const at = group.startsAt ? Date.parse(group.startsAt) : NaN;
-  const home = clean(group.homeTeam), away = clean(group.awayTeam);
+  const home = gameTeam(group.homeTeam, group.sport), away = gameTeam(group.awayTeam, group.sport);
   if (home && away && Number.isFinite(at)) return JSON.stringify([clean(group.sport), home, away, at]);
   const event = group.quotes.map(q => q.eventId).find(Boolean);
   if (event) return JSON.stringify([clean(group.sport), 'event', event]);
@@ -23,8 +33,8 @@ const teamLabel = (value: unknown) => {
   return /^(?:tbd|tba|unknown|unavailable|team [ab]|matchup unavailable)$/.test(label) ? '' : label;
 };
 function teamPair(group: PropGroup): string | null {
-  const home = teamLabel(group.homeTeam), away = teamLabel(group.awayTeam);
-  const team = teamLabel(group.team), opponent = teamLabel(group.opponent);
+  const home = gameTeam(group.homeTeam, group.sport), away = gameTeam(group.awayTeam, group.sport);
+  const team = gameTeam(group.team, group.sport), opponent = gameTeam(group.opponent, group.sport);
   const pair = home && away ? [home, away] : team && opponent ? [team, opponent] : null;
   return pair && pair[0] !== pair[1] ? JSON.stringify(pair.sort()) : null;
 }
@@ -125,11 +135,23 @@ function resolvedGameKeys(groups: PropGroup[]): Map<PropGroup, string> {
 }
 
 /** Lines and books are choices within a category. Periods remain different categories. */
+const knownMarketLabels: Record<string, RegExp> = {
+  player_pass_yds: /^(?:pass|passing) (?:yards|yds)$/,
+  player_rush_yds: /^(?:rush|rushing) (?:yards|yds)$/,
+  player_reception_yds: /^(?:rec|receiving|reception) (?:yards|yds)$/,
+  player_receptions: /^receptions$/,
+  player_pass_attempts: /^(?:pass|passing) attempts$/,
+  player_rush_attempts: /^(?:rush|rushing) attempts$/,
+  player_pass_tds: /^(?:pass|passing) (?:tds|touchdowns)$/,
+  player_rush_tds: /^(?:rush|rushing) (?:tds|touchdowns)$/,
+  player_rush_reception_yds: /^(?:rush\s*\+\s*rec) (?:yards|yds)$/,
+};
 export function playerMarketKey(group: PropGroup): string {
-  const row = group.quotes[0];
-  return JSON.stringify([clean(group.marketId || group.market), clean(group.market), clean(group.period || quotePeriod(row)), variantKey(row)]);
+  const row = group.quotes[0], key = clean(group.marketId || group.market), label = clean(group.market);
+  // Only audited label aliases share a category. Unknown same-ID labels stay distinct.
+  return JSON.stringify([key, knownMarketLabels[key]?.test(label) ? key : label, clean(group.period || quotePeriod(row)), variantKey(row)]);
 }
-export type PlayerCard = { key: string; variants: PropGroup[] };
+export type PlayerCard = { key: string; variants: PropGroup[]; aliases?: string[] };
 export type PlayerCardGroup = PropGroup & { playerCardKey: string; categoryCount: number; bookCount: number; bookNames: string[]; specialVariants: PropGroup[] };
 
 /** One card per athlete per game; source-local IDs never create duplicate player cards by themselves. */
@@ -143,7 +165,7 @@ export function groupPlayerCards(groups: PropGroup[]): PlayerCard[] {
   // both sides of the same matchup. A side-less row stays isolated in that
   // rare ambiguous case rather than being attached to the wrong athlete.
   const sideOf = (group: PropGroup) => {
-    const team = teamLabel(group.team), home = teamLabel(group.homeTeam), away = teamLabel(group.awayTeam);
+    const team = gameTeam(group.team, group.sport), home = gameTeam(group.homeTeam, group.sport), away = gameTeam(group.awayTeam, group.sport);
     if (!team) return '';
     if (home && team === home) return 'home';
     if (away && team === away) return 'away';
@@ -275,7 +297,13 @@ export function groupPlayerCards(groups: PropGroup[]): PlayerCard[] {
     reconciled.push(...undated);
   }
 
-  return reconciled;
+  // Retain previously emitted deep links after presentation identity repair.
+  return reconciled.map(card => ({...card, aliases: [...new Set(card.variants.map(group => {
+    const at = startOf(group), home = clean(group.homeTeam), away = clean(group.awayTeam);
+    const previousGame = home && away && Number.isFinite(at)
+      ? JSON.stringify([clean(group.sport), home, away, at]) : playerGameKey(group);
+    return JSON.stringify([previousGame, clean(group.player)]);
+  }))]}));
 }
 
 export function bookKey(row: PropRow): string { return clean(row.sportsbookKey || row.sportsbook); }
@@ -304,6 +332,8 @@ function previewScore(group: PropGroup): number {
   const books = new Set(group.quotes.map(bookKey).filter(Boolean)).size;
   return (
     (quoteVariant(group.quotes[0]) === 'standard' ? 100 : 0) +
+    // Lead with an ordinary box-score market, not alphabetical exotic markets.
+    (/^(?:player_(?:pass_yds|rush_yds|reception_yds|receptions|points|rebounds|assists|shots_on_goal)|pitcher_strikeouts|batter_(?:hits|total_bases))$/.test(group.marketId || '') ? 90 : 0) +
     (period ? 0 : 40) +
     (Number.isFinite(group.line) ? 100 : 0) +
     Math.min(pricedQuotes, 4) * 12 +
@@ -339,9 +369,11 @@ export function collapsePlayerCards(matching: PropGroup[], universe: PropGroup[]
     seen.add(card.key);
     const preview = [...(matchesByCard.get(card.key) || [firstMatch])]
       .sort((a, b) => previewScore(b) - previewScore(a) || a.key.localeCompare(b.key))[0];
-    const books = quotedBooks((matchesByCard.get(card.key) || [preview]).filter(row => playerMarketKey(row) === playerMarketKey(preview) && row.line === preview.line));
+    const exactRows = (matchesByCard.get(card.key) || [preview]).filter(row => playerMarketKey(row) === playerMarketKey(preview) && row.line === preview.line);
+    const books = quotedBooks(exactRows);
+    const combined = restrictBook({ ...preview, quotes: exactRows.flatMap(row => row.quotes) }, null);
     rows.push({
-      ...preview,
+      ...combined,
       playerCardKey: card.key,
       categoryCount: new Set(card.variants.map(playerMarketKey)).size,
       bookCount: books.length,

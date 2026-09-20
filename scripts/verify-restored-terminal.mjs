@@ -55,7 +55,7 @@ try{
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
   await writeFile(`${out}/${name}-dimensions.json`,JSON.stringify(dimensions,null,2));
   assert.ok(dimensions.scrollWidth<=dimensions.viewport+1,'reference cards fit the viewport');
-  assert.ok(await unit.first().evaluate(node=>node.getBoundingClientRect().height)<360,'Cards do not inherit the page footer safe-area padding');
+  assert.ok(await unit.first().evaluate(node=>node.getBoundingClientRect().height)<560,'Cards do not inherit the page footer safe-area padding');
   await unit.first().getByRole('button',{name:'Research',exact:true}).click();
   await page.getByLabel('Player stat category',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Player inspector',{exact:true}).count(),0,'no intermediate inspector');

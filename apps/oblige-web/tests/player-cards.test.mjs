@@ -227,3 +227,19 @@ test('nearby kickoff reconciliation never merges conflicting full opponents', ()
   });
   assert.equal(groupPlayerCards([first, second]).length, 2);
 });
+
+test('NFL abbreviated mascots and suffix variants produce one card, keeping exact book quotes',()=>{
+ const full=eventGroup('full',{player:'Aaron Jones Sr.',team:'Minnesota Vikings',homeTeam:'Chicago Bears',awayTeam:'Minnesota Vikings',opponent:'Chicago Bears',market:'Receiving Yards',marketId:'player_reception_yds'});
+ const short=eventGroup('short',{player:'Aaron Jones',team:'MIN',homeTeam:'CHI Bears',awayTeam:'MIN Vikings',opponent:'CHI Bears',market:'Rec Yards',marketId:'player_reception_yds',quotes:[{eventId:'another-id',sportsbook:'Book B',sportsbookKey:'book_b',side:'OVER',line:34.5,price:-110}]});
+ const partial=partialEventGroup('partial',{player:'Aaron Jones',team:'MIN',market:'Rush Yards',marketId:'player_rush_yds'});
+ const rows=collapsePlayerCards([full,short,partial],[full,short,partial]);
+ assert.equal(rows.length,1);assert.equal(rows[0].categoryCount,2);assert.equal(rows[0].bookCount,2);assert.equal(rows[0].quotes.length,2);
+ assert.equal(groupPlayerCards([full,{...short,key:'tomorrow',startsAt:'2050-10-02T19:00:00Z'}]).length,2);
+ assert.equal(groupPlayerCards([full,{...short,key:'combo',player:"Aaron Jones + D'Andre Swift"}]).length,2);
+});
+test('main box-score markets lead previews without removing specialty props',()=>{
+ const longest=eventGroup('a-longest',{market:'Longest Reception',marketId:'player_longest_reception'});
+ const main=eventGroup('z-main',{market:'Receiving Yards',marketId:'player_reception_yds'});
+ assert.equal(collapsePlayerCards([longest,main],[longest,main])[0].key,'z-main');
+ assert.equal(playerCategories([longest,main]).length,2);
+});

@@ -34,7 +34,7 @@ try{
     await page.setViewportSize({width,height:width===390?844:1000});await page.goto(base+'/board',{waitUntil:'domcontentloaded'});
     await page.locator('[data-player-card]:visible').first().waitFor({timeout:45000});
     await page.locator('[data-player-card]:visible').first().locator('button').last().click();await page.waitForURL(/\/research\?/,{timeout:20000});
-    const main=page.locator('main[data-design="premium-player-research-v1"]');await main.waitFor({timeout:60000});
+    const main=page.locator('[data-design="premium-player-research-v1"]');await main.waitFor({timeout:60000});
     await page.waitForFunction(()=>!!document.querySelector('.op-chart-section,.op-no-history'),null,{timeout:60000}).catch(()=>{});
     assert.ok(!(await main.innerText()).match(/\bplayer_[a-z_]+\b/),'No raw market identifier in visible research');
     assert.equal(await page.locator('.op-research-title:visible').count(),0,'No repeated research form title');

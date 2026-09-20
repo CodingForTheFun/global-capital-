@@ -43,12 +43,14 @@ jobs:
           node scripts/verify-restored-terminal.mjs
           node scripts/verify-premium-player.mjs
           node scripts/verify-board-premium.mjs
+          node scripts/verify-player-analysis.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: board-research-route-proof
           path: |
             artifacts/board-premium
+            artifacts/player-analysis
             artifacts/premium-player
             artifacts/restored-terminal
             artifacts/canonical-workspace

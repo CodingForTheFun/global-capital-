@@ -29,7 +29,7 @@ try{
    await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
   });
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.locator('[data-design="premium-player-research-v1"]').waitFor();await page.locator('.op-chart-bar').first().waitFor();
+  await page.locator('[data-design="premium-player-research-v1"]').waitFor();await page.locator('.recharts-bar-rectangle').first().waitFor();
   const text=await page.locator('[data-design]').innerText();assert.ok(!text.includes('player_rush_'),'No raw provider names in customer-visible text');
   assert.equal(await page.getByRole('group',{name:'Stat categories',exact:true}).locator('button').count(),2,'No duplicate category per period, book or line');
   assert.equal(await page.getByRole('group',{name:'Available game periods',exact:true}).locator('button').count(),2,'Only actual supported periods');
@@ -45,9 +45,9 @@ try{
   assert.equal(await page.getByRole('button',{name:'Unfollow Research QA Player',exact:true}).getAttribute('aria-pressed'),'true');
   await page.getByRole('button',{name:'Select DraftKings',exact:true}).click();
   await page.getByRole('group',{name:'Available game periods',exact:true}).getByRole('button',{name:'1H',exact:true}).click();
-  await page.getByText('Exact first-half history unavailable.',{exact:true}).waitFor();assert.equal(await page.locator('.op-chart-bar').count(),0,'No full-game chart substituted for missing half history');
+  await page.getByText('Exact first-half history unavailable.',{exact:true}).waitFor();assert.equal(await page.locator('.recharts-bar-rectangle').count(),0,'No full-game chart substituted for missing half history');
   if(width===390)await page.screenshot({path:`${out}/mobile390-unavailable.png`,fullPage:true});
-  await page.getByRole('group',{name:'Available game periods',exact:true}).getByRole('button',{name:'Full game',exact:true}).click();await page.locator('.op-chart-bar').first().waitFor();
+  await page.getByRole('group',{name:'Available game periods',exact:true}).getByRole('button',{name:'Full game',exact:true}).click();await page.locator('.recharts-bar-rectangle').first().waitFor();
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,chartTop:document.querySelector('.op-chart-section')?.getBoundingClientRect().top}));
   assert.ok(dimensions.scrollWidth<=width+1,`${width}: no horizontal page overflow`);
   assert.ok(dimensions.chartTop<850,`${width}: chart is not pushed below giant repeated forms`);

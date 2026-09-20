@@ -10,7 +10,8 @@ import { shortTime } from '@/lib/utils';
 import type { Side } from '@/lib/types';
 import s from './premium-player-research.module.css';
 
-type Props = {
+export type PremiumPlayerResearchProps = {
+  analysisSections?: React.ReactNode;
   player: WorkspacePlayer; market: WorkspaceMarket; selected: WorkspaceOffer;
   side: Side; favourite: boolean; canFollow: boolean;
   onCategory(key: string): void; onBook(key: string): void;
@@ -23,7 +24,7 @@ type Props = {
 };
 
 /** Shared presentation only. Both URL formats keep their own verified data adapters. */
-export function PremiumPlayerResearch({ player, market, selected, side, favourite, canFollow, onCategory, onBook, onOffer, onFavourite, research, model, gameLog, quoteHistory, bookSelection, allowBestPrices = false, onLine, team, matchupLabel, supporting, routeKind = 'canonical' }: Props) {
+export function PremiumPlayerResearch({ player, market, selected, side, favourite, canFollow, onCategory, onBook, onOffer, onFavourite, research, model, gameLog, quoteHistory, bookSelection, allowBestPrices = false, onLine, team, matchupLabel, supporting, routeKind = 'canonical', analysisSections }: PremiumPlayerResearchProps) {
   const family = marketFamily(market);
   const families = [...new Map(player.markets.map(item => [marketFamily(item), item])).values()];
   const periods = player.markets.filter(item => marketFamily(item) === family);
@@ -46,6 +47,7 @@ export function PremiumPlayerResearch({ player, market, selected, side, favourit
   }
   return <div className={s.page} data-release="canonical-workspace-v1" data-design="premium-player-research-v1" data-research-route={routeKind}>
     <div className={s.breadcrumb}><Link href="/board"><ArrowLeft size={16} aria-hidden="true"/> Back to props</Link><span>Player research</span></div>
+    {analysisSections&&<nav aria-label="Player analysis navigation" className="flex gap-2 overflow-x-auto py-3 text-xs"><a className="flex min-h-11 items-center rounded-md border border-slate-700 px-4" href="#analysis-chart">Performance</a><a className="flex min-h-11 items-center rounded-md border border-slate-700 px-4" href="#analysis-averages">Averages</a><a className="flex min-h-11 items-center rounded-md border border-slate-700 px-4" href="#analysis-defense">Matchup</a><a className="flex min-h-11 items-center rounded-md border border-slate-700 px-4" href="#analysis-log">Game log</a></nav>}
     <div className={s.layout}>
       <section className={s.primary} aria-label="Player research workspace">
         <div className={s.hero} data-research-hero>
@@ -103,6 +105,7 @@ export function PremiumPlayerResearch({ player, market, selected, side, favourit
         {gameLog && <details className={s.gameLog}><summary>Game-by-game results</summary>{gameLog}</details>}
       </aside>
     </div>
+    {analysisSections}
     <section className={s.modelChoice} aria-label="Model choice pick">
       <div className={s.modelChoiceTitle}><span>MODEL CHOICE</span><h2>Model choice pick</h2><p>Exact to the selected player, stat, posted line and book.</p></div>
       <div className={s.modelChoiceBody}>{model}</div>

@@ -77,7 +77,7 @@ try{
   await page.waitForURL(/\/research\?/);
   const opened=new URL(page.url());assert.equal(opened.searchParams.get('player'),'UI Test Player');assert.equal(opened.searchParams.has('playerKey'),false,'Reproduce the legacy link path missed by the original deployment');
   const main=page.locator('[data-research-route="legacy-board-premium-v2"]');await main.waitFor();
-  await page.getByLabel('Player stat category',{exact:true}).selectOption({label:'Longest Reception'});await page.locator('.op-chart-bar').first().waitFor();
+  await page.getByLabel('Player stat category',{exact:true}).selectOption({label:'Longest Reception'});await page.locator('.recharts-bar-rectangle').first().waitFor();
   assert.ok(!(await main.innerText()).match(/\b(?:player|batter|pitcher)_[a-z_]+\b/),'Raw provider keys never appear in the visible research page');
   assert.equal(await page.locator('.player-cinematic-hero').count(),0,'The old oversized research renderer is not mounted');
   assert.equal(await page.locator('.op-research-title:visible').count(),0,'No repeated player-research form heading');
@@ -102,10 +102,10 @@ try{
   await page.getByLabel('Opponent',{exact:true}).selectOption('all');assert.equal(await page.getByLabel('Season',{exact:true}).inputValue(),'2049','Individual filter changes do not clear other filters');
   await page.getByRole('button',{name:'Follow UI Test Player',exact:true}).click();assert.equal(await page.getByRole('button',{name:'Unfollow UI Test Player',exact:true}).getAttribute('aria-pressed'),'true');
   await page.getByRole('group',{name:'Available game periods',exact:true}).getByRole('button',{name:'1H',exact:true}).click();
-  await page.getByText('UI test: exact first-half history unavailable.',{exact:true}).waitFor();assert.equal(await page.locator('.op-chart-bar').count(),0,'No substituted full-game history for a half');
+  await page.getByText('UI test: exact first-half history unavailable.',{exact:true}).waitFor();assert.equal(await page.locator('.recharts-bar-rectangle').count(),0,'No substituted full-game history for a half');
   const failedCalls=historyCalls.length;await page.getByRole('button',{name:'Retry history',exact:true}).click();await page.waitForFunction(()=>!!document.querySelector('.op-no-history'));await page.waitForTimeout(100);assert.ok(historyCalls.length>failedCalls,'HTTP 200 unavailable history can be retried');
   if(width===390)await main.screenshot({path:`${out}/width-${width}-unavailable.png`});
-  await page.getByRole('group',{name:'Available game periods',exact:true}).getByRole('button',{name:'Full game',exact:true}).click();await page.locator('.op-chart-bar').first().waitFor();
+  await page.getByRole('group',{name:'Available game periods',exact:true}).getByRole('button',{name:'Full game',exact:true}).click();await page.locator('.recharts-bar-rectangle').first().waitFor();
   await page.evaluate(()=>scrollTo(0,0));
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth,heroHeight:document.querySelector('[data-research-hero]')?.getBoundingClientRect().height,chartTop:document.querySelector('.op-chart-section')?.getBoundingClientRect().top}));
   assert.ok(dimensions.scrollWidth<=width+1,'No horizontal page overflow');
@@ -115,10 +115,10 @@ try{
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
   if(width===390)console.log('REFERENCE_RESEARCH_390='+(await page.screenshot({type:'jpeg',quality:50})).toString('base64'));
   // Previously saved provider-tagged URLs still find the clean player and load history.
-  if(width===390){await page.goto(base+'/research?'+new URLSearchParams({sport:'NFL',player:'UI Test Player (PIT)',market:names.NFL[0],line:'22.5'}));await main.waitFor();await page.locator('.op-chart-bar').first().waitFor();assert.ok(!(await main.innerText()).includes('(PIT)'));}
+  if(width===390){await page.goto(base+'/research?'+new URLSearchParams({sport:'NFL',player:'UI Test Player (PIT)',market:names.NFL[0],line:'22.5'}));await main.waitFor();await page.locator('.recharts-bar-rectangle').first().waitFor();assert.ok(!(await main.innerText()).includes('(PIT)'));}
   // Saved legacy links without card/category IDs must use the same component for every sport.
   if(width===390)for(const [sport,[stat,title]] of Object.entries(names)){
-   await page.goto(base+'/research?'+new URLSearchParams({sport,player:'UI Test Player',market:stat,line:'22.5'}));await main.waitFor();await page.locator('.op-chart-bar').first().waitFor();assert.ok(await main.getByRole('heading',{name:title,exact:true}).count()>0,`${sport}: readable label on saved link`);assert.equal(await page.locator('.player-cinematic-hero').count(),0);
+   await page.goto(base+'/research?'+new URLSearchParams({sport,player:'UI Test Player',market:stat,line:'22.5'}));await main.waitFor();await page.locator('.recharts-bar-rectangle').first().waitFor();assert.ok(await main.getByRole('heading',{name:title,exact:true}).count()>0,`${sport}: readable label on saved link`);assert.equal(await page.locator('.player-cinematic-hero').count(),0);
   }
   failPhotos=true;await page.reload();await main.waitFor();await page.locator('img[data-player-photo="unavailable"]:visible').first().waitFor();
   assert.equal(await page.locator('img[data-player-photo="unavailable"]:visible').first().evaluate(node=>getComputedStyle(node).visibility),'visible','Missing artwork has a visible bounded fallback');
@@ -132,7 +132,7 @@ try{
   assert.equal(await page.locator('[data-player-card]').count(),2,'Demon filter keeps both players');
   assert.equal(await page.locator('[data-label="Odds"]').filter({hasText:'+100'}).count(),0,'Synthetic DFS odds hidden');
   await page.getByRole('link',{name:'Demon',exact:true}).first().click();await main.waitFor();
-  await page.locator('.op-chart-bar').first().waitFor();
+  await page.locator('.recharts-bar-rectangle').first().waitFor();
   assert.equal(await page.getByLabel('Selected book',{exact:true}).inputValue(),'prizepicks');
   await page.getByLabel('Player stat category',{exact:true}).selectOption({label:'Longest Reception · Goblin'});
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='16.5');

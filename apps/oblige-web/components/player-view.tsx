@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GameLog } from '@/components/research';
 import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
-import { PremiumPlayerResearch } from '@/components/premium-player-research';
+import { PlayerAnalysisPage } from '@/components/player-analysis-page';
 import { PostedModel } from '@/components/posted-model';
 import { QuoteHistory } from '@/components/quote-history';
 
@@ -155,7 +155,8 @@ export function PlayerView() {
   const favourite = favourites.includes(group.key);
   const normalizedBook = selectedBook ? allBooks.find(book => book.key === selectedBook.toLowerCase() || book.label === selectedBook)?.key || selectedBook : null;
 
-  return <PremiumPlayerResearch
+  return <PlayerAnalysisPage
+    analysis={{group: displayGroup, history: activeResearch, line: state.line, loading: pending, unavailable}}
     routeKind="legacy-board-premium-v2"
     player={presentation.player} market={presentation.market} selected={presentation.selected}
     team={group.team} matchupLabel={group.matchup}
@@ -170,7 +171,7 @@ export function PlayerView() {
     }}
     onFavourite={() => toggleFavourite(group.key)}
     research={<>
-      <PropExplorer group={displayGroup} games={games} loading={pending} unavailableReason={unavailable} currentOpponent={activeResearch?.matchup?.opponent ?? group.opponent} hideBookFilter state={state} onState={setState} favourite={favourite} onFavourite={() => toggleFavourite(group.key)}/>
+      <PropExplorer group={displayGroup} games={games} loading={pending} unavailableReason={unavailable} currentOpponent={activeResearch?.matchup?.opponent ?? group.opponent} season={activeResearch?.season} hideBookFilter state={state} onState={setState} favourite={favourite} onFavourite={() => toggleFavourite(group.key)}/>
       {!pending && unavailable && <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button>}
     </>}
     supporting={!pending && !unavailable && games.length > 0 ? <SplitSummary games={games} group={displayGroup} line={state.line} side={state.side}/> : null}

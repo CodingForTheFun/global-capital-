@@ -5,6 +5,9 @@ import type {GameLogRow,PropGroup,PropRow} from '@/lib/types';
 import {applyFilters,buildWindows,computeWindow,distinct,EMPTY_FILTERS,filtersActive,headToHead,sampleFor,sortRecentFirst,type SampleFilters,type SampleId,type Window as ResearchWindow} from '@/lib/analytics';
 import {isDfs,quotePriceLabel,quoteVariant} from '@/lib/prop-signals';
 import {DfsVariantIcon} from '@/components/dfs-variant-icon';
+import dynamic from 'next/dynamic';
+import {currentSeasonGames} from '@/lib/player-analysis';
+const HitRateChart=dynamic(()=>import('./hit-rate-chart').then(m=>m.HitRateChart),{ssr:false,loading:()=> <div style={{height:280}} role="status">Loading chart…</div>});
 import {shortDate} from '@/lib/utils';
 import {Skeleton} from '@/components/ui/skeleton';
 import {AppliedFilter} from '@/components/applied-filter';
@@ -15,33 +18,21 @@ const numberOrNull=(value:unknown):number|null=>{if(value==null||typeof value===
 function SampleTile({window:item,selected,onSelect}:{window:ResearchWindow;selected:boolean;onSelect():void}){
  return <button type="button" className="op-sample" aria-pressed={selected} onClick={onSelect}><span>{item.label==='All'?'Available':item.label}</span><strong data-tone={item.hitRate===null?'none':item.hitRate>=60?'positive':item.hitRate<45?'negative':'neutral'}>{item.hitRate===null?'—':`${item.hitRate}%`}</strong><span>Avg {item.average??'—'}</span><small>{item.games} games</small></button>;
 }
-function ValueChart({games,line,side}:{games:GameLogRow[];line:number;side:'OVER'|'UNDER'}){
- const shown=[...games].reverse();
- if(!shown.length)return <p className="op-no-history">No verified games match these filters. Clear an individual filter to broaden the sample.</p>;
- const values=shown.map(g=>Number(g.value));
- const low=Math.min(0,line,...values)*1.22,high=Math.max(1,line,...values)*1.22,range=high-low||1;
- const position=(v:number)=>(v-low)/range*100,zero=position(0);
- return <div className="op-chart-scroll" tabIndex={0} role="region" aria-label="Recent game results chart; scroll horizontally for longer samples"><div className="op-chart-content" style={{minWidth:Math.max(260,shown.length*21)}}>
-  <div className="op-chart-plot" style={{gridTemplateColumns:`repeat(${shown.length}, minmax(0, 1fr))`}}>
-   <div className="op-chart-threshold" style={{bottom:`${position(line)}%`}}><span>{line}</span></div>
-   {shown.map((game,index)=>{const value=Number(game.value),push=value===line,hit=!push&&(side==='UNDER'?value<line:value>line),end=position(value);return <div key={`${game.gameId||game.date}-${index}`} className="op-chart-column" title={`${shortDate(game.date)} ${game.isHome===false?'@':''}${game.opponent||'Opponent unavailable'}: ${value} — ${push?'Push':hit?'Hit':'Miss'}`}><span className="op-chart-number" style={{bottom:`${end}%`}}>{value}</span><span className="op-chart-bar" data-result={push?'push':hit?'hit':'miss'} style={{height:`${Math.max(.5,Math.abs(end-zero))}%`,bottom:`${Math.min(end,zero)}%`}}/></div>;})}
-  </div>
-  <div className="op-chart-labels" style={{gridTemplateColumns:`repeat(${shown.length}, minmax(0, 1fr))`}}>{shown.map((game,index)=><span key={`${game.gameId||game.date}-${index}`}><span>{shortDate(game.date)}</span><strong>{game.isHome===false?'@':''}{game.opponent||'—'}</strong></span>)}</div>
- </div></div>;
-}
 /** Presentation over the existing research engine. Book controls may be supplied
  * by the canonical player workspace, which also knows books at other lines. */
-export function PropExplorer({group,games,loading,unavailableReason,state,onState,favourite,onFavourite,hideBookFilter=false,currentOpponent=null}:{group:PropGroup;games:GameLogRow[];loading?:boolean;unavailableReason?:string|null;state:ExplorerState;onState(next:ExplorerState):void;favourite:boolean;onFavourite():void;hideBookFilter?:boolean;currentOpponent?:string|null}){
+export function PropExplorer({group,games,loading,unavailableReason,state,onState,favourite,onFavourite,hideBookFilter=false,currentOpponent=null,season=null}:{group:PropGroup;games:GameLogRow[];loading?:boolean;unavailableReason?:string|null;state:ExplorerState;onState(next:ExplorerState):void;favourite:boolean;onFavourite():void;hideBookFilter?:boolean;currentOpponent?:string|null;season?:number|string|null}){
  const [filters,setFilters]=React.useState<SampleFilters>(EMPTY_FILTERS),[sample,setSample]=React.useState<ChartSample>('l15');
  React.useEffect(()=>{setFilters(EMPTY_FILTERS);setSample('l15');},[group.key]);
  const played=React.useMemo(()=>unavailableReason?[]:sortRecentFirst(games.filter(g=>numberOrNull(g.value)!==null).map(g=>({...g,value:numberOrNull(g.value)}))),[games,unavailableReason]);
  const filtered=React.useMemo(()=>applyFilters(played,filters),[played,filters]);
- const windows=React.useMemo(()=>{const result=buildWindows(filtered,state.line,state.side);result.splice(3,0,computeWindow(filtered,state.line,state.side,'l20','L20',20));return result;},[filtered,state.line,state.side]);
+ const windows=React.useMemo(()=>{const result=buildWindows(filtered,state.line,state.side);result[3]=computeWindow(currentSeasonGames(filtered,filters.season==='all'?season:filters.season),state.line,state.side,'season','Season');result.splice(3,0,computeWindow(filtered,state.line,state.side,'l20','L20',20));return result;},[filtered,state.line,state.side,filters.season,season]);
  const opponentIdentity=currentOpponent||group.opponent;
  const opponentOptions=React.useMemo(()=>buildOpponentOptions(distinct(played.map(g=>g.opponent)),{...group,opponent:opponentIdentity}),[played,opponentIdentity,group.team,group.homeTeam,group.awayTeam]);
  const currentOpponentValue=React.useMemo(()=>opponentOptions.find(option=>option.label.endsWith(' ★'))?.value||null,[opponentOptions]);
- const h2h=React.useMemo(()=>headToHead(filtered,currentOpponentValue,state.line,state.side),[filtered,currentOpponentValue,state.line,state.side]);
- const chartGames=React.useMemo(()=>sample==='l20'?filtered.slice(0,20):sampleFor(filtered,sample,currentOpponentValue),[filtered,sample,currentOpponentValue]);
+ const h2hOpponent=filters.opponent!=='all'?filters.opponent:currentOpponentValue;
+ const seasonGames=React.useMemo(()=>currentSeasonGames(filtered,filters.season==='all'?season:filters.season),[filtered,filters.season,season]);
+ const h2h=React.useMemo(()=>headToHead(filtered,h2hOpponent,state.line,state.side),[filtered,h2hOpponent,state.line,state.side]);
+ const chartGames=React.useMemo(()=>sample==='season'?seasonGames:sample==='l20'?filtered.slice(0,20):sampleFor(filtered,sample,h2hOpponent),[filtered,sample,h2hOpponent,seasonGames]);
  const summary=React.useMemo(()=>computeWindow(chartGames,state.line,state.side,'chart','Shown'),[chartGames,state.line,state.side]);
  const seasons=React.useMemo(()=>distinct(played.map(g=>g.season==null?null:String(g.season))).sort().reverse(),[played]);
  const books=React.useMemo(()=>{
@@ -65,8 +56,8 @@ export function PropExplorer({group,games,loading,unavailableReason,state,onStat
   <div className="op-sample-caption"><span className="op-sample-count">{unavailableReason?'History unavailable':`${filtered.length} of ${played.length} verified games`}</span>{filtersActive(filters)&&<button type="button" onClick={()=>setFilters(EMPTY_FILTERS)}><RotateCcw size={12}/> Clear all history filters</button>}</div>
   <div className="op-line-controls"><div className="op-line-stepper"><button type="button" aria-label="Lower research line" onClick={()=>step(-.5)}><Minus size={18}/></button><output className="op-line-number" aria-live="polite">{state.line}</output><button type="button" aria-label="Raise research line" onClick={()=>step(.5)}><Plus size={18}/></button></div><div className="op-side-picker" role="group" aria-label="Research side">{(['OVER','UNDER'] as const).map(side=><button key={side} type="button" aria-pressed={state.side===side} data-side={side} onClick={()=>onState({...state,side})}><strong>{side==='OVER'?'O':'U'} <DfsVariantIcon variant={quoteVariant(side==='OVER'?over:under)}/>{quoteOdds(side==='OVER'?over:under)}</strong><span>{side==='OVER'?'Over':'Under'}</span></button>)}</div></div>
   <p className="op-price-note">{activeBook?.name||'Best available book prices'} · Prices shown at posted line {group.line}.{moved&&<> Research line adjusted to {state.line}. <button type="button" onClick={()=>onState({...state,line:group.line})}>Reset line</button></>}</p>
-  {loading?<Skeleton className="h-[90px]"/>:!unavailableReason&&<div className="op-samples" aria-label="History windows">{windows.map(item=><SampleTile key={item.id} window={item} selected={sample===item.id} onSelect={()=>setSample(item.id as ChartSample)}/>)}{h2h&&<SampleTile window={{...h2h,label:`H2H · ${currentOpponentValue||opponentIdentity||'Opponent'}`}} selected={sample==='h2h'} onSelect={()=>setSample('h2h')}/>}</div>}
-  {loading?<Skeleton className="h-[230px]"/>:unavailableReason?<div className="op-no-history"><strong>Verified history unavailable</strong><p>{unavailableReason}</p></div>:<section className="op-chart-section"><div className="op-chart-heading"><h4>{sample==='h2h'?`Head to head · ${currentOpponentValue||opponentIdentity||'Opponent'}`:sample==='season'?'Available history':`Last ${sample.slice(1)} games`} · {group.market}</h4><span>{summary.hits}/{summary.games} hits · {summary.hitRate??'—'}{summary.hitRate===null?'':'%'} · Avg {summary.average??'—'}</span></div><div className="op-chart-legend"><span>Hit</span><span>Miss</span><span>Push</span><span>— Research line</span></div><ValueChart games={chartGames} line={state.line} side={state.side}/></section>}
+  {loading?<Skeleton className="h-[90px]"/>:!unavailableReason&&<div className="op-samples" aria-label="History windows">{windows.map(item=><SampleTile key={item.id} window={item} selected={sample===item.id} onSelect={()=>setSample(item.id as ChartSample)}/>)}{h2h&&<SampleTile window={{...h2h,label:`H2H · ${h2hOpponent||opponentIdentity||'Opponent'}`}} selected={sample==='h2h'} onSelect={()=>setSample('h2h')}/>}</div>}
+  {loading?<Skeleton className="h-[230px]"/>:unavailableReason?<div className="op-no-history"><strong>Verified history unavailable</strong><p>{unavailableReason}</p></div>:<section id="analysis-chart" className="op-chart-section" style={{scrollMarginTop:100}}><div className="op-chart-heading"><h4>{sample==='h2h'?`Head to head · ${h2hOpponent||opponentIdentity||'Opponent'}`:sample==='season'?'Season · available games':`Last ${sample.slice(1)} games`} · {group.market}</h4><span>{summary.hits}/{summary.games} hits · {summary.hitRate??'—'}{summary.hitRate===null?'':'%'} · Avg {summary.average??'—'}</span></div><div className="op-chart-legend"><span>Over</span><span>Under</span><span>Push</span><span>— Research line</span></div><HitRateChart games={chartGames} line={state.line}/></section>}
   <p className="op-research-footnote">Rates use verified games played. Pushes remain in the denominator. Missing/DNP values are excluded. “Available” describes the returned sample, not a claim of complete season coverage.</p>
  </div>;
 }

@@ -3,7 +3,9 @@ import * as React from 'react';
 import {Minus,Plus,Star,RotateCcw} from 'lucide-react';
 import type {GameLogRow,PropGroup,PropRow} from '@/lib/types';
 import {applyFilters,buildWindows,computeWindow,distinct,EMPTY_FILTERS,filtersActive,headToHead,sampleFor,sortRecentFirst,type SampleFilters,type SampleId,type Window as ResearchWindow} from '@/lib/analytics';
-import {odds,shortDate} from '@/lib/utils';
+import {isDfs,quotePriceLabel,quoteVariant} from '@/lib/prop-signals';
+import {DfsVariantIcon} from '@/components/dfs-variant-icon';
+import {shortDate} from '@/lib/utils';
 import {Skeleton} from '@/components/ui/skeleton';
 import {AppliedFilter} from '@/components/applied-filter';
 import {buildOpponentOptions} from '@/lib/opponent-options';
@@ -44,12 +46,12 @@ export function PropExplorer({group,games,loading,unavailableReason,state,onStat
  const seasons=React.useMemo(()=>distinct(played.map(g=>g.season==null?null:String(g.season))).sort().reverse(),[played]);
  const books=React.useMemo(()=>{
   const map=new Map<string,{key:string;name:string;over:PropRow|null;under:PropRow|null}>();
-  for(const quote of group.quotes){const name=String(quote.sportsbook||quote.sportsbookKey||'').trim();if(!name)continue;const key=(quote.sportsbookKey||name).toLowerCase();if(!map.has(key))map.set(key,{key,name,over:null,under:null});const book=map.get(key)!,p=numberOrNull(quote.price);if(p===null||p===0)continue;const side=String(quote.side||'').toUpperCase();if(side==='OVER'&&(!book.over||p>Number(book.over.price)))book.over=quote;if(side==='UNDER'&&(!book.under||p>Number(book.under.price)))book.under=quote;}
+  for(const quote of group.quotes){const name=String(quote.sportsbook||quote.sportsbookKey||'').trim();if(!name)continue;const key=(quote.sportsbookKey||name).toLowerCase();if(!map.has(key))map.set(key,{key,name,over:null,under:null});const book=map.get(key)!,p=numberOrNull(quote.price);if(!isDfs(quote)&&(p===null||p===0))continue;const side=String(quote.side||'').toUpperCase();if(side==='OVER'&&(!book.over||(p??-Infinity)>Number(book.over.price)))book.over=quote;if(side==='UNDER'&&(!book.under||(p??-Infinity)>Number(book.under.price)))book.under=quote;}
   return [...map.values()].sort((a,b)=>a.name.localeCompare(b.name));
  },[group.quotes]);
- const activeBook=books.find(b=>b.key===state.book),over=activeBook?activeBook.over:group.bestOver,under=activeBook?activeBook.under:group.bestUnder;
+ const activeBook=books.find(b=>b.key===state.book),over=activeBook?activeBook.over:group.bestOver||group.quotes.find(q=>q.side==='OVER'&&isDfs(q)&&!q.conflict),under=activeBook?activeBook.under:group.bestUnder||group.quotes.find(q=>q.side==='UNDER'&&isDfs(q)&&!q.conflict);
  const moved=Math.abs(state.line-group.line)>.001;
- const quoteOdds=(quote:PropRow|null|undefined)=>String(quote?.sportsbookKey).toLowerCase()==='prizepicks'?'DFS':numberOrNull(quote?.price)===null||Number(quote?.price)===0?'—':odds(quote?.price);
+ const quoteOdds=(quote:PropRow|null|undefined)=>quote?quotePriceLabel(quote):'Not offered';
  const options=(values:string[])=>[{value:'all',label:'All'},...values.map(value=>({value,label:value}))];
  function step(amount:number){onState({...state,line:Math.max(-1e6,Math.min(1e6,Math.round((state.line+amount)*100)/100))});}
  return <div className="research-reference" data-release="canonical-workspace-v1">
@@ -61,7 +63,7 @@ export function PropExplorer({group,games,loading,unavailableReason,state,onStat
    {!hideBookFilter&&<AppliedFilter key={`${group.key}-book`} label="Book" value={state.book||'all'} options={[{value:'all',label:'Best prices'},...books.map(b=>({value:b.key,label:b.name}))]} onApply={book=>onState({...state,book:book==='all'?null:book})}/>}
   </div>
   <div className="op-sample-caption"><span className="op-sample-count">{unavailableReason?'History unavailable':`${filtered.length} of ${played.length} verified games`}</span>{filtersActive(filters)&&<button type="button" onClick={()=>setFilters(EMPTY_FILTERS)}><RotateCcw size={12}/> Clear all history filters</button>}</div>
-  <div className="op-line-controls"><div className="op-line-stepper"><button type="button" aria-label="Lower research line" onClick={()=>step(-.5)}><Minus size={18}/></button><output className="op-line-number" aria-live="polite">{state.line}</output><button type="button" aria-label="Raise research line" onClick={()=>step(.5)}><Plus size={18}/></button></div><div className="op-side-picker" role="group" aria-label="Research side">{(['OVER','UNDER'] as const).map(side=><button key={side} type="button" aria-pressed={state.side===side} data-side={side} onClick={()=>onState({...state,side})}><strong>{side==='OVER'?'O':'U'} {quoteOdds(side==='OVER'?over:under)}</strong><span>{side==='OVER'?'Over':'Under'}</span></button>)}</div></div>
+  <div className="op-line-controls"><div className="op-line-stepper"><button type="button" aria-label="Lower research line" onClick={()=>step(-.5)}><Minus size={18}/></button><output className="op-line-number" aria-live="polite">{state.line}</output><button type="button" aria-label="Raise research line" onClick={()=>step(.5)}><Plus size={18}/></button></div><div className="op-side-picker" role="group" aria-label="Research side">{(['OVER','UNDER'] as const).map(side=><button key={side} type="button" aria-pressed={state.side===side} data-side={side} onClick={()=>onState({...state,side})}><strong>{side==='OVER'?'O':'U'} <DfsVariantIcon variant={quoteVariant(side==='OVER'?over:under)}/>{quoteOdds(side==='OVER'?over:under)}</strong><span>{side==='OVER'?'Over':'Under'}</span></button>)}</div></div>
   <p className="op-price-note">{activeBook?.name||'Best available book prices'} · Prices shown at posted line {group.line}.{moved&&<> Research line adjusted to {state.line}. <button type="button" onClick={()=>onState({...state,line:group.line})}>Reset line</button></>}</p>
   {loading?<Skeleton className="h-[90px]"/>:!unavailableReason&&<div className="op-samples" aria-label="History windows">{windows.map(item=><SampleTile key={item.id} window={item} selected={sample===item.id} onSelect={()=>setSample(item.id as ChartSample)}/>)}{h2h&&<SampleTile window={{...h2h,label:`H2H · ${currentOpponentValue||opponentIdentity||'Opponent'}`}} selected={sample==='h2h'} onSelect={()=>setSample('h2h')}/>}</div>}
   {loading?<Skeleton className="h-[230px]"/>:unavailableReason?<div className="op-no-history"><strong>Verified history unavailable</strong><p>{unavailableReason}</p></div>:<section className="op-chart-section"><div className="op-chart-heading"><h4>{sample==='h2h'?`Head to head · ${currentOpponentValue||opponentIdentity||'Opponent'}`:sample==='season'?'Available history':`Last ${sample.slice(1)} games`} · {group.market}</h4><span>{summary.hits}/{summary.games} hits · {summary.hitRate??'—'}{summary.hitRate===null?'':'%'} · Avg {summary.average??'—'}</span></div><div className="op-chart-legend"><span>Hit</span><span>Miss</span><span>Push</span><span>— Research line</span></div><ValueChart games={chartGames} line={state.line} side={state.side}/></section>}

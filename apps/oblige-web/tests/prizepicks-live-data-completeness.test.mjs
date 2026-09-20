@@ -40,3 +40,19 @@ test('research request forwards PrizePicks market identity and player role',asyn
     globalThis.fetch=oldFetch;
   }
 });
+
+test('fantasy research uses the selected book even with an unqualified or stale parent market',async()=>{
+  const oldFetch=globalThis.fetch;
+  const requests=[];
+  globalThis.fetch=async input=>{
+    requests.push(new URL(String(input),'https://example.test').searchParams.get('marketId'));
+    return Response.json({ok:true,available:false,gameLog:[]});
+  };
+  try {
+    for(const [index,book] of ['prizepicks','underdog'].entries()) {
+      const group={key:`source-fixture-${index}`,sport:'WNBA',player:'Formula Fixture',market:'Fantasy Score',marketId:index?'prizepicks:player_fantasy_score':'player_fantasy_score',line:19.5,quotes:[{sportsbookKey:book,side:'OVER',line:19.5}],bestOver:null,bestUnder:null};
+      await fetchResearch(group,'OVER');
+    }
+    assert.deepEqual(requests,['prizepicks:player_fantasy_score','underdog:player_fantasy_score']);
+  } finally { globalThis.fetch=oldFetch; }
+});

@@ -317,7 +317,17 @@ export async function fetchResearch(
     games: '20',
   });
   if (group.providerPlayerId) params.set('providerPlayerId', group.providerPlayerId);
-  if (group.marketId) params.set('marketId', group.marketId);
+  if (group.marketId) {
+    let marketId = group.marketId;
+    if (/fantasy/i.test(`${group.market} ${marketId}`)) {
+      const books = [...new Set(group.quotes.filter(row => !row.conflict).map(row =>
+        String(row.sportsbookKey || '').trim().toLowerCase()).filter(Boolean))];
+      // A book-filtered selection owns its scoring formula, even when its
+      // parent group retained another provider's qualified market identifier.
+      if (books.length === 1) marketId = `${books[0]}:${marketId.replace(/^[^:]+:/, '')}`;
+    }
+    params.set('marketId', marketId);
+  }
   if (group.position) params.set('position', group.position);
   if (group.team) params.set('team', group.team);
   if (group.opponent) params.set('opponent', group.opponent);

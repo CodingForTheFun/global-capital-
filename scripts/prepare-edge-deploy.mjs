@@ -3,6 +3,8 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { applySoccerPublicFeedPatches } from './patch-soccer-public-feeds.mjs';
 import { patchPublicSportsbookHosts } from './patch-public-sportsbook-hosts.mjs';
+import { patchRecentFiveUi } from '../lib/autoscout/recent-five-runtime-patch.mjs';
+import { patchAutomaticSpecialPropsUi } from '../lib/autoscout/automatic-special-props-runtime-patch.mjs';
 import './patch-real-snipe-table.mjs';
 import './patch-obligeprops-presentation.mjs';
 
@@ -13,6 +15,17 @@ import './patch-obligeprops-presentation.mjs';
 if (existsSync('package.json')) {
   patchPublicSportsbookHosts();
   applySoccerPublicFeedPatches();
+
+  // Customer prop presentation is also a build-time contract. Applying these
+  // patches here means a deploy cannot silently ship without Last 5 / hot-form
+  // presentation, verified PrizePicks Goblin/Demon lines, their filters, or the
+  // passive auto-refresh loop. Anchor drift fails the build instead of leaving
+  // production half-updated.
+  const uiFile = 'apex-v2/scout-ui-v5.js';
+  const uiSource = readFileSync(uiFile, 'utf8');
+  const uiOutput = patchAutomaticSpecialPropsUi(patchRecentFiveUi(uiSource));
+  if (uiOutput === uiSource) throw new Error('Automatic special-prop UI build patch made no changes.');
+  writeFileSync(uiFile, uiOutput);
 }
 
 // Safari/iOS can paint the donut circles while dropping SVG <text>. Render the

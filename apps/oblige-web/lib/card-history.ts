@@ -20,7 +20,8 @@ export function cardHistory(response: ResearchResponse | null | undefined, group
     return { label, value: null, percent: true };
   };
   const last10 = computeWindow(games, group.line, 'OVER', 'l10', 'L10', 10);
-  const avg = finiteNumber(windows.last10?.average ?? windows.l10?.average) ?? last10.average;
+  const summary = windows.last10 || windows.l10;
+  const avg = (summary?.available !== false && (finiteNumber(summary?.sampleSize ?? summary?.games) || 0) > 0 ? finiteNumber(summary?.average) : null) ?? last10.average;
   const streak = streakOf(games, group.line, 'OVER');
   const h2h = metric('H2H', valid ? response.h2h || windows.h2h : undefined);
   // Use the provider's exact-opponent summary; do not guess team identities.

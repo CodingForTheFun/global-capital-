@@ -8,6 +8,8 @@ import { collapsePlayerCards, playerResearchHref, restrictBook, type PlayerCardG
 import type { BoardMeta, PropGroup, ResearchResponse } from '@/lib/types';
 import { quotePriceLabel, quoteSeenLabel, quoteVariant, variantLabel, isDfs } from '@/lib/prop-signals';
 import { cardHistory } from '@/lib/card-history';
+import { marketName, periodName } from '@/lib/market-display';
+import { legacyPeriod } from '@/lib/legacy-research-presentation';
 import { fetchMarketReferences, referenceKey, type MarketReference } from '@/lib/market-reference';
 import { bestEv, fetchPredictions, modelLabel, predictionKey, usablePrediction, type Prediction } from '@/lib/model-data';
 import { PlayerHeadshot } from '@/components/player-headshot';
@@ -18,6 +20,10 @@ const text = (value: unknown) => String(value || '').trim();
 const quoteBook = (row: PropGroup['quotes'][number]) => text(row.sportsbook || row.sportsbookKey);
 function SelectPill({ label, value, options, onChange }: { label: string; value: string; options: {value: string; label: string}[]; onChange(value: string): void }) {
   return <label className={styles.filterPill}><span>{label}</span><select aria-label={label} value={value} onChange={event => onChange(event.target.value)}>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select><ChevronDown size={13}/></label>;
+}
+function statLabel(group: PropGroup) {
+  const scope = legacyPeriod(group);
+  return [marketName({label:scope.label,marketKey:group.marketId||scope.label}),scope.period?periodName(scope.period):''].filter(Boolean).join(' · ');
 }
 function timeLabel(value: string | null) {
   return value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString(undefined,{weekday:'short',hour:'numeric',minute:'2-digit'}) : 'Time unavailable';
@@ -61,7 +67,7 @@ export function PremiumBoard() {
   },[account,checking,sport,refresh]);
   function changeSport(next: string) {setSport(next);setMarket(ALL);setOpponent(ALL);setTeam(ALL);setBook(ALL);setLine(ALL);setVariant(ALL);setVenue(ALL);setPageIndex(0);}
   const options = React.useMemo(()=>({
-    markets:[...new Set(groups.map(g=>g.market))].sort(),opponents:[...new Set(groups.map(g=>g.opponent).filter((v):v is string=>!!v))].sort(),teams:[...new Set(groups.map(g=>g.team).filter((v):v is string=>!!v))].sort(),
+    markets:[...new Map(groups.map(g=>[g.market,{value:g.market,label:statLabel(g)}])).values()].sort((a,b)=>a.label.localeCompare(b.label)),opponents:[...new Set(groups.map(g=>g.opponent).filter((v):v is string=>!!v))].sort(),teams:[...new Set(groups.map(g=>g.team).filter((v):v is string=>!!v))].sort(),
     lines:[...new Set(groups.map(g=>String(g.line)))].sort((a,b)=>Number(a)-Number(b)),books:[...new Set(groups.flatMap(g=>g.quotes.map(quoteBook)).filter(Boolean))].sort(),
   }),[groups]);
   // Expensive identity reconciliation depends on filters, not each arriving history/forecast.
@@ -71,7 +77,7 @@ export function PremiumBoard() {
       (market===ALL||g.market===market)&&(opponent===ALL||g.opponent===opponent)&&(team===ALL||g.team===team)&&(line===ALL||String(g.line)===line)&&
       (variant===ALL||quoteVariant(g.quotes[0])===variant)&&(book===ALL||g.quotes.some(q=>quoteBook(q)===book))&&
       (venue===ALL||(venue==='home'?!!g.team&&g.team===g.homeTeam:!!g.team&&g.team===g.awayTeam))&&
-      (!needle||`${g.player} ${g.market} ${g.matchup} ${g.team||''}`.toLowerCase().includes(needle)));
+      (!needle||`${g.player} ${statLabel(g)} ${g.matchup} ${g.team||''}`.toLowerCase().includes(needle)));
     return collapsePlayerCards(rows,groups).filter(g=>!savedOnly||saved.includes(g.playerCardKey)).sort((a,b)=>sort==='LINE'?b.line-a.line:a.player.localeCompare(b.player));
   },[groups,book,market,opponent,team,line,variant,venue,deferredQuery,savedOnly,saved,sort]);
   React.useEffect(()=>setPageIndex(0),[sport,market,opponent,team,line,book,variant,venue,deferredQuery,savedOnly,sort]);
@@ -115,7 +121,7 @@ export function PremiumBoard() {
       <nav className={styles.sportNav} aria-label="Sports">{sports.slice(0,7).map(value=><button key={value} aria-pressed={sport===value} onClick={()=>changeSport(value)}>{value}</button>)}{sports.length>7&&<label className={styles.moreSports}>More <ChevronDown size={13}/><select aria-label="All sports" value={sport} onChange={event=>changeSport(event.target.value)}>{sports.map(value=><option key={value} value={value}>{value}</option>)}</select></label>}</nav>
       <div className={styles.toolbar}><label className={styles.search}><Search size={18}/><input aria-label="Search players, teams, or props" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search players, teams, or props…"/></label><button className={styles.filterToggle} aria-expanded={filtersOpen} aria-controls="board-filters" onClick={()=>setFiltersOpen(value=>!value)}><SlidersHorizontal size={17}/><span>Filters</span>{[market,opponent,team,book,line,variant,venue].filter(value=>value!==ALL).length>0&&<i/>}</button><button className={styles.savedToggle} aria-label="Show saved props" aria-pressed={savedOnly} onClick={()=>setSavedOnly(value=>!value)}><Star size={18} fill={savedOnly?'currentColor':'none'}/></button></div>
       <div id="board-filters" className={styles.filters} data-open={filtersOpen}>
-        <SelectPill label="Stat" value={market} onChange={setMarket} options={choices(options.markets,'All stats')}/><SelectPill label="Book" value={book} onChange={setBook} options={choices(options.books,'All books')}/>
+        <SelectPill label="Stat" value={market} onChange={setMarket} options={[{value:ALL,label:'All stats'},...options.markets]}/><SelectPill label="Book" value={book} onChange={setBook} options={choices(options.books,'All books')}/>
         <SelectPill label="Prop type" value={variant} onChange={setVariant} options={[{value:ALL,label:'All prop types'},{value:'standard',label:'Standard'},{value:'goblin',label:'Green Goblin'},{value:'demon',label:'Red Demon'},{value:'boost',label:'Underdog boost'},{value:'discount',label:'Underdog discount'},{value:'alternate',label:'Alternates'}]}/>
         <SelectPill label="Opponent" value={opponent} onChange={setOpponent} options={choices(options.opponents,'Any opponent')}/><SelectPill label="Team" value={team} onChange={setTeam} options={choices(options.teams,'Any team')}/><SelectPill label="Line" value={line} onChange={setLine} options={choices(options.lines,'Any line')}/>
         <SelectPill label="Home/Away" value={venue} onChange={setVenue} options={[{value:ALL,label:'Home & away'},{value:'home',label:'Home'},{value:'away',label:'Away'}]}/>
@@ -134,7 +140,7 @@ export function PremiumBoard() {
         const projection=valid?prediction.projection:fresh?.projection;
         const modelEv=bestEv(group,prediction,now), ev=modelEv??fresh?.ev;
         return <article key={group.playerCardKey} className={styles.card} data-player-card={group.playerCardKey}>
-          <div className={styles.cardHeader}><button className={styles.identity} onClick={()=>openResearch(group)} aria-label={`Research ${group.player}`}><span className={styles.portrait}><PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId}/></span><span className={styles.playerInfo}><strong>{group.player} {group.position&&<small>({group.position})</small>}</strong><span className={styles.propTitle}>O/U <b>{group.line}</b> {group.market}</span><small>{group.matchup} <i>·</i> {timeLabel(group.startsAt)}</small></span></button><button className={styles.save} aria-label={`${savedCard?'Unsave':'Save'} ${group.player}`} aria-pressed={savedCard} onClick={()=>toggleSaved(group.playerCardKey)}><Star size={19} fill={savedCard?'currentColor':'none'}/></button></div>
+          <div className={styles.cardHeader}><button className={styles.identity} onClick={()=>openResearch(group)} aria-label={`Research ${group.player}`}><span className={styles.portrait}><PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId}/></span><span className={styles.playerInfo}><strong>{group.player} {group.position&&<small>({group.position})</small>}</strong><span className={styles.propTitle}>O/U <b>{group.line}</b> {statLabel(group)}</span><small>{group.matchup} <i>·</i> {timeLabel(group.startsAt)}</small></span></button><button className={styles.save} aria-label={`${savedCard?'Unsave':'Save'} ${group.player}`} aria-pressed={savedCard} onClick={()=>toggleSaved(group.playerCardKey)}><Star size={19} fill={savedCard?'currentColor':'none'}/></button></div>
           <div className={styles.context}><span>{group.sport}</span>{group.team&&<span>{group.team}</span>}{group.categoryCount>1&&<button onClick={()=>openResearch(group)}>{group.categoryCount} stat categories <ChevronRight size={12}/></button>}{badges.map(item=><Link prefetch={false} key={item.key} className={styles.variant} data-variant={quoteVariant(item.quotes[0])} href={playerResearchHref(item,group.playerCardKey,item.quotes[0]?.sportsbookKey||item.quotes[0]?.sportsbook)}>{variantLabel(item.quotes[0])}</Link>)}</div>
           <div className={styles.metrics} aria-label="Historical over results">{metrics.map(metric=>{
             const tone=metric.value===null?'none':metric.tone||(metric.percent?(metric.value>=60?'positive':metric.value<40?'negative':'neutral'):metric.label==='DIFF'?(metric.value>=0?'positive':'negative'):'neutral');

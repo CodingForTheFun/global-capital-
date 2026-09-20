@@ -2,19 +2,31 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeOffers,normalizeCatalog,historyForMarket,number} from '../lib/web/prop-workspace.mjs';
 import {createWorkspaceHandler} from '../lib/web/workspace-api.mjs';
-import {resolveNearbyMatchupEvent} from '../lib/data-sources/espn/matchup.mjs';
+import {resolveHistoryEventIdentity} from '../lib/data-sources/espn/research.mjs';
 const event={id:'e1',sport:'football_nfl',startsAt:'2026-09-20T18:00:00Z',homeTeam:'A',awayTeam:'B'};
-test('nearby ESPN event identity tolerates provider drift but refuses ambiguous same-team events',()=>{
- const team=(id,abbreviation)=>({id:String(id),abbreviation,displayName:abbreviation});
- const competition=(id,date,home,away)=>({id:String(id),date,competitors:[{homeAway:'home',team:home},{homeAway:'away',team:away}]});
+test('verified history event identity catches a source event played before a still-future PropLine start',()=>{
  const target={sport:'WNBA',homeTeam:'NY',awayTeam:'LV',gameStartTime:'2026-09-20T18:00:00Z'};
- const leagues=[{slug:'wnba'}],ny=team(1,'NY'),lv=team(2,'LV');
- const shifted=competition(11,'2026-09-20T16:30:00Z',ny,lv);
- const other=competition(12,'2026-09-22T16:00:00Z',ny,lv);
- const scoreboard={leagues,events:[{id:'11',competitions:[shifted]},{id:'12',competitions:[other]}]};
- assert.equal(resolveNearbyMatchupEvent(scoreboard,target)?.id,'11');
- const ambiguous={leagues,events:[{id:'11',competitions:[shifted]},{id:'13',competitions:[competition(13,'2026-09-20T19:00:00Z',ny,lv)]}]};
- assert.equal(resolveNearbyMatchupEvent(ambiguous,target),null);
+ const rows=[
+  {gameId:'wnba:11',date:'2026-09-20T16:30:00Z',team:'NY',teamName:'New York Liberty',opponent:'LV',opponentName:'Las Vegas Aces'},
+  {gameId:'wnba:10',date:'2026-09-18T18:00:00Z',team:'NY',opponent:'LV'},
+ ];
+ const identity=resolveHistoryEventIdentity(rows,target);
+ assert.equal(identity.available,true);assert.equal(identity.gameId,'wnba:11');assert.equal(identity.sourceEventId,'11');
+});
+test('verified history event identity supports generic soccer club names without a league slug',()=>{
+ const target={sport:'SOCCER',homeTeam:'Rayo',awayTeam:'Bristol C',gameStartTime:'2026-09-20T18:00:00Z'};
+ const identity=resolveHistoryEventIdentity([
+  {gameId:'soccer:77',date:'2026-09-20T17:10:00Z',teamName:'Rayo Vallecano',team:'RAY',opponentName:'Bristol City',opponent:'BRI'},
+ ],target);
+ assert.equal(identity.available,true);assert.equal(identity.gameId,'soccer:77');
+});
+test('verified history event identity fails closed when same-matchup candidates are too ambiguous',()=>{
+ const target={sport:'WNBA',homeTeam:'NY',awayTeam:'LV',gameStartTime:'2026-09-20T18:00:00Z'};
+ const identity=resolveHistoryEventIdentity([
+  {gameId:'wnba:11',date:'2026-09-20T17:00:00Z',team:'NY',opponent:'LV'},
+  {gameId:'wnba:12',date:'2026-09-20T19:30:00Z',team:'NY',opponent:'LV'},
+ ],target);
+ assert.equal(identity.available,false);assert.equal(identity.code,'MATCHUP_IDENTITY_UNVERIFIED');
 });
 const quote=(description,point,extra={})=>({name:'Over',description,point,price:-110,player_id:'nfl:1',...extra});
 const payload=(book,market,outcomes,extra={})=>({id:'e1',sport_key:'football_nfl',bookmakers:[{key:book,markets:[{key:market,outcomes,...extra}]}]});

@@ -37,6 +37,12 @@ test('PropLine market rail survives the exact production UI patch order', () => 
   assert.match(patched, /safeBookLink/);
   assert.match(patched, /book gap/);
   assert.match(patched, /asOddsRail/);
+  assert.match(patched, /Fresh /);
+  assert.match(patched, /Liquidity /);
+  assert.match(patched, /ESPN match/);
+  assert.match(patched, /asTeamLogo/);
+  assert.match(patched, /Underdog modifiers/);
+  assert.match(patched, /vs standard/);
   assert.doesNotThrow(() => new Function(patched));
 });
 

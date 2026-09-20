@@ -1,4 +1,4 @@
-deploy: PropLine live card signals
-source-pr: #412
-release-sha: 47ab4cadc095abc54dc9df2d4819c962f3f4113d
-reason: current watched security release lock after green PropLine card-signal checks
+deploy: verified NFL + NCAAF history repairs
+source-prs: #419, #423
+release-sha: e4f73fa027162feb83a0beb8686b5f55f85964df
+reason: current watched Railway security release lock after green verified-history checks

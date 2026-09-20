@@ -1,4 +1,5 @@
-deploy: promote FanDuel player-prop integrity fix
+deploy: promote FanDuel player-prop integrity fix via reviewed merge
 source-issue: #396
-base-sha: 3bf7b261f239f84f3308d5d24608fb49ac3e8f7d
-reason: trigger autoprop-live watched release lock after exact-SHA release checks and production smoke passed for PR #408
+fix-merge-sha: 3bf7b261f239f84f3308d5d24608fb49ac3e8f7d
+prior-lock-sha: 335215c2d3054b636c6937b1ba0d6c48ee363c13
+reason: reviewed release-lock promotion for PR #408 after branch tests and production smoke passed

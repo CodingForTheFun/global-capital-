@@ -20,7 +20,9 @@ function eventOdds() {
     id: '210404', sport_key: 'baseball_mlb', commence_time: '2026-09-15T01:40:00+00:00',
     home_team: 'Arizona Diamondbacks', away_team: 'Miami Marlins',
     home_team_key: 'arizona_diamondbacks', away_team_key: 'miami_marlins',
-    home_team_id: 'mlb:109', away_team_id: 'mlb:146', merged_from_event_ids: ['210399'],
+    home_team_id: 'mlb:109', away_team_id: 'mlb:146',
+    home_team_logo_url: 'https://cdn.example.test/ari.png', away_team_logo_url: 'https://cdn.example.test/mia.png',
+    espn_event_id: '401999999', merged_from_event_ids: ['210399'],
     bookmakers: [
       { key: 'draftkings', title: 'DraftKings', book_event_id: 'dk-event-210404', app_link: 'draftkings://event/210404', markets: [ { key: 'pitcher_strikeouts', title: 'Strikeouts', outcomes: [
         { name: 'Over', description: 'Corbin Burnes', player_id: 'mlb:592450', point: 5.5, price: -115, outcome_id: 'a1', book_outcome_id: 'dk-outcome-a1', last_change_at: '2026-09-15T01:00:00Z', last_seen_at: '2026-09-15T01:01:00Z', book_updated_at: '2026-09-15T00:59:59Z', liquidity: 1250, liquidity_updated_at: '2026-09-15T01:00:02Z', dfs_odds_type: 'standard' },
@@ -83,6 +85,9 @@ test('an event payload normalizes into board rows', () => {
   assert.equal(out.events[0].homeTeamKey, 'arizona_diamondbacks');
   assert.equal(out.events[0].awayTeamKey, 'miami_marlins');
   assert.equal(out.events[0].homeTeamProviderId, 'mlb:109');
+  assert.equal(out.events[0].homeTeamLogoUrl, 'https://cdn.example.test/ari.png');
+  assert.equal(out.events[0].awayTeamLogoUrl, 'https://cdn.example.test/mia.png');
+  assert.equal(out.events[0].espnEventId, '401999999');
   assert.deepEqual(out.events[0].mergedFromProviderEventIds, ['210399']);
   assert.equal(out.players.length, 1, 'the same player across books is one player row');
   assert.equal(out.players[0].providerPlayerId, 'mlb:592450', 'the stable league id must survive');

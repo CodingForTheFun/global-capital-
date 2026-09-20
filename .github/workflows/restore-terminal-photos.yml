@@ -60,7 +60,7 @@ jobs:
           node --input-type=module <<'JS'
           import assert from 'node:assert/strict';
           import {mkdir,writeFile} from 'node:fs/promises';
-          const origin='https://obligeprops.com';
+          const origin='https://www.obligeprops.com';
           const report={expectedCommit:process.env.GITHUB_SHA,observedAt:new Date().toISOString(),board:null,images:[]};
           await mkdir('artifacts/public-restored-terminal',{recursive:true});
           try{

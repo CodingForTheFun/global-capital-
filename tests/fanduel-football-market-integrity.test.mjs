@@ -105,7 +105,7 @@ test('valid football and baseball player markets remain allowed', () => {
   }), true);
 });
 
-test('FanDuel public MLB parsing drops a truncated team label and keeps the real pitcher', async () => {
+test('FanDuel public MLB parsing drops a natural team label and keeps the real pitcher', async () => {
   const event = {
     eventId: 'fd-mlb-396',
     name: 'New York Yankees (L Gil) @ Arizona Diamondbacks (B Pfaadt)',
@@ -118,7 +118,7 @@ test('FanDuel public MLB parsing drops a truncated team label and keeps the real
       markets: [
         {
           marketId: 'bad-team-label',
-          marketName: 'Arizona Diamondbac Strikeouts',
+          marketName: 'Arizona Diamondbacks Strikeouts',
           runners: [
             { runnerName: 'Over 2.5', handicap: 2.5, americanOdds: -110 },
             { runnerName: 'Under 2.5', handicap: 2.5, americanOdds: -110 },

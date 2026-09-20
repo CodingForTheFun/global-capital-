@@ -15,7 +15,7 @@ test('verified NFL team decoration is removed without guessing ambiguous names',
  assert.equal(researchPlayerName('Aaron Rodgers (PIT)',{...context,team:'NE'}),'Aaron Rodgers (PIT)');
  for(const name of ['Aaron Rodgers (ABC)','Aaron Rodgers (Captain)','Aaron Rodgers + Drake Maye (PIT)'])assert.equal(researchPlayerName(name,context),name);
  assert.equal(researchPlayerName('Aaron Rodgers (PIT)',{sport:'NFL'}),'Aaron Rodgers (PIT)');
- assert.equal(researchPlayerName('Test Player (MIN)',{...context,sport:'NBA',team:'Minnesota Timberwolves'}),'Test Player (MIN)');
+ assert.equal(researchPlayerName('Test Player (MIN)',{...context,sport:'NBA',team:'Minnesota Vikings'}),'Test Player (MIN)');
 });
 
 test('provider-tagged and plain names form one card, preserving raw quotes and old saved links',()=>{
@@ -44,6 +44,9 @@ test('opposing namesakes without provider IDs retain separate quote groups',()=>
  const groups=groupProps([row({providerPlayerId:null,playerName:'Alex Smith (PIT)'}),row({providerPlayerId:null,playerName:'Alex Smith (NE)',team:'NE'})],'NFL');
  assert.equal(groups.length,2);assert.equal(groupPlayerCards(groups).length,2);
  assert.deepEqual(groups.map(group=>group.quotes[0].playerName),['Alex Smith (PIT)','Alex Smith (NE)']);
+ const missingTeams=groupProps([row({providerPlayerId:null,playerName:'Alex Smith (PIT)',team:null}),row({providerPlayerId:null,playerName:'Alex Smith (NE)',team:null})],'NFL');
+ assert.equal(groupPlayerCards(missingTeams).length,2,'verified name tags retain opposing-team evidence when team is absent');
+ assert.deepEqual(missingTeams.map(group=>group.team),['pittsburgh steelers','new england patriots']);
 });
 
 test('every supported board sport uses shared identity, category, and exact-book grouping',()=>{
@@ -57,4 +60,14 @@ test('every supported board sport uses shared identity, category, and exact-book
   const other={...tagged,playerName:'Fixture Athlete (NE)',team:'NE',eventId:'opposing-player'};
   assert.equal(groupPlayerCards(groupProps([base,other],sport)).length,2,`${sport}: opposing namesakes distinct`);
  }
+});
+
+test('full team names verify provider tags within the actual league',()=>{
+ for(const [sport,player,tag,team,opponent] of [['MLB','Agustin Ramirez','MIA','Miami Marlins','San Diego Padres'],['MLB','Alec Burleson','STL','St. Louis Cardinals','Washington Nationals'],['NBA','Fixture Athlete','BOS','Boston Celtics','Los Angeles Lakers'],['WNBA','Fixture Athlete','MIN','Minnesota Lynx','Seattle Storm'],['WNBA',"A'ja Wilson",'LVA','Las Vegas Aces','Seattle Storm'],['NHL','Fixture Athlete','BOS','Boston Bruins','New York Rangers']]){
+  const base=row({sport,playerName:player,providerPlayerId:null,team,homeTeam:team,awayTeam:opponent});
+  const decorated={...base,eventId:'other-book',playerName:`${player} (${tag})`,team:null};
+  const groups=groupProps([base,decorated],sport);
+  assert.equal(groups[1].player,player,`${sport}: full matchup verifies tag`);assert.equal(groupPlayerCards(groups).length,1);
+ }
+ assert.equal(researchPlayerName('Fixture Athlete (BOS)',{sport:'MLB',homeTeam:'Boston Celtics',awayTeam:'Los Angeles Lakers'}),'Fixture Athlete (BOS)','another league cannot supply identity evidence');
 });

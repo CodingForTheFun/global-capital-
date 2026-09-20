@@ -28,6 +28,10 @@ function statLabel(group: PropGroup) {
 function timeLabel(value: string | null) {
   return value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString(undefined,{weekday:'short',hour:'numeric',minute:'2-digit'}) : 'Time unavailable';
 }
+function bookShort(name: string) {
+  const key = name.toLowerCase().replace(/[^a-z0-9]/g,'');
+  return ({draftkings:'DK',fanduel:'FD',fanatics:'FAN',betmgm:'MGM',betrivers:'BR',betus:'BUS',prizepicks:'PP',underdog:'UD',bovada:'BOV',pinnacle:'PIN',prophetx:'PX',fliff:'FL',hardrockbet:'HR',kalshi:'KAL'} as Record<string,string>)[key] || name;
+}
 export function PremiumBoard() {
   const router = useRouter();
   const [account,setAccount] = React.useState<{id: string; email?: string} | null>(null);
@@ -132,16 +136,17 @@ export function PremiumBoard() {
         const projection=valid?prediction.projection:fresh?.projection;
         const modelEv=bestEv(group,prediction,now), ev=modelEv??fresh?.ev;
         const requested=forecastOpen.includes(group.key), pending=requested&&(prediction===undefined||reference===undefined);
+        const displayQuote=group.bestOver||group.bestUnder||group.quotes[0];
         return <tr key={group.playerCardKey} data-player-card={group.playerCardKey} onClick={event=>{if(!(event.target as HTMLElement).closest('button,a,select,input'))openResearch(group);}}>
           <td className={styles.playerCell}><div className={styles.player}><button className={styles.identity} onClick={()=>openResearch(group)} aria-label={`Research ${group.player}`}><PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId}/><span><b>{group.player}</b><small>{[group.team,group.position].filter(Boolean).join(' · ')||group.sport}</small></span></button><button className={styles.save} aria-label={`${savedCard?'Unsave':'Save'} ${group.player}`} aria-pressed={savedCard} onClick={()=>toggleSaved(group)}><Star size={17} fill={savedCard?'currentColor':'none'}/></button></div></td>
           <td data-label="Matchup" className={styles.matchupCell}><span className={styles.matchup}>{group.matchup}</span><small>{timeLabel(group.startsAt)}</small></td>
           <td data-label="Stat" className={styles.statCell}><button onClick={()=>openResearch(group)}>{statLabel(group)}</button>{group.categoryCount>1&&<small>{group.categoryCount} stat categories</small>}<div className={styles.variants}>{badges.map(item=><Link prefetch={false} key={item.key} className={styles.variant} data-variant={quoteVariant(item.quotes[0])} href={playerResearchHref(item,group.playerCardKey,item.quotes[0]?.sportsbookKey||item.quotes[0]?.sportsbook)}>{variantLabel(item.quotes[0])}</Link>)}</div></td>
           <td data-label="Line" className={styles.number}>{group.line}</td>
-          <td data-label="Odds"><span className={styles.odds}>{quotePriceLabel(group.bestOver||group.quotes[0])}</span></td>
+          <td data-label="Odds"><span className={styles.odds}>{quotePriceLabel(displayQuote)}</span></td>
           <td data-label="Proj" className={styles.forecastCell}><strong>{projection!=null?projection.toFixed(1):pending?'…':requested?'Unavailable':'—'}</strong>{requested&&<small>{valid?modelLabel(prediction):fresh?.projection!=null?'Market implied':'No verified forecast'}</small>}</td>
-          <td data-label="EV%" className={styles.ev} data-positive={ev!=null&&ev>0}><strong>{ev!=null?`${ev>0?'+':''}${ev.toFixed(1)}%`:isDfs(group.quotes[0])?'Entry payout':pending?'…':requested?'Unavailable':'—'}</strong>{requested&&<small>{modelEv!=null?modelLabel(prediction):fresh?.ev!=null?'Market no-vig':isDfs(group.quotes[0])?'DFS payout':'No verified edge'}</small>}</td>
+          <td data-label="EV%" className={styles.ev} data-positive={ev!=null&&ev>0}><strong>{ev!=null?`${ev>0?'+':''}${ev.toFixed(1)}%`:isDfs(displayQuote)?'Entry payout':pending?'…':requested?'Unavailable':'—'}</strong>{requested&&<small>{modelEv!=null?modelLabel(prediction):fresh?.ev!=null?'Market no-vig':isDfs(displayQuote)?'DFS payout':'No verified edge'}</small>}</td>
           <td data-label="Hit rate" className={styles.historyCell}><div className={styles.hit}><span>{result===undefined?'…':hit?.value!=null?`${Math.round(hit.value)}%`:'Unavailable'}</span><i><b style={{width:`${Math.max(0,Math.min(100,hit?.value??0))}%`}}/></i></div><small>{hit?.sample?`L10 · ${hit.sample} games`:result===undefined?'Loading history':result===null?'History could not load':result?.message||'No verified L10 sample'}</small>{result!==undefined&&hit?.value==null&&<button onClick={()=>{setResearch(previous=>{const next={...previous};delete next[group.key];return next;});setRetry(value=>value+1);}}>Retry history</button>}</td>
-          <td data-label="Books" className={styles.bookCell}><div className={styles.books}>{books.map(([name,quote])=><Link prefetch={false} key={name} title={name} aria-label={`Research ${name} quote`} href={playerResearchHref(group,group.playerCardKey,name)} data-book={quote.sportsbookKey}>{name.replace(/[^a-z0-9]/gi,'').slice(0,2).toUpperCase()}</Link>)}</div><small>{quoteSeenLabel(group.quotes[0],now)}</small></td>
+          <td data-label="Books" className={styles.bookCell}><div className={styles.books}>{books.map(([name,quote])=><Link prefetch={false} key={name} title={name} aria-label={`Research ${name} quote`} href={playerResearchHref(group,group.playerCardKey,name)} data-book={quote.sportsbookKey}>{bookShort(name)}</Link>)}</div><small>{quoteSeenLabel(group.quotes[0],now)}</small></td>
           <td className={styles.actions}><button onClick={()=>loadForecast(group)}>Forecast</button><button className={styles.researchLink} onClick={()=>openResearch(group)}>Research <ArrowRight size={14}/></button></td>
         </tr>;
       })}</tbody></table></div>}

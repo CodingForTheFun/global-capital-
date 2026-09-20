@@ -94,3 +94,12 @@ test('forecasts for different books have different cache identities', () => {
   const other = { ...selection, quotes: [row({ sportsbookKey: 'fanduel' })], bestOver: row({ sportsbookKey: 'fanduel' }) };
   assert.notEqual(predictionKey(selection), predictionKey(other));
 });
+
+test('PrizePicks fantasy projection type never becomes a fake game period',async()=>{
+ const {quotePeriod}=await loadLib('prop-signals');
+ const quote=row({sportsbookKey:'prizepicks',market:'Fantasy Score',marketId:'prizepicks:player_fantasy_score',period:'fantasy_score'});
+ assert.equal(quotePeriod(quote),null);
+ const [group]=groupProps([quote],'NFL');assert.equal(group.period,null);assert.equal(group.marketId,'prizepicks:player_fantasy_score');
+ assert.equal(quotePeriod({...quote,period:'h1'}),'h1');
+ assert.equal(quotePeriod({...quote,sportsbookKey:'unknown'}),'fantasy_score');
+});

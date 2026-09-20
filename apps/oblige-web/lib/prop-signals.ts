@@ -40,6 +40,8 @@ export function quotePriceLabel(row: PropRow | null | undefined): string {
 }
 export function quotePeriod(row: PropRow | null | undefined): string | null {
   const period = clean(row?.period || row?.periodKey);
+  // PrizePicks uses fantasy_score as a projection type, not a game period.
+  if (period === 'fantasy_score' && clean(row?.sportsbookKey || row?.sportsbook) === 'prizepicks') return null;
   // PrizePicks single_stat identifies its projection category, not a game period.
   return ['', 'game', 'full', 'full_game', 'match', 'single_stat'].includes(period) ? null : period;
 }

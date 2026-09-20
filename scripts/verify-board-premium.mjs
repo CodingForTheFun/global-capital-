@@ -30,11 +30,14 @@ try{
    else if(!signedIn){privatePaths.push(url.pathname);status=401;body={ok:false};}
    else if(url.pathname==='/api/apex/props'){const sport=url.searchParams.get('sport')||'NFL';const standard=rows(sport),seed=standard[0];
     const special=(flavor,line,extra={})=>({...seed,id:`ui-${flavor}-${line}`,proplineOutcomeId:`ui-${flavor}-${line}`,line,sportsbook:'PrizePicks',sportsbookKey:'prizepicks',price:100,dfsOddsType:flavor,specialType:flavor,specialVerified:true,isAlternate:true,...extra});
+    for(const quote of standard)if(quote.sportsbookKey==='fanduel'&&quote.market===(names[sport]||names.NFL)[0])quote.market=(names[sport]||names.NFL)[1];
+    if(sport==='WNBA')for(const quote of standard){Object.assign(quote,{homeTeam:'Las Vegas Aces',awayTeam:'Seattle Storm',team:null});if(quote.sportsbookKey==='draftkings')quote.playerName='UI Test Player (LVA)';}
+    if(sport==='MLB')for(const quote of standard){Object.assign(quote,{homeTeam:'Miami Marlins',awayTeam:'San Diego Padres',team:null});if(quote.sportsbookKey==='draftkings')quote.playerName='UI Test Player (MIA)';}
     if(sport==='NFL')for(const quote of standard){Object.assign(quote,{homeTeam:'NE Patriots',awayTeam:'PIT Steelers',team:'PIT',opponent:'NE'});if(quote.sportsbookKey==='draftkings')quote.playerName='UI Test Player (PIT)';}
     body={ok:true,props:specialMode?[...standard,special('goblin',16.5),special('demon',26.5),special('demon',30.5,{playerName:'UI Test Special Only',providerPlayerId:'fixture:special-only'})]:standard,supportedSports:Object.keys(names),meta:{sportsbookCount:specialMode?3:2}};}
    else if(url.pathname==='/api/apex/research'){
     if(manyMode){activeHistory++;maxHistory=Math.max(maxHistory,activeHistory);await new Promise(resolve=>setTimeout(resolve,75));activeHistory--;}
-    assert.ok(!(url.searchParams.get('playerName')||'').includes('(PIT)'),'Verified team tags never enter history lookups');
+    assert.ok(!(url.searchParams.get('playerName')||'').match(/\((?:PIT|MIA|LVA)\)/),'Verified team tags never enter history lookups');
     const market=url.searchParams.get('market')||'';historyCalls.push({market,sport:url.searchParams.get('sport'),line:url.searchParams.get('line')});
     body=market.includes('First half')?{ok:true,available:false,message:'UI test: exact first-half history unavailable.',gameLog:[]}:{ok:true,available:true,source:'UI TEST FIXTURE - NOT LIVE SPORTS DATA',gameLog:Array.from({length:20},(_,i)=>({gameId:`test-${i}`,date:`2049-09-${String(28-i).padStart(2,'0')}T00:00:00Z`,opponent:i%2?'TST':'QA',value:i===6?null:12+i,isHome:i%2===0,season:2049}))};
    }else if(url.pathname==='/api/props/ml'){

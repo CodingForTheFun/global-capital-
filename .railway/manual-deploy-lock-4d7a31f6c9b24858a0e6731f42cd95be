@@ -1,4 +1,4 @@
-deploy: verified WNBA Stats archive fallback
-source-pr: #399
-release-sha: a2c38cd5aaef796360c0cca6a7a675563171dc10
-reason: deploy exact verified public WNBA history fallback after green release and integrated checks
+deploy: enforce fail-closed GitHub workflow predeploy gate
+source-issue: #240
+base-sha: 82fb9797329f0ba853d067e0358c4a4da6a170e0
+reason: trigger autoprop-live watched release lock after installing Railway predeploy CI/review enforcement

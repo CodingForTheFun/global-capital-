@@ -155,7 +155,7 @@ export type ResearchResponse = {
   source?: string;
   fetchedAt?: string;
   cached?: boolean;
-  player?: { playerName?: string; providerPlayerId?: string; team?: string | null };
+  player?: { position?: string | null; playerName?: string; providerPlayerId?: string; team?: string | null };
   matchup?: {
     opponent?: string | null;
     isHome?: boolean | null;

@@ -1,3 +1,4 @@
-deploy: nflverse verified NFL history fallback
-source-pr: #411
-release-sha: c47ee6bd23053e5a9e5696e51ffcdbc1af399929
+deploy: PropLine live card signals
+source-pr: #412
+release-sha: 47ab4cadc095abc54dc9df2d4819c962f3f4113d
+reason: current watched security release lock after green PropLine card-signal checks

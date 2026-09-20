@@ -31,4 +31,25 @@ test('CFB CSV parser preserves quoted athlete names',()=>{assert.equal(parseCfbC
 test('NCAAF archive returns exact passing yards across current and prior season',async()=>{const r=await fetchSportsDataverseCfbResearch({...common,playerName:'Fixture Quarterback',market:'Passing Yards',providerMarketKey:'player_pass_yds'},deps());assert.equal(r.available,true);assert.deepEqual(r.gameLog.map(x=>x.value),[278,241,301]);assert.equal(r.player.providerPlayerId,'espn:999001');});
 test('NCAAF archive sums exact passing plus rushing yards per game',async()=>{const r=await fetchSportsDataverseCfbResearch({...common,playerName:'Fixture Quarterback',market:'Passing + Rushing Yards',providerMarketKey:'player_pass_rush_yds'},deps());assert.equal(r.available,true);assert.deepEqual(r.gameLog.map(x=>x.value),[302,272,309]);});
 test('NCAAF defensive assists derive only from total minus solo tackles',async()=>{const r=await fetchSportsDataverseCfbResearch({...common,playerName:'Fixture Defender',market:'Assists',providerMarketKey:'player_assists'},deps());assert.equal(r.available,true);assert.deepEqual(r.gameLog.map(x=>x.value),[2]);});
+
+test('NCAAF archive does not treat an unnamespaced provider id as an ESPN athlete id',async()=>{
+ const r=await fetchSportsDataverseCfbResearch({...common,providerPlayerId:'999999',playerName:'Fixture Quarterback',market:'Passing Yards',providerMarketKey:'player_pass_yds'},deps());
+ assert.equal(r.available,true);assert.equal(r.player.providerPlayerId,'espn:999001');
+});
+test('NCAAF archive fails closed on current-season transport errors instead of returning only stale prior-season games',async()=>{
+ const broken=async url=>{
+  const u=String(url);
+  if(u.includes('_2026.csv.gz'))return new Response('',{status:404});
+  if(u.endsWith('player_box_2026.csv'))return new Response('',{status:500});
+  let body,gz=false;
+  if(u.endsWith('cfb_schedule_2026.csv'))body=s26;
+  else if(u.endsWith('player_box_2025.csv.gz')){body=p25;gz=true;}
+  else if(u.endsWith('cfb_schedule_2025.csv.gz')){body=s25;gz=true;}
+  else return new Response('',{status:404});
+  const payload=gz?gzipSync(Buffer.from(body)):Buffer.from(body);
+  return new Response(payload,{status:200,headers:{'content-length':String(payload.length)}});
+ };
+ const r=await fetchSportsDataverseCfbResearch({...common,playerName:'Fixture Quarterback',market:'Passing Yards',providerMarketKey:'player_pass_yds'},{fetcher:broken,now:()=>Date.parse('2026-09-19T23:00:00Z'),cacheEnabled:false});
+ assert.equal(r.available,false);assert.equal(r.code,'RESEARCH_PROVIDER_ERROR');
+});
 test('NCAAF unsupported targets and partial-game markets fail closed',async()=>{const a=await fetchSportsDataverseCfbResearch({...common,playerName:'Fixture Quarterback',market:'Receiving Targets',providerMarketKey:'player_targets'},deps());assert.equal(a.available,false);assert.equal(a.code,'UNSUPPORTED_MARKET');const b=await fetchSportsDataverseCfbResearch({...common,playerName:'Fixture Quarterback',market:'Passing Yards',providerMarketKey:'player_pass_yds',period:'q1'},deps());assert.equal(b.available,false);assert.equal(b.code,'UNSUPPORTED_MARKET');});

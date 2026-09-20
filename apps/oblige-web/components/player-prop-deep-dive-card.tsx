@@ -324,7 +324,7 @@ export function PlayerPropDeepDiveCard({
     setBookFilter(value);
     onBook(value === 'all' ? '' : value);
   }
-  function renderBarLabel(props: Record<string, unknown>) {
+  function renderBarLabel(props: any) {
     const x = Number(props.x || 0), y = Number(props.y || 0), width = Number(props.width || 0), index = Number(props.index || 0);
     const row = chartRows[index];
     if (!row) return null;

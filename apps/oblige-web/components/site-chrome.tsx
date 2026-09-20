@@ -47,6 +47,7 @@ export function SiteHeader() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const pathname = usePathname();
   const board = pathname.startsWith('/board');
+  const workspace = board || pathname.startsWith('/research');
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -74,6 +75,7 @@ export function SiteHeader() {
   return (
     <header
       data-stuck={stuck}
+      data-workspace={workspace ? 'true' : 'false'}
       data-board={board ? 'true' : 'false'}
       className={cn(
         'sticky top-0 z-30 border-b border-transparent',
@@ -289,6 +291,8 @@ export function MobileNav() {
 }
 
 export function SiteFooter() {
+  const path = usePathname();
+  if (path.startsWith('/board') || path.startsWith('/research')) return <footer className="reference-workspace-footer"><span>© {new Date().getFullYear()} Oblige Props · Research only</span><nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/responsible-play">Responsible play</a></nav></footer>;
   return (
     <footer className="border-t border-[var(--line)] bg-[var(--bg-deep)] py-12">
       <div className="mx-auto w-full max-w-[var(--maxw)] px-4 md:px-8">

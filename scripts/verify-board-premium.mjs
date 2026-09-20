@@ -18,7 +18,7 @@ try{
  browser=await chromium.launch();
  for(const width of [375,390,430,768,1440]){
   const context=await browser.newContext({viewport:{width,height:900},reducedMotion:'reduce',serviceWorkers:'block'}),page=await context.newPage();
-  const errors=[],historyCalls=[],privatePaths=[];let signedIn=true,failPhotos=false,specialMode=false,referenceMode=false;
+  const errors=[],historyCalls=[],privatePaths=[];let signedIn=true,failPhotos=false,specialMode=false,referenceMode=false,manyMode=false,holdModel=false,modelCalls=0,activeHistory=0,maxHistory=0;let releaseModel;
   page.on('pageerror',error=>errors.push(error.message));
   await page.route('**/_next/image?**',route=>failPhotos?route.abort():route.fulfill({status:200,contentType:'image/svg+xml',body:photo}));
   await page.route('**/api/**',async route=>{
@@ -32,9 +32,11 @@ try{
     const special=(flavor,line,extra={})=>({...seed,id:`ui-${flavor}-${line}`,proplineOutcomeId:`ui-${flavor}-${line}`,line,sportsbook:'PrizePicks',sportsbookKey:'prizepicks',price:100,dfsOddsType:flavor,specialType:flavor,specialVerified:true,isAlternate:true,...extra});
     body={ok:true,props:specialMode?[...standard,special('goblin',16.5),special('demon',26.5),special('demon',30.5,{playerName:'UI Test Special Only',providerPlayerId:'fixture:special-only'})]:standard,supportedSports:Object.keys(names),meta:{sportsbookCount:specialMode?3:2}};}
    else if(url.pathname==='/api/apex/research'){
+    if(manyMode){activeHistory++;maxHistory=Math.max(maxHistory,activeHistory);await new Promise(resolve=>setTimeout(resolve,75));activeHistory--;}
     const market=url.searchParams.get('market')||'';historyCalls.push({market,sport:url.searchParams.get('sport'),line:url.searchParams.get('line')});
     body=market.includes('First half')?{ok:true,available:false,message:'UI test: exact first-half history unavailable.',gameLog:[]}:{ok:true,available:true,source:'UI TEST FIXTURE - NOT LIVE SPORTS DATA',gameLog:Array.from({length:20},(_,i)=>({gameId:`test-${i}`,date:`2049-09-${String(28-i).padStart(2,'0')}T00:00:00Z`,opponent:i%2?'TST':'QA',value:i===6?null:12+i,isHome:i%2===0,season:2049}))};
    }else if(url.pathname==='/api/props/ml'){
+    modelCalls++;if(referenceMode&&holdModel)await new Promise(resolve=>{releaseModel=resolve;});
     const targets=route.request().postDataJSON()?.props||[];assert.ok(targets.length<=24,'Model service batch limit');
     body={ok:true,results:Object.fromEntries(targets.map(target=>[target.key,(target.isAlternate||referenceMode)?{available:false,code:'MARKET_NOT_SUPPORTED',message:'UI test: no model for alternate lines.'}:{available:true,code:'READY',modelVersion:'UI-TEST-ONLY',projection:24,probabilityOver:.6,probabilityUnder:.4,probabilityPush:0,validation:{method:'rolling-player-history'},expiresAt:new Date(Date.now()+600000).toISOString()}]))};
    }
@@ -46,14 +48,19 @@ try{
    else if(url.pathname==='/api/apex/player-artwork')return failPhotos?route.abort():route.fulfill({status:200,contentType:'image/svg+xml',body:photo});
    else if(url.pathname==='/api/apex/stream')return route.fulfill({status:200,contentType:'text/event-stream',body:'event: ready\ndata: {}\n\n'});
    else{status=404;body={ok:false};}
+   if(manyMode&&url.pathname==='/api/apex/props')body.props=Array.from({length:30},(_,i)=>body.props.map(row=>({...row,playerName:`UI Player ${String(i).padStart(2,'0')}`,providerPlayerId:`espn:${100+i}`,id:`${row.id}-${i}`}))).flat();
    await route.fulfill({status,contentType:'application/json',body:JSON.stringify(body)});
   });
   // Use the actual deployed board's click handler, not a handcrafted canonical URL.
   await page.goto(base+'/board',{waitUntil:'domcontentloaded'});
   const card=page.locator('[data-player-card]:visible').first();await card.waitFor({timeout:30000});
   assert.equal(await page.locator('[data-player-card]:visible').count(),1,'Existing cross-book deduplication is preserved');
+  await page.locator('[aria-label="Historical over results"] strong').first().filter({hasText:/[0-9]/}).waitFor();
+  assert.equal(modelCalls,0,'Initial board never waits for or requests optional models');
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Cards fit viewport');
+  await page.screenshot({path:`${out}/width-${width}-cards.png`,fullPage:true});
   const researchButton=card.getByRole('button',{name:'Research',exact:true});
-  if(await researchButton.count())await researchButton.click();else await card.locator('td').first().click();
+  if(await researchButton.count())await researchButton.click();else await card.getByRole('button',{name:'Research UI Test Player',exact:true}).click();
   await page.waitForURL(/\/research\?/);
   const opened=new URL(page.url());assert.equal(opened.searchParams.get('player'),'UI Test Player');assert.equal(opened.searchParams.has('playerKey'),false,'Reproduce the legacy link path missed by the original deployment');
   const main=page.locator('main[data-research-route="legacy-board-premium-v2"]');await main.waitFor();
@@ -98,10 +105,12 @@ try{
   specialMode=true;failPhotos=false;await page.goto(base+'/board');
   await page.getByRole('link',{name:'Goblin',exact:true}).first().waitFor();
   assert.equal(await page.locator('[data-player-card]').count(),2,'Special-only player retained');
-  await page.locator('td[data-label="Proj"]').filter({hasText:'24.0'}).first().waitFor();
+  await page.getByRole('button',{name:'Forecast',exact:true}).first().click();
+  await page.locator('[data-label="Proj"]').filter({hasText:'24.0'}).first().waitFor();
+  await page.getByRole('button',{name:'Filters',exact:true}).click();
   await page.getByLabel('Prop type',{exact:true}).selectOption('demon');
   assert.equal(await page.locator('[data-player-card]').count(),2,'Demon filter keeps both players');
-  assert.equal(await page.locator('td[data-label="Odds"]').filter({hasText:'+100'}).count(),0,'Synthetic DFS odds hidden');
+  assert.equal(await page.locator('[data-label="Odds"]').filter({hasText:'+100'}).count(),0,'Synthetic DFS odds hidden');
   await page.getByRole('link',{name:'Demon',exact:true}).first().click();await main.waitFor();
   await page.locator('.op-chart-bar').first().waitFor();
   assert.equal(await page.getByLabel('Selected book',{exact:true}).inputValue(),'prizepicks');
@@ -117,12 +126,35 @@ try{
    await history.getByRole('cell',{name:'15.5',exact:true}).waitFor();
    assert.equal(await history.getByRole('cell',{name:'99.5',exact:true}).count(),0,'Other outcome history never leaks into the selected quote');
    assert.equal(await history.getByRole('cell',{name:'+100',exact:true}).count(),0,'History does not present synthetic DFS odds');
-   referenceMode=true;specialMode=false;await page.goto(base+'/board');
-   await page.locator('td[data-label="Proj"]').filter({hasText:'24.3'}).first().waitFor();
+   referenceMode=true;holdModel=true;specialMode=false;await page.goto(base+'/board');
+   await page.getByRole('button',{name:'Forecast',exact:true}).first().click();
+   await page.locator('[data-label="Proj"]').filter({hasText:'24.3'}).first().waitFor();
    await page.getByText('Market implied',{exact:true}).first().waitFor();
    await page.getByText('Market no-vig',{exact:true}).first().waitFor();
-   await page.locator('[data-player-card] td').first().click();await main.waitFor();
+   assert.ok(releaseModel,'Market reference appears while model response is still pending');releaseModel();holdModel=false;
+   await page.locator('[data-player-card]').first().getByRole('button',{name:'Research',exact:true}).click();await main.waitFor();
    await page.getByRole('heading',{name:'Market reference',exact:true}).waitFor();
+  }
+  if(width===390){
+   manyMode=true;referenceMode=false;specialMode=false;historyCalls.length=0;modelCalls=0;
+   await page.goto(base+'/board');await page.locator('[data-player-card]').first().waitFor();
+   await page.waitForFunction(()=>document.querySelectorAll('[data-player-card]').length===12);
+   await page.locator('[aria-label="Historical over results"] strong').last().filter({hasText:/[—0-9]/}).waitFor();
+   assert.equal(historyCalls.length,12,'Only the first 12 visible players request history');assert.ok(maxHistory<=3,'At most three history requests in flight');assert.equal(modelCalls,0);
+   const firstNames=await page.locator('[data-player-card]').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('data-player-card')));
+   await page.getByRole('button',{name:'Next',exact:true}).click();
+   await page.waitForFunction(first=>!first.includes(document.querySelector('[data-player-card]')?.getAttribute('data-player-card')),firstNames);
+   assert.equal(await page.locator('[data-player-card]').count(),12,'Next page is reachable');
+   await page.getByRole('button',{name:/^Save UI Player/}).first().click();
+   await page.getByRole('button',{name:'Show saved props',exact:true}).click();
+   assert.equal(await page.locator('[data-player-card]').count(),1,'Saved navigation shows the chosen card');
+   await page.reload();await page.locator('[data-player-card]').first().waitFor();await page.getByRole('button',{name:'Show saved props',exact:true}).click();
+   assert.equal(await page.locator('[data-player-card]').count(),1,'Saved cards survive reload');
+   await page.getByRole('button',{name:'Show saved props',exact:true}).click();
+   await page.getByRole('textbox',{name:'Search players, teams, or props',exact:true}).fill('UI Player 29');
+   await page.waitForFunction(()=>document.querySelectorAll('[data-player-card]').length===1);
+   assert.ok((await page.locator('[data-player-card]').innerText()).includes('UI Player 29'),'Search reaches beyond the first page');
+   manyMode=false;
   }
   signedIn=false;privatePaths.length=0;await page.reload();await page.getByRole('button',{name:/sign in/i}).first().waitFor();assert.equal(await main.count(),0,'Private research hidden when signed out');assert.deepEqual(privatePaths,[],'No protected data requests before authentication');
   assert.deepEqual(errors,[],'No runtime exceptions');

@@ -37,13 +37,14 @@ try{
    return route.fulfill({status:body?200:404,contentType:'application/json',body:JSON.stringify(body||{})});
   });
   await page.goto(base+'/board');
+  await page.getByRole('button',{name:'Filters',exact:true}).click();
   await page.getByLabel('Opponent').waitFor();
-  const unit=page.locator('table:visible tbody tr');
+  const unit=page.locator('[data-player-card]:visible');
   await unit.first().waitFor();
   assert.equal(await unit.count(),1,'one player/game row despite duplicate ingestion, three stats, multiple lines and books');
   assert.equal(await page.getByText('Apply',{exact:true}).count(),0,'filters update directly without an Apply box');
   assert.equal(await page.getByText('Clear',{exact:true}).count(),0,'filters update directly without a Clear box');
-  for(const label of ['Opponent','Stat','Season','Home/Away','Team','Book','Line','Prop type'])assert.equal(await page.getByLabel(label).count(),1,`compact ${label} filter exists`);
+  for(const label of ['Opponent','Stat','Home/Away','Team','Book','Line','Prop type'])assert.equal(await page.getByLabel(label).count(),1,`compact ${label} filter exists`);
   assert.deepEqual(await page.getByLabel('Prop type',{exact:true}).locator('option').evaluateAll(options=>options.map(option=>option.value)),['ALL','standard','goblin','demon','boost','discount','alternate'],'the former placeholder filter exposes all verified prop types');
   await page.waitForFunction(()=>[...document.querySelectorAll('img[data-player-photo]')].filter(n=>n.getBoundingClientRect().width>0).every(n=>n.complete&&n.naturalWidth>0));
   const imgSrc=await page.locator('img[data-player-photo]:visible').first().getAttribute('src');
@@ -51,8 +52,8 @@ try{
   await page.screenshot({path:`${out}/${name}-board.png`,fullPage:true});
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
   await writeFile(`${out}/${name}-dimensions.json`,JSON.stringify(dimensions,null,2));
-  assert.ok(dimensions.scrollWidth<=dimensions.viewport+1,'premium board keeps overflow inside the table scroller');
-  await unit.first().locator('td').first().click();
+  assert.ok(dimensions.scrollWidth<=dimensions.viewport+1,'reference cards fit the viewport');
+  await unit.first().getByRole('button',{name:'Research',exact:true}).click();
   await page.getByLabel('Player stat category',{exact:true}).waitFor();
   assert.equal(await page.getByLabel('Player inspector',{exact:true}).count(),0,'no intermediate inspector');
   assert.equal(await page.getByLabel('Player stat category').locator('option').count(),3,'one category per stat, not per book/line');

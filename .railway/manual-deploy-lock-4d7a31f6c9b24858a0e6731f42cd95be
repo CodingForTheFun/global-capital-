@@ -1,5 +1,5 @@
-deploy: promote FanDuel player-prop integrity fix via reviewed merge
+deploy: recover and promote FanDuel player-prop integrity fix
 source-issue: #396
 fix-merge-sha: 3bf7b261f239f84f3308d5d24608fb49ac3e8f7d
-prior-lock-sha: 335215c2d3054b636c6937b1ba0d6c48ee363c13
-reason: reviewed release-lock promotion for PR #408 after branch tests and production smoke passed
+last-deployed-sha: 1e05bd2a8bddad6079f759856cb66acd1a04c8b9
+reason: bounded reviewed release-chain recovery after the incident lock-only direct commit; preserve intervening reviewed merges

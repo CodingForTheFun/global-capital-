@@ -1,2 +1,2 @@
-Reviewed release: PR #463 / 4ced670b1c644802f33a4864bfe66d5569802d8b
-Deploy fail-closed incomplete fantasy-history correction through existing Railway gates.
+Reviewed release: PR #465 / 514a1d39ccea881c686fd000cf7ef6e8e34fa6c0
+Deploy fail-closed fantasy history correction with retryable provider failures through existing Railway gates.

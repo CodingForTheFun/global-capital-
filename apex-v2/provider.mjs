@@ -5,18 +5,20 @@ import { mergeCachedPropline, proplineSupplementHealth } from '../lib/ingestion/
 import { mergeCachedSportsGameOdds, sportsGameOddsSupplementHealth, noteSportsGameOddsDemand, rememberSportsGameOddsBoard } from '../lib/ingestion/sportsgameodds-supplement.mjs';
 import { mergeCachedSportradar, sportradarSupplementHealth } from '../lib/ingestion/sportradar-supplement.mjs';
 import { filterCustomerBoardFreshness } from '../lib/ingestion/customer-prop-freshness.mjs';
-import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
 import { sportsGameOddsConfigured } from '../lib/data-sources/sportsgameodds/client.mjs';
 import { fetchSportsGameOddsBoard } from '../lib/autoscout/providers/sportsgameodds.mjs';
+import { fetchBoard as fetchPropLineBoard } from '../lib/autoscout/providers/propline.mjs';
 import { sportradarConfigured } from '../lib/data-sources/sportradar/client.mjs';
 import { sportradarNbaV8Health, startSportradarNbaV8Probe } from '../lib/data-sources/sportradar/nba-v8.mjs';
-import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
 import { propProviderMode } from '../lib/autoscout/provider-mode.mjs';
+import { meshPolicy } from '../lib/autoscout/data-mesh-policy.mjs';
+import { sportradarTrialHealth, startSportradarTrialProbe } from '../lib/data-sources/sportradar/trial-products.mjs';
 import { loadPersistedDiagnostics, snapshotDiagnostics } from '../lib/autoscout/runtime-store.mjs';
 
 await loadPersistedDiagnostics();
 startSportradarNbaV8Probe();
+startSportradarTrialProbe();
 
 const text = (value) => String(value ?? '').trim();
 const num = (value) => {
@@ -25,73 +27,6 @@ const num = (value) => {
   return Number.isFinite(n) ? n : null;
 };
 const inflight = new Map();
-
-function normalizeSportsDataIo(board, league) {
-  const props = (board?.offers || []).map((o, i) => ({
-    id: [league, o.gameId, o.playerId, o.market, o.sportsbookKey, o.side, o.line, i].join('|'),
-    source: o.consensus ? 'SportsDataIO Consensus' : 'SportsDataIO',
-    provider: 'sportsdataio',
-    sport: text(o.sport || league).toUpperCase(),
-    eventId: text(o.gameId),
-    playerId: text(o.playerId),
-    playerName: text(o.playerName),
-    team: text(o.team),
-    statId: '',
-    marketId: text(o.bettingMarketId),
-    market: text(o.market || 'Player Prop'),
-    period: text(o.periodType || 'game'),
-    side: text(o.side).toUpperCase(),
-    line: num(o.line),
-    price: '',
-    impliedProbability: null,
-    sportsbook: text(o.sportsbook || (o.consensus ? 'Consensus' : 'SportsDataIO')),
-    sportsbookKey: text(o.sportsbookKey || (o.consensus ? 'consensus' : 'sportsdataio')).toLowerCase(),
-    fairOdds: '',
-    fairLine: null,
-    consensusLine: null,
-    gameStartTime: o.gameStartTime || null,
-    homeTeam: text(o.homeTeam),
-    awayTeam: text(o.awayTeam),
-    homeScore: null,
-    awayScore: null,
-    live: false,
-    started: false,
-    completed: false,
-    isAlternate: false,
-    providerUpdatedAt: o.updatedAt || null,
-    ingestedAt: board?.fetchedAt || new Date().toISOString(),
-    updatedAt: o.updatedAt || null,
-    deeplink: '',
-  })).filter((p) => p.playerName && p.line !== null && (p.side === 'OVER' || p.side === 'UNDER'));
-
-  const coverage = board?.coverage || [];
-  const books = [...new Set(props.map((p) => p.sportsbookKey).filter(Boolean))].sort();
-  return {
-    props,
-    data: { events: [], players: [], props: [], lines: [] },
-    meta: {
-      provider: 'SportsDataIO fallback',
-      fetchedAt: board?.fetchedAt || new Date().toISOString(),
-      ingestionTimestamp: board?.fetchedAt || new Date().toISOString(),
-      latencyMs: board?.latencyMs ?? null,
-      events: coverage.reduce((n, r) => n + Number(r?.gamesChecked || 0), 0),
-      sportsbooks: books,
-      sportsbookCount: books.length,
-      propCount: props.length,
-      lineCount: props.length,
-      liveEvents: 0,
-      fullBookCoverage: false,
-      regularLinesOnly: true,
-      includesAlternates: false,
-      warning: 'Legacy provider fallback. Normalized entity collections are unavailable for this fallback feed.',
-    },
-  };
-}
-
-async function fetchSportsDataIo(league, { force = false } = {}) {
-  const board = await sportsDataIoPropBoard.fetchBoard({ sports: [league], force });
-  return normalizeSportsDataIo(board, league);
-}
 
 async function fetchBaseBoard(league, { signal, force = false, includeAlternates = false, cacheOnly = false, respectFresh = false } = {}) {
   const selected = text(league || 'NFL').toUpperCase();
@@ -107,25 +42,6 @@ async function fetchBaseBoard(league, { signal, force = false, includeAlternates
   }
 
   if(cacheOnly)throw oddsError||Object.assign(new Error('No cached provider board.'),{code:'NO_CACHED_BOARD'});
-  if (sportsDataIoConfigured()) {
-    try {
-      const fallback = await fetchSportsDataIo(selected, { force });
-      return {
-        ...fallback,
-        meta: {
-          ...(fallback.meta || {}),
-          preferredProvider: oddsProvider?.name || 'The Odds API',
-          warning: oddsError
-            ? `Primary odds provider unavailable; serving legacy fallback: ${String(oddsError?.message || oddsError)}`
-            : 'No configured primary odds provider; using the legacy fallback.',
-        },
-      };
-    } catch (fallbackError) {
-      if (oddsError) throw oddsError;
-      throw fallbackError;
-    }
-  }
-
   if (oddsError) throw oddsError;
   throw Object.assign(new Error('No odds provider is configured.'), { code: 'NO_PROVIDER' });
 }
@@ -269,6 +185,73 @@ async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
   });
 }
 
+async function fetchMeshBoard(sport, options = {}) {
+  let board;
+  try {
+    board = await fetchSportsGameOddsOnlyBoard(sport, options);
+  } catch (error) {
+    board = {
+      props: [],
+      data: { events: [], players: [], props: [], lines: [] },
+      meta: {
+        provider: 'Provider mesh',
+        preferredProvider: 'SportsGameOdds',
+        sport,
+        fetchedAt: new Date().toISOString(),
+        ingestionTimestamp: new Date().toISOString(),
+        cacheHit: false,
+        stale: false,
+        sportsGameOddsError: text(error?.code || error?.name || 'SPORTSGAMEODDS_FAILED'),
+      },
+    };
+  }
+
+  board = mergeCachedPropline(board, sport, { primary: false });
+  board = filterCustomerBoardFreshness({
+    ...board,
+    meta: {
+      ...(board.meta || {}),
+      providerMode: 'mesh',
+      mesh: true,
+      publicFeedsActive: false,
+      quotePrimary: 'SportsGameOdds',
+      quoteFallbacks: ['PropLine'],
+    },
+  });
+  if (board.props.length || options.cacheOnly === true) return board;
+
+  try {
+    const fallback = await fetchPropLineBoard(sport, {
+      force: options.force === true,
+      includeAlternates: true,
+      cacheOnly: false,
+      eventLimit: 8,
+    });
+    return filterCustomerBoardFreshness({
+      ...fallback,
+      meta: {
+        ...(fallback?.meta || {}),
+        provider: 'PropLine fallback',
+        preferredProvider: 'SportsGameOdds',
+        providerMode: 'mesh',
+        mesh: true,
+        publicFeedsActive: false,
+        quotePrimary: 'SportsGameOdds',
+        quoteFallbacks: ['PropLine'],
+        fallbackUsed: true,
+      },
+    });
+  } catch (error) {
+    return {
+      ...board,
+      meta: {
+        ...(board?.meta || {}),
+        fallbackError: text(error?.code || error?.name || 'PROPLINE_FALLBACK_FAILED'),
+      },
+    };
+  }
+}
+
 function mergeProviderCaches(board, sport) {
   const mode = propProviderMode();
   if (mode === 'sportradar') {
@@ -294,6 +277,14 @@ function mergeProviderCaches(board, sport) {
       sport,
       { primary: true },
     );
+  }
+  if (mode === 'mesh') {
+    // SportsGameOdds remains authoritative for current quote slots. PropLine
+    // fills only missing slots/exact-match metadata and can never replace a
+    // conflicting SGO quote in mesh mode.
+    const clean = stripProviderRows(board, 'sportradar');
+    const sgo = mergeCachedSportsGameOdds(clean, sport, { primary: true });
+    return mergeCachedPropline(sgo, sport, { primary: false });
   }
   if (mode === 'propline') {
     return mergeCachedSportsGameOdds(
@@ -452,6 +443,9 @@ export async function fetchUnifiedBoard(league,options={}) {
   if (mode === 'sportsgameodds') {
     return fetchSportsGameOddsOnlyBoard(sport, options);
   }
+  if (mode === 'mesh') {
+    return fetchMeshBoard(sport, options);
+  }
   if(options.refreshPublicFeeds===true&&!options.cacheOnly)await publicFeeds.refresh();
 
   if (publicPersistenceConfigured() && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false') {
@@ -484,9 +478,11 @@ export function providerDiagnostics() {
   return {
     checkedAt: new Date().toISOString(),
     catalog: providerCatalog(),
-    publicFeedsActive: mode !== 'sportsgameodds',
-    publicFeeds: mode === 'sportsgameodds' ? [] : publicFeeds.health(),
+    publicFeedsActive: !['sportsgameodds','mesh'].includes(mode),
+    publicFeeds: ['sportsgameodds','mesh'].includes(mode) ? [] : publicFeeds.health(),
     providerMode: mode,
+    mesh: mode === 'mesh' ? meshPolicy() : null,
+    sportradarTrials: sportradarTrialHealth(),
     proplineSupplement: proplineSupplementHealth(),
     sportradarSupplement: sportradarSupplementHealth(),
     sportradarNbaV8: sportradarNbaV8Health(),
@@ -500,20 +496,21 @@ export function providerHealth() {
   const oddsProvider = primaryOddsProvider();
   const oddsHealth = oddsProvider?.health?.() || null;
   const mode = propProviderMode();
-  const publicFirst = mode !== 'sportsgameodds'
+  const publicFirst = !['sportsgameodds','mesh'].includes(mode)
     && publicPersistenceConfigured()
     && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false';
   return {
     theOddsApiConfigured: oddsProvider?.id === 'the-odds-api' && oddsProvider.isConfigured(),
     providerMode: mode,
-    publicFeedsActive: mode !== 'sportsgameodds',
+    mesh: mode === 'mesh' ? meshPolicy() : null,
+    sportradarTrials: sportradarTrialHealth(),
+    publicFeedsActive: mode !== 'sportsgameodds' && mode !== 'mesh',
     sportradarConfigured: sportradarConfigured(),
     sportradarNbaV8: sportradarNbaV8Health(),
     sportsGameOddsConfigured: sportsGameOddsConfigured(),
-    sportsDataIoConfigured: sportsDataIoConfigured(),
-    preferredProvider: mode === 'sportsgameodds'
+    preferredProvider: ['sportsgameodds','mesh'].includes(mode)
       ? 'SportsGameOdds'
-      : publicFirst ? 'Public feed database' : oddsProvider?.name || 'SportsDataIO fallback',
+      : publicFirst ? 'Public feed database' : oddsProvider?.name || 'No active provider',
     publicFirst,
     regularLinesOnly: true,
     proplineSupplement: proplineSupplementHealth(),
@@ -523,7 +520,7 @@ export function providerHealth() {
     // public-first production the metered provider is intentionally paused, so
     // reporting it as the active provider makes healthy zero-credit deploys
     // look unconfigured to health checks.
-    provider: mode === 'sportsgameodds'
+    provider: ['sportsgameodds','mesh'].includes(mode)
       ? oddsHealth
       : publicFirst ? { id: 'public-feed-database', configured: true } : oddsHealth,
     diagnostics: snapshotDiagnostics(),

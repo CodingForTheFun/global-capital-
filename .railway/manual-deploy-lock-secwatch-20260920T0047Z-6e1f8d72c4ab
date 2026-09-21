@@ -1,12 +1,12 @@
-Release: canonical PropLine quote joins over verified SportsGameOdds gap-fill, 2026-09-21
-Source PR: #512
-Release SHA: 7cb8c42ac2fc64dfab56c7486551d16add80897b
-Verified deployed recovery anchor: 31d7923ba0e4a7f321e93e4a69a49cd49a5eadc4
+Release: temporary Sportradar prop-provider switch, 2026-09-21
+Source PR: #514
+Release SHA: 41791dd353f3abf42711fef739df9963bf07f082
+Verified deployed recovery anchor: 0f857edcd37c80eaa5553d7401dc67524a7c22de
 
-Deploy the already-merged and fully tested provider-priority correction through the
-existing reviewed release gates. PropLine remains primary for fresh quote slots,
-SportsGameOdds remains verified gap-fill, canonical ObligeProps event/player joins stay
-stable, unchanged last_seen observations refresh presence without fake line-history
-movement, and the SportsGameOdds metadata hydration already deployed at the recovery
-anchor is preserved. No auth, secret, polling cadence, lease, quota, TTL, destructive
-database, or UI-layout changes.
+Deploy the already-merged and fully tested provider-switch release through the existing
+reviewed release gates. OBLIGE_PROP_PROVIDER_MODE=sportradar selects Sportradar Odds
+Comparison Player Props as the temporary primary current-quote source, SportsGameOdds
+remains verified gap-fill, and PropLine remains fully preserved for one-word rollback.
+Customer requests stay cache-only/public-first, last-known-good behavior remains intact,
+and inactive PropLine refreshes are mode-gated. No auth, domain, secret rotation,
+destructive database, lease, or customer-access changes.

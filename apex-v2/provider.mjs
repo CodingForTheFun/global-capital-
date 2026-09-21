@@ -7,6 +7,7 @@ import { mergeCachedSportradar, sportradarSupplementHealth } from '../lib/ingest
 import { filterCustomerBoardFreshness } from '../lib/ingestion/customer-prop-freshness.mjs';
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
 import { sportsGameOddsConfigured } from '../lib/data-sources/sportsgameodds/client.mjs';
+import { fetchSportsGameOddsBoard } from '../lib/autoscout/providers/sportsgameodds.mjs';
 import { sportradarConfigured } from '../lib/data-sources/sportradar/client.mjs';
 import { sportradarNbaV8Health, startSportradarNbaV8Probe } from '../lib/data-sources/sportradar/nba-v8.mjs';
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
@@ -228,7 +229,7 @@ async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
   noteSportsGameOddsDemand(sport);
   let cached = null;
   try {
-    cached = await fetchBaseBoard(sport, { ...options, force: false, cacheOnly: true });
+    cached = await fetchSportsGameOddsBoard(sport, { ...options, force: false, cacheOnly: true });
   } catch {}
 
   if (cached?.props?.length) {
@@ -238,7 +239,7 @@ async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
     });
     if (filtered.props.length) {
       if (cached?.meta?.stale === true && options.cacheOnly !== true) {
-        void fetchBaseBoard(sport, { ...options, force: true, cacheOnly: false }).catch(() => {});
+        void fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false }).catch(() => {});
       }
       return filtered;
     }
@@ -258,7 +259,7 @@ async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
 
   if (options.cacheOnly === true) return persistedBoard;
 
-  const live = await fetchBaseBoard(sport, { ...options, force: options.force === true, cacheOnly: false });
+  const live = await fetchSportsGameOddsBoard(sport, { ...options, force: options.force === true, cacheOnly: false });
   return filterCustomerBoardFreshness({
     ...live,
     meta: { ...(live.meta || {}), publicFeedsActive: false, providerMode: 'sportsgameodds' },

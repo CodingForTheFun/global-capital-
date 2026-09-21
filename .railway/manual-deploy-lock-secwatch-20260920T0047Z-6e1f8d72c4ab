@@ -1,12 +1,14 @@
-Release: SportsGameOdds all-sports expansion, 2026-09-21
-Source PR: #523
-Release SHA: 39a5397937f634330c618b79de6c82b9feec24d8
-Verified deployed recovery anchor: ffad7818e9df1ebaa31d45d95856b0c18dd60492
+Release: provider mesh entitlement-probe coordination, 2026-09-21
+Source mesh PR: #526
+Unreleased fix SHA: 862c26b259c647301282c3d5b72be93c6ed9b49f
+Verified deployed recovery anchor: b3bdd0798af3d1014757ddf34b87768f8621bdb7
 
-Release the already-merged and fully tested SportsGameOdds all-sports expansion through
-the existing reviewed recovery gate. SportsGameOdds remains the sole active prop provider,
-public feeds remain off, all documented sports categories are board-addressable, and the
-provider discovers the live /sports and /leagues entitlement catalog from the existing
-server-side key. Demand-driven refresh/persistence remains quota-aware. The newer
-swipeable mobile menu commit between the recovery anchor and this release is preserved.
-No auth, domain, secret rotation, destructive database, lease, or customer-access changes.
+Release the cross-process Sportradar trial-audit coordination fix through the existing
+reviewed recovery gate. The fix serializes the 1-QPS trial entitlement audit across
+ObligeProps processes, persists only safe entitlement state on the existing data volume,
+and retries a rate-limited product once. It does not expose credentials or change the
+live quote hierarchy. SportsGameOdds remains the authoritative current-quote provider,
+PropLine remains a non-overwriting fallback, public prop feeds remain off, and Sportradar
+remains research/context only. This release also corrects the stale startup log that
+incorrectly named SportsDataIO as the primary prop board. No auth, domain, secret rotation,
+destructive database, or customer-access changes.

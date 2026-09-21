@@ -17,6 +17,9 @@ import { PlayerAnalysisPage } from '@/components/player-analysis-page';
 import { PostedModel } from '@/components/posted-model';
 import { QuoteHistory } from '@/components/quote-history';
 
+const DERIVED_MARKET =
+  /(?:\b(?:1q|2q|3q|4q|1h|2h)\b)|quarter|first half|second half|first inning|1st inning/i;
+
 const FAVOURITES_KEY = 'oblige-followed';
 function readFavourites(): string[] {
   try {
@@ -90,6 +93,7 @@ export function PlayerView() {
 
   const categories = React.useMemo(() => playerCategories(markets), [markets]);
   const group = React.useMemo(() => postedSelection(markets, categoryKey, selectedBook, postedLine, market), [markets, categoryKey, selectedBook, postedLine, market]);
+  const derived = group ? DERIVED_MARKET.test([group.market, group.marketId, group.period].filter(Boolean).join(' ')) : false;
   const categoryVariants = React.useMemo(() => group ? markets.filter(candidate => playerMarketKey(candidate) === playerMarketKey(group)) : [], [markets, group]);
   const allBooks = React.useMemo(() => quotedBooks(categoryVariants), [categoryVariants]);
   const researchIdentity = group ? JSON.stringify([resolvedCardKey, playerMarketKey(group)]) : '';
@@ -101,6 +105,13 @@ export function PlayerView() {
 
   React.useEffect(() => {
     if (!group || !account) return;
+    if (derived) {
+      setResearch(null);
+      setResearchError('Verified history unavailable for this period.');
+      setLoadedResearchIdentity(researchIdentity);
+      setLoadingResearch(false);
+      return;
+    }
     const controller = new AbortController();
     setLoadingResearch(true); setResearch(null); setResearchError('');
     void fetchResearch(group, state.side, controller.signal)
@@ -119,7 +130,7 @@ export function PlayerView() {
     // Preserve the existing exact-category sample cache. Books, line and side
     // only recalculate in-browser and must not trigger additional history calls.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [researchIdentity, retry, account]);
+  }, [researchIdentity, retry, account, derived]);
 
   function choose(category: string, book: string | null, line: number | null) {
     const variants = markets.filter(candidate => playerMarketKey(candidate) === category);

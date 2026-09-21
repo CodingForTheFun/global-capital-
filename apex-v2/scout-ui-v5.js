@@ -85,11 +85,26 @@ function uniq(a){return Array.from(new Set(a.filter(Boolean)));}
 function median(a){var x=a.map(num).filter(function(v){return v!=null;}).sort(function(a,b){return a-b;});if(!x.length)return null;var m=Math.floor(x.length/2);return x.length%2?x[m]:(x[m-1]+x[m])/2;}
 function initials(name){return String(name||'AS').split(/\s+/).filter(Boolean).slice(0,2).map(function(x){return x[0]||'';}).join('').toUpperCase();}
 function artUrl(g){return '/api/apex/player-artwork?'+new URLSearchParams({v:'2',sport:g.sport,name:g.playerName,team:g.team||'',providerPlayerId:g.providerPlayerId||''});}
-function groupKey(r){return [r.sport,r.eventId,r.playerId||r.playerName,r.marketId||r.market].join('|');}
+function canonicalPeriod(value,market){
+ var explicit=String(value||'').trim(),label=String(market||'').trim().toLowerCase();
+ if(!explicit){
+  var compact=label.match(/\b([1-9])\s*(q|h|p|i|s)\b/i);if(compact)return compact[1]+compact[2].toLowerCase();
+  var named=[[/\b(?:first|1st)\s+quarter\b/i,'1q'],[/\b(?:second|2nd)\s+quarter\b/i,'2q'],[/\b(?:third|3rd)\s+quarter\b/i,'3q'],[/\b(?:fourth|4th)\s+quarter\b/i,'4q'],[/\b(?:first|1st)\s+half\b/i,'1h'],[/\b(?:second|2nd)\s+half\b/i,'2h'],[/\b(?:first|1st)\s+period\b/i,'1p'],[/\b(?:second|2nd)\s+period\b/i,'2p'],[/\b(?:third|3rd)\s+period\b/i,'3p'],[/\b(?:first|1st)\s+inning\b/i,'1i'],[/\b(?:first|1st)\s+set\b/i,'1s'],[/\b(?:second|2nd)\s+set\b/i,'2s'],[/\b(?:third|3rd)\s+set\b/i,'3s'],[/\b(?:fourth|4th)\s+set\b/i,'4s'],[/\b(?:fifth|5th)\s+set\b/i,'5s']];
+  for(var pair of named)if(pair[0].test(label))return pair[1];
+  return 'game';
+ }
+ var raw=explicit.toLowerCase().replace(/[\s_-]+/g,'');
+ if(['game','full','fullgame','match','singlestat'].includes(raw))return'game';
+ var direct=raw.match(/^([1-9])([qhpis])$/);if(direct)return direct[1]+direct[2];
+ var reversed=raw.match(/^([qhpis])([1-9])$/);if(reversed)return reversed[2]+reversed[1];
+ var firstN=raw.match(/^f([357])$/);if(firstN)return'1ix'+firstN[1];
+ return raw;
+}
+function groupKey(r){return [r.sport,r.eventId,r.playerId||r.playerName,r.marketId||r.market,canonicalPeriod(r.period,r.market)].join('|');}
 function lineMap(){var m=new Map();((payload.data&&payload.data.lines)||[]).forEach(function(x){m.set(x.id,x);});return m;}
 function propIdForRow(r){var x=lineMap().get(r&&r.id);return x&&x.propId||null;}
 function playerMap(){var m=new Map();((payload.data&&payload.data.players)||[]).forEach(function(x){m.set(x.id,x);});return m;}
-function groups(allBooks=false){var m=new Map(),pm=playerMap();(payload.props||[]).forEach(function(r){if(r.isAlternate||(!allBooks&&!bookEnabled(r,selectedBooks)))return;var k=groupKey(r);if(!m.has(k)){var p=pm.get(r.playerId)||{};m.set(k,{key:k,sport:r.sport,eventId:r.eventId,playerId:r.playerId,playerName:r.playerName,entityType:r.entityType||p.entityType||'player',providerPlayerId:p.providerPlayerId||'',team:r.team||p.team||'',position:p.position||'',marketId:r.marketId,market:r.market,homeTeam:r.homeTeam,awayTeam:r.awayTeam,gameStartTime:r.gameStartTime,live:!!r.live,rows:[]});}m.get(k).rows.push(r);});return Array.from(m.values()).map(function(g){return {...g,market:propType(g),comparisonOffers:g.rows,rows:dedupeOffers(g.rows)};});}
+function groups(allBooks=false){var m=new Map(),pm=playerMap();(payload.props||[]).forEach(function(r){if(r.isAlternate||(!allBooks&&!bookEnabled(r,selectedBooks)))return;var k=groupKey(r);if(!m.has(k)){var p=pm.get(r.playerId)||{};m.set(k,{key:k,sport:r.sport,eventId:r.eventId,playerId:r.playerId,playerName:r.playerName,entityType:r.entityType||p.entityType||'player',providerPlayerId:p.providerPlayerId||'',team:r.team||p.team||'',position:p.position||'',marketId:r.marketId,market:r.market,period:canonicalPeriod(r.period,r.market),opponent:r.opponent||p.opponent||'',homeTeam:r.homeTeam,awayTeam:r.awayTeam,gameStartTime:r.gameStartTime,live:!!r.live,rows:[]});}m.get(k).rows.push(r);});return Array.from(m.values()).map(function(g){return {...g,market:propType(g),comparisonOffers:g.rows,rows:dedupeOffers(g.rows)};});}
 function books(g){return uniq(g.rows.map(function(r){return r.sportsbookKey;}));}
 function sideRows(g,side){return g.rows.filter(function(r){return r.side===side;});}
 function bestLine(g,side){var a=sideRows(g,side).filter(function(r){return num(r.line)!=null;});if(!a.length)return null;return a.slice().sort(function(a,b){return side==='OVER'?num(a.line)-num(b.line):num(b.line)-num(a.line);})[0];}
@@ -97,7 +112,7 @@ function bestPrice(g,side,line,allBooks=false){var selected=num(line==null?board
 function consensus(g){var byBook=new Map();g.rows.forEach(r=>{if(!byBook.has(r.sportsbookKey))byBook.set(r.sportsbookKey,[]);byBook.get(r.sportsbookKey).push(r.line);});return median(Array.from(byBook.values()).map(median));}
 function boardLine(g){var side=defaultSide(g),rows=sideRows(g,side).filter(r=>num(r.line)!=null&&(bookFilter==='all'||r.sportsbookKey===bookFilter));if(!rows.length)return null;return rows.reduce((best,row)=>side==='UNDER'?Math.max(best,num(row.line)):Math.min(best,num(row.line)),num(rows[0].line));}
 function defaultSide(g){return sideFilter!=='all'?sideFilter:sideRows(g,'OVER').length?'OVER':'UNDER';}
-function researchKey(g,line,side){return [g.key,g.team,g.homeTeam,g.awayTeam,num(line),side||'OVER'].join('|');}
+function researchKey(g,line,side,detail){return [g.key,g.period||'game',g.team,g.homeTeam,g.awayTeam,num(line),side||'OVER',detail?'detail':'board'].join('|');}
 function saveState(){try{localStorage.setItem('autoscout-sport',sport);}catch{}if(!serverSaves)storeLocal('autoscout-favorites',Array.from(favorites));}
 function favoriteKey(g){return g.key;}
 function researchFor(g,line,side){
@@ -462,18 +477,25 @@ function playerIndexHtml(p){
   +'<span class="asPiCount">'+p.props.length+(p.props.length===1?' market':' markets')+'</span></div>'
   +'<div class="asPiMarkets">'+markets+'</div></article>';
 }
-function researchParams(g,line,side){var q=new URLSearchParams({sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:String(line==null?'':line),side:side||defaultSide(g),games:'40',providerPlayerId:g.providerPlayerId||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',team:g.team||''});return q.toString();}
-async function getResearch(g,line,side,force){
- var valueLine=line==null?boardLine(g):line,valueSide=side||defaultSide(g),key=researchKey(g,valueLine,valueSide);
- if(!force){var cached=researchFor(g,valueLine,valueSide);if(cached)return cached;}
+function researchParams(g,line,side,detail){
+ var q=new URLSearchParams({sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',line:String(line==null?'':line),side:side||defaultSide(g),games:detail?'100':'40',historyYears:detail?'5':'1',providerPlayerId:g.providerPlayerId||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',team:g.team||'',opponent:g.opponent||'',eventId:g.eventId||'',gameStartTime:g.gameStartTime||'',period:g.period||'game'});
+ if(detail)q.set('detail','1');
+ return q.toString();
+}
+async function getResearch(g,line,side,force,detail){
+ var valueLine=line==null?boardLine(g):line,valueSide=side||defaultSide(g),isDetail=detail===true,key=researchKey(g,valueLine,valueSide,isDetail);
+ if(!force){
+  if(isDetail){var direct=researchCache.get(key);if(direct&&direct.expires>Date.now())return direct.value;}
+  else{var cached=researchFor(g,valueLine,valueSide);if(cached)return cached;}
+ }
  if(researchInflight.has(key))return researchInflight.get(key);
- var pending=new Promise(resolve=>{if(researchQueue.length>=24){var stale=researchQueue.shift();researchInflight.delete(stale.key);stale.resolve(null);}researchQueue[drawerState?.g.key===g.key?'unshift':'push']({g,line:valueLine,side:valueSide,key,resolve});drainResearch();});
+ var pending=new Promise(resolve=>{if(researchQueue.length>=24){var stale=researchQueue.shift();researchInflight.delete(stale.key);stale.resolve(null);}researchQueue[isDetail?'unshift':'push']({g,line:valueLine,side:valueSide,key,detail:isDetail,resolve});drainResearch();});
  researchInflight.set(key,pending);return pending;
 }
 function drainResearch(){while(activeResearch<3&&researchQueue.length){var job=researchQueue.shift();if(job.g.sport!==sport&&drawerState?.g.key!==job.g.key){researchInflight.delete(job.key);job.resolve(null);continue;}activeResearch++;runResearch(job);}}
 async function runResearch(job){
  var controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000),out;
- try{var response=await nativeFetch('/api/apex/research?'+researchParams(job.g,job.line,job.side),{signal:controller.signal}),j=await response.json();out=response.ok?j:{available:false,message:'Research is temporarily unavailable.'};}
+ try{var response=await nativeFetch('/api/apex/research?'+researchParams(job.g,job.line,job.side,job.detail),{signal:controller.signal}),j=await response.json();out=response.ok?j:{available:false,message:'Research is temporarily unavailable.'};}
  catch{out={available:false,message:'Research could not load. Try again shortly.'};}
  finally{clearTimeout(timer);}
  var entry={value:out,expires:Date.now()+(out.available?15:5)*60000};researchCache.set(job.key,entry);researchCache.set('base|'+job.g.key,entry);
@@ -1116,7 +1138,7 @@ async function hydrateBoard(){
    body:JSON.stringify({props:jobs.map(function(job,index){var {g,line,side}=job;
     // A short opaque batch key cannot be silently truncated by the API.
     return {key:String(index),sport:g.sport,playerName:g.playerName,market:g.market,marketId:g.marketId||'',
-     providerPlayerId:g.providerPlayerId||'',line:line,side:side,team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',games:40};})})});
+     providerPlayerId:g.providerPlayerId||'',line:line,side:side,team:g.team||'',homeTeam:g.homeTeam||'',awayTeam:g.awayTeam||'',opponent:g.opponent||'',eventId:g.eventId||'',gameStartTime:g.gameStartTime||'',period:g.period||'game',games:40};})})});
   var body=await response.json();
   if(generation!==loadGeneration||selected!==sport)return;
   if(!response.ok||!body?.results)throw Error('batch');
@@ -1391,7 +1413,7 @@ function openDrawer(g,{fromRoute=false}={}){
  if(sandbox.key!==g.key)sandbox={key:g.key,out:new Set(),roster:null,loading:false};
  drawerState={g,line:boardLine(g),side:defaultSide(g),window:'l10',filter:'all',propFilters:{},base:null,panel:'overview',historyBook:bookFilter!=='all'?bookFilter:books(g)[0]};
  document.getElementById('asDrawerBg').hidden=false;document.getElementById('as5').classList.add('asDetailActive');renderDrawer();window.scrollTo(0,0);document.getElementById('asClose').focus({preventScroll:true});
- getResearch(g,drawerState.line,drawerState.side,false).then(r=>{if(!drawerState||drawerState.g.key!==g.key)return;drawerState.base=r;renderDrawer();});
+ getResearch(g,drawerState.line,drawerState.side,false,true).then(r=>{if(!drawerState||drawerState.g.key!==g.key)return;drawerState.base=r;renderDrawer();});
 }
 function loadHistoryIntoDrawer(){
  if(!drawerState)return;var {g,historyBook,side}=drawerState;
@@ -1467,7 +1489,7 @@ function renderDrawer(){
   input.value='';
   askAbout(g,line,side,question);
  });
- document.getElementById('asRetryResearch')?.addEventListener('click',async e=>{e.target.disabled=true;e.target.textContent='Retrying…';var result=await getResearch(g,line,side,true);if(drawerState?.g.key===g.key){drawerState.base=result;renderDrawer();}});
+ document.getElementById('asRetryResearch')?.addEventListener('click',async e=>{e.target.disabled=true;e.target.textContent='Retrying…';var result=await getResearch(g,line,side,true,true);if(drawerState?.g.key===g.key){drawerState.base=result;renderDrawer();}});
  document.querySelector('[data-load-pro-models]')?.addEventListener('click',async e=>{
   e.target.disabled=true;e.target.textContent='Checking model estimates…';
   var targets=new Map();

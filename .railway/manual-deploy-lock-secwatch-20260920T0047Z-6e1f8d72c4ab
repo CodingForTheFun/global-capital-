@@ -1,5 +1,7 @@
-Release: webhook delivery-health correction, mobile nav dock fix, dead-module removal, 2026-09-21
-Release parent: 6a3a26293ee5b9001e0a4b2c815c2fa1f28cfade
-Deploy through existing Railway gates. Health reporting, one CSS transform fix
-and three unreferenced files; no provider, auth, scheduler/lease, quote-expiry,
-persistence, polling, secret, billing or database changes are included.
+Release: SportsGameOdds paid gap-fill integration and serialized release recovery, 2026-09-21
+Verified deployed anchor: d1bd3beccd1506b1c4cd868eabbe2da71330dc40
+Deploy through existing Railway gates. The release includes PR #491's SportsGameOdds
+secondary/gap-fill provider plus a release-control correction that refuses Railway
+watch-path skips as deployment proof and requires an explicit, anchor-bound recovery
+review when production-stable has advanced beyond the last real deployment.
+PropLine/public data remain primary; no secret values are stored in this file.

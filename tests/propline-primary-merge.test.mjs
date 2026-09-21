@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { __resetProplineClient } from '../lib/data-sources/propline/client.mjs';
+import { __resetProplineClient, proplineGet } from '../lib/data-sources/propline/client.mjs';
 import { __resetProplineProvider } from '../lib/autoscout/providers/propline.mjs';
 import {
   __resetProplineSupplement,
@@ -98,6 +98,7 @@ test('fresh PropLine wins conflicting quote slots while identical presence stays
     throw new Error('Unexpected PropLine URL: ' + url);
   };
 
+  await proplineGet('/v1/sports');
   const refresh = await maybeRefreshProplineSupplement();
   assert.equal(refresh.skipped, false, JSON.stringify(refresh));
 

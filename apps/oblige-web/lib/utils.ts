@@ -147,26 +147,7 @@ function flexiblePlayerPattern(value?: string | null) {
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-    .map((part) => part.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\function displayMarketFromKey(key: string) {
-  const bare = key.replace(/^(?:player|batter|pitcher|team)_/, '');
-  if (!bare || !/^[a-z0-9_]+$/.test(bare)) return '';
-  const tokens: Record<string, string> = {
-    yds: 'Yards',
-    tds: 'Touchdowns',
-    rbi: 'RBI',
-    rbis: 'RBIs',
-    fg: 'FG',
-    ft: 'FT',
-    qb: 'QB',
-    hr: 'HR',
-    hrs: 'HRs',
-  };
-  return bare
-    .split('_')
-    .filter(Boolean)
-    .map((token) => tokens[token] || token.charAt(0).toUpperCase() + token.slice(1))
-    .join(' ');
-}'))
+    .map((part) => part.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'))
     .join('[\\s\\u00a0._-]+');
 }
 
@@ -174,7 +155,7 @@ function stripPlayerFromMarket(value?: string | null, playerName?: string | null
   let label = String(value || '').normalize('NFKC').replace(/\u00a0/g, ' ').trim();
   if (!label || !playerName) return label;
   const pattern = flexiblePlayerPattern(playerName);
-  if (pattern) label = label.replace(new RegExp(`${pattern}(?:['’]s)?`, 'ig'), ' ');
+  if (pattern) label = label.replace(new RegExp(\`\${pattern}(?:['’]s)?\`, 'ig'), ' ');
   if (displayNorm(label) === displayNorm(playerName)) return '';
   return label;
 }

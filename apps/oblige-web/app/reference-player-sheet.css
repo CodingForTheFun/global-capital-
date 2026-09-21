@@ -62,6 +62,11 @@ body:has(.player-app-shell) footer {
     gap: 7px !important;
   }
 
+  body:has(.player-app-shell) header nav[aria-label="Primary"] {
+    display: none !important;
+  }
+
+
   body:has(.player-app-shell) header .op-mark {
     width: 26px !important;
     height: 26px !important;

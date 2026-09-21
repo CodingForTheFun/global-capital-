@@ -7,6 +7,7 @@ test('actual Next mobile shell exposes Scores as the fifth bottom-nav destinatio
   assert.match(chrome, /href: '\/scores', label: 'Scores'/);
   assert.match(chrome, /RadioTower/);
   assert.match(chrome, /grid-cols-5/);
+  assert.match(chrome, /data-mobile-nav-item=\{item\.label\.toLowerCase\(\)\}/);
 });
 
 test('Scores route is a real Next page backed by the live score API', () => {

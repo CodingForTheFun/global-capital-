@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require reviewed merge from last deployed parent
+      - name: Require reviewed merge from verified deployed ancestor
         uses: actions/github-script@v7
         with:
           script: |
@@ -31,73 +31,78 @@ jobs:
             const sha = context.sha;
             const branch = 'production-stable';
             const railwayContext = 'AutoProp Scout Pro - autoprop-live';
+            const railwayServicePath = /\/service\/f6d34023-04e3-4799-a3c4-defab50a7a1e\?id=/;
             const requiredParentWorkflows = [
               'Auto Scout release checks',
               'Oblige Props production smoke',
             ];
             const trustedAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
             const safeMarker = /\bSAFE\s+TO\s+MERGE\b/i;
+            const recoveryMarker = /\bRELEASE\s+RECOVERY\s+VERIFIED\b/i;
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-            const { data: commit } = await github.rest.repos.getCommit({
-              owner,
-              repo,
-              ref: sha,
-            });
-            const parentSha = commit.parents?.[0]?.sha;
-            if (!parentSha) {
-              core.setFailed('Release gate could not identify the first parent commit.');
-              return;
+            async function getCommit(ref) {
+              const { data } = await github.rest.repos.getCommit({ owner, repo, ref });
+              return data;
             }
 
-            const { data: parentRunData } = await github.rest.actions.listWorkflowRunsForRepo({
-              owner,
-              repo,
-              branch,
-              event: 'push',
-              head_sha: parentSha,
-              per_page: 100,
-            });
-            const parentRuns = parentRunData.workflow_runs || [];
-            const parentWorkflowRuns = new Map();
-            for (const name of requiredParentWorkflows) {
-              const run = parentRuns
-                .filter((candidate) => candidate.name === name && candidate.head_sha === parentSha)
-                .sort((a, b) => Date.parse(b.updated_at || b.created_at || '') - Date.parse(a.updated_at || a.created_at || ''))[0];
-              if (!run || run.status !== 'completed' || run.conclusion !== 'success') {
-                core.setFailed(
-                  `Release parent ${parentSha.slice(0, 12)} lacks a successful ${name} push run. Failed or skipped release parents cannot serialize production.`,
-                );
-                return;
+            async function latestPushRun(headSha, name) {
+              const { data } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner,
+                repo,
+                branch,
+                event: 'push',
+                head_sha: headSha,
+                per_page: 100,
+              });
+              return (data.workflow_runs || [])
+                .filter((candidate) => candidate.name === name && candidate.head_sha === headSha)
+                .sort((a, b) =>
+                  Date.parse(b.updated_at || b.created_at || '') -
+                  Date.parse(a.updated_at || a.created_at || '')
+                )[0] || null;
+            }
+
+            async function verifiedDeployment(ref) {
+              const runs = new Map();
+              for (const name of requiredParentWorkflows) {
+                const run = await latestPushRun(ref, name);
+                if (!run || run.status !== 'completed' || run.conclusion !== 'success') return null;
+                runs.set(name, run);
               }
-              parentWorkflowRuns.set(name, run);
+              const verifiedAt = Math.max(
+                ...requiredParentWorkflows.map((name) => {
+                  const run = runs.get(name);
+                  return Date.parse(run?.updated_at || run?.created_at || '') || 0;
+                }),
+              );
+              const { data: status } = await github.rest.repos.getCombinedStatusForRef({
+                owner,
+                repo,
+                ref,
+              });
+              const deployment = (status.statuses || [])
+                .filter((row) =>
+                  row.context === railwayContext
+                  && row.state === 'success'
+                  && railwayServicePath.test(row.target_url || '')
+                  && (Date.parse(row.created_at || '') || 0) > verifiedAt
+                )
+                .sort((a, b) =>
+                  Date.parse(b.created_at || '') - Date.parse(a.created_at || '')
+                )[0] || null;
+              return deployment ? { sha: ref, deployment, verifiedAt } : null;
             }
 
-            const parentVerifiedAt = Math.max(
-              ...requiredParentWorkflows.map((name) => {
-                const run = parentWorkflowRuns.get(name);
-                return Date.parse(run?.updated_at || run?.created_at || '') || 0;
-              }),
-            );
-
-            const { data: parentStatus } = await github.rest.repos.getCombinedStatusForRef({
-              owner,
-              repo,
-              ref: parentSha,
-            });
-            const parentDeploymentStatus = parentStatus.statuses
-              .filter((status) =>
-                status.context === railwayContext
-                && status.state === 'success'
-                && /\/service\/f6d34023-04e3-4799-a3c4-defab50a7a1e\?id=/.test(status.target_url || ''),
-              )
-              .sort((a, b) => Date.parse(b.created_at || '') - Date.parse(a.created_at || ''))
-              .find((status) => (Date.parse(status.created_at || '') || 0) > parentVerifiedAt);
-            if (!parentDeploymentStatus) {
-              core.setFailed(
-                `Release parent ${parentSha.slice(0, 12)} has no successful autoprop-live deployment status created after its required CI completed. Railway watch-path skips must not count as deployed parents.`,
-              );
-              return;
+            async function findVerifiedDeployedAncestor(startSha, maxDepth = 30) {
+              let cursor = startSha;
+              for (let depth = 0; depth < maxDepth && cursor; depth += 1) {
+                const proof = await verifiedDeployment(cursor);
+                if (proof) return { ...proof, depth };
+                const commit = await getCommit(cursor);
+                cursor = commit.parents?.[0]?.sha || null;
+              }
+              return null;
             }
 
             let pulls = [];
@@ -140,9 +145,7 @@ jobs:
               const previous = latestByReviewer.get(login);
               const currentTime = Date.parse(review.submitted_at || '') || 0;
               const previousTime = Date.parse(previous?.submitted_at || '') || 0;
-              if (!previous || currentTime >= previousTime) {
-                latestByReviewer.set(login, review);
-              }
+              if (!previous || currentTime >= previousTime) latestByReviewer.set(login, review);
             }
 
             const effectiveReviews = [...latestByReviewer.values()];
@@ -159,7 +162,6 @@ jobs:
             const approvedReview = effectiveReviews.find(
               (review) => review.state === 'APPROVED',
             );
-
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner,
               repo,
@@ -167,12 +169,13 @@ jobs:
               per_page: 100,
             });
             const mergedAt = Date.parse(pr.merged_at);
-            const explicitSafeReview = comments.find((comment) => {
-              if (!trustedAssociations.has(comment.author_association)) return false;
-              if (!safeMarker.test(comment.body || '')) return false;
-              return (Date.parse(comment.created_at || '') || 0) <= mergedAt;
-            });
-
+            const trustedPreMergeComments = comments.filter((comment) =>
+              trustedAssociations.has(comment.author_association)
+              && (Date.parse(comment.created_at || '') || 0) <= mergedAt
+            );
+            const explicitSafeReview = trustedPreMergeComments.find((comment) =>
+              safeMarker.test(comment.body || '')
+            );
             if (!approvedReview && !explicitSafeReview) {
               core.setFailed(
                 `PR #${pr.number} has no approving review and no pre-merge SAFE TO MERGE marker from a trusted repository member. Review must complete before customer-facing deployment can start.`,
@@ -180,8 +183,64 @@ jobs:
               return;
             }
 
+            const commit = await getCommit(sha);
+            const parentSha = commit.parents?.[0]?.sha;
+            if (!parentSha) {
+              core.setFailed('Release gate could not identify the first parent commit.');
+              return;
+            }
+
+            const immediateProof = await verifiedDeployment(parentSha);
+            if (immediateProof) {
+              core.info(
+                `Release gate passed for PR #${pr.number}; immediate parent ${parentSha.slice(0, 12)} has successful post-CI deployment proof and review evidence is present.`,
+              );
+              return;
+            }
+
+            // Recovery path: never treat a Railway watch-path skip as deployed.
+            // Walk the first-parent production history to the nearest commit that
+            // actually completed both required CI workflows and then received a
+            // successful autoprop-live deployment status. A trusted pre-merge
+            // recovery marker must explicitly name that anchor.
+            const anchor = await findVerifiedDeployedAncestor(parentSha);
+            if (!anchor) {
+              core.setFailed(
+                'Release recovery could not find a verified deployed ancestor within 30 first-parent commits.',
+              );
+              return;
+            }
+
+            const anchorShort = anchor.sha.slice(0, 12);
+            const recoveryReview = trustedPreMergeComments.find((comment) => {
+              const body = comment.body || '';
+              return safeMarker.test(body)
+                && recoveryMarker.test(body)
+                && body.toLowerCase().includes(anchorShort.toLowerCase());
+            });
+            if (!recoveryReview) {
+              core.setFailed(
+                `Release parent ${parentSha.slice(0, 12)} is not a verified deployment. Recovery requires a trusted pre-merge comment containing SAFE TO MERGE, RELEASE RECOVERY VERIFIED, and deployed anchor ${anchorShort}.`,
+              );
+              return;
+            }
+
+            const { data: compare } = await github.rest.repos.compareCommits({
+              owner,
+              repo,
+              base: anchor.sha,
+              head: sha,
+            });
+            const aheadBy = Number(compare.ahead_by || 0);
+            if (!Number.isFinite(aheadBy) || aheadBy < 1 || aheadBy > 50) {
+              core.setFailed(
+                `Release recovery span from ${anchorShort} is outside the bounded 1-50 commit window (ahead_by=${aheadBy}).`,
+              );
+              return;
+            }
+
             core.info(
-              `Release gate passed for PR #${pr.number}; parent ${parentSha.slice(0, 12)} has successful post-CI deployment proof and review evidence is present.`,
+              `Release recovery gate passed for PR #${pr.number}; verified deployed anchor ${anchorShort} is ${anchor.depth} first-parent step(s) behind the immediate parent, the recovery review names that anchor, and this workflow's test job plus production smoke must still pass before Railway can deploy.`,
             );
 
   test:

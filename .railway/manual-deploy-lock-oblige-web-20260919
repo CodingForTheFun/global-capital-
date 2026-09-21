@@ -1,0 +1,8 @@
+Release: canonical Oblige web Scores route and mobile tab, 2026-09-21
+
+This file exists only as the watched Railway deployment trigger for the oblige-web
+service. The customer-facing change adds /scores to the actual Next.js frontend served
+through obligeprops.com, adds Scores to the desktop/mobile navigation, and uses the
+existing /api/live ESPN-first/Sportradar-fallback score mesh.
+
+No auth, billing, prop quote precedence, provider secrets, or database schema changes.

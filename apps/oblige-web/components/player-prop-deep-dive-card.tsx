@@ -239,6 +239,7 @@ export function PlayerPropDeepDiveCard({
   bookSelection,
   allowBestPrices = false,
   onLine,
+  routeKind = 'canonical',
 }: PremiumPlayerResearchProps & { analysis: PlayerDeepDiveAnalysis }) {
   const router = useRouter();
   const [targetLine, setTargetLine] = React.useState(analysis.line);
@@ -270,6 +271,7 @@ export function PlayerPropDeepDiveCard({
   const numericPosted = activePostedOffers.length > 0 && activePostedOffers.every(offer => offer.line !== null && !!offer.side);
   const postedLines = React.useMemo<number[]>(() => [...new Set<number>(activePostedOffers.flatMap(offer => offer.line === null ? [] : [Number(offer.line)]))].sort((a:number,b:number) => a-b), [activePostedOffers]);
 
+  const sportType = sportFamily(player.sport);
   const family = marketFamily(market);
   const statFamilies = React.useMemo(() => [...new Map(player.markets.map(item => [marketFamily(item), item])).values()], [player.markets]);
   const periodMarkets = React.useMemo(() => [...new Map(player.markets.filter(item => marketFamily(item) === family).map(item => [periodName(item.period), item])).values()], [player.markets, family]);
@@ -363,7 +365,7 @@ export function PlayerPropDeepDiveCard({
     return <text x={x + width / 2} y={Math.max(12, y - 6)} textAnchor="middle" fill={dnp ? '#94a3b8' : '#cbd5e1'} fontSize="10" fontWeight="700">{dnp ? 'DNP' : finite(row.value)}</text>;
   }
 
-  return <section className="min-h-screen bg-[#070b12] px-2 py-3 text-slate-100 sm:px-4 lg:px-6" data-design="premium-player-research-v1" data-deep-dive="player-prop-deep-dive-v1">
+  return <section className="min-h-screen bg-[#070b12] px-2 py-3 text-slate-100 sm:px-4 lg:px-6" data-design="premium-player-research-v1" data-deep-dive="player-prop-deep-dive-v1" data-research-route={routeKind}>
     <button type="button" hidden aria-label={favourite ? `Unfollow ${player.name}` : `Follow ${player.name}`} aria-pressed={favourite} onClick={onFavourite}/>
     <div className="mx-auto max-w-[1180px] overflow-hidden rounded-2xl border border-slate-800/90 bg-[#0b101a] shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
       <header className="flex items-center gap-3 border-b border-slate-800/80 bg-[#0a0f18]/95 px-3 py-2.5 sm:px-4">
@@ -390,7 +392,7 @@ export function PlayerPropDeepDiveCard({
           <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <SelectFilter label="Opponent" value={opponentFilter} options={opponentOptions} onChange={setOpponentFilter}/>
             <SelectFilter label="Season" value={seasonFilter} options={seasonOptions} onChange={setSeasonFilter}/>
-            <SelectFilter label="Home/Away" ariaLabel="Home / Away" value={venueFilter} options={[{value:'all',label:'All'},{value:'home',label:'Home'},{value:'away',label:'Away'}]} onChange={setVenueFilter}/>
+            {sportType !== 'tennis' && <SelectFilter label="Home/Away" ariaLabel="Home / Away" value={venueFilter} options={[{value:'all',label:'All'},{value:'home',label:'Home'},{value:'away',label:'Away'}]} onChange={setVenueFilter}/>} 
             <SelectFilter label="Team" value={teamFilter} options={teamOptions} onChange={setTeamFilter}/>
             <SelectFilter label="Book" value={bookFilter} options={bookOptions} onChange={chooseBook}/>
             <button type="button" aria-label="Toggle research filter details" aria-pressed={showFilters} onClick={() => setShowFilters(value => !value)} className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border bg-slate-900/80 transition ${showFilters ? 'border-sky-500/50 text-sky-300' : 'border-slate-700/80 text-slate-400 hover:text-white'}`}><SlidersHorizontal className="h-4 w-4"/></button>

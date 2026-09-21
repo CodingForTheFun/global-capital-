@@ -44,6 +44,11 @@ const researchSportsWithTennis = "const RESEARCH_SPORTS = new Set([...ARTWORK_SP
 
 const EMBEDDED_WEB_PORT = 3004;
 function startEmbeddedWeb() {
+  const externalFallback = String(process.env.OBLIGE_WEB_ORIGIN || '').trim();
+  if (!externalFallback) {
+    console.log('[Oblige web embedded] skipped because OBLIGE_WEB_ORIGIN rollback gate is not configured');
+    return null;
+  }
   const origin = `http://127.0.0.1:${EMBEDDED_WEB_PORT}`;
   process.env.OBLIGE_EMBEDDED_WEB_ORIGIN = origin;
   const proc = spawn(

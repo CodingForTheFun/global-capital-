@@ -1,12 +1,12 @@
-Release: temporary Sportradar prop-provider switch, 2026-09-21
-Source PR: #514
-Release SHA: 41791dd353f3abf42711fef739df9963bf07f082
-Verified deployed recovery anchor: 0f857edcd37c80eaa5553d7401dc67524a7c22de
+Release: SportsGameOdds all-sports expansion, 2026-09-21
+Source PR: #523
+Release SHA: 39a5397937f634330c618b79de6c82b9feec24d8
+Verified deployed recovery anchor: ffad7818e9df1ebaa31d45d95856b0c18dd60492
 
-Deploy the already-merged and fully tested provider-switch release through the existing
-reviewed release gates. OBLIGE_PROP_PROVIDER_MODE=sportradar selects Sportradar Odds
-Comparison Player Props as the temporary primary current-quote source, SportsGameOdds
-remains verified gap-fill, and PropLine remains fully preserved for one-word rollback.
-Customer requests stay cache-only/public-first, last-known-good behavior remains intact,
-and inactive PropLine refreshes are mode-gated. No auth, domain, secret rotation,
-destructive database, lease, or customer-access changes.
+Release the already-merged and fully tested SportsGameOdds all-sports expansion through
+the existing reviewed recovery gate. SportsGameOdds remains the sole active prop provider,
+public feeds remain off, all documented sports categories are board-addressable, and the
+provider discovers the live /sports and /leagues entitlement catalog from the existing
+server-side key. Demand-driven refresh/persistence remains quota-aware. The newer
+swipeable mobile menu commit between the recovery anchor and this release is preserved.
+No auth, domain, secret rotation, destructive database, lease, or customer-access changes.

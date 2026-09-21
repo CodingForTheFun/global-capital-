@@ -1193,6 +1193,7 @@ function shuffleRank(g){var v=shuffleOrder.get(g.key);return v==null?Number.MAX_
 function normTeam(v){return String(v||'').toUpperCase().replace(/[^A-Z]/g,'');}
 function recalcFromGameLog(base,line,side){return analyzeResearch({...base,averageWindow:drawerState?.window||'l10'},line,side,drawerState?.filter||'all');}
 function playerMarketGroups(g){var candidates=groups();if(!candidates.some(x=>x.key===g.key))candidates.push(g);return candidates.filter(x=>x.sport===g.sport&&x.eventId===g.eventId&&(g.playerId&&x.playerId?x.playerId===g.playerId:x.playerName===g.playerName));}
+// Release marker: customer-facing selectors render the stat category only; raw market data stays intact.
 function shortMarket(g){return cleanMarketLabel(g.market,{playerName:g.playerName,marketId:g.marketId,statId:g.statId,sport:g.sport});}
 function marketOptions(g){return playerMarketGroups(g).map(function(x){return'<option value="'+esc(x.key)+'" '+(x.key===g.key?'selected':'')+'>'+esc(shortMarket(x))+'</option>';}).join('');}
 function averageField(rows,field){

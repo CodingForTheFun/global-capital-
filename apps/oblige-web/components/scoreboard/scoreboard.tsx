@@ -117,13 +117,20 @@ function TeamMark({
   logoUrl?: string;
   name: string;
 }) {
-  if (logoUrl) {
+  const [failed, setFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    setFailed(false);
+  }, [logoUrl]);
+
+  if (logoUrl && !failed) {
     return (
       <img
         src={logoUrl}
         alt=""
         loading="lazy"
         referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
         className="size-[18px] shrink-0 object-contain opacity-90"
       />
     );

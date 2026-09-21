@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { serveNewWeb, ownsPath, newWebOrigin } from '../lib/web/new-web.mjs';
+import { serveNewWeb, ownsPath, newWebOrigin, newWebOrigins } from '../lib/web/new-web.mjs';
 
 const res = () => {
   const r = { written: false };
@@ -14,6 +14,43 @@ test('serves nothing unless an origin is configured', async () => {
   const r = res();
   assert.equal(await serveNewWeb({ method: 'GET', url: '/', headers: {} }, r, { origin: '' }), false);
   assert.equal(r.written, false);
+});
+
+test('embedded frontend is preferred while configured external frontend remains fallback', () => {
+  assert.deepEqual(
+    newWebOrigins({
+      OBLIGE_EMBEDDED_WEB_ORIGIN: 'http://127.0.0.1:3004/',
+      OBLIGE_WEB_ORIGIN: 'https://oblige-web-production.up.railway.app/',
+    }),
+    ['http://127.0.0.1:3004', 'https://oblige-web-production.up.railway.app'],
+  );
+});
+
+test('unreachable embedded frontend falls back to the configured external frontend', async () => {
+  const r = res();
+  const seen = [];
+  const served = await serveNewWeb(
+    { method: 'GET', url: '/board?sport=NFL', headers: { host: 'www.obligeprops.com' } },
+    r,
+    {
+      origins: ['http://127.0.0.1:3004', 'https://fallback.example'],
+      fetchImpl: async (url) => {
+        seen.push(String(url));
+        if (String(url).startsWith('http://127.0.0.1:3004')) throw new Error('ECONNREFUSED');
+        return new Response('<html>fallback</html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        });
+      },
+    },
+  );
+  assert.equal(served, true);
+  assert.deepEqual(seen, [
+    'http://127.0.0.1:3004/board?sport=NFL',
+    'https://fallback.example/board?sport=NFL',
+  ]);
+  assert.equal(r.status, 200);
+  assert.match(String(r.body), /fallback/);
 });
 
 test('claims only the pages the new front end implements plus exact legacy customer entries', () => {

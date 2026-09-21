@@ -156,7 +156,7 @@ export function PlayerView() {
   const normalizedBook = selectedBook ? allBooks.find(book => book.key === selectedBook.toLowerCase() || book.label === selectedBook)?.key || selectedBook : null;
 
   return <PlayerAnalysisPage
-    analysis={{group: displayGroup, history: activeResearch, line: state.line, loading: pending, unavailable}}
+    analysis={{group: displayGroup, history: activeResearch, line: state.line, loading: pending, unavailable, onLineChange: line => setState(previous => ({ ...previous, line }))}}
     routeKind="legacy-board-premium-v2"
     player={presentation.player} market={presentation.market} selected={presentation.selected}
     team={group.team} matchupLabel={group.matchup}

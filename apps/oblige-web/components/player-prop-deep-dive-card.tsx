@@ -186,9 +186,9 @@ function initials(name: string) {
 
 function SelectFilter({ label, ariaLabel, value, options, onChange, historyFilter = false }: { label: string; ariaLabel?: string; value: string; options: FilterOption[]; onChange(value: string): void; historyFilter?: boolean }) {
   const selectedLabel = options.find(option => option.value === value)?.label || value;
-  return <label className={`${historyFilter ? 'op-direct-filter ' : ''}relative flex h-10 min-w-[118px] max-w-[168px] shrink-0 items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-900/80 px-2 pr-6 text-[10px] text-slate-300 transition hover:border-slate-600 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-sky-400 sm:h-11 sm:text-[11px]`}>
+  return <label className={`${historyFilter ? 'op-direct-filter ' : ''}relative flex h-11 shrink-0 items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-900/80 px-2 pr-6 text-[10px] text-slate-300 transition hover:border-slate-600 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-sky-400 sm:px-2.5 sm:pr-7 sm:text-[11px]`}>
     <span className="whitespace-nowrap text-slate-500">{label}:</span>
-    <span className="min-w-0 max-w-[96px] truncate font-medium text-slate-200">{selectedLabel}</span>
+    <span className="min-w-0 max-w-[82px] truncate font-medium text-slate-200 sm:max-w-[130px]">{selectedLabel}</span>
     <select aria-label={ariaLabel || label} value={value} onChange={event => onChange(event.target.value)} className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0">
       {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>

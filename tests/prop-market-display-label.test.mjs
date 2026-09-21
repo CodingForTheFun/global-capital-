@@ -55,3 +55,36 @@ test('label cleanup does not mutate normal stat names', () => {
   assert.equal(cleanMarketLabel('Points + Rebounds + Assists'), 'Points + Rebounds + Assists');
   assert.equal(cleanMarketLabel('Turnovers'), 'Turnovers');
 });
+
+
+test('player names never leak into stat/category labels when provider spacing or punctuation differs', () => {
+  const cases = [
+    ['Isobel\u00a0Borlase Points', 'Points'],
+    ['Isobel.Borlase — Points', 'Points'],
+    ['Isobel - Borlase Points Over/Under', 'Points'],
+    ["Isobel Borlase's Points Full Game", 'Points'],
+  ];
+  for (const [market, expected] of cases) {
+    assert.equal(cleanMarketLabel(market, { playerName: 'Isobel Borlase' }), expected);
+  }
+});
+
+test('a player-only provider label falls back to the canonical stat key instead of the player name', () => {
+  assert.equal(
+    cleanMarketLabel('Isobel\u00a0Borlase', {
+      sport: 'WNBA',
+      playerName: 'Isobel Borlase',
+      marketId: 'sgo_points',
+    }),
+    'Points',
+  );
+  assert.equal(
+    propType({
+      sport: 'WNBA',
+      playerName: 'Isobel Borlase',
+      marketId: 'sgo_points',
+      market: 'Isobel\u00a0Borlase',
+    }),
+    'Points',
+  );
+});

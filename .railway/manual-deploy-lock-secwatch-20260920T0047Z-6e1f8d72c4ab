@@ -1,14 +1,12 @@
-Release: provider mesh entitlement-probe coordination, 2026-09-21
-Source mesh PR: #526
-Unreleased fix SHA: 862c26b259c647301282c3d5b72be93c6ed9b49f
-Verified deployed recovery anchor: b3bdd0798af3d1014757ddf34b87768f8621bdb7
+Release: hybrid Scores board, 2026-09-21
+Source PR: #535
+Unreleased Scores SHA: f479330b2bf8ce5ac2f28dfe235b0967585f0490
+Verified deployed recovery anchor: 13ec006966bc898011f993f113de31f1b81ed4e6
 
-Release the cross-process Sportradar trial-audit coordination fix through the existing
-reviewed recovery gate. The fix serializes the 1-QPS trial entitlement audit across
-ObligeProps processes, persists only safe entitlement state on the existing data volume,
-and retries a rate-limited product once. It does not expose credentials or change the
-live quote hierarchy. SportsGameOdds remains the authoritative current-quote provider,
-PropLine remains a non-overwriting fallback, public prop feeds remain off, and Sportradar
-remains research/context only. This release also corrects the stale startup log that
-incorrectly named SportsDataIO as the primary prop board. No auth, domain, secret rotation,
-destructive database, or customer-access changes.
+Release the already-merged and fully tested Scores-board upgrade through the existing
+reviewed recovery gate. ESPN remains the high-frequency score source; verified Sportradar
+trial products are automatic fallback only when ESPN fails for that sport, which preserves
+trial quota. The customer Scores UI is the compact five-sport NFL/NBA/EPL/NHL/MLB board
+with All/Live/Finished filters, centered scores, team marks, status detail and venue or
+broadcast context. The prop/odds provider mesh, auth, domains, database schema and
+customer access are unchanged.

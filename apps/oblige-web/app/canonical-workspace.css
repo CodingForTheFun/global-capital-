@@ -1,0 +1,24 @@
+/* The legacy reference layers override Tailwind navigation breakpoints.
+   Keep the existing desktop chrome, but never push its mobile menu off-screen. */
+@media (max-width: 1023px) {
+  body:has([data-release="canonical-workspace-v1"]) header[data-board] > div {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    grid-template-columns: none !important;
+    gap: 10px !important;
+    box-sizing: border-box !important;
+  }
+  body:has([data-release="canonical-workspace-v1"]) header[data-board] nav[aria-label="Primary"] {
+    display: none !important;
+  }
+  body:has([data-release="canonical-workspace-v1"]) header[data-board] > div > a:first-child {
+    min-width: 0 !important;
+    flex: 0 1 auto !important;
+  }
+  body:has([data-release="canonical-workspace-v1"]) header[data-board] > div > div:last-child {
+    flex: 0 0 auto !important;
+    margin-left: auto !important;
+  }
+}

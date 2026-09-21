@@ -37,7 +37,7 @@ function Wordmark({ footer = false }: { footer?: boolean }) {
         footer ? 'text-[length:var(--fs-md)]' : 'text-[length:var(--fs-md)] max-[519px]:text-[length:var(--fs-base)]',
       )}
     >
-      Oblige<span className="op-wordmark__accent">Props</span>
+      Oblige<span className="op-wordmark__accent"> Props</span>
     </span>
   );
 }
@@ -47,6 +47,7 @@ export function SiteHeader() {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const pathname = usePathname();
   const board = pathname.startsWith('/board');
+  const workspace = board || pathname.startsWith('/research');
   const menuRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -74,6 +75,7 @@ export function SiteHeader() {
   return (
     <header
       data-stuck={stuck}
+      data-workspace={workspace ? 'true' : 'false'}
       data-board={board ? 'true' : 'false'}
       className={cn(
         'sticky top-0 z-30 border-b border-transparent',
@@ -84,13 +86,16 @@ export function SiteHeader() {
     >
       <div
         className={cn(
-          'mx-auto flex w-full max-w-[var(--maxw)] items-center gap-6 px-4 md:px-8',
+          'mx-auto flex w-full min-w-0 max-w-[var(--maxw)] items-center gap-6 px-4 md:px-8',
+          board && 'max-[767px]:gap-2 max-[767px]:px-3',
           'h-16 transition-[height] duration-300 ease-[var(--ease-out)]',
           stuck && 'h-14',
         )}
       >
-        <Link href="/" className="flex flex-none items-center gap-3" aria-label="Oblige Props home">
-          <span aria-hidden="true" className="op-mark">OP</span>
+        <Link href="/" className={cn("flex min-w-0 flex-none items-center gap-2.5")} aria-label="Oblige Props home">
+          <span aria-hidden="true" className="op-brand-mark">
+            {workspace ? <BarChart3 size={27}/> : <img src="/icon.svg" alt="" width="32" height="32" />}
+          </span>
           <Wordmark />
         </Link>
 
@@ -123,22 +128,20 @@ export function SiteHeader() {
         </nav>
 
         <div className="relative ml-auto flex items-center gap-2" ref={menuRef}>
-          {board && (
-            <button
-              type="button"
-              className="board-mobile-menu-trigger hidden size-8 items-center justify-center rounded-[8px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_88%,transparent)] text-[var(--text-2)] max-[767px]:inline-flex"
-              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-              aria-expanded={menuOpen}
-              aria-controls="board-mobile-menu"
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              {menuOpen ? <X className="size-4" aria-hidden="true" /> : <Menu className="size-4" aria-hidden="true" />}
-            </button>
-          )}
+          <button
+            type="button"
+            className="board-mobile-menu-trigger hidden size-10 items-center justify-center rounded-[12px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_88%,transparent)] text-[var(--text-2)] max-[767px]:inline-flex"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            aria-controls="site-mobile-menu"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {menuOpen ? <X className="size-4" aria-hidden="true" /> : <Menu className="size-4" aria-hidden="true" />}
+          </button>
 
-          {board && menuOpen && (
+          {menuOpen && (
             <div
-              id="board-mobile-menu"
+              id="site-mobile-menu"
               className="board-mobile-menu absolute right-0 top-[calc(100%+8px)] z-50 hidden min-w-[190px] overflow-hidden rounded-[12px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_97%,transparent)] p-1.5 shadow-2xl backdrop-blur-xl max-[767px]:grid"
             >
               {MOBILE_MENU.map((item, index) => (
@@ -158,11 +161,11 @@ export function SiteHeader() {
             asChild
             size="sm"
             variant="ghost"
-            className={cn('max-[519px]:hidden', board && 'max-[767px]:hidden')}
+            className="max-[767px]:hidden"
           >
             <Link href="/account">Account</Link>
           </Button>
-          <Button asChild size="sm" className={cn(board && 'max-[767px]:hidden')}>
+          <Button asChild size="sm" className="max-[767px]:hidden">
             <Link href="/board">Open Props</Link>
           </Button>
         </div>
@@ -288,6 +291,8 @@ export function MobileNav() {
 }
 
 export function SiteFooter() {
+  const path = usePathname();
+  if (path.startsWith('/board') || path.startsWith('/research')) return <footer className="reference-workspace-footer"><span>© {new Date().getFullYear()} Oblige Props · Research only</span><nav aria-label="Legal"><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/responsible-play">Responsible play</a></nav></footer>;
   return (
     <footer className="border-t border-[var(--line)] bg-[var(--bg-deep)] py-12">
       <div className="mx-auto w-full max-w-[var(--maxw)] px-4 md:px-8">

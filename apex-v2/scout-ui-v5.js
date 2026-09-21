@@ -8,7 +8,7 @@ var {createMatchupClient,winPredictorHtml,gameContextHtml,researchWithMatchupCon
 var matchupClient=createMatchupClient({fetcher:nativeFetch});
 // Optional presentation enhancement: a failed studio load must not break the board.
 var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(()=>null);
-var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
+var {propType,cleanMarketLabel,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
 // Presentation enhancement: a failed load must leave the board intact.
 var dfsEdge=await import('/assets/lib/props/dfs-edge.mjs').catch(()=>null);
 // Loaded on first use rather than at boot: the research-only client strips the
@@ -1192,7 +1192,7 @@ function shuffleRank(g){var v=shuffleOrder.get(g.key);return v==null?Number.MAX_
 function normTeam(v){return String(v||'').toUpperCase().replace(/[^A-Z]/g,'');}
 function recalcFromGameLog(base,line,side){return analyzeResearch({...base,averageWindow:drawerState?.window||'l10'},line,side,drawerState?.filter||'all');}
 function playerMarketGroups(g){var candidates=groups();if(!candidates.some(x=>x.key===g.key))candidates.push(g);return candidates.filter(x=>x.sport===g.sport&&x.eventId===g.eventId&&(g.playerId&&x.playerId?x.playerId===g.playerId:x.playerName===g.playerName));}
-function shortMarket(g){return propType(g);}
+function shortMarket(g){return cleanMarketLabel(g.market,{playerName:g.playerName,marketId:g.marketId,statId:g.statId,sport:g.sport});}
 function marketOptions(g){return playerMarketGroups(g).map(function(x){return'<option value="'+esc(x.key)+'" '+(x.key===g.key?'selected':'')+'>'+esc(shortMarket(x))+'</option>';}).join('');}
 function averageField(rows,field){
  var values=(rows||[]).map(function(row){return num(row[field]);}).filter(function(v){return v!=null;});

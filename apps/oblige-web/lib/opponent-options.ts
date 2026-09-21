@@ -169,5 +169,5 @@ export function buildOpponentOptions(
     return a.label.localeCompare(b.label);
   });
 
-  return [{ value: 'all', label: 'All opponents' }, ...entries];
+  return [{ value: 'all', label: 'All' }, ...entries];
 }

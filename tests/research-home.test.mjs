@@ -80,9 +80,11 @@ test('frontdoor preserves research, ML, subscriptions and accounts behind the sa
  assert.throws(()=>patchEdgeFrontdoor(result),/anchors changed/);
 });
 test('retired React sportsbook is excluded from runtime, not reinstalled on deploy',()=>{
- assert.doesNotMatch(read('Dockerfile'),/guest-dashboard|next build|NEXT_TELEMETRY/);
+ const docker=read('Dockerfile');
+ assert.doesNotMatch(docker,/guest-dashboard|--prefix\s+apps\/guest-dashboard|WORKDIR\s+.*guest-dashboard/);
  assert.match(read('.dockerignore'),/apps\/guest-dashboard/);
- assert.match(read('Dockerfile'),/frontdoor-clearsports.mjs/);
+ assert.match(docker,/frontdoor-clearsports.mjs/);
+ assert.match(docker,/npm run build --prefix apps\/oblige-web/,'current Oblige web may be embedded without reviving retired sportsbook');
  assert.doesNotMatch(read('scripts/prepare-edge-deploy.mjs'),/writeFileSync\([^)]*payments|replaceAll\('Oblige Props', 'ObligePay Edge'\)/);
  const manifest=JSON.parse(read('public/manifest.webmanifest'));assert.equal(manifest.name,'Oblige Props');assert.equal(manifest.start_url,'/');assert.equal(manifest.display,'standalone');
 });

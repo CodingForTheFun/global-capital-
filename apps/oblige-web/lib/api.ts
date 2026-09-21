@@ -165,6 +165,20 @@ function matchupLabel(row: PropRow) {
   return row.team || row.opponent || 'Matchup unavailable';
 }
 
+function canonicalPeriod(value: unknown) {
+  const raw = String(value || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (!raw || ['game', 'full', 'fullgame', 'match', 'singlestat'].includes(raw)) return 'game';
+  const direct = raw.match(/^([1-9])([qhpis])$/);
+  if (direct) return `${direct[1]}${direct[2]}`;
+  const reversed = raw.match(/^([qhpis])([1-9])$/);
+  if (reversed) return `${reversed[2]}${reversed[1]}`;
+  const firstN = raw.match(/^f([357])$/);
+  if (firstN) return `1ix${firstN[1]}`;
+  if (/^1ix[357]$/.test(raw)) return raw;
+  if (['reg', 'ot', 'so', 'dec'].includes(raw)) return raw;
+  return raw;
+}
+
 function bestQuote(rows: PropRow[], side: Side): PropRow | null {
   // Best price is the highest American number on that side, which is the same
   // ordering for favourites and underdogs.
@@ -185,9 +199,10 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
     const player = String(row.playerName || '').trim();
     const market = String(row.market || '').trim();
     const line = num(row.line);
+    const period = canonicalPeriod(row.period);
     if (!player || !market || line === null) continue;
 
-    const key = [row.eventId || matchupLabel(row), player, market, line].join('|');
+    const key = [row.eventId || matchupLabel(row), player, market, period, line].join('|');
     let group = groups.get(key);
     if (!group) {
       group = {
@@ -199,6 +214,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         marketId: row.marketId || null,
         line,
         sport,
+        period,
         team: row.team || null,
         position: row.position || null,
         opponent: row.opponent || null,
@@ -263,6 +279,7 @@ export async function fetchResearch(
   group: PropGroup,
   side: Side,
   signal?: AbortSignal,
+  options: { detail?: boolean } = {},
 ): Promise<ResearchResponse> {
   if (signal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
 
@@ -284,7 +301,8 @@ export async function fetchResearch(
   if (group.awayTeam) params.set('awayTeam', group.awayTeam);
   if (quote?.eventId) params.set('eventId', String(quote.eventId));
   if (group.startsAt) params.set('gameStartTime', group.startsAt);
-  if (quote?.period) params.set('period', String(quote.period));
+  if (group.period) params.set('period', group.period);
+  if (options.detail === true) params.set('detail', '1');
 
   const path = `/api/apex/research?${params}`;
   const cached = researchCache.get(path);
@@ -336,7 +354,7 @@ export async function fetchResearchBatch(
       marketId: group.marketId,
       eventId: quote?.eventId || null,
       gameStartTime: group.startsAt,
-      period: quote?.period || null,
+      period: group.period || quote?.period || null,
       games: 40,
     };
   });

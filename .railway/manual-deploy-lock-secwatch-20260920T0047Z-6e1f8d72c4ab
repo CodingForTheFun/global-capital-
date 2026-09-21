@@ -1,7 +1,7 @@
-Release: SportsGameOdds paid gap-fill integration and serialized release recovery, 2026-09-21
-Verified deployed anchor: d1bd3beccd1506b1c4cd868eabbe2da71330dc40
-Deploy through existing Railway gates. The release includes PR #491's SportsGameOdds
-secondary/gap-fill provider plus a release-control correction that refuses Railway
-watch-path skips as deployment proof and requires an explicit, anchor-bound recovery
-review when production-stable has advanced beyond the last real deployment.
-PropLine/public data remain primary; no secret values are stored in this file.
+Release: SportsGameOdds local-demand cache activation, 2026-09-21
+Verified deployed parent: b66074c9aa3d894031f9b5a943aa446f3eb60482
+Deploy through the existing reviewed release gates. This follow-up keeps PropLine/public
+quotes primary and keeps SportsGameOdds paid calls usage-aware, but moves its in-memory
+gap-cache refresh onto a 60-second local demand timer so the customer-facing process can
+populate its own cache even when another process owns the database persistence lease.
+No quote-expiry widening, secret changes, database schema changes, or fabricated data.

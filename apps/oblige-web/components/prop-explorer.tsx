@@ -100,14 +100,14 @@ export function PropExplorer({ group, games, loading, unavailableReason, leagueT
   const under = activeBook ? activeBook.under : group.bestUnder;
   const moved = Math.abs(state.line - group.line) > .001;
   const quoteOdds = (quote: PropRow | null | undefined) => numberOrNull(quote?.price) === null || Number(quote?.price) === 0 ? '—' : odds(quote?.price);
-  const options = (values: string[]) => [{ value: 'all', label: 'All' }, ...values.map(value => ({ value, label: value }))];
+  const seasonOptions = [{ value: 'all', label: 'All years' }, ...seasons.map(value => ({ value, label: value }))];
   function step(amount: number) { onState({ ...state, line: Math.max(0, Math.round((state.line + amount) * 100) / 100) }); }
 
   return <div className="research-reference" data-release="oblige-installable-20260918">
     <div className="op-research-title"><div><span>PLAYER RESEARCH</span><h3>{group.market}</h3></div><button type="button" className="op-follow" aria-label={favourite ? `Unfollow ${group.player}` : `Follow ${group.player}`} aria-pressed={favourite} onClick={onFavourite} title="Follow on this device"><Star size={19} fill={favourite ? 'currentColor' : 'none'} /></button></div>
     <div className="op-research-filters">
       <AppliedFilter key={`${group.key}-opponent`} label="Opponent" value={filters.opponent} options={opponentOptions} onApply={opponent => setFilters(previous => ({ ...previous, opponent }))} />
-      <AppliedFilter key={`${group.key}-season`} label="Season" value={filters.season} options={options(seasons)} onApply={season => setFilters(previous => ({ ...previous, season }))} />
+      <AppliedFilter key={`${group.key}-season`} label="Season" value={filters.season} options={seasonOptions} onApply={season => setFilters(previous => ({ ...previous, season }))} />
       <AppliedFilter key={`${group.key}-venue`} label="Home / Away" value={filters.venue} options={[{ value: 'all', label: 'All' }, { value: 'home', label: 'Home' }, { value: 'away', label: 'Away' }]} onApply={venue => setFilters(previous => ({ ...previous, venue: venue as SampleFilters['venue'] }))} />
       <AppliedFilter key={`${group.key}-book`} label="Book" value={state.book || 'all'} options={[{ value: 'all', label: 'Best prices · all books' }, ...books.map(book => ({ value: book.key, label: book.available ? `${book.name} · Line ${group.line}` : `${book.name} · No line` }))]} onApply={book => onState({ ...state, book: book === 'all' ? null : book })} />
     </div>

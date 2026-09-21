@@ -1,6 +1,6 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import {
-  ArrowRight,
   BarChart3,
   Check,
   Layers3,
@@ -8,10 +8,23 @@ import {
   Search,
   ShieldCheck,
   Smartphone,
-  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/motion';
+import { LandingBoardPreview } from '@/components/landing-board-preview';
+
+export const metadata: Metadata = {
+  title: 'Player Prop Research & Sportsbook Line Comparison',
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    url: '/',
+    siteName: 'Oblige Props',
+    title: 'Oblige Props — Player Prop Research',
+    description: 'Compare available sportsbook lines and explore player performance, line movement and verified game history. Coverage varies by sport and market.',
+  },
+  twitter: { card: 'summary', title: 'Oblige Props — Player Prop Research', description: 'Compare sportsbook lines and research player performance using available verified history.' },
+};
 
 const FEATURES = [
   {
@@ -83,53 +96,47 @@ const PLANS = [
 export default function LandingPage() {
   return (
     <div className="premium-landing">
-      <section className="premium-hero">
+      <section className="premium-hero premium-hero-v2">
         <div className="premium-shell premium-hero-grid">
-          <div>
+          <div className="premium-hero-copy">
             <Reveal>
-              <span className="premium-eyebrow">Live player prop intelligence</span>
+              <span className="premium-eyebrow">Live markets · built for research</span>
             </Reveal>
 
             <Reveal delay={60}>
-              <h1 className="premium-title">
-                Stop staring at a line.
+              <h1 className="premium-title premium-title-v2">
+                Find the edge
                 <br />
-                <span>Understand why it moved.</span>
+                <span>before the line moves.</span>
               </h1>
             </Reveal>
 
             <Reveal delay={120}>
-              <p className="premium-lede">
-                Oblige Props brings the board, player history, hit-rate context and sportsbook comparison into one fast research workspace built for serious mobile and desktop use.
+              <p className="premium-lede premium-lede-v2">
+                Live props, multi-book line shopping, player history and model signals — all in one focused research workspace.
               </p>
             </Reveal>
 
-            <Reveal delay={180}>
-              <div className="premium-actions">
-                <Button asChild size="lg">
-                  <Link href="/board">
-                    Open the board
-                    <ArrowRight className="size-4" aria-hidden="true" />
-                  </Link>
-                </Button>
-                <Button asChild size="lg" variant="ghost">
-                  <Link href="/research">Explore player research</Link>
-                </Button>
+            <Reveal delay={170}>
+              <div className="premium-sports-strip" aria-label="Sports available in Oblige Props">
+                {['NFL', 'MLB', 'NCAAF', 'WNBA', 'Soccer', 'Esports'].map((sport) => (
+                  <span key={sport}>{sport}</span>
+                ))}
               </div>
             </Reveal>
 
-            <Reveal delay={240}>
-              <div className="premium-proof" aria-label="Product capabilities">
-                <span>Live line research</span>
-                <span>Recent-game context</span>
-                <span>Book comparison</span>
-                <span>Mobile-first workflow</span>
+            <Reveal delay={220}>
+              <div className="premium-proof premium-proof-v2" aria-label="Product capabilities">
+                <span>Live lines</span>
+                <span>Player history</span>
+                <span>Multi-book</span>
+                <span>Model signals</span>
               </div>
             </Reveal>
           </div>
 
-          <Reveal delay={200}>
-            <ProductPreview />
+          <Reveal delay={180}>
+            <LandingBoardPreview />
           </Reveal>
         </div>
       </section>
@@ -245,50 +252,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-    </div>
-  );
-}
-
-function ProductPreview() {
-  const heights = ['36%', '58%', '46%', '76%', '64%', '84%', '52%', '70%', '88%', '62%', '80%', '54%'];
-  return (
-    <div className="premium-preview" aria-label="Oblige Props interface preview">
-      <div className="preview-topbar">
-        <span className="preview-dot live" />
-        <span className="preview-dot" />
-        <span className="preview-dot" />
-        <span className="ml-auto text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--text-3)]">Research workspace</span>
-      </div>
-      <div className="preview-grid">
-        <div className="preview-panel preview-player">
-          <div className="preview-player-line">
-            <span className="preview-avatar" aria-hidden="true" />
-            <span className="preview-copy" aria-hidden="true">
-              <i />
-              <i />
-            </span>
-            <span className="rounded-full border border-[rgba(76,227,178,.18)] bg-[rgba(76,227,178,.08)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.10em] text-[var(--pos)]">Live context</span>
-          </div>
-        </div>
-        <div className="preview-panel preview-chart" aria-hidden="true">
-          {heights.map((height, index) => (
-            <span key={`${height}-${index}`} style={{ height }} />
-          ))}
-        </div>
-        <div className="preview-panel preview-books" aria-hidden="true">
-          {[0, 1, 2, 3, 4].map((item) => (
-            <span className="preview-book" key={item}>
-              <b />
-              <i />
-              <em />
-            </span>
-          ))}
-        </div>
-      </div>
-      <div className="absolute bottom-5 left-5 flex items-center gap-2 rounded-full border border-[rgba(124,140,255,.14)] bg-[rgba(6,9,20,.72)] px-3 py-2 text-[11px] font-semibold text-[var(--text-2)] backdrop-blur-xl">
-        <Sparkles className="size-3.5 text-[#aeb8ff]" aria-hidden="true" />
-        Interface preview · no simulated sports data
-      </div>
     </div>
   );
 }

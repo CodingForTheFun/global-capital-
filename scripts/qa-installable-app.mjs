@@ -135,7 +135,7 @@ try {
     await page.screenshot({ path: `${output}/research-${viewport.width}-CI-fixture.png`, fullPage: true });
     await page.goto(base + '/research?' + new URLSearchParams({ sport: 'NFL', player, market: '1H Receiving Yards', line: '94.5' }), { waitUntil: 'domcontentloaded' });
     await page.locator('.research-reference .op-no-history').filter({ hasText: 'Verified history unavailable' }).waitFor();
-    assert.equal(await page.locator('.research-reference .op-chart-bar').count(), 0, 'No invented half-game history');
+    assert.equal(await page.locator('.research-reference .recharts-bar-rectangle').count(), 0, 'No invented half-game history');
     assert.equal(researchRequests, initialResearchRequests, 'Unsupported period does not request whole-game data');
     assert.deepEqual(errors, [], 'No unhandled browser exceptions');
     results.push({ viewport, dimensions, independentFilters: 'PASS', noExtraResearchRequests: 'PASS', unavailablePeriod: 'PASS', workerRegistered: 'PASS' });

@@ -9,50 +9,36 @@ const text = (value: unknown) =>
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
 
-const CITY_ALIASES: Record<string, string[]> = {
-  la: ['los', 'angeles'],
-  ny: ['new', 'york'],
-  sf: ['san', 'francisco'],
-  sd: ['san', 'diego'],
-  kc: ['kansas', 'city'],
-  tb: ['tampa', 'bay'],
-  lv: ['las', 'vegas'],
-  no: ['new', 'orleans'],
-  gb: ['green', 'bay'],
-  okc: ['oklahoma', 'city'],
-  stl: ['saint', 'louis'],
-};
-
 function words(value: unknown): string[] {
-  const parts =
-    text(value)
-      .toLowerCase()
-      .replace(/\buniversity\b/g, '')
-      .match(/[a-z0-9]+/g) || [];
-
-  const city = parts[0] ? CITY_ALIASES[parts[0]] : null;
-  const expanded = city ? [...city, ...parts.slice(1)] : [...parts];
-
-  // "St. Louis" means Saint; a trailing school "St." means State.
-  if (expanded[0] === 'st' && expanded.length > 1) expanded[0] = 'saint';
-  for (let index = 1; index < expanded.length; index += 1) {
-    if (expanded[index] === 'st') expanded[index] = 'state';
-  }
-  return expanded;
+  const parts = text(value).toLowerCase().match(/[a-z0-9]+/g) || [];
+  return parts.map((word, index) => (word === 'st' && index === parts.length - 1 ? 'state' : word));
 }
 
 const compact = (value: unknown) => words(value).join('');
 
 function initials(value: unknown) {
-  return words(value).map((word) => word[0]).join('');
+  return words(value).map(word => word[0]).join('');
+}
+
+function locationInitials(parts: string[]) {
+  return parts.map(word => (word === 'st' ? 'st' : word[0])).join('');
+}
+
+function cityNicknameMatch(shorter: string[], longer: string[]) {
+  if (shorter.length < 2 || longer.length < 3) return false;
+  for (let split = 2; split <= Math.min(3, longer.length - 1); split += 1) {
+    const city = locationInitials(longer.slice(0, split));
+    if (shorter[0] !== city) continue;
+    if (shorter.slice(1).join(' ') === longer.slice(split).join(' ')) return true;
+  }
+  return false;
 }
 
 /**
- * Team labels arrive from several verified sources with different display
- * conventions (for example SJSU, San Jose St., San José State Spartans,
- * or LA Angels versus Los Angeles Angels). Matching is intentionally
- * conservative: exact normalized forms, common city aliases,
- * abbreviation/initial forms, or a multi-word school/club prefix.
+ * Match board, directory, and game-log team labels without a sport-specific
+ * table. Besides ordinary abbreviations, this handles city aliases such as
+ * "LA Angels" / "Los Angeles Angels", "NY Rangers" / "New York Rangers",
+ * and "STL Cardinals" / "St. Louis Cardinals".
  */
 export function sameTeamLabel(left: unknown, right: unknown): boolean {
   const a = compact(left);
@@ -68,7 +54,10 @@ export function sameTeamLabel(left: unknown, right: unknown): boolean {
   const abbreviationMatch = (short: string, longWords: string[], longInitials: string) =>
     short.length >= 2 &&
     short.length <= 5 &&
-    (short === longInitials || short === longWords.slice(0, short.length).map((word) => word[0]).join(''));
+    (
+      short === longInitials ||
+      short === longWords.slice(0, short.length).map(word => word[0]).join('')
+    );
 
   if (abbreviationMatch(a, rightWords, bi) || abbreviationMatch(b, leftWords, ai)) return true;
 
@@ -77,7 +66,13 @@ export function sameTeamLabel(left: unknown, right: unknown): boolean {
     shorter.length < longer.length &&
     shorter.every((word, index) => word === longer[index]);
 
-  return prefixWords(leftWords, rightWords) || prefixWords(rightWords, leftWords);
+  if (prefixWords(leftWords, rightWords) || prefixWords(rightWords, leftWords)) return true;
+  if (cityNicknameMatch(leftWords, rightWords) || cityNicknameMatch(rightWords, leftWords)) return true;
+
+  const prefixMatch = (short: string, long: string) =>
+    short.length >= 3 && short.length <= 5 && long.length > short.length && long.startsWith(short);
+
+  return prefixMatch(a, b) || prefixMatch(b, a);
 }
 
 export function currentOpponentLabels(
@@ -86,7 +81,7 @@ export function currentOpponentLabels(
   const labels: string[] = [];
   const add = (value: unknown) => {
     const label = text(value);
-    if (label && !labels.some((existing) => sameTeamLabel(existing, label))) labels.push(label);
+    if (label && !labels.some(existing => sameTeamLabel(existing, label))) labels.push(label);
   };
 
   add(group.opponent);
@@ -109,37 +104,44 @@ function directoryRows(leagueTeams: LeagueTeam[]) {
     const abbreviation = text(team?.abbreviation);
     const name = text(team?.name);
     if (!abbreviation || !name) continue;
-    if (rows.some((row) => sameTeamLabel(row.abbreviation, abbreviation) || sameTeamLabel(row.name, name))) continue;
+    if (rows.some(row => sameTeamLabel(row.abbreviation, abbreviation) || sameTeamLabel(row.name, name))) continue;
     rows.push({ abbreviation, name });
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /**
- * Build the Opponent picker from the verified league directory first, then
- * retain any verified historical labels that are absent from that directory.
- * Values are chosen to preserve exact existing game-log filtering whenever a
- * historical alias exists. Selecting a league team with no prior game simply
- * produces an empty verified sample; no history is fabricated.
+ * Team sports use the verified league directory first, so the Opponent picker
+ * shows the whole league instead of only clubs already present in one player's
+ * returned history. Existing game-log aliases stay as option values so selecting
+ * a team continues to filter the verified rows exactly. Sports with individual
+ * opponents (for example tennis) keep their observed/current competitor list.
  */
 export function buildOpponentOptions(
   opponents: Array<string | null | undefined>,
   group: Pick<PropGroup, 'team' | 'opponent' | 'homeTeam' | 'awayTeam'>,
-  leagueTeams: LeagueTeam[] = [],
+  leagueTeamsOrIndividual: LeagueTeam[] | boolean = [],
+  individual = false,
 ): OpponentFilterOption[] {
+  const leagueTeams = Array.isArray(leagueTeamsOrIndividual) ? leagueTeamsOrIndividual : [];
+  const individualMode = typeof leagueTeamsOrIndividual === 'boolean' ? leagueTeamsOrIndividual : individual;
   const observed = [...new Set(opponents.map(text).filter(Boolean))];
-  const current = currentOpponentLabels(group);
+  const current = individualMode ? [text(group.opponent)].filter(Boolean) : currentOpponentLabels(group);
   const entries: OpponentFilterOption[] = [];
 
   const isCurrent = (value: string, label: string) =>
-    current.some((candidate) => sameTeamLabel(candidate, value) || sameTeamLabel(candidate, label));
+    current.some(candidate =>
+      individualMode
+        ? text(candidate).toLowerCase() === text(value || label).toLowerCase()
+        : sameTeamLabel(candidate, value) || sameTeamLabel(candidate, label),
+    );
 
   const add = (value: string, label: string) => {
     if (!value || !label) return;
-    const existing = entries.find(
-      (entry) =>
-        sameTeamLabel(entry.value, value) ||
-        sameTeamLabel(entry.label.replace(/\s+★$/, ''), label),
+    const existing = entries.find(entry =>
+      individualMode
+        ? text(entry.value).toLowerCase() === text(value).toLowerCase()
+        : sameTeamLabel(entry.value, value) || sameTeamLabel(entry.label.replace(/\s+★$/, ''), label),
     );
     if (existing) {
       if (isCurrent(value, label) && !existing.label.endsWith(' ★')) existing.label += ' ★';
@@ -148,11 +150,13 @@ export function buildOpponentOptions(
     entries.push({ value, label: isCurrent(value, label) ? `${label} ★` : label });
   };
 
-  for (const team of directoryRows(leagueTeams)) {
-    const historicalValue = observed.find(
-      (value) => sameTeamLabel(value, team.abbreviation) || sameTeamLabel(value, team.name),
-    );
-    add(historicalValue || team.abbreviation, team.name);
+  if (!individualMode) {
+    for (const team of directoryRows(leagueTeams)) {
+      const historicalValue = observed.find(
+        value => sameTeamLabel(value, team.abbreviation) || sameTeamLabel(value, team.name),
+      );
+      add(historicalValue || team.abbreviation, team.name);
+    }
   }
 
   for (const value of observed) add(value, value);
@@ -165,5 +169,5 @@ export function buildOpponentOptions(
     return a.label.localeCompare(b.label);
   });
 
-  return [{ value: 'all', label: 'All opponents' }, ...entries];
+  return [{ value: 'all', label: 'All' }, ...entries];
 }

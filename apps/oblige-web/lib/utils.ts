@@ -7,8 +7,9 @@ export function cn(...inputs: ClassValue[]) {
 
 /** American odds always carry their sign, so -110 and +104 line up in a column. */
 export function odds(value: number | string | null | undefined) {
+  if (value === null || value === undefined || String(value).trim() === '') return '—';
   const n = Number(value);
-  if (!Number.isFinite(n)) return '—';
+  if (!Number.isFinite(n) || n === 0) return '—';
   return n > 0 ? `+${n}` : String(n);
 }
 

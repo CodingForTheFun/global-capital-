@@ -14,6 +14,7 @@ export async function GET() {
   return Response.json({
     ok: true,
     service: 'oblige-web',
+    revision: process.env.RAILWAY_GIT_COMMIT_SHA || null,
     backendHealthy,
   });
 }

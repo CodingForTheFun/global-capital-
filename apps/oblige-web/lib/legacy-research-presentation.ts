@@ -6,6 +6,11 @@ export type LegacyCategory = { key: string; label: string; variants: PropGroup[]
 type QuoteMetadata = PropRow & { period?: string; periodKey?: string; dfs?: boolean; dfsOddsType?: string; dfs_odds_type?: string; multiplier?: number | string; payoutMultiplier?: number | string; conflict?: boolean };
 const clean = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 const numeric = (value: unknown): number | null => value == null || typeof value === 'boolean' || String(value).trim() === '' || !Number.isFinite(Number(value)) ? null : Number(value);
+const dataProviderBook = (value: unknown) => ['espn','sportsdataio','sportsgameodds','propline','clearsports','sportradar'].includes(clean(value).replace(/[^a-z0-9]/g, ''));
+const validPosition = (value: unknown): string | null => {
+  const raw = String(value ?? '').trim();
+  return !raw || /^(?:position\s*)?(?:unavailable|unknown|not\s+available|n\/?a|none|null|-)$/i.test(raw) ? null : raw;
+};
 
 /** Parse only explicit period evidence. These display fields never enter an API request. */
 export function legacyPeriod(group: PropGroup): { period: string | null; label: string } {
@@ -55,7 +60,9 @@ export function legacyPresentation(categories: LegacyCategory[], group: PropGrou
     const first = category.variants[0];
     const scope = legacyPeriod(first);
     const row = first.quotes[0] as QuoteMetadata | undefined;
-    const offers = category.variants.flatMap(variant => variant.quotes.map(quote => offerFor(category.key, variant, quote)).filter((offer): offer is WorkspaceOffer => offer !== null));
+    const allOffers = category.variants.flatMap(variant => variant.quotes.map(quote => offerFor(category.key, variant, quote)).filter((offer): offer is WorkspaceOffer => offer !== null));
+    const sportsbookOffers = allOffers.filter(offer => !dataProviderBook(offer.book) && !dataProviderBook(offer.bookName));
+    const offers = sportsbookOffers.length ? sportsbookOffers : allOffers;
     return {
       key: category.key,
       marketKey: first.marketId || scope.label,
@@ -70,9 +77,17 @@ export function legacyPresentation(categories: LegacyCategory[], group: PropGrou
   const requestedQuote = side === 'UNDER' ? group.bestUnder : group.bestOver;
   const quote = requestedQuote || group.quotes.find(candidate => String(candidate.side).toUpperCase() === side) || group.quotes[0];
   const target = quote ? offerFor(categoryKey, group, quote) : null;
-  const selected = target && market ? market.offers.find(offer => offer.key === target.key) || null : null;
+  const direct = target && market ? market.offers.find(offer => offer.key === target.key) || null : null;
+  const exactSide = market
+    ? market.offers
+        .filter(offer => !offer.conflict && offer.line === group.line && (offer.side === side || offer.side === null))
+        .sort((a, b) => (b.price ?? -1e9) - (a.price ?? -1e9))
+    : [];
+  const selected = direct || exactSide[0] || null;
+  const categoryPosition = categories.flatMap(category => category.variants).map(variant => validPosition(variant.position)).find(Boolean) || null;
   const player: WorkspacePlayer = {
     key: cardKey || group.key, playerId: group.providerPlayerId, name: group.player,
+    position: validPosition(group.position) || categoryPosition,
     aliases: [group.player], sport: group.sport,
     eventId: String(group.quotes.find(row => row.eventId)?.eventId || ''),
     startsAt: group.startsAt, homeTeam: group.homeTeam, awayTeam: group.awayTeam, markets,

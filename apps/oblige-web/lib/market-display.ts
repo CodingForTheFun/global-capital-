@@ -18,9 +18,12 @@ const MARKET_NAMES: Record<string, string> = {
   team_sacks_allowed: "Team sacks allowed",
   team_points_allowed: "Team points allowed",
   batter_runs: "Runs",
-  batter_hits_runs_rbis: "Hits + Runs + RBIs",
-  batter_walks: "Batter walks",
+  batter_singles: "Singles",
+  batter_doubles: "Doubles",
   batter_triples: "Triples",
+  batter_stolen_bases: "Stolen Bases",
+  batter_hits_runs_rbis: "Hits + Runs + RBIs",
+  batter_walks: "Walks",
   pitcher_outs_recorded: "Pitching outs",
   pitcher_walks: "Walks allowed",
   pitcher_innings_pitched: "Innings pitched",
@@ -81,16 +84,27 @@ const MARKET_NAMES: Record<string, string> = {
 };
 const WORDS: Record<string, string> = { yds: 'Yards', pts: 'Points', ast: 'Assists', reb: 'Rebounds', rbis: 'RBIs', rbi: 'RBIs', td: 'TD', tds: 'TDs', fg: 'Field Goals', fg3: 'Three-Pointers', ot: 'OT', h2h: 'H2H' };
 /** Exact audited labels, also used to reconcile readable and raw-key categories. */
-export const canonicalMarketLabel = (key: string): string | null => MARKET_NAMES[key] || null;
+export const canonicalMarketLabel = (key: string): string | null => {
+  const raw = String(key || '').trim().toLowerCase();
+  return MARKET_NAMES[raw] || MARKET_NAMES[raw.replace(/^[^:]+:/, '')] || null;
+};
 export function humanize(value: string): string {
   return String(value || '').trim().replace(/^player[_\s]+/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').split(' ').filter(Boolean).map(word => WORDS[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 export function marketName(market: Pick<WorkspaceMarket, 'label' | 'marketKey'>): string {
-  const supplied = String(market.label || '').trim().replace(/\s*[·|]\s*Period\s+[^·|]+$/i, '').trim();
-  // Preserve a provider's already readable label (including a sport-specific meaning).
+  // A recognized normalized market id is stronger evidence than provider prose.
+  // Some upstream labels include the athlete and side (for example
+  // "Abimelec Ortiz Doubles Over"); never let that leak into stat tabs.
+  const canonical = canonicalMarketLabel(market.marketKey || '');
+  if (canonical) return canonical;
+  const supplied = String(market.label || '')
+    .trim()
+    .replace(/\s*[·|]\s*Period\s+[^·|]+$/i, '')
+    .replace(/\s+(?:over|under)(?:\s+[+-]?\d+(?:\.\d+)?)?$/i, '')
+    .trim();
   if (supplied && !supplied.includes('_')) return supplied;
   const raw = (supplied || market.marketKey || '').toLowerCase();
-  return MARKET_NAMES[raw] || MARKET_NAMES[market.marketKey?.toLowerCase()] || humanize(supplied || market.marketKey) || 'Player Prop';
+  return canonicalMarketLabel(raw) || humanize(supplied || market.marketKey) || 'Player Prop';
 }
 export function marketFamily(market: WorkspaceMarket): string {
   // The canonical API supplies period separately. No fuzzy identity merging.

@@ -1127,7 +1127,7 @@ function rowHtml(g){
  var r=researchFor(g,line,side),c=r&&r.context?r.context:{};
  var team=g.team||(r&&r.player?r.player.team:null)||c.team,position=g.position||c.position||c.playerPosition,opponent=cardOpponent(g,r);
  var state=researchState(r);
- var marketLabel=(line==null?'':'O/U '+dec(line)+' ')+shortMarket(g);
+ var marketLabel=shortMarket(g);
  return '<article class="asRow asCard" data-open="'+esc(g.key)+'" tabindex="0" aria-label="Research '+esc(g.playerName+' '+g.market)+'">'
   +'<div class="asCardHead">'
    +'<div class="asAvatar"><div class="asAvatarFallback">'+esc(initials(g.playerName))+'</div>'+(g.entityType==='team'?'':'<img loading="lazy" decoding="async" data-player-photo src="'+esc(artUrl(g))+'" alt="'+esc(g.playerName)+'"> ')+'</div>'

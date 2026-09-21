@@ -46,9 +46,7 @@ var COLUMN_DEFS=[['projection','Projection',104],['l5','L5',78],['l10','L10',78]
 var rulesEnabled=true, saveEpoch=0;
 var savePending=new Set();
 
-var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB','SOCCER','TENNIS','MMA','GOLF','MLS','EPL','UCL','PGA','CFL','FOOTBALL','BASEBALL','BASKETBALL','HOCKEY','AUSSIE_RULES','BADMINTON','BANDY','BEACH_VOLLEYBALL','BOXING','CRICKET','DARTS','ESPORTS','FLOORBALL','FUTSAL','HANDBALL','HORSE_RACING','LACROSSE','MOTORSPORTS','RUGBY','SNOOKER','TABLE_TENNIS','VOLLEYBALL','WATER_POLO'];
-var SPORT_LABELS={NCAAF:'CFB',NCAAB:'CBB',SOCCER:'Soccer',TENNIS:'Tennis',MMA:'MMA',GOLF:'Golf',PGA:'PGA',FOOTBALL:'Football',BASEBALL:'Baseball',BASKETBALL:'Basketball',HOCKEY:'Hockey',AUSSIE_RULES:'Aussie Rules',BADMINTON:'Badminton',BANDY:'Bandy',BEACH_VOLLEYBALL:'Beach Volleyball',BOXING:'Boxing',CRICKET:'Cricket',DARTS:'Darts',ESPORTS:'Esports',FLOORBALL:'Floorball',FUTSAL:'Futsal',HANDBALL:'Handball',HORSE_RACING:'Horse Racing',LACROSSE:'Lacrosse',MOTORSPORTS:'Motorsports',RUGBY:'Rugby',SNOOKER:'Snooker',TABLE_TENNIS:'Table Tennis',VOLLEYBALL:'Volleyball',WATER_POLO:'Water Polo'};
-function sportLabel(value){return SPORT_LABELS[value]||value;}
+var SPORTS=['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB','MLS','EPL','UCL'];
 var BOARD_VIEWS={research:'Prop Research',players:'Players',popular:'Popular',discrepancies:'Line Discrepancies',saved:'Saved Props'};
 var hydrating=false, hydrated=new Set(), hydrateFailed=false, hydrateController=null, hydratePending=new Set();
 var projections=new Map(), projectionPending=new Set();
@@ -205,7 +203,7 @@ function syncPropRoute(){
  if(g){if(drawerState?.g.key!==g.key)openDrawer(g,{fromRoute:true});}
  else {closeDrawer(false);toast('This prop is no longer on the current board. Browse the available lines.');history.replaceState(null,'',location.pathname+location.search);}
 }
-function renderSports(){if(!document.getElementById('asSports').children.length)document.getElementById('asSports').innerHTML='<label class="asSportSelect"><span class="asSrOnly">Sport</span><select id="asSportSelect" class="asControl">'+SPORTS.map(v=>'<option value="'+v+'">'+esc(sportLabel(v))+'</option>').join('')+'</select></label>'+SPORTS.map(s=>'<button class="asSport '+(s===sport?'on':'')+'" aria-pressed="'+(s===sport)+'" data-sport="'+s+'">'+esc(sportLabel(s))+'</button>').join('');document.getElementById('asSportSelect').value=sport;document.getElementById('asSportSelect').onchange=e=>document.querySelector('[data-sport="'+e.target.value+'"]').click();document.querySelectorAll('[data-sport]').forEach(b=>{b.classList.toggle('on',b.dataset.sport===sport);b.setAttribute('aria-pressed',String(b.dataset.sport===sport));b.onclick=()=>{if(sport===b.dataset.sport)return;persistFilters();sport=b.dataset.sport;saveState();closeDrawer();restoreFilters();document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;page=1;renderAdvanced();load();};});}
+function renderSports(){if(!document.getElementById('asSports').children.length)document.getElementById('asSports').innerHTML='<label class="asSportSelect"><span class="asSrOnly">Sport</span><select id="asSportSelect" class="asControl">'+SPORTS.map(v=>'<option value="'+v+'">'+v+'</option>').join('')+'</select></label>'+SPORTS.map(s=>'<button class="asSport '+(s===sport?'on':'')+'" aria-pressed="'+(s===sport)+'" data-sport="'+s+'">'+s+'</button>').join('');document.getElementById('asSportSelect').value=sport;document.getElementById('asSportSelect').onchange=e=>document.querySelector('[data-sport="'+e.target.value+'"]').click();document.querySelectorAll('[data-sport]').forEach(b=>{b.classList.toggle('on',b.dataset.sport===sport);b.setAttribute('aria-pressed',String(b.dataset.sport===sport));b.onclick=()=>{if(sport===b.dataset.sport)return;persistFilters();sport=b.dataset.sport;saveState();closeDrawer();restoreFilters();document.getElementById('asSearch').value=query;document.getElementById('asSide').value=sideFilter;document.getElementById('asSort').value=sortBy;page=1;renderAdvanced();load();};});}
 function viewGroups(){var current=groups().filter(g=>g.sport===sport);if(activeView!=='saved')return current;var merged=new Map(current.filter(g=>favorites.has(g.key)).map(g=>[g.key,g]));savedRecords.forEach(g=>{if(g.sport===sport&&favorites.has(g.key)&&!merged.has(g.key))merged.set(g.key,{...g,archived:true});});return filterBookGroups(Array.from(merged.values()),selectedBooks);}
 // Sports come from what the board actually serves. Adding a chip for a league
 // with no pipeline behind it would open an empty board, so the list is the
@@ -315,7 +313,7 @@ function renderQuick(){
  var host=document.getElementById('asQuick');
  if(!host)return;
  var sports='<div class="asQuickRow" role="group" aria-label="Sport">'
-  +SPORTS.map(function(s){return '<button class="asChip '+(s===sport?'on':'')+'" data-quick-sport="'+s+'" aria-pressed="'+(s===sport)+'">'+esc(sportLabel(s))+'</button>';}).join('')
+  +SPORTS.map(function(s){return '<button class="asChip '+(s===sport?'on':'')+'" data-quick-sport="'+s+'" aria-pressed="'+(s===sport)+'">'+s+'</button>';}).join('')
   +'</div>';
  var toggles=[
   ['highEv','High EV &gt;5%',quick.highEv],

@@ -16,6 +16,7 @@ import { patchProplineMarketUi } from './lib/autoscout/propline-market-runtime-p
 import { patchProplineInsightsUi } from './lib/autoscout/propline-insights-runtime-patch.mjs';
 import { patchProplineFullFrontdoor, patchProplineFullUi } from './lib/autoscout/propline-full-runtime-patch.mjs';
 import { startProplineFreshnessMonitor } from './lib/data-sources/propline/full.mjs';
+import { proplineTrafficEnabled } from './lib/data-sources/propline/client.mjs';
 import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-runtime-patch.mjs';
 import { patchReferenceAcceptanceLiveUi } from './lib/autoscout/reference-acceptance-live-runtime-patch.mjs';
 import { patchMobileNavDockUi } from './lib/autoscout/mobile-nav-dock-runtime-patch.mjs';
@@ -108,4 +109,6 @@ runtimeSource = runtimeSource.replace(uiRead, uiRuntimeRead);
 writeFileSync(runtimePath, runtimeSource, 'utf8');
 await import(pathToFileURL(runtimePath).href);
 startProplineFreshnessMonitor();
-console.log('[PropLine full] extended stats/history/markets/futures/EV/DFS/freshness/SGP surfaces ready');
+console.log(proplineTrafficEnabled()
+  ? '[PropLine full] extended stats/history/markets/futures/EV/DFS/freshness/SGP surfaces ready'
+  : '[PropLine full] dormant by provider mode; code preserved for LINE/AUTO');

@@ -1,7 +1,11 @@
-Release: SportsGameOdds local-demand cache activation, 2026-09-21
-Verified deployed parent: b66074c9aa3d894031f9b5a943aa446f3eb60482
-Deploy through the existing reviewed release gates. This follow-up keeps PropLine/public
-quotes primary and keeps SportsGameOdds paid calls usage-aware, but moves its in-memory
-gap-cache refresh onto a 60-second local demand timer so the customer-facing process can
-populate its own cache even when another process owns the database persistence lease.
-No quote-expiry widening, secret changes, database schema changes, or fabricated data.
+Release: full league Team/Opponent filter directories, 2026-09-21
+Source PR: #504
+Release SHA: ab9a39d4b9afbeeb4c49113520b7ccdb78c4129f
+Verified deployed recovery anchor: 0f5aec58a0423615a2f79362c142f2d95db1a4bc
+
+Deploy the already-merged filter repair through the existing reviewed release gates.
+The customer-facing Team and Opponent filters now use the verified league directory
+instead of only teams present on the current board or in the selected player's recent
+history, while preserving exact observed aliases for filtering. Common aliases such as
+LA Angels / Los Angeles Angels are deduplicated. No provider priority, polling cadence,
+lease, quote-expiry, auth, secret, database schema, or fabricated-history changes.

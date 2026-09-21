@@ -43,7 +43,7 @@ var { evaluatePropAgainstFilters } = await import('/assets/lib/filters/index.mjs
 var { kellyStake, sizeSlip, DEFAULT_KELLY_FRACTION } = await import('/assets/lib/betting/kelly.mjs');
 var { detectStaleLine, detectSnipe, staleLineLabel } = await import('/assets/lib/markets/line-lag.mjs');
 var { repriceProjection } = await import('/assets/lib/projections/reprice.mjs');
-function displayTeam(value){return String(value||'').replace(/^(?:nfl|nba|wnba|mlb|nhl|ncaaf|ncaab)_([a-z0-9]{2,5})$/i,(_,code)=>code.toUpperCase());}
+function displayTeam(value){var label=String(value||'').trim().replace(/^(?:nfl|nba|wnba|mlb|nhl|ncaaf|ncaab)_([a-z0-9]{2,5})$/i,(_,code)=>code.toUpperCase());return /^(?:unknown|unkn|unk|n\/a|na|tbd|null|none)$/i.test(label)?'':label;}
 function readStored(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}}
 var activeView='research', advanced={}, loadGeneration=0, loadController=null, lastFocus=null;
 var savedRouteReady=false;
@@ -392,7 +392,7 @@ function renderPropTypes(){
 }
 function playerChoiceControl(g){
  var choices=g.playerChoices||[];if(choices.length<2)return '';
- return '<label class="asPlayerChoice">'+(marketFilter==='all'?'Prop / game':'Game')+'<select data-card-choice="'+esc(playerCardKey(g))+'" aria-label="Select prop or game for '+esc(g.playerName)+'">'+choices.map(function(c){return '<option value="'+esc(c.key)+'" '+(c.key===g.key?'selected':'')+'>'+esc(shortMarket(c)+' · '+when(c.gameStartTime)+' · '+c.awayTeam+' @ '+c.homeTeam)+'</option>';}).join('')+'</select><small>'+choices.length+' selections · one player card</small></label>';
+ return '<label class="asPlayerChoice">Stat<select data-card-choice="'+esc(playerCardKey(g))+'" aria-label="Select stat category for '+esc(g.playerName)+'">'+choices.map(function(c){return '<option value="'+esc(c.key)+'" '+(c.key===g.key?'selected':'')+'>'+esc(shortMarket(c))+'</option>';}).join('')+'</select><small>'+choices.length+' stat categor'+(choices.length===1?'y':'ies')+'</small></label>';
 }
 function visible(ignoreResearch=false){
  var a=viewGroups();

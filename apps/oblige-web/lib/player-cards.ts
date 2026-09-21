@@ -152,11 +152,7 @@ const marketAliases: Record<string, string> = {
 };
 function categoryIdentity(rawKey: string, label: string, period: string, variant: string): string {
   const key = marketAliases[rawKey] || rawKey;
-  // Once a market id is in the audited display catalog, the id owns category
-  // identity. Provider prose can contain player names / side text and must not
-  // split one stat into duplicate tabs.
-  const canonical = canonicalMarketLabel(key);
-  const sameLabel = Boolean(canonical) || label === rawKey || label === key || knownMarketLabels[key]?.test(label);
+  const sameLabel = label === rawKey || label === key || label === clean(canonicalMarketLabel(key)) || knownMarketLabels[key]?.test(label);
   return JSON.stringify([key, sameLabel ? key : label, period, variant]);
 }
 function canonicalCategory(value: string): string {

@@ -31,7 +31,11 @@ const cleanEnv = {
   NODE_ENV: 'test',
 };
 
-const result = spawnSync(process.execPath, ['--test', ...testFiles], {
+// Node's default file-level test concurrency follows available CPUs. Railway's
+// metal builders can expose far more cores than CI, which makes timeout-focused
+// integration tests contend with many unrelated files at once. Keep production
+// validation bounded and reproducible without serializing the entire suite.
+const result = spawnSync(process.execPath, ['--test', '--test-concurrency=4', ...testFiles], {
   cwd: root,
   env: cleanEnv,
   stdio: 'inherit',

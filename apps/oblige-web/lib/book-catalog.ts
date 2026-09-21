@@ -11,6 +11,22 @@ export type CatalogBookRow = {
   available: boolean;
 };
 
+const DATA_PROVIDER_BOOKS = new Set([
+  'espn',
+  'sportsdataio',
+  'sportsgameodds',
+  'propline',
+  'clearsports',
+  'sportradar',
+]);
+
+const sourceBookKey = (value: unknown) =>
+  String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const isDataProviderBook = (quote: Pick<PropRow, 'sportsbook' | 'sportsbookKey'>) =>
+  DATA_PROVIDER_BOOKS.has(sourceBookKey(quote.sportsbookKey)) ||
+  DATA_PROVIDER_BOOKS.has(sourceBookKey(quote.sportsbook));
+
 /**
  * Build the book list for one exact prop line.
  *
@@ -38,6 +54,8 @@ export function catalogBookRows(quotes: PropRow[]): CatalogBookRow[] {
   }
 
   for (const quote of quotes) {
+    // Data providers are provenance, not selectable sportsbooks.
+    if (isDataProviderBook(quote)) continue;
     const rawName = String(quote.sportsbook || quote.sportsbookKey || '').trim();
     if (!rawName) continue;
 

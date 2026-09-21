@@ -1,11 +1,12 @@
-Release: full league Team/Opponent filter directories, 2026-09-21
-Source PR: #504
-Release SHA: ab9a39d4b9afbeeb4c49113520b7ccdb78c4129f
+Release: SportsGameOdds Fantasy Score line repair, 2026-09-21
+Source PR: #506
+Release SHA: 9f3e92a1c9ae1ddfc99e7c58399e7f86f4360025
 Verified deployed recovery anchor: 0f5aec58a0423615a2f79362c142f2d95db1a4bc
 
-Deploy the already-merged filter repair through the existing reviewed release gates.
-The customer-facing Team and Opponent filters now use the verified league directory
-instead of only teams present on the current board or in the selected player's recent
-history, while preserving exact observed aliases for filtering. Common aliases such as
-LA Angels / Los Angeles Angels are deduplicated. No provider priority, polling cadence,
-lease, quote-expiry, auth, secret, database schema, or fabricated-history changes.
+Deploy the already-merged SportsGameOdds Fantasy Score line repair through the existing
+reviewed release gates. SportsGameOdds fantasyScore now maps to the canonical live
+Fantasy Score identity; PrizePicks uses its exact source-qualified identity (including
+MLB hitter/pitcher), while Underdog remains on the canonical generic Fantasy Score key.
+Historical fantasy scoring remains fail-closed to verified platform-specific scoring.
+No provider-priority expansion, polling widening, lease change, quote-expiry extension,
+auth/secret mutation, database migration, or fabricated line/history data.

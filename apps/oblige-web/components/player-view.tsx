@@ -156,7 +156,7 @@ export function PlayerView() {
   const normalizedBook = selectedBook ? allBooks.find(book => book.key === selectedBook.toLowerCase() || book.label === selectedBook)?.key || selectedBook : null;
 
   return <PlayerAnalysisPage
-    analysis={{group: displayGroup, history: activeResearch, line: state.line, loading: pending, unavailable}}
+    analysis={{group: displayGroup, history: activeResearch, line: state.line, loading: pending, unavailable, onLineChange: line => setState(previous => ({ ...previous, line }))}}
     routeKind="legacy-board-premium-v2"
     player={presentation.player} market={presentation.market} selected={presentation.selected}
     team={group.team} matchupLabel={group.matchup}
@@ -170,10 +170,8 @@ export function PlayerView() {
       choose(playerMarketKey(group), offer.book, offer.line);
     }}
     onFavourite={() => toggleFavourite(group.key)}
-    research={<>
-      <PropExplorer group={displayGroup} games={games} loading={pending} unavailableReason={unavailable} currentOpponent={activeResearch?.matchup?.opponent ?? group.opponent} season={activeResearch?.season} hideBookFilter state={state} onState={setState} favourite={favourite} onFavourite={() => toggleFavourite(group.key)}/>
-      {!pending && unavailable && <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button>}
-    </>}
+    research={<PropExplorer group={displayGroup} games={games} loading={pending} unavailableReason={unavailable} currentOpponent={activeResearch?.matchup?.opponent ?? group.opponent} season={activeResearch?.season} hideBookFilter state={state} onState={setState} favourite={favourite} onFavourite={() => toggleFavourite(group.key)}/>}
+    historyRetry={!pending && unavailable ? <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button> : null}
     supporting={!pending && !unavailable && games.length > 0 ? <SplitSummary games={games} group={displayGroup} line={state.line} side={state.side}/> : null}
     model={<PostedModel group={group} side={state.side} book={presentation.selected.book} researchLine={state.line}/>}
     quoteHistory={<QuoteHistory group={group} side={presentation.selected.side || state.side} book={presentation.selected.book}/>}

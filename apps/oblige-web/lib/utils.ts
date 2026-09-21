@@ -131,12 +131,65 @@ function displayMarketKey(value?: string | null) {
   return (raw.split(':').pop() || raw).replace(/^market[_:-]?/, '');
 }
 
-function displayMarketFromKey(key: string) {
+function displayNorm(value?: string | null) {
+  return String(value || '')
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function flexiblePlayerPattern(value?: string | null) {
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/\u00a0/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\function displayMarketFromKey(key: string) {
   const bare = key.replace(/^(?:player|batter|pitcher|team)_/, '');
   if (!bare || !/^[a-z0-9_]+$/.test(bare)) return '';
   const tokens: Record<string, string> = {
     yds: 'Yards',
     tds: 'Touchdowns',
+    rbi: 'RBI',
+    rbis: 'RBIs',
+    fg: 'FG',
+    ft: 'FT',
+    qb: 'QB',
+    hr: 'HR',
+    hrs: 'HRs',
+  };
+  return bare
+    .split('_')
+    .filter(Boolean)
+    .map((token) => tokens[token] || token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
+}'))
+    .join('[\\s\\u00a0._-]+');
+}
+
+function stripPlayerFromMarket(value?: string | null, playerName?: string | null) {
+  let label = String(value || '').normalize('NFKC').replace(/\u00a0/g, ' ').trim();
+  if (!label || !playerName) return label;
+  const pattern = flexiblePlayerPattern(playerName);
+  if (pattern) label = label.replace(new RegExp(`${pattern}(?:['’]s)?`, 'ig'), ' ');
+  if (displayNorm(label) === displayNorm(playerName)) return '';
+  return label;
+}
+
+function displayMarketFromKey(key: string) {
+  const bare = key.replace(/^(?:player|batter|pitcher|team|sgo|propline|sportsgameodds)_/, '');
+  if (!bare || !/^[a-z0-9_]+$/.test(bare)) return '';
+  const tokens: Record<string, string> = {
+    yds: 'Yards',
+    tds: 'Touchdowns',
+    pts: 'Points',
+    reb: 'Rebounds',
+    rebs: 'Rebounds',
+    ast: 'Assists',
+    asts: 'Assists',
     rbi: 'RBI',
     rbis: 'RBIs',
     fg: 'FG',
@@ -168,11 +221,7 @@ export function marketDisplayLabel(
   }
   if (MARKET_DISPLAY_LABELS[key]) return MARKET_DISPLAY_LABELS[key];
 
-  let label = String(market || '').trim();
-  if (label && playerName) {
-    const escaped = String(playerName).trim().replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
-    if (escaped) label = label.replace(new RegExp(escaped, 'ig'), ' ');
-  }
+  let label = stripPlayerFromMarket(market, playerName);
   label = label
     .replace(/^\s*(?:player|batter|pitcher)\s+/i, '')
     .replace(/\b(?:over\s*\/\s*under|under\s*\/\s*over|higher\s*\/\s*lower|lower\s*\/\s*higher)\b/gi, ' ')

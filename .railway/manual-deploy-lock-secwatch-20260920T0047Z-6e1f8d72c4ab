@@ -1,5 +1,6 @@
-Release: webhook delivery-health correction, mobile nav dock fix, dead-module removal, 2026-09-21
-Release parent: 6a3a26293ee5b9001e0a4b2c815c2fa1f28cfade
-Deploy through existing Railway gates. Health reporting, one CSS transform fix
-and three unreferenced files; no provider, auth, scheduler/lease, quote-expiry,
-persistence, polling, secret, billing or database changes are included.
+Release: SportsGameOdds paid fallback + verified-ancestor release-chain repair, 2026-09-21
+Release parent: 64bf9c4c2edd51027a7eeef5ea40925e42f2ce72
+Deploy through existing Railway gates. SportsGameOdds remains secondary to PropLine/public
+quotes, the existing customer freshness limit is unchanged, and the release repair only
+allows skipped first-parent merges to be carried forward when their test, smoke, merge,
+and review evidence is verified back to the nearest successful deployed production anchor.

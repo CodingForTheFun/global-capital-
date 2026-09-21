@@ -272,7 +272,8 @@ export async function fetchResearch(
     market: group.market,
     line: String(group.line),
     side,
-    games: '20',
+    games: '100',
+    historyYears: '5',
   });
   if (group.providerPlayerId) params.set('providerPlayerId', group.providerPlayerId);
   if (group.marketId) params.set('marketId', group.marketId);

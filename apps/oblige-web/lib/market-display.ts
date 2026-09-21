@@ -70,8 +70,8 @@ const MARKET_NAMES: Record<string, string> = {
   player_turnovers: 'Turnovers', player_points_rebounds_assists: 'Points + Rebounds + Assists',
   player_points_rebounds: 'Points + Rebounds', player_points_assists: 'Points + Assists',
   player_rebounds_assists: 'Rebounds + Assists', player_fantasy_points: 'Fantasy Points',
-  batter_hits: 'Hits', batter_total_bases: 'Total Bases', batter_home_runs: 'Home Runs',
-  batter_rbis: 'RBIs', batter_runs_scored: 'Runs', batter_strikeouts: 'Batter Strikeouts',
+  batter_hits: 'Hits', batter_total_bases: 'Total Bases', batter_singles: 'Singles', batter_doubles: 'Doubles', batter_home_runs: 'Home Runs',
+  batter_rbis: 'RBIs', batter_runs_scored: 'Runs', batter_stolen_bases: 'Stolen Bases', batter_strikeouts: 'Batter Strikeouts',
   pitcher_strikeouts: 'Pitcher Strikeouts', pitcher_outs: 'Pitching Outs',
   pitcher_hits_allowed: 'Hits Allowed', pitcher_earned_runs: 'Earned Runs',
   player_shots_on_goal: 'Shots on Goal', player_goals: 'Goals',
@@ -86,11 +86,15 @@ export function humanize(value: string): string {
   return String(value || '').trim().replace(/^player[_\s]+/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').split(' ').filter(Boolean).map(word => WORDS[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 export function marketName(market: Pick<WorkspaceMarket, 'label' | 'marketKey'>): string {
+  const marketKey = String(market.marketKey || '').trim().toLowerCase();
+  // A known canonical market key is stronger evidence than a provider display string.
+  // Some feeds decorate labels with player names, outcomes or lines; never let that
+  // presentation text replace an audited stat identity.
+  if (marketKey && MARKET_NAMES[marketKey]) return MARKET_NAMES[marketKey];
   const supplied = String(market.label || '').trim().replace(/\s*[·|]\s*Period\s+[^·|]+$/i, '').trim();
-  // Preserve a provider's already readable label (including a sport-specific meaning).
   if (supplied && !supplied.includes('_')) return supplied;
-  const raw = (supplied || market.marketKey || '').toLowerCase();
-  return MARKET_NAMES[raw] || MARKET_NAMES[market.marketKey?.toLowerCase()] || humanize(supplied || market.marketKey) || 'Player Prop';
+  const raw = (supplied || marketKey).toLowerCase();
+  return MARKET_NAMES[raw] || humanize(supplied || marketKey) || 'Player Prop';
 }
 export function marketFamily(market: WorkspaceMarket): string {
   // The canonical API supplies period separately. No fuzzy identity merging.
@@ -107,7 +111,11 @@ export function marketOptionName(market: WorkspaceMarket): string {
   return [name, flavor && !name.toLowerCase().includes(flavor.toLowerCase()) ? flavor : '', market.period ? periodName(market.period) : ''].filter(Boolean).join(' · ');
 }
 export function offerVariantLabel(offer: WorkspaceOffer | null | undefined): string {
-  const value = offer?.dfsOddsType || '';
+  const raw = String(offer?.dfsOddsType || '').trim().toLowerCase();
+  // "Alternate" is only meaningful when the feed proves this quote is offset
+  // from the standard DFS line. A bare provider flag is not enough evidence.
+  const hasAlternateGap = typeof offer?.lineGap === 'number' && Number.isFinite(offer.lineGap) && offer.lineGap !== 0;
+  const value = raw === 'alternate' && !hasAlternateGap ? '' : raw;
   const flavor = ({ goblin: 'Goblin', demon: 'Demon', boost: 'Boost', discount: 'Discount', alternate: 'Alternate' } as Record<string, string>)[value] || '';
   return [flavor, offer?.multiplier != null && offer.multiplier > 0 && offer.multiplier !== 1 ? `${offer.multiplier}×` : ''].filter(Boolean).join(' · ');
 }

@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { spawn } from 'node:child_process';
 import { patchEdgeFrontdoor } from './lib/edge/frontdoor-patch.mjs';
 import { patchResearchUi } from './lib/autoscout/research-ui-runtime-patch.mjs';
 import { patchFantasyH2HUi } from './lib/autoscout/fantasy-h2h-runtime-patch.mjs';
@@ -40,6 +41,39 @@ const uiRead = "readFileSync('./apex-v2/scout-ui-v5.js', 'utf8')";
 const uiRuntimeRead = "readFileSync('./.scout-ui-v5-runtime.js', 'utf8')";
 const researchSports = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL']);";
 const researchSportsWithTennis = "const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL','SOCCER','TENNIS']);";
+
+const EMBEDDED_WEB_PORT = 3004;
+function startEmbeddedWeb() {
+  const externalFallback = String(process.env.OBLIGE_WEB_ORIGIN || '').trim();
+  if (!externalFallback) {
+    console.log('[Oblige web embedded] skipped because OBLIGE_WEB_ORIGIN rollback gate is not configured');
+    return null;
+  }
+  const origin = `http://127.0.0.1:${EMBEDDED_WEB_PORT}`;
+  process.env.OBLIGE_EMBEDDED_WEB_ORIGIN = origin;
+  const proc = spawn(
+    process.execPath,
+    ['node_modules/next/dist/bin/next', 'start', '-p', String(EMBEDDED_WEB_PORT)],
+    {
+      cwd: './apps/oblige-web',
+      env: {
+        ...process.env,
+        PORT: String(EMBEDDED_WEB_PORT),
+        NEXT_TELEMETRY_DISABLED: '1',
+        OBLIGE_BACKEND_ORIGIN: `http://127.0.0.1:${Number(process.env.PORT || 3000)}`,
+      },
+      stdio: ['ignore', 'inherit', 'inherit'],
+    },
+  );
+  proc.on('error', (error) => {
+    console.error('[Oblige web embedded] start failed; external frontend fallback remains active:', error?.message || error);
+  });
+  proc.on('exit', (code, signal) => {
+    console.error('[Oblige web embedded] exited; external frontend fallback remains active', { code, signal });
+  });
+  console.log(`[Oblige web embedded] starting on ${origin}; external fallback preserved`);
+  return proc;
+}
 
 function makeClientSafeVisualUi(source) {
   const patched = patchReferenceAcceptanceLiveUi(patchObligePropsVisualUi(source));
@@ -107,6 +141,7 @@ runtimeSource = patchMarketCoreFrontdoor(runtimeSource);
 if (!runtimeSource.includes(uiRead)) throw new Error('ClearSports bootstrap could not locate the edge-patched Auto Scout UI source.');
 runtimeSource = runtimeSource.replace(uiRead, uiRuntimeRead);
 writeFileSync(runtimePath, runtimeSource, 'utf8');
+startEmbeddedWeb();
 await import(pathToFileURL(runtimePath).href);
 startProplineFreshnessMonitor();
 console.log(proplineTrafficEnabled()

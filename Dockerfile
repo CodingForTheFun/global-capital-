@@ -11,6 +11,13 @@ COPY . .
 RUN npm run check
 # Build the production runtime only after validation passes.
 RUN node scripts/prepare-edge-deploy.mjs
+# Build the current Next.js customer frontend inside the already-gated backend
+# image. The frontdoor serves this copy first and retains the standalone
+# Railway frontend as a fallback, so a frontend-builder outage cannot pin
+# customers to an older UI release.
+RUN npm ci --prefix apps/oblige-web --no-audit --no-fund
+RUN NEXT_TELEMETRY_DISABLED=1 npm run build --prefix apps/oblige-web
+RUN npm prune --omit=dev --prefix apps/oblige-web --no-audit --no-fund
 # Defense in depth: retired frontend source must never survive into runtime.
 RUN rm -rf /app/apps/g*dashboard /app/apps/ticket-dashboard
 

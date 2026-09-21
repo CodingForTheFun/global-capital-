@@ -92,19 +92,16 @@ export function humanize(value: string): string {
   return String(value || '').trim().replace(/^player[_\s]+/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').split(' ').filter(Boolean).map(word => WORDS[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 export function marketName(market: Pick<WorkspaceMarket, 'label' | 'marketKey'>): string {
-  // A recognized normalized market id is stronger evidence than provider prose.
-  // Some upstream labels include the athlete and side (for example
-  // "Abimelec Ortiz Doubles Over"); never let that leak into stat tabs.
-  const canonical = canonicalMarketLabel(market.marketKey || '');
-  if (canonical) return canonical;
   const supplied = String(market.label || '')
     .trim()
     .replace(/\s*[·|]\s*Period\s+[^·|]+$/i, '')
     .replace(/\s+(?:over|under)(?:\s+[+-]?\d+(?:\.\d+)?)?$/i, '')
     .trim();
+  // Preserve verified readable provider labels. The legacy presentation
+  // adapter removes an exact player prefix before this display helper runs.
   if (supplied && !supplied.includes('_')) return supplied;
   const raw = (supplied || market.marketKey || '').toLowerCase();
-  return canonicalMarketLabel(raw) || humanize(supplied || market.marketKey) || 'Player Prop';
+  return canonicalMarketLabel(raw) || canonicalMarketLabel(market.marketKey || '') || humanize(supplied || market.marketKey) || 'Player Prop';
 }
 export function marketFamily(market: WorkspaceMarket): string {
   // The canonical API supplies period separately. No fuzzy identity merging.

@@ -5,7 +5,7 @@ import { Minus, Plus, Star, RotateCcw } from 'lucide-react';
 import type { GameLogRow, PropGroup, PropRow, ResearchResponse } from '@/lib/types';
 import { catalogBookRows } from '@/lib/book-catalog';
 import { applyFilters, buildWindows, computeWindow, distinct, EMPTY_FILTERS, filtersActive, headToHead, sampleFor, sortRecentFirst, type SampleFilters, type SampleId, type Side, type Window as ResearchWindow } from '@/lib/analytics';
-import { odds, shortDate } from '@/lib/utils';
+import { marketDisplayLabel, odds, shortDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppliedFilter } from '@/components/applied-filter';
 import { buildOpponentOptions, sameTeamLabel } from '@/lib/opponent-options';
@@ -104,7 +104,7 @@ export function PropExplorer({ group, games, loading, unavailableReason, leagueT
   function step(amount: number) { onState({ ...state, line: Math.max(0, Math.round((state.line + amount) * 100) / 100) }); }
 
   return <div className="research-reference" data-release="oblige-installable-20260918">
-    <div className="op-research-title"><div><span>PLAYER RESEARCH</span><h3>{group.market}</h3></div><button type="button" className="op-follow" aria-label={favourite ? `Unfollow ${group.player}` : `Follow ${group.player}`} aria-pressed={favourite} onClick={onFavourite} title="Follow on this device"><Star size={19} fill={favourite ? 'currentColor' : 'none'} /></button></div>
+    <div className="op-research-title"><div><span>PLAYER RESEARCH</span><h3>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</h3></div><button type="button" className="op-follow" aria-label={favourite ? `Unfollow ${group.player}` : `Follow ${group.player}`} aria-pressed={favourite} onClick={onFavourite} title="Follow on this device"><Star size={19} fill={favourite ? 'currentColor' : 'none'} /></button></div>
     <div className="op-research-filters">
       <AppliedFilter key={`${group.key}-opponent`} label="Opponent" value={filters.opponent} options={opponentOptions} onApply={opponent => setFilters(previous => ({ ...previous, opponent }))} />
       <AppliedFilter key={`${group.key}-season`} label="Season" value={filters.season} options={options(seasons)} onApply={season => setFilters(previous => ({ ...previous, season }))} />
@@ -118,7 +118,7 @@ export function PropExplorer({ group, games, loading, unavailableReason, leagueT
     </div>
     <p className="op-price-note">{activeBook ? (activeBook.available ? `${activeBook.name} · Prices shown at posted line ${group.line}.` : `${activeBook.name} · No line posted for this exact prop.`) : `Best available book prices · Posted line ${group.line}.`}{moved && <> Research line adjusted to {state.line}. <button type="button" onClick={() => onState({ ...state, line: group.line })}>Reset line</button></>}</p>
     {loading ? <Skeleton className="h-[90px]" /> : <div className="op-samples" aria-label="History windows">{windows.map(item => <SampleTile key={item.id} window={item} selected={sample === item.id} onSelect={() => setSample(item.id as ChartSample)} />)}{h2h && <SampleTile window={{ ...h2h, label: `H2H · ${group.opponent}` }} selected={sample === 'h2h'} onSelect={() => setSample('h2h')} />}</div>}
-    {loading ? <Skeleton className="h-[230px]" /> : unavailableReason ? <div className="op-no-history"><strong>Verified history unavailable</strong><p>{unavailableReason}</p></div> : <section className="op-chart-section"><div className="op-chart-heading"><h4>{sample === 'h2h' ? `Head to head · ${group.opponent}` : sample === 'season' ? 'Available history' : `Last ${sample.slice(1)} games`} · {group.market}</h4><span>{summary.hits}/{summary.games} hits · {summary.hitRate ?? '—'}{summary.hitRate === null ? '' : '%'} · Avg {summary.average ?? '—'}</span></div><div className="op-chart-legend"><span>Hit</span><span>Miss</span><span>Push</span><span>— Research line</span></div><ValueChart games={chartGames} line={state.line} side={state.side} /></section>}
+    {loading ? <Skeleton className="h-[230px]" /> : unavailableReason ? <div className="op-no-history"><strong>Verified history unavailable</strong><p>{unavailableReason}</p></div> : <section className="op-chart-section"><div className="op-chart-heading"><h4>{sample === 'h2h' ? `Head to head · ${group.opponent}` : sample === 'season' ? 'Available history' : `Last ${sample.slice(1)} games`} · {marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</h4><span>{summary.hits}/{summary.games} hits · {summary.hitRate ?? '—'}{summary.hitRate === null ? '' : '%'} · Avg {summary.average ?? '—'}</span></div><div className="op-chart-legend"><span>Hit</span><span>Miss</span><span>Push</span><span>— Research line</span></div><ValueChart games={chartGames} line={state.line} side={state.side} /></section>}
     <p className="op-research-footnote">Rates use verified games played. Pushes remain in the denominator. Missing/DNP values are excluded. “Available” describes the returned sample, not a claim of complete season coverage.</p>
   </div>;
 }

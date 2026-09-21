@@ -91,3 +91,70 @@ test('mutations are never claimed, so they keep hitting the real handlers', asyn
   const r = res();
   assert.equal(await serveNewWeb({ method: 'POST', url: '/', headers: {} }, r, { origin: 'https://x' }), false);
 });
+
+
+test('stale frontend still gets the Scores tab injected into normal HTML pages', async () => {
+  const r = res();
+  const served = await serveNewWeb(
+    { method: 'GET', url: '/', headers: { host: 'www.obligeprops.com' } },
+    r,
+    {
+      origin: 'https://x',
+      fetchImpl: async () => new Response('<html><body><main id="main"></main><nav aria-label="Sections"><a href="/">Home</a><a href="/board">Props</a><a href="/research">Research</a><a href="/account">Profile</a></nav></body></html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      }),
+    },
+  );
+  assert.equal(served, true);
+  assert.equal(r.status, 200);
+  assert.equal(r.headers['x-oblige-scores-compat'], 'nav');
+  assert.match(String(r.body), /oblige-scores-compat-script/);
+  assert.match(String(r.body), /a\[href="\/scores"\]/);
+  assert.match(String(r.body), /repeat\(5,minmax\(0,1fr\)\)/);
+});
+
+test('/scores falls back to the deployed home shell when the frontend route is stale', async () => {
+  const r = res();
+  const seen = [];
+  const served = await serveNewWeb(
+    { method: 'GET', url: '/scores', headers: { host: 'www.obligeprops.com' } },
+    r,
+    {
+      origin: 'https://x',
+      fetchImpl: async (u) => {
+        seen.push(String(u));
+        if (String(u).endsWith('/scores')) return new Response('not found', { status: 404, headers: { 'content-type': 'text/html' } });
+        return new Response('<html><body><main id="main">home</main><nav aria-label="Sections"></nav></body></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        });
+      },
+    },
+  );
+  assert.equal(served, true);
+  assert.deepEqual(seen, ['https://x/scores', 'https://x/']);
+  assert.equal(r.status, 200);
+  assert.equal(r.headers['x-oblige-scores-compat'], 'fallback');
+  assert.match(String(r.body), /oblige-scores-compat-style/);
+  assert.match(String(r.body), /var fallback=true/);
+  assert.match(String(r.body), /\/api\/live\?sports=NFL,NBA,SOCCER,NHL,MLB/);
+});
+
+test('frontend binary and non-HTML assets are never modified by Scores compatibility', async () => {
+  const r = res();
+  const served = await serveNewWeb(
+    { method: 'GET', url: '/icon.svg', headers: {} },
+    r,
+    {
+      origin: 'https://x',
+      fetchImpl: async () => new Response('<svg>ok</svg>', {
+        status: 200,
+        headers: { 'content-type': 'image/svg+xml' },
+      }),
+    },
+  );
+  assert.equal(served, true);
+  assert.equal(String(r.body), '<svg>ok</svg>');
+  assert.equal(r.headers['x-oblige-scores-compat'], undefined);
+});

@@ -229,6 +229,25 @@
   gap: 6px;
 }
 
+.secondaryFilterRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.secondaryFilterRow::-webkit-scrollbar {
+  display: none;
+}
+
+.secondaryFilterRow .selectControl {
+  position: relative;
+  flex: 1 1 180px;
+  max-width: 260px;
+}
+
 .searchBox,
 .selectControl,
 .slipButton {
@@ -1316,6 +1335,16 @@
 
   .selectControl:nth-of-type(3) {
     display: none;
+  }
+
+  .secondaryFilterRow .selectControl {
+    display: flex;
+    flex: 0 0 38px;
+    width: 38px;
+  }
+
+  .secondaryFilterRow .selectControl:nth-of-type(3) {
+    display: flex;
   }
 
   .slipButton {

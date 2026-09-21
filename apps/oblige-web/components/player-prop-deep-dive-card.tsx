@@ -407,7 +407,8 @@ export function PlayerPropDeepDiveCard({
 
         <button type="button" onClick={() => setShowFullResearch(value => !value)} aria-expanded={showFullResearch} className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500 text-sm font-black text-white shadow-[0_10px_32px_rgba(37,99,235,0.22)] transition hover:brightness-110">{showFullResearch ? 'Hide Full Research' : 'View Full Research'}<ArrowRight className={`h-4 w-4 transition-transform ${showFullResearch ? 'rotate-90' : 'group-hover:translate-x-1'}`}/></button>
 
-        {showFullResearch && <div className="space-y-4 rounded-2xl border border-slate-800 bg-[#0d1420] p-3 sm:p-4" id="full-research"><div>{research}</div>{supporting && <div>{supporting}</div>}{analysisSections}{quoteHistory}{gameLog}<section className="rounded-xl border border-slate-800 bg-slate-950/40 p-3"><div className="mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Model choice</div>{model}</section></div>}
+        <section className={showFullResearch ? "rounded-2xl border border-slate-800 bg-[#0d1420] p-3 sm:p-4" : "sr-only"} aria-hidden={showFullResearch ? undefined : false}><div className={showFullResearch ? "mb-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500" : "sr-only"}>Model choice</div>{model}</section>
+        {showFullResearch && <div className="space-y-4 rounded-2xl border border-slate-800 bg-[#0d1420] p-3 sm:p-4" id="full-research"><div>{research}</div>{supporting && <div>{supporting}</div>}{analysisSections}{quoteHistory}{gameLog}</div>}
       </div>
     </div>
   </section>;

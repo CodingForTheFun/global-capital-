@@ -29,7 +29,7 @@ import {
   fetchResearch,
   windowOf,
 } from '@/lib/api';
-import { pctValue } from '@/lib/utils';
+import { marketDisplayLabel, pctValue } from '@/lib/utils';
 import { SignInPanel } from '@/components/sign-in';
 import styles from './bethoops-board.module.css';
 
@@ -38,6 +38,8 @@ const PAGE_SIZE = 24;
 const FALLBACK_REFRESH_MS = 60_000;
 const STREAM_REFRESH_DEBOUNCE_MS = 500;
 const ALL = 'ALL';
+const statCategory = (group: PropGroup) =>
+  marketDisplayLabel(group.market, group.player, group.marketId, group.sport);
 
 type Tab = 'predictions' | 'history';
 type FeedMode = 'connecting' | 'live' | 'fallback';
@@ -288,16 +290,16 @@ export function BetHoopsBoard() {
   }, [checking, account, sport]);
 
   const markets = React.useMemo(
-    () => [...new Set(groups.map((group) => group.market).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    () => [...new Set(groups.map(statCategory).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [groups],
   );
 
   const filtered = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
     return groups.filter((group) => {
-      if (market !== ALL && group.market !== market) return false;
+      if (market !== ALL && statCategory(group) !== market) return false;
       if (!needle) return true;
-      return `${group.player} ${group.market} ${group.matchup} ${group.team || ''} ${group.opponent || ''}`
+      return `${group.player} ${group.market} ${statCategory(group)} ${group.matchup} ${group.team || ''} ${group.opponent || ''}`
         .toLowerCase()
         .includes(needle);
     });

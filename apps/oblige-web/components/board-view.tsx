@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { BarChart3, Bookmark, CalendarDays, ChevronDown, Search, Settings2, SlidersHorizontal, Swords, TriangleAlert, User, Users } from 'lucide-react';
 import type { BoardMeta, PropGroup, ResearchWindow } from '@/lib/types';
 import { ApiError, fetchAccount, fetchBoard, fetchResearch, windowOf } from '@/lib/api';
-import { cn, pctValue } from '@/lib/utils';
+import { cn, marketDisplayLabel, pctValue } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PropCard, PropCardSkeleton, type PropCardStats } from '@/components/face-card';
@@ -88,6 +88,8 @@ const AUTO_REFRESH_MS = 15_000;
 const bookName = (value: unknown) => String(value || '').trim();
 const sortedUnique = (values: Array<string | null | undefined>) =>
   [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+const statCategory = (group: PropGroup) =>
+  marketDisplayLabel(group.market, group.player, group.marketId, group.sport);
 
 export function BoardView() {
   const router = useRouter();
@@ -221,7 +223,7 @@ export function BoardView() {
       }
     }
     return {
-      markets: sortedUnique(groups.map((group) => group.market)),
+      markets: sortedUnique(groups.map(statCategory)),
       teams: sortedUnique(groups.map((group) => group.team)),
       opponents: sortedUnique(groups.map((group) => group.opponent)),
       games: sortedUnique(groups.map((group) => group.matchup)),
@@ -240,8 +242,8 @@ export function BoardView() {
 
   const visible = React.useMemo(() => {
     const filtered = groups.filter((group) => {
-      if (debounced && !`${group.player} ${group.market} ${group.matchup}`.toLowerCase().includes(debounced)) return false;
-      if (marketFilter !== ALL && group.market !== marketFilter) return false;
+      if (debounced && !`${group.player} ${group.market} ${statCategory(group)} ${group.matchup}`.toLowerCase().includes(debounced)) return false;
+      if (marketFilter !== ALL && statCategory(group) !== marketFilter) return false;
       if (teamFilter !== ALL && group.team !== teamFilter) return false;
       if (opponentFilter !== ALL && group.opponent !== opponentFilter) return false;
       if (gameFilter !== ALL && group.matchup !== gameFilter) return false;
@@ -523,7 +525,7 @@ export function BoardView() {
             />
             <CompactFilterSelect
               icon={<BarChart3 className="size-5" aria-hidden="true" />}
-              label="Stats"
+              label="Stat"
               value={marketFilter}
               onChange={setMarketFilter}
               options={filterOptions.markets}
@@ -675,7 +677,7 @@ export function BoardView() {
                 ))}
               </select>
             </label>
-            <FilterSelect label="Market" value={marketFilter} onChange={setMarketFilter} options={filterOptions.markets} />
+            <FilterSelect label="Stat" value={marketFilter} onChange={setMarketFilter} options={filterOptions.markets} />
             <FilterSelect label="Team" value={teamFilter} onChange={setTeamFilter} options={filterOptions.teams} />
             <FilterSelect label="Opponent" value={opponentFilter} onChange={setOpponentFilter} options={filterOptions.opponents} />
             <FilterSelect label="Game" value={gameFilter} onChange={setGameFilter} options={filterOptions.games} />

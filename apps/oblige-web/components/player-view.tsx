@@ -170,7 +170,7 @@ export function PlayerView() {
       choose(playerMarketKey(group), offer.book, offer.line);
     }}
     onFavourite={() => toggleFavourite(group.key)}
-    research={<PropExplorer group={displayGroup} games={games} loading={pending} unavailableReason={unavailable} currentOpponent={activeResearch?.matchup?.opponent ?? group.opponent} season={activeResearch?.season} hideBookFilter state={state} onState={setState} favourite={favourite} onFavourite={() => toggleFavourite(group.key)}/>}
+    research={<PropExplorer group={displayGroup} games={games} loading={pending} unavailableReason={unavailable} leagueTeams={activeResearch?.leagueTeams || []} currentOpponent={activeResearch?.matchup?.opponent ?? group.opponent} season={activeResearch?.season} hideBookFilter state={state} onState={setState} favourite={favourite} onFavourite={() => toggleFavourite(group.key)}/>}
     historyRetry={!pending && unavailable ? <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button> : null}
     supporting={!pending && !unavailable && games.length > 0 ? <SplitSummary games={games} group={displayGroup} line={state.line} side={state.side}/> : null}
     model={<PostedModel group={group} side={state.side} book={presentation.selected.book} researchLine={state.line}/>}

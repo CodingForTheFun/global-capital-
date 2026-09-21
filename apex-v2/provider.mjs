@@ -245,21 +245,23 @@ async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
     }
   }
 
+  const livePromise = options.cacheOnly === true
+    ? null
+    : fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false });
+
   let persisted = [];
   if (publicPersistenceConfigured()) {
     try { persisted = await readPublicProps(sport); } catch {}
   }
   const persistedBoard = filterCustomerBoardFreshness(persistedSportsGameOddsBoard(persisted, sport));
   if (persistedBoard.props.length) {
-    if (options.cacheOnly !== true) {
-      void fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false }).catch(() => {});
-    }
+    if (livePromise) void livePromise.catch(() => {});
     return persistedBoard;
   }
 
   if (options.cacheOnly === true) return persistedBoard;
 
-  const live = await fetchSportsGameOddsBoard(sport, { ...options, force: options.force === true, cacheOnly: false });
+  const live = await livePromise;
   return filterCustomerBoardFreshness({
     ...live,
     meta: { ...(live.meta || {}), publicFeedsActive: false, providerMode: 'sportsgameodds' },

@@ -10,6 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pull-requests: read
   issues: read
@@ -30,6 +31,10 @@ jobs:
             const sha = context.sha;
             const branch = 'production-stable';
             const railwayContext = 'AutoProp Scout Pro - autoprop-live';
+            const requiredParentWorkflows = [
+              'Auto Scout release checks',
+              'Oblige Props production smoke',
+            ];
             const trustedAssociations = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
             const safeMarker = /\bSAFE\s+TO\s+MERGE\b/i;
             const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -45,17 +50,52 @@ jobs:
               return;
             }
 
+            const { data: parentRunData } = await github.rest.actions.listWorkflowRunsForRepo({
+              owner,
+              repo,
+              branch,
+              event: 'push',
+              head_sha: parentSha,
+              per_page: 100,
+            });
+            const parentRuns = parentRunData.workflow_runs || [];
+            const parentWorkflowRuns = new Map();
+            for (const name of requiredParentWorkflows) {
+              const run = parentRuns
+                .filter((candidate) => candidate.name === name && candidate.head_sha === parentSha)
+                .sort((a, b) => Date.parse(b.updated_at || b.created_at || '') - Date.parse(a.updated_at || a.created_at || ''))[0];
+              if (!run || run.status !== 'completed' || run.conclusion !== 'success') {
+                core.setFailed(
+                  `Release parent ${parentSha.slice(0, 12)} lacks a successful ${name} push run. Failed or skipped release parents cannot serialize production.`,
+                );
+                return;
+              }
+              parentWorkflowRuns.set(name, run);
+            }
+
+            const parentVerifiedAt = Math.max(
+              ...requiredParentWorkflows.map((name) => {
+                const run = parentWorkflowRuns.get(name);
+                return Date.parse(run?.updated_at || run?.created_at || '') || 0;
+              }),
+            );
+
             const { data: parentStatus } = await github.rest.repos.getCombinedStatusForRef({
               owner,
               repo,
               ref: parentSha,
             });
-            const parentWasDeployed = parentStatus.statuses.some(
-              (status) => status.context === railwayContext && status.state === 'success',
-            );
-            if (!parentWasDeployed) {
+            const parentDeploymentStatus = parentStatus.statuses
+              .filter((status) =>
+                status.context === railwayContext
+                && status.state === 'success'
+                && /\/service\/f6d34023-04e3-4799-a3c4-defab50a7a1e\?id=/.test(status.target_url || ''),
+              )
+              .sort((a, b) => Date.parse(b.created_at || '') - Date.parse(a.created_at || ''))
+              .find((status) => (Date.parse(status.created_at || '') || 0) > parentVerifiedAt);
+            if (!parentDeploymentStatus) {
               core.setFailed(
-                `Release parent ${parentSha.slice(0, 12)} has no successful ${railwayContext} status. This serializes production releases and prevents an undeployed direct push from being carried into a later release.`,
+                `Release parent ${parentSha.slice(0, 12)} has no successful autoprop-live deployment status created after its required CI completed. Railway watch-path skips must not count as deployed parents.`,
               );
               return;
             }
@@ -141,7 +181,7 @@ jobs:
             }
 
             core.info(
-              `Release gate passed for PR #${pr.number}; parent ${parentSha.slice(0, 12)} was previously deployed and review evidence is present.`,
+              `Release gate passed for PR #${pr.number}; parent ${parentSha.slice(0, 12)} has successful post-CI deployment proof and review evidence is present.`,
             );
 
   test:

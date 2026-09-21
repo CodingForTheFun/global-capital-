@@ -42,11 +42,52 @@ export function projectionEdge(prop) {
   return String(prop.side).toUpperCase() === 'UNDER' ? line - projection : projection - line;
 }
 
-function sourceLabel(prop) {
-  if (prop?.sportsbook) return prop.sportsbook;
-  if (String(prop?.provider || '').toLowerCase() === 'pickfinder') return 'PickFinder';
-  if (String(prop?.provider || '').toLowerCase() === 'sportsdataio') return 'SportsDataIO';
-  return prop?.sourceLabel || prop?.provider || 'Source';
+function canonicalSource(value, prop = null) {
+  const raw = [value, prop?.source, prop?.provider].filter(Boolean).join(' ').toLowerCase();
+  if (raw.includes('sportsgameodds') || prop?.sportsGameOddsOddId || prop?.sportsGameOddsPlayerId) return 'SportsGameOdds';
+  if (raw.includes('propline') || raw.includes('prop line')) return 'PropLine';
+  if (raw.includes('espn')) return 'ESPN';
+  if (raw.includes('sportsdataio')) return 'SportsDataIO';
+  if (raw.includes('clearsports')) return 'ClearSports';
+  return null;
+}
+
+export function cardDataSources(prop) {
+  const values = [
+    ...(Array.isArray(prop?.dataSources) ? prop.dataSources : []),
+    ...(Array.isArray(prop?.sources) ? prop.sources : []),
+    prop?.source,
+    prop?.provider,
+    prop?.researchSource,
+    prop?.research?.source,
+    prop?.research?.fallback?.source,
+  ];
+  const labels = [];
+  for (const value of values) {
+    const label = canonicalSource(value, prop);
+    if (label && !labels.includes(label)) labels.push(label);
+  }
+  return labels;
+}
+
+export function freshnessLabel(value, now = Date.now()) {
+  const at = Date.parse(String(value || ''));
+  if (!Number.isFinite(at)) return 'Update time unavailable';
+  const seconds = Math.max(0, Math.floor((now - at) / 1000));
+  if (seconds < 60) return `Updated ${seconds}s ago`;
+  if (seconds < 3600) return `Updated ${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `Updated ${Math.floor(seconds / 3600)}h ago`;
+  return `Updated ${Math.floor(seconds / 86400)}d ago`;
+}
+
+function sourceMeta(prop) {
+  const labels = cardDataSources(prop);
+  const label = labels.length > 1 ? 'Multi-source' : labels[0] || 'Verified data';
+  const kind = label === 'PropLine' ? 'propline'
+    : label === 'SportsGameOdds' ? 'sportsgameodds'
+      : label === 'ESPN' ? 'espn'
+        : label === 'Multi-source' ? 'multi' : 'verified';
+  return { labels, label, kind, count: labels.length };
 }
 
 function rate(value) {
@@ -77,6 +118,7 @@ export function renderPropCard(prop, { rank = null } = {}) {
   const rates = prop?.hitRates || {};
   const confidence = finiteOrNull(prop?.confidence);
   const matchup = [prop?.team, prop?.opponent ? `vs ${prop.opponent}` : null].filter(Boolean).join(' · ');
+  const provenance = sourceMeta(prop);
   const badges = [];
   if (live) badges.push('<span class="context-badge live">LIVE</span>');
   if (prop?.injuryStatus) badges.push(`<span class="context-badge ${String(prop.injuryStatus).toUpperCase() === 'ACTIVE' ? 'good' : 'warn'}">${esc(prop.injuryStatus)}</span>`);
@@ -85,7 +127,14 @@ export function renderPropCard(prop, { rank = null } = {}) {
 
   return `<article class="prop-card compact-card" tabindex="0" role="button" data-prop-id="${esc(prop?.id)}" aria-label="Open ${esc(prop?.playerName || 'player')} ${esc(prop?.market || 'prop')} details">
     ${rank ? `<span class="rank-badge">#${rank}</span>` : ''}
-    <div class="prop-source"><span>${esc(sourceLabel(prop))}</span><time>${prop?.updatedAt ? esc(fmtTime(prop.updatedAt)) : 'freshness N/A'}</time></div>
+    <div class="prop-source">
+      <div class="prop-source-meta">
+        <span class="data-source-chip ${esc(provenance.kind)}" title="${esc(provenance.labels.join(' + ') || provenance.label)}">${esc(provenance.label)}</span>
+        ${provenance.count > 1 ? `<span class="data-source-count">${provenance.count} sources</span>` : ''}
+        ${prop?.sportsbook ? `<span class="prop-book-name">${esc(prop.sportsbook)}</span>` : ''}
+      </div>
+      <time>${esc(freshnessLabel(prop?.providerUpdatedAt || prop?.updatedAt || prop?.ingestedAt))}</time>
+    </div>
     <div class="prop-top compact-top">
       <div class="player-block">
         <small>${esc(prop?.sport || 'SPORT')}${prop?.gameStartTime ? ` · ${esc(fmtTime(prop.gameStartTime))}` : ''}</small>

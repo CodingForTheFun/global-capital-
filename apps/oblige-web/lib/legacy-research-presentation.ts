@@ -1,6 +1,7 @@
 import type { PropGroup, PropRow, Side } from './types';
 import type { WorkspacePlayer, WorkspaceMarket, WorkspaceOffer } from './workspace';
 import { quotePeriod, quoteVariant, variantKey } from './prop-signals';
+import { isWageringBookQuote } from './quote-books';
 
 export type LegacyCategory = { key: string; label: string; variants: PropGroup[] };
 type QuoteMetadata = PropRow & { period?: string; periodKey?: string; dfs?: boolean; dfsOddsType?: string; dfs_odds_type?: string; multiplier?: number | string; payoutMultiplier?: number | string; conflict?: boolean };
@@ -23,7 +24,8 @@ export function legacyPeriod(group: PropGroup): { period: string | null; label: 
 function offerFor(category: string, group: PropGroup, row: PropRow): WorkspaceOffer | null {
   const metadata = row as QuoteMetadata;
   const book = clean(row.sportsbookKey || row.sportsbook);
-  if (!book) return null;
+  // Provider/research rows can enrich a prop, but they are not selectable books.
+  if (!book || !isWageringBookQuote(row)) return null;
   const rawSide = String(row.side || '').trim().toUpperCase();
   const side: Side | null = rawSide === 'OVER' || rawSide === 'UNDER' ? rawSide : null;
   const line = numeric(row.line) ?? group.line;
@@ -73,6 +75,7 @@ export function legacyPresentation(categories: LegacyCategory[], group: PropGrou
   const selected = target && market ? market.offers.find(offer => offer.key === target.key) || null : null;
   const player: WorkspacePlayer = {
     key: cardKey || group.key, playerId: group.providerPlayerId, name: group.player,
+    position: group.position ?? null,
     aliases: [group.player], sport: group.sport,
     eventId: String(group.quotes.find(row => row.eventId)?.eventId || ''),
     startsAt: group.startsAt, homeTeam: group.homeTeam, awayTeam: group.awayTeam, markets,

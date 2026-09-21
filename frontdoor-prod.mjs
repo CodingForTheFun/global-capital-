@@ -229,7 +229,8 @@ async function maybeServeResearch(req, res) {
       gameStartTime: safeParam(url, 'gameStartTime', 40) || null,
       line,
       side,
-      games: Math.min(40, Math.max(5, Number(url.searchParams.get('games')) || 20)),
+      games: Math.min(100, Math.max(5, Number(url.searchParams.get('games')) || 20)),
+      historyYears: Math.min(5, Math.max(1, Math.floor(Number(url.searchParams.get('historyYears')) || 1))),
     });
     // Any fetched log is a chance to settle open projections for this player,
     // at no extra provider cost. Fire and forget: grading must never delay or

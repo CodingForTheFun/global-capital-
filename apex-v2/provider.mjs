@@ -2,7 +2,7 @@ import {appendPublicFeeds,publicFeeds} from '../lib/ingestion/public-feeds.mjs';
 import {normalizedDataFromBoardRows} from '../lib/ingestion/normalize.mjs';
 import { publicPersistenceConfigured, readPublicProps } from '../lib/ingestion/public-persistence.mjs';
 import { mergeCachedPropline, proplineSupplementHealth } from '../lib/ingestion/propline-supplement.mjs';
-import { mergeCachedSportsGameOdds, sportsGameOddsSupplementHealth } from '../lib/ingestion/sportsgameodds-supplement.mjs';
+import { mergeCachedSportsGameOdds, sportsGameOddsSupplementHealth, noteSportsGameOddsDemand } from '../lib/ingestion/sportsgameodds-supplement.mjs';
 import { mergeCachedSportradar, sportradarSupplementHealth } from '../lib/ingestion/sportradar-supplement.mjs';
 import { filterCustomerBoardFreshness } from '../lib/ingestion/customer-prop-freshness.mjs';
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
@@ -160,6 +160,109 @@ function stripProviderRows(board, providerId) {
       },
     },
   };
+}
+
+function persistedSportsGameOddsBoard(rows, sport) {
+  const accepted = (Array.isArray(rows) ? rows : []).filter((row) =>
+    rowProvider(row) === 'sportsgameodds'
+    && text(row?.sport).toUpperCase() === sport
+    && row?.isAlternate !== true
+    && num(row?.line) !== null
+    && ['OVER','UNDER'].includes(text(row?.side).toUpperCase()));
+  const now = new Date().toISOString();
+  if (!accepted.length) {
+    return {
+      props: [],
+      data: { events: [], players: [], props: [], lines: [] },
+      meta: {
+        provider: 'SportsGameOdds',
+        preferredProvider: 'SportsGameOdds',
+        sport,
+        fetchedAt: now,
+        ingestionTimestamp: now,
+        cacheHit: true,
+        stale: false,
+        sportsbooks: [],
+        sportsbookCount: 0,
+        propCount: 0,
+        lineCount: 0,
+        events: 0,
+        regularLinesOnly: true,
+        includesAlternates: false,
+        publicFeedsActive: false,
+        persistedProviderRows: 0,
+      },
+    };
+  }
+  const data = normalizedDataFromBoardRows(accepted);
+  const books = [...new Set(accepted.map((row) => text(row?.sportsbookKey).toLowerCase()).filter(Boolean))].sort();
+  const fetchedAt = accepted
+    .map((row) => row?.ingestedAt || row?.observedAt || row?.providerUpdatedAt || row?.updatedAt)
+    .filter((value) => Number.isFinite(Date.parse(value || '')))
+    .sort((a, b) => Date.parse(b) - Date.parse(a))[0] || now;
+  return {
+    props: accepted,
+    data,
+    meta: {
+      provider: 'SportsGameOdds persisted cache',
+      preferredProvider: 'SportsGameOdds',
+      sport,
+      fetchedAt,
+      ingestionTimestamp: fetchedAt,
+      cacheHit: true,
+      stale: false,
+      sportsbooks: books,
+      sportsbookCount: books.length,
+      propCount: data.props.length,
+      lineCount: accepted.length,
+      events: data.events.length,
+      regularLinesOnly: true,
+      includesAlternates: false,
+      publicFeedsActive: false,
+      persistedProviderRows: accepted.length,
+    },
+  };
+}
+
+async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
+  noteSportsGameOddsDemand(sport);
+  let cached = null;
+  try {
+    cached = await fetchBaseBoard(sport, { ...options, force: false, cacheOnly: true });
+  } catch {}
+
+  if (cached?.props?.length) {
+    const filtered = filterCustomerBoardFreshness({
+      ...cached,
+      meta: { ...(cached.meta || {}), publicFeedsActive: false, providerMode: 'sportsgameodds' },
+    });
+    if (filtered.props.length) {
+      if (cached?.meta?.stale === true && options.cacheOnly !== true) {
+        void fetchBaseBoard(sport, { ...options, force: true, cacheOnly: false }).catch(() => {});
+      }
+      return filtered;
+    }
+  }
+
+  let persisted = [];
+  if (publicPersistenceConfigured()) {
+    try { persisted = await readPublicProps(sport); } catch {}
+  }
+  const persistedBoard = filterCustomerBoardFreshness(persistedSportsGameOddsBoard(persisted, sport));
+  if (persistedBoard.props.length) {
+    if (options.cacheOnly !== true) {
+      void fetchBaseBoard(sport, { ...options, force: true, cacheOnly: false }).catch(() => {});
+    }
+    return persistedBoard;
+  }
+
+  if (options.cacheOnly === true) return persistedBoard;
+
+  const live = await fetchBaseBoard(sport, { ...options, force: options.force === true, cacheOnly: false });
+  return filterCustomerBoardFreshness({
+    ...live,
+    meta: { ...(live.meta || {}), publicFeedsActive: false, providerMode: 'sportsgameodds' },
+  });
 }
 
 function mergeProviderCaches(board, sport) {
@@ -341,6 +444,10 @@ async function fetchPublicFirstBoard(sport, options) {
 
 export async function fetchUnifiedBoard(league,options={}) {
   const sport=text(league||'NFL').toUpperCase();
+  const mode = propProviderMode();
+  if (mode === 'sportsgameodds') {
+    return fetchSportsGameOddsOnlyBoard(sport, options);
+  }
   if(options.refreshPublicFeeds===true&&!options.cacheOnly)await publicFeeds.refresh();
 
   if (publicPersistenceConfigured() && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false') {
@@ -369,11 +476,13 @@ export async function fetchUnifiedBoard(league,options={}) {
 }
 
 export function providerDiagnostics() {
+  const mode = propProviderMode();
   return {
     checkedAt: new Date().toISOString(),
     catalog: providerCatalog(),
-    publicFeeds: publicFeeds.health(),
-    providerMode: propProviderMode(),
+    publicFeedsActive: mode !== 'sportsgameodds',
+    publicFeeds: mode === 'sportsgameodds' ? [] : publicFeeds.health(),
+    providerMode: mode,
     proplineSupplement: proplineSupplementHealth(),
     sportradarSupplement: sportradarSupplementHealth(),
     sportradarNbaV8: sportradarNbaV8Health(),
@@ -386,15 +495,21 @@ export function providerDiagnostics() {
 export function providerHealth() {
   const oddsProvider = primaryOddsProvider();
   const oddsHealth = oddsProvider?.health?.() || null;
-  const publicFirst = publicPersistenceConfigured() && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false';
+  const mode = propProviderMode();
+  const publicFirst = mode !== 'sportsgameodds'
+    && publicPersistenceConfigured()
+    && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false';
   return {
     theOddsApiConfigured: oddsProvider?.id === 'the-odds-api' && oddsProvider.isConfigured(),
-    providerMode: propProviderMode(),
+    providerMode: mode,
+    publicFeedsActive: mode !== 'sportsgameodds',
     sportradarConfigured: sportradarConfigured(),
     sportradarNbaV8: sportradarNbaV8Health(),
     sportsGameOddsConfigured: sportsGameOddsConfigured(),
     sportsDataIoConfigured: sportsDataIoConfigured(),
-    preferredProvider: publicFirst ? 'Public feed database' : oddsProvider?.name || 'SportsDataIO fallback',
+    preferredProvider: mode === 'sportsgameodds'
+      ? 'SportsGameOdds'
+      : publicFirst ? 'Public feed database' : oddsProvider?.name || 'SportsDataIO fallback',
     publicFirst,
     regularLinesOnly: true,
     proplineSupplement: proplineSupplementHealth(),
@@ -404,7 +519,9 @@ export function providerHealth() {
     // public-first production the metered provider is intentionally paused, so
     // reporting it as the active provider makes healthy zero-credit deploys
     // look unconfigured to health checks.
-    provider: publicFirst ? { id: 'public-feed-database', configured: true } : oddsHealth,
+    provider: mode === 'sportsgameodds'
+      ? oddsHealth
+      : publicFirst ? { id: 'public-feed-database', configured: true } : oddsHealth,
     diagnostics: snapshotDiagnostics(),
     time: new Date().toISOString(),
   };

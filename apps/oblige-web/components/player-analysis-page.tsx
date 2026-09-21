@@ -12,7 +12,7 @@ import { sameTeamLabel } from '@/lib/opponent-options';
 import { marketName } from '@/lib/market-display';
 import s from './player-analysis.module.css';
 
-export type AnalysisInput={group:PropGroup|null;history:ResearchResponse|null;line:number;loading:boolean;unavailable?:string|null};
+export type AnalysisInput={group:PropGroup|null;history:ResearchResponse|null;line:number;loading:boolean;unavailable?:string|null;onLineChange?:(line:number)=>void};
 const metricNames: Record<string,RegExp>={points:/^(points|pts)$/i,rebounds:/^(rebounds|reb)$/i,assists:/^(assists|ast)$/i,threes:/^(3-?pt made|3pm|3-pointers made|three pointers made|3 pointers made)$/i,passingYards:/^passing yards$/i,rushingYards:/^rushing yards$/i,receivingYards:/^receiving yards$/i,receptions:/^receptions$/i,aces:/^aces$/i,gamesWon:/^games won$/i,setsWon:/^sets won$/i};
 
 /** The shared live research view. Both board URLs and canonical workspace URLs

@@ -102,3 +102,53 @@ test('non-objects and empties pass through safely', () => {
   assert.deepEqual(sanitizePublicPayload([]), []);
   assert.equal(scrubText(null), '');
 });
+
+// Two providers that sanitise to one string make a fallback order unreadable:
+// the payload publishes the order precisely so a reader can tell primary from
+// backup, and ["Live odds", "Live odds"] tells them nothing. Observed in
+// production on /api/apex/health.
+test('different vendors keep different labels through sanitisation', () => {
+  const out = sanitizePublicPayload({
+    quotePrimary: 'sportsgameodds',
+    quoteFallbacks: ['propline'],
+    capabilities: { quotes: ['sportsgameodds', 'propline'] },
+  });
+  assert.notEqual(out.quotePrimary, out.quoteFallbacks[0], 'primary and fallback must stay distinguishable');
+  assert.equal(new Set(out.capabilities.quotes).size, 2, 'two providers must not collapse into one label');
+  for (const value of [out.quotePrimary, ...out.quoteFallbacks, ...out.capabilities.quotes]) {
+    assert.doesNotMatch(value, /sportsgameodds|propline|prop\s*line/i);
+  }
+});
+
+// A scrub that removes the vendor but leaves the rest of an identifier emitted
+// "-research" to customers: broken to read, and still describing the shape of
+// something deliberately hidden.
+test('an identifier is relabelled rather than left as a stub', () => {
+  const out = sanitizePublicPayload({ capabilities: { injuries: ['sportsdataio-research'] } });
+  const label = out.capabilities.injuries[0];
+  assert.doesNotMatch(label, /sportsdataio/i);
+  assert.doesNotMatch(label, /^[-_\s]/, 'a label must not begin with the separator left by a scrub');
+  assert.match(label, /research/i, 'the part that says what it is for is worth keeping');
+});
+
+// Every paid vendor in the mesh, not an arbitrary subset. Sportradar was named
+// in public payloads while the vendors either side of it were redacted.
+test('every paid vendor name is redacted, including Sportradar', () => {
+  const out = sanitizePublicPayload({
+    capabilities: { history: ['sportradar', 'clearsports', 'sportsgameodds', 'propline', 'sportsdataio'] },
+  });
+  for (const value of out.capabilities.history) {
+    assert.doesNotMatch(value, /sportradar|clearsports|sportsgameodds|propline|sportsdataio/i, `leaked: ${value}`);
+  }
+});
+
+// Prose must still be cleaned rather than relabelled: injecting a provider
+// label into the middle of a sentence would read worse than the scrub it
+// replaced.
+test('a sentence is still scrubbed, not relabelled', () => {
+  const out = sanitizePublicPayload({ capabilities: { note: ['Results supplied by PropLine are delayed today.'] } });
+  const value = out.capabilities.note[0];
+  assert.doesNotMatch(value, /propline|prop\s*line/i);
+  assert.doesNotMatch(value, /provider [A-C]/, 'prose must not gain a provider label');
+  assert.match(value, /delayed today/);
+});

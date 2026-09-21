@@ -8,7 +8,7 @@ var {createMatchupClient,winPredictorHtml,gameContextHtml,researchWithMatchupCon
 var matchupClient=createMatchupClient({fetcher:nativeFetch});
 // Optional presentation enhancement: a failed studio load must not break the board.
 var intelligence = await import('/assets/lib/ui/intelligence-studio.mjs').catch(()=>null);
-var {propType,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
+var {propType,cleanMarketLabel,playerCardKey,categoryOptions,uniquePlayerCards,dedupeOffers}=await import('/assets/lib/ui/prop-board.mjs');
 // Presentation enhancement: a failed load must leave the board intact.
 var dfsEdge=await import('/assets/lib/props/dfs-edge.mjs').catch(()=>null);
 // Loaded on first use rather than at boot: the research-only client strips the
@@ -360,7 +360,7 @@ function renderPropTypes(){
 }
 function playerChoiceControl(g){
  var choices=g.playerChoices||[];if(choices.length<2)return '';
- return '<label class="asPlayerChoice">'+(marketFilter==='all'?'Prop / game':'Game')+'<select data-card-choice="'+esc(playerCardKey(g))+'" aria-label="Select prop or game for '+esc(g.playerName)+'">'+choices.map(function(c){return '<option value="'+esc(c.key)+'" '+(c.key===g.key?'selected':'')+'>'+esc(c.market+' · '+when(c.gameStartTime)+' · '+c.awayTeam+' @ '+c.homeTeam)+'</option>';}).join('')+'</select><small>'+choices.length+' selections · one player card</small></label>';
+ return '<label class="asPlayerChoice">'+(marketFilter==='all'?'Prop / game':'Game')+'<select data-card-choice="'+esc(playerCardKey(g))+'" aria-label="Select prop or game for '+esc(g.playerName)+'">'+choices.map(function(c){return '<option value="'+esc(c.key)+'" '+(c.key===g.key?'selected':'')+'>'+esc(shortMarket(c)+' · '+when(c.gameStartTime)+' · '+c.awayTeam+' @ '+c.homeTeam)+'</option>';}).join('')+'</select><small>'+choices.length+' selections · one player card</small></label>';
 }
 function visible(ignoreResearch=false){
  var a=viewGroups();
@@ -1020,7 +1020,7 @@ function rowHtml(g){
  var team=g.team||(r&&r.player?r.player.team:null)||c.team,position=g.position||c.position||c.playerPosition;
  var state=researchState(r);
  var provenance=sourceMeta(g,r);
- var marketLabel=(line==null?'':'O/U '+dec(line)+' ')+(r?.marketDisplayName||g.market);
+ var marketLabel=shortMarket(g);
  return '<article class="asRow asCard" data-open="'+esc(g.key)+'" tabindex="0" aria-label="Research '+esc(g.playerName+' '+g.market)+'">'
   +'<div class="asCardHead">'
    +'<div class="asAvatar"><div class="asAvatarFallback">'+esc(initials(g.playerName))+'</div>'+(g.entityType==='team'?'':'<img loading="lazy" decoding="async" data-player-photo src="'+esc(artUrl(g))+'" alt="'+esc(g.playerName)+'"> ')+'</div>'
@@ -1192,8 +1192,8 @@ function shuffleRank(g){var v=shuffleOrder.get(g.key);return v==null?Number.MAX_
 function normTeam(v){return String(v||'').toUpperCase().replace(/[^A-Z]/g,'');}
 function recalcFromGameLog(base,line,side){return analyzeResearch({...base,averageWindow:drawerState?.window||'l10'},line,side,drawerState?.filter||'all');}
 function playerMarketGroups(g){var candidates=groups();if(!candidates.some(x=>x.key===g.key))candidates.push(g);return candidates.filter(x=>x.sport===g.sport&&x.eventId===g.eventId&&(g.playerId&&x.playerId?x.playerId===g.playerId:x.playerName===g.playerName));}
-function shortMarket(g){return ({pitcher_outs:'IP / Outs',pitcher_strikeouts:"K’s",pitcher_hits_allowed:'HA',pitcher_walks:'BB',pitcher_earned_runs:'ER',pitcher_pitches:'Pitches',player_points:'PTS',player_rebounds:'REB',player_assists:'AST',player_threes:'3PM',batter_hits:'Hits',batter_total_bases:'Bases'})[g.marketId]||g.market;}
-function marketOptions(g){return playerMarketGroups(g).map(function(x){return'<option value="'+esc(x.key)+'" '+(x.key===g.key?'selected':'')+'>'+esc(x.market)+'</option>';}).join('');}
+function shortMarket(g){return cleanMarketLabel(g.market,{playerName:g.playerName,marketId:g.marketId,statId:g.statId,sport:g.sport});}
+function marketOptions(g){return playerMarketGroups(g).map(function(x){return'<option value="'+esc(x.key)+'" '+(x.key===g.key?'selected':'')+'>'+esc(shortMarket(x))+'</option>';}).join('');}
 function averageField(rows,field){
  var values=(rows||[]).map(function(row){return num(row[field]);}).filter(function(v){return v!=null;});
  if(!values.length)return null;
@@ -1292,7 +1292,7 @@ function supportingStats(r,g){
 }
 function detailedGameTable(r,g){
  var extra=secondaryHeaders(g.sport,g.marketId),rows=filteredGames(r),hasStarts=rows.some(x=>typeof x.started==='boolean');
- return'<div class="asTableWrap"><table class="asTable"><thead><tr><th>Date</th><th>Opp</th><th>H/A</th><th>Game result</th><th>'+esc(r?.marketDisplayName||g.market)+'</th><th>Prop result</th><th>'+(hasStarts?'Starter / date':'Game start')+'</th>'+extra.map(x=>'<th>'+x[0]+'</th>').join('')+'</tr></thead><tbody>'+rows.map(function(x){
+ return'<div class="asTableWrap"><table class="asTable"><thead><tr><th>Date</th><th>Opp</th><th>H/A</th><th>Game result</th><th>'+esc(shortMarket(g))+'</th><th>Prop result</th><th>'+(hasStarts?'Starter / date':'Game start')+'</th>'+extra.map(x=>'<th>'+x[0]+'</th>').join('')+'</tr></thead><tbody>'+rows.map(function(x){
  var result=x.push?'PUSH':x.hit===true?'HIT':x.hit===false?'MISS':'Unavailable',cls=x.push?'asPushText':x.hit?'asHit':'asMiss';
  var date=Number.isFinite(Date.parse(x.date))?new Date(x.date):null;
  var start=x.started===true?'Starter':x.started===false?'Bench':date?date.toLocaleString([],{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}):'—';
@@ -1435,7 +1435,7 @@ function renderDrawer(){
  var drawerImg=document.getElementById('asDrawerImg');drawerImg.alt=g.playerName;drawerImg.onerror=()=>{drawerImg.hidden=true;};drawerImg.hidden=g.entityType==='team';if(g.entityType!=='team')drawerImg.src=artUrl(g);else drawerImg.removeAttribute('src');document.getElementById('asDrawerTitle').textContent=g.playerName;
  document.getElementById('asDrawerSub').textContent=[displayTeam(g.team||base?.player?.team||base?.context?.team),g.position||base?.context?.position||base?.context?.playerPosition,g.awayTeam+' @ '+g.homeTeam,when(g.gameStartTime)].filter(Boolean).join(' · ');
  var section=(title,body,sub='')=>'<section class="asSection"><div class="asSectionTitle"><h3>'+title+'</h3><span>'+sub+'</span></div><div class="asSectionBody">'+body+'</div></section>';
- var controls='<section class="asDetailControls" aria-label="Prop settings"><div class="asMarketQuick" aria-label="Player markets">'+playerMarketGroups(g).map(x=>'<button class="asMarketQuickButton '+(x.key===g.key?'on':'')+'" data-market-key="'+esc(x.key)+'" aria-pressed="'+(x.key===g.key)+'" title="'+esc(x.market)+'">'+esc(shortMarket(x))+'</button>').join('')+'</div><div class="asDetailStatHeading"><h2>'+esc(base?.marketDisplayName||g.market)+'</h2><label class="asSrOnly">Market<select id="asMarketSwitch">'+marketOptions(g)+'</select></label></div><div class="asDetailLineRow"><div class="asLineCtl"><button class="asLineBtn" id="asLineMinus" aria-label="Decrease line">−</button><input class="asLineVal" id="asLineInput" type="number" step="0.5" aria-label="Research line" value="'+(line==null?'':line)+'"><button class="asLineBtn" id="asLinePlus" aria-label="Increase line">+</button></div><div class="asSideToggle">'+['OVER','UNDER'].map(x=>'<button class="asSideBtn '+x.toLowerCase()+' '+(side===x?'on':'')+'" data-side="'+x+'" aria-pressed="'+(side===x)+'">'+x+'</button>').join('')+'</div><button class="asDetailSave '+(favorites.has(g.key)?'on':'')+'" id="asDetailSave" aria-label="'+(favorites.has(g.key)?'Unsave':'Save')+' prop" aria-pressed="'+favorites.has(g.key)+'" '+(savePending.has(g.key)?'disabled':'')+'>'+(favorites.has(g.key)?'★':'☆')+'</button></div>'+propFiltersHtml(rawBase,drawerState.propFilters,drawerState.filter)+'</section>';
+ var controls='<section class="asDetailControls" aria-label="Prop settings"><div class="asMarketQuick" aria-label="Player markets">'+playerMarketGroups(g).map(x=>'<button class="asMarketQuickButton '+(x.key===g.key?'on':'')+'" data-market-key="'+esc(x.key)+'" aria-pressed="'+(x.key===g.key)+'" title="'+esc(x.market)+'">'+esc(shortMarket(x))+'</button>').join('')+'</div><div class="asDetailStatHeading"><h2>'+esc(shortMarket(g))+'</h2><label class="asSrOnly">Market<select id="asMarketSwitch">'+marketOptions(g)+'</select></label></div><div class="asDetailLineRow"><div class="asLineCtl"><button class="asLineBtn" id="asLineMinus" aria-label="Decrease line">−</button><input class="asLineVal" id="asLineInput" type="number" step="0.5" aria-label="Research line" value="'+(line==null?'':line)+'"><button class="asLineBtn" id="asLinePlus" aria-label="Increase line">+</button></div><div class="asSideToggle">'+['OVER','UNDER'].map(x=>'<button class="asSideBtn '+x.toLowerCase()+' '+(side===x?'on':'')+'" data-side="'+x+'" aria-pressed="'+(side===x)+'">'+x+'</button>').join('')+'</div><button class="asDetailSave '+(favorites.has(g.key)?'on':'')+'" id="asDetailSave" aria-label="'+(favorites.has(g.key)?'Unsave':'Save')+' prop" aria-pressed="'+favorites.has(g.key)+'" '+(savePending.has(g.key)?'disabled':'')+'>'+(favorites.has(g.key)?'★':'☆')+'</button></div>'+propFiltersHtml(rawBase,drawerState.propFilters,drawerState.filter)+'</section>';
 
  var filters='<div class="asFilterRow asLegacyVenue">'+[['all','All'],['home','Home'],['away','Away'],['h2h','VS '+(r?.matchup?.opponent||'opponent')]].map(([id,label])=>'<button class="asFilterBtn '+(drawerState.filter===id?'on':'')+'" data-filter="'+id+'" aria-pressed="'+(drawerState.filter===id)+'">'+esc(label)+'</button>').join('')+'</div>';
  var panel=drawerState.panel||'overview', tabs=[['overview','Overview'],['games','Results'],['lines','Compare lines'],['matchup','Matchup'],['similar','Similar games'],['win','Win Predictor'],['context','Game context'],['intelligence','Intelligence'],['sandbox','Scenario'],['pro','Pro Tools'],['ask','Ask']];

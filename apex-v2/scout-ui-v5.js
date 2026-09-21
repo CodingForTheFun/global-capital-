@@ -100,7 +100,7 @@ function canonicalPeriod(value,market){
  var firstN=raw.match(/^f([357])$/);if(firstN)return'1ix'+firstN[1];
  return raw;
 }
-function groupKey(r){return [r.sport,r.eventId,r.playerId||r.playerName,r.marketId||r.market,canonicalPeriod(r.period,r.market)].join('|');}
+function groupKey(r){var base=[r.sport,r.eventId,r.playerId||r.playerName,r.marketId||r.market].join('|'),period=canonicalPeriod(r.period,r.market);return period==='game'?base:base+'|'+period;}
 function lineMap(){var m=new Map();((payload.data&&payload.data.lines)||[]).forEach(function(x){m.set(x.id,x);});return m;}
 function propIdForRow(r){var x=lineMap().get(r&&r.id);return x&&x.propId||null;}
 function playerMap(){var m=new Map();((payload.data&&payload.data.players)||[]).forEach(function(x){m.set(x.id,x);});return m;}

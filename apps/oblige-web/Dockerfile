@@ -1,10 +1,12 @@
 FROM node:22-bookworm-slim
-WORKDIR /app
+WORKDIR /app/apps/oblige-web
 
 ENV NEXT_TELEMETRY_DISABLED=1
-COPY package.json package-lock.json ./
+COPY apps/oblige-web/package.json apps/oblige-web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY . .
+
+COPY apps/oblige-web/ ./
+COPY lib/ /app/lib/
 RUN npm run build
 
 ENV NODE_ENV=production PORT=3000

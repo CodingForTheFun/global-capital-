@@ -1,3 +1,4 @@
+// Release recovery marker for multi-year prop history; no runtime behavior change.
 import http from 'node:http';
 import { BOARD_SPORTS } from './lib/autoscout/models.mjs';
 import { proplineTrafficEnabled } from './lib/data-sources/propline/client.mjs';

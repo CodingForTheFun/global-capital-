@@ -1,5 +1,6 @@
 import http from 'node:http';
 import { BOARD_SPORTS } from './lib/autoscout/models.mjs';
+import { proplineTrafficEnabled } from './lib/data-sources/propline/client.mjs';
 import { SCOPED_PUBLIC_SPORTS } from './lib/autoscout/board-coverage-catalog.mjs';
 import {createMLHandler} from './lib/ml/routes.mjs';
 const maybeServeML = createMLHandler();
@@ -325,6 +326,10 @@ const PROPLINE_INSIGHTS = Object.freeze({
 async function maybeServePropLineInsights(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   if (url.pathname !== '/api/apex/propline') return false;
+  if (!proplineTrafficEnabled()) {
+    directJson(res, 200, { ok: true, available: false, data: null, code: 'PROPLINE_DISABLED_BY_PROVIDER_MODE' });
+    return true;
+  }
   if (req.method !== 'GET') {
     directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
     return true;

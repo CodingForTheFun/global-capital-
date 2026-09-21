@@ -230,6 +230,7 @@ async function maybeServeResearch(req, res) {
       line,
       side,
       games: Math.min(40, Math.max(5, Number(url.searchParams.get('games')) || 20)),
+      allowPaidPeriod: safeParam(url, 'detail', 1) === '1',
     });
     // Any fetched log is a chance to settle open projections for this player,
     // at no extra provider cost. Fire and forget: grading must never delay or

@@ -1387,6 +1387,7 @@ function Inspector({
             player: group.player,
             market: group.market,
             line: String(group.line),
+            period: group.period || 'game',
           })}`}
         >
           Open full player research

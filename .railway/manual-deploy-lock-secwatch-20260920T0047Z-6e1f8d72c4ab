@@ -1,5 +1,5 @@
-Release: webhook delivery-health correction and dead-module removal, 2026-09-21
-Release parent: 1715e2032060fa20d5861dd6c10d242f18dbc0d9
-Deploy PR #483 through existing Railway gates. Health reporting only plus three
-unreferenced files; no provider, auth, scheduler/lease, quote-expiry,
+Release: webhook delivery-health correction, mobile nav dock fix, dead-module removal, 2026-09-21
+Release parent: 6a3a26293ee5b9001e0a4b2c815c2fa1f28cfade
+Deploy through existing Railway gates. Health reporting, one CSS transform fix
+and three unreferenced files; no provider, auth, scheduler/lease, quote-expiry,
 persistence, polling, secret, billing or database changes are included.

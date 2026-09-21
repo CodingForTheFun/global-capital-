@@ -35,7 +35,7 @@ for (const fixture of cases) {
     assert.equal(starred[0].value, fixture.expected);
     assert.equal(starred[0].label, `${fixture.expected} ★`);
     assert.equal(options[0].value, 'all');
-    assert.equal(options[0].label, 'All');
+    assert.equal(options[0].label, 'All opponents');
   });
 }
 
@@ -75,6 +75,41 @@ test('generic label matching handles the cross-sport abbreviations used by the d
   assert.equal(sameTeamLabel('NYR', 'New York Rangers'), true);
   assert.equal(sameTeamLabel('BUFF', 'Buffalo'), true);
   assert.equal(sameTeamLabel('DAL', 'Philadelphia'), false);
+});
+
+test('full league directory fills the dropdown and collapses city aliases', () => {
+  const options = buildOpponentOptions(
+    ['LA Angels', 'Miami Marlins', 'Philadelphia Phillies'],
+    {
+      team: 'Houston Astros',
+      opponent: 'Detroit Tigers',
+      homeTeam: 'Houston Astros',
+      awayTeam: 'Detroit Tigers',
+    },
+    [
+      { id: '1', abbreviation: 'ATL', name: 'Atlanta Braves' },
+      { id: '2', abbreviation: 'LAA', name: 'Los Angeles Angels' },
+      { id: '3', abbreviation: 'LAD', name: 'Los Angeles Dodgers' },
+      { id: '4', abbreviation: 'MIA', name: 'Miami Marlins' },
+      { id: '5', abbreviation: 'PHI', name: 'Philadelphia Phillies' },
+      { id: '6', abbreviation: 'DET', name: 'Detroit Tigers' },
+      { id: '7', abbreviation: 'SD', name: 'San Diego Padres' },
+      { id: '8', abbreviation: 'STL', name: 'St. Louis Cardinals' },
+    ],
+  );
+
+  assert.equal(options[0].label, 'All opponents');
+  assert.ok(options.some(option => option.label === 'Atlanta Braves'));
+  assert.ok(options.some(option => option.label === 'Los Angeles Dodgers'));
+  assert.ok(options.some(option => option.label === 'Detroit Tigers ★'));
+  assert.equal(options.filter(option => /Angels/.test(option.label)).length, 1);
+  assert.equal(options.some(option => option.label === 'LA Angels'), false);
+});
+
+test('city shorthand matches canonical team names', () => {
+  assert.equal(sameTeamLabel('LA Angels', 'Los Angeles Angels'), true);
+  assert.equal(sameTeamLabel('NY Rangers', 'New York Rangers'), true);
+  assert.equal(sameTeamLabel('STL Cardinals', 'St. Louis Cardinals'), true);
 });
 
 

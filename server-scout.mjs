@@ -323,7 +323,7 @@ server.on('clientError', (_error, socket) => {
 
 server.listen(port, () => {
   console.log(`SCOUT PRO production server listening on :${port}`);
-  console.log('Primary data path: SportsDataIO provider-native prop board');
+  console.log('Primary data path: SportsGameOdds provider mesh (PropLine fallback; verified research enrichment)');
   console.log('Legacy PickFinder workflow: optional and not used for member prop access');
   if (verifyProviderOnBoot) setTimeout(() => runtimeProviderVerification().catch(() => {}), 750).unref();
 });

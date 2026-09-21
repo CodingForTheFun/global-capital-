@@ -43,13 +43,19 @@ export function projectionEdge(prop) {
 }
 
 function canonicalSource(value, prop = null) {
-  const raw = [value, prop?.source, prop?.provider].filter(Boolean).join(' ').toLowerCase();
-  if (raw.includes('sportsgameodds') || prop?.sportsGameOddsOddId || prop?.sportsGameOddsPlayerId) return 'SportsGameOdds';
-  if (raw.includes('propline') || raw.includes('prop line')) return 'PropLine';
-  if (raw.includes('espn')) return 'ESPN';
-  if (raw.includes('sportsdataio')) return 'SportsDataIO';
-  if (raw.includes('clearsports')) return 'ClearSports';
-  return null;
+  const primary = String(value || '').toLowerCase();
+  const classify = (raw) => {
+    if (raw.includes('sportsgameodds')) return 'SportsGameOdds';
+    if (raw.includes('propline') || raw.includes('prop line')) return 'PropLine';
+    if (raw.includes('espn')) return 'ESPN';
+    if (raw.includes('sportsdataio')) return 'SportsDataIO';
+    if (raw.includes('clearsports')) return 'ClearSports';
+    return null;
+  };
+  const explicit = classify(primary);
+  if (explicit) return explicit;
+  if (prop?.sportsGameOddsOddId || prop?.sportsGameOddsPlayerId) return 'SportsGameOdds';
+  return classify([prop?.source, prop?.provider].filter(Boolean).join(' ').toLowerCase());
 }
 
 export function cardDataSources(prop) {

@@ -11,10 +11,13 @@ import { sportradarConfigured } from '../lib/data-sources/sportradar/client.mjs'
 import { sportradarNbaV8Health, startSportradarNbaV8Probe } from '../lib/data-sources/sportradar/nba-v8.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
 import { propProviderMode } from '../lib/autoscout/provider-mode.mjs';
+import { meshPolicy } from '../lib/autoscout/data-mesh-policy.mjs';
+import { sportradarTrialHealth, startSportradarTrialProbe } from '../lib/data-sources/sportradar/trial-products.mjs';
 import { loadPersistedDiagnostics, snapshotDiagnostics } from '../lib/autoscout/runtime-store.mjs';
 
 await loadPersistedDiagnostics();
 startSportradarNbaV8Probe();
+startSportradarTrialProbe();
 
 const text = (value) => String(value ?? '').trim();
 const num = (value) => {
@@ -207,6 +210,14 @@ function mergeProviderCaches(board, sport) {
       { primary: true },
     );
   }
+  if (mode === 'mesh') {
+    // SportsGameOdds remains authoritative for current quote slots. PropLine
+    // fills only missing slots/exact-match metadata and can never replace a
+    // conflicting SGO quote in mesh mode.
+    const clean = stripProviderRows(board, 'sportradar');
+    const sgo = mergeCachedSportsGameOdds(clean, sport, { primary: true });
+    return mergeCachedPropline(sgo, sport, { primary: false });
+  }
   if (mode === 'propline') {
     return mergeCachedSportsGameOdds(
       mergeCachedPropline(stripProviderRows(board, 'sportradar'), sport),
@@ -364,6 +375,10 @@ export async function fetchUnifiedBoard(league,options={}) {
   if (mode === 'sportsgameodds') {
     return fetchSportsGameOddsOnlyBoard(sport, options);
   }
+  if (mode === 'mesh') {
+    const primary = await fetchSportsGameOddsOnlyBoard(sport, options);
+    return filterCustomerBoardFreshness(mergeCachedPropline(primary, sport, { primary: false }));
+  }
   if(options.refreshPublicFeeds===true&&!options.cacheOnly)await publicFeeds.refresh();
 
   if (publicPersistenceConfigured() && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false') {
@@ -399,6 +414,8 @@ export function providerDiagnostics() {
     publicFeedsActive: mode !== 'sportsgameodds',
     publicFeeds: mode === 'sportsgameodds' ? [] : publicFeeds.health(),
     providerMode: mode,
+    mesh: mode === 'mesh' ? meshPolicy() : null,
+    sportradarTrials: sportradarTrialHealth(),
     proplineSupplement: proplineSupplementHealth(),
     sportradarSupplement: sportradarSupplementHealth(),
     sportradarNbaV8: sportradarNbaV8Health(),
@@ -418,7 +435,9 @@ export function providerHealth() {
   return {
     theOddsApiConfigured: oddsProvider?.id === 'the-odds-api' && oddsProvider.isConfigured(),
     providerMode: mode,
-    publicFeedsActive: mode !== 'sportsgameodds',
+    mesh: mode === 'mesh' ? meshPolicy() : null,
+    sportradarTrials: sportradarTrialHealth(),
+    publicFeedsActive: mode !== 'sportsgameodds' && mode !== 'mesh',
     sportradarConfigured: sportradarConfigured(),
     sportradarNbaV8: sportradarNbaV8Health(),
     sportsGameOddsConfigured: sportsGameOddsConfigured(),

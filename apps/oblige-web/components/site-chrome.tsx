@@ -252,7 +252,7 @@ export function MobileNav() {
       data-board={board ? 'true' : 'false'}
       data-scroll-hidden={board && hidden ? 'true' : 'false'}
       className={cn(
-        'fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 lg:hidden',
+        'fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 overflow-x-hidden lg:hidden',
         'border-t border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_94%,transparent)] backdrop-blur-xl',
         'pb-[env(safe-area-inset-bottom)]',
         'transition-[transform,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
@@ -274,14 +274,14 @@ export function MobileNav() {
             href={item.href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'grid min-h-14 content-center justify-items-center gap-[3px]',
+              'grid min-h-14 min-w-0 content-center justify-items-center gap-[3px] overflow-hidden',
               'text-[10px] font-semibold tracking-wide',
               'transition-colors duration-200 ease-[var(--ease-out)]',
               active ? 'text-[var(--accent)]' : 'text-[var(--text-3)]',
             )}
           >
-            <item.icon className="size-5" aria-hidden="true" />
-            {item.label}
+            <item.icon className="size-5 shrink-0" aria-hidden="true" />
+            <span className="max-w-full truncate px-0.5">{item.label}</span>
           </Link>
         );
       })}

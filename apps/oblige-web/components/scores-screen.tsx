@@ -112,6 +112,7 @@ function adaptGame(raw: unknown): ScoreboardEvent | null {
       score: homeScore,
       isWinner: winners.home,
     },
+    startsAt: text(game.startTime) || undefined,
     venue: text(game.venue) || undefined,
     broadcast: text(game.broadcast) || undefined,
   };

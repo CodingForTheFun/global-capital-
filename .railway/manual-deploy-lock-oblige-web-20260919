@@ -1,1 +1,1 @@
-Dense props board forecast acceptance release: automatic visible-row PROJ/EV is verified as bounded model/reference reads, with no Forecast button and no widened provider polling. Run all guarded frontend workflows before Railway rollout.
+Player prop deep-dive release: source PR #477 merged at f7ce3b87bda3e9abed932b11f919b9e120b92168 after all six guarded frontend workflows passed. Deploy the compact shared player research card without changing provider polling, auth, backend contracts, or data semantics.

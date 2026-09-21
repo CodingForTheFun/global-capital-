@@ -33,6 +33,11 @@ export type PropRow = {
   period?: string;
   entityType?: string;
   payoutType?: string;
+  /** PropLine DFS modifier metadata when the source exposes it. */
+  specialType?: string;
+  dfsOddsType?: string;
+  payoutMultiplier?: number | string;
+  lineGap?: number | string;
   isAlternate?: boolean;
   stale?: boolean;
   suspended?: boolean;

@@ -79,6 +79,7 @@ export type PropGroup = {
   marketId: string | null;
   line: number;
   sport: string;
+  period: string | null;
   team: string | null;
   position: string | null;
   opponent: string | null;

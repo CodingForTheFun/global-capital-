@@ -23,6 +23,7 @@ import { patchMobileNavDockUi } from './lib/autoscout/mobile-nav-dock-runtime-pa
 import { patchHeaderMenuUi } from './lib/autoscout/header-menu-runtime-patch.mjs';
 import { patchBoardCoverageUi } from './lib/autoscout/board-coverage-runtime-patch.mjs';
 import { patchFullTeamFiltersUi } from './lib/autoscout/full-team-filter-runtime-patch.mjs';
+import { patchLivePeriodResearchUi } from './lib/autoscout/live-period-research-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
 import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs';
 
@@ -60,9 +61,10 @@ function makeClientSafeVisualUi(source) {
   const headerMenuClient = patchHeaderMenuUi(avatarClient);
   const dockClient = patchMobileNavDockUi(headerMenuClient);
   const client = patchBoardCoverageUi(dockClient);
-  try { new Function(client); }
+  const periodClient = patchLivePeriodResearchUi(client);
+  try { new Function(periodClient); }
   catch (error) { throw new Error(`Auto Scout client bundle is invalid: ${error?.message || error}`); }
-  return client;
+  return periodClient;
 }
 
 const source = readFileSync(sourcePath, 'utf8');

@@ -172,6 +172,8 @@ export type ResearchResponse = {
   streak?: { count?: number | null; type?: string | null } | number | null;
   diff?: number | null;
   gameLog?: GameLogRow[];
+  /** Verified league directory used to populate team-sport opponent filters. */
+  leagueTeams?: Array<{ id?: string; abbreviation?: string; name?: string }>;
   coverage?: Record<string, unknown>;
 };
 

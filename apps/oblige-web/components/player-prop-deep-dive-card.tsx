@@ -432,7 +432,7 @@ export function PlayerPropDeepDiveCard({
     return <text x={x + width / 2} y={Math.max(12, y - 6)} textAnchor="middle" fill={dnp ? '#94a3b8' : '#cbd5e1'} fontSize="10" fontWeight="700">{dnp ? 'DNP' : finite(row.value)}</text>;
   }
 
-  return <section className="min-h-screen bg-[#070b12] px-2 py-3 text-slate-100 sm:px-4 lg:px-6" data-design="premium-player-research-v1" data-deep-dive="player-prop-deep-dive-v1" data-research-route={routeKind}>
+  return <section className="research-reference min-h-screen bg-[#070b12] px-2 py-3 text-slate-100 sm:px-4 lg:px-6" data-design="premium-player-research-v1" data-deep-dive="player-prop-deep-dive-v1" data-research-route={routeKind}>
     <button type="button" hidden aria-label={favourite ? `Unfollow ${player.name}` : `Follow ${player.name}`} aria-pressed={favourite} onClick={onFavourite}/>
     <div className="mx-auto max-w-[1180px] overflow-hidden rounded-2xl border border-slate-800/90 bg-[#0b101a] shadow-[0_30px_90px_rgba(0,0,0,0.45)]">
       <header className="flex items-center gap-3 border-b border-slate-800/80 bg-[#0a0f18]/95 px-3 py-2.5 sm:px-4">

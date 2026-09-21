@@ -80,20 +80,44 @@ const MARKET_NAMES: Record<string, string> = {
   player_deaths: 'Deaths', player_headshots: 'Headshots',
 };
 const WORDS: Record<string, string> = { yds: 'Yards', pts: 'Points', ast: 'Assists', reb: 'Rebounds', rbis: 'RBIs', rbi: 'RBIs', td: 'TD', tds: 'TDs', fg: 'Field Goals', fg3: 'Three-Pointers', ot: 'OT', h2h: 'H2H' };
+const marketKeyTail = (value: unknown) => String(value || '').trim().toLowerCase().split(':').pop() || '';
+const displayWords = (value: unknown) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+const CANONICAL_DISPLAY_LABELS = [...new Set(Object.values(MARKET_NAMES))]
+  .sort((a, b) => displayWords(b).length - displayWords(a).length);
+function embeddedCanonicalLabel(value: unknown): string | null {
+  const haystack = ` ${displayWords(value)} `;
+  if (haystack.trim() === '') return null;
+  for (const label of CANONICAL_DISPLAY_LABELS) {
+    const needle = displayWords(label);
+    if (needle && haystack.includes(` ${needle} `)) return label;
+  }
+  return null;
+}
 /** Exact audited labels, also used to reconcile readable and raw-key categories. */
-export const canonicalMarketLabel = (key: string): string | null => MARKET_NAMES[key] || null;
+export const canonicalMarketLabel = (key: string): string | null => MARKET_NAMES[marketKeyTail(key)] || null;
 export function humanize(value: string): string {
   return String(value || '').trim().replace(/^player[_\s]+/i, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').split(' ').filter(Boolean).map(word => WORDS[word.toLowerCase()] || word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 export function marketName(market: Pick<WorkspaceMarket, 'label' | 'marketKey'>): string {
   const marketKey = String(market.marketKey || '').trim().toLowerCase();
   // A known canonical market key is stronger evidence than a provider display string.
-  // Some feeds decorate labels with player names, outcomes or lines; never let that
-  // presentation text replace an audited stat identity.
-  if (marketKey && MARKET_NAMES[marketKey]) return MARKET_NAMES[marketKey];
+  // Namespaced keys (for example prizepicks:batter_doubles) retain the same
+  // audited stat identity. If a provider decorates a label with the player,
+  // outcome or line, recover only a known full stat phrase instead of echoing
+  // the contaminated label into the stat tabs.
+  const canonical = canonicalMarketLabel(marketKey);
+  if (canonical) return canonical;
   const supplied = String(market.label || '').trim().replace(/\s*[·|]\s*Period\s+[^·|]+$/i, '').trim();
+  const embedded = embeddedCanonicalLabel(supplied);
+  if (embedded) return embedded;
   if (supplied && !supplied.includes('_')) return supplied;
-  const raw = (supplied || marketKey).toLowerCase();
+  const raw = marketKeyTail(supplied || marketKey);
   return MARKET_NAMES[raw] || humanize(supplied || marketKey) || 'Player Prop';
 }
 export function marketFamily(market: WorkspaceMarket): string {

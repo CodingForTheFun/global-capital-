@@ -191,7 +191,7 @@ function bookBadge(name: string) {
 
 function SelectFilter({ label, ariaLabel, value, options, onChange, historyFilter = false }: { label: string; ariaLabel?: string; value: string; options: FilterOption[]; onChange(value: string): void; historyFilter?: boolean }) {
   const selectedLabel = options.find(option => option.value === value)?.label || value;
-  return <label className={`${historyFilter ? 'op-direct-filter ' : ''}relative flex h-9 shrink-0 snap-start items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-900/80 px-2.5 pr-7 text-[10px] text-slate-300 transition hover:border-slate-600 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-sky-400`}>
+  return <label className={`${historyFilter ? 'op-direct-filter ' : ''}relative flex h-11 shrink-0 snap-start items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-900/80 px-2.5 pr-7 text-[10px] text-slate-300 transition hover:border-slate-600 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-sky-400`}>
     <span className="whitespace-nowrap text-slate-500">{label}:</span>
     <span className="max-w-[130px] truncate font-medium text-slate-200">{selectedLabel}</span>
     <select aria-label={ariaLabel || label} value={value} onChange={event => onChange(event.target.value)} className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0">

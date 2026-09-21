@@ -84,6 +84,7 @@ test('SportsGameOdds maps league and sport-specific stat semantics', () => {
   assert.equal(canonicalSportsGameOddsMarketKey('points', 'MLB'), 'batter_runs');
   assert.equal(canonicalSportsGameOddsMarketKey('points', 'NHL'), 'player_goals');
   assert.equal(canonicalSportsGameOddsMarketKey('fieldGoals_made', 'NFL'), 'player_field_goals');
+  assert.equal(canonicalSportsGameOddsMarketKey('fantasyScore', 'NBA'), 'player_fantasy_score');
 });
 
 test('SportsGameOdds normalizer keeps only available player O/U quotes', () => {
@@ -122,3 +123,56 @@ test('SportsGameOdds alternate lines are opt-in', () => {
   assert.equal(alts[0].line, 25.5);
   assert.equal(alts[0].side, 'OVER');
 });
+
+function fantasyEvent({ leagueID = 'NBA', sportID = 'BASKETBALL', position = 'PG' } = {}) {
+  const event = sampleEvent();
+  event.leagueID = leagueID;
+  event.sportID = sportID;
+  event.players.PLAYER_1_NBA.position = position;
+  const updated = new Date().toISOString();
+  const odd = (side) => ({
+    oddID: `fantasyScore-PLAYER_1_NBA-game-ou-${side}`,
+    statID: 'fantasyScore',
+    statEntityID: 'PLAYER_1_NBA',
+    periodID: 'game',
+    betTypeID: 'ou',
+    sideID: side,
+    marketName: 'Fantasy Score',
+    bookOverUnder: '45.5',
+    byBookmaker: {
+      prizepicks: { available: true, overUnder: '45.5', lastUpdatedAt: updated },
+      underdog: { available: true, overUnder: '45.5', lastUpdatedAt: updated },
+    },
+  });
+  event.odds = {
+    'fantasy-over': odd('over'),
+    'fantasy-under': odd('under'),
+  };
+  return event;
+}
+
+test('SportsGameOdds Fantasy Score lines use canonical DFS market identities', () => {
+  const board = normalizeSportsGameOddsEvents([fantasyEvent()], { requestedSport: 'NBA' });
+  assert.equal(board.props.length, 4);
+
+  const prizePicks = board.props.find((row) => row.sportsbookKey === 'prizepicks' && row.side === 'OVER');
+  const underdog = board.props.find((row) => row.sportsbookKey === 'underdog' && row.side === 'OVER');
+  assert.ok(prizePicks);
+  assert.ok(underdog);
+  assert.equal(prizePicks.marketId, 'prizepicks:player_fantasy_score');
+  assert.equal(underdog.marketId, 'player_fantasy_score');
+  assert.equal(prizePicks.statId, 'fantasyScore');
+  assert.equal(prizePicks.line, 45.5);
+  assert.equal(prizePicks.price, null);
+});
+
+test('SportsGameOdds preserves PrizePicks MLB pitcher Fantasy Score identity', () => {
+  const board = normalizeSportsGameOddsEvents([
+    fantasyEvent({ leagueID: 'MLB', sportID: 'BASEBALL', position: 'P' }),
+  ], { requestedSport: 'MLB' });
+  const prizePicks = board.props.find((row) => row.sportsbookKey === 'prizepicks' && row.side === 'OVER');
+  assert.ok(prizePicks);
+  assert.equal(prizePicks.marketId, 'prizepicks:player_pitcher_fantasy_score');
+  assert.equal(prizePicks.line, 45.5);
+});
+

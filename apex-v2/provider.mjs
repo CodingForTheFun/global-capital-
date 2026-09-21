@@ -252,7 +252,7 @@ async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
   const persistedBoard = filterCustomerBoardFreshness(persistedSportsGameOddsBoard(persisted, sport));
   if (persistedBoard.props.length) {
     if (options.cacheOnly !== true) {
-      void fetchBaseBoard(sport, { ...options, force: true, cacheOnly: false }).catch(() => {});
+      void fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false }).catch(() => {});
     }
     return persistedBoard;
   }

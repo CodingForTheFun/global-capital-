@@ -21,6 +21,7 @@ import { patchReferenceAcceptanceLiveUi } from './lib/autoscout/reference-accept
 import { patchMobileNavDockUi } from './lib/autoscout/mobile-nav-dock-runtime-patch.mjs';
 import { patchHeaderMenuUi } from './lib/autoscout/header-menu-runtime-patch.mjs';
 import { patchBoardCoverageUi } from './lib/autoscout/board-coverage-runtime-patch.mjs';
+import { patchFullTeamFiltersUi } from './lib/autoscout/full-team-filter-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
 import { patchProfileAvatarFrontdoor } from './lib/auth/avatar-runtime-patch.mjs';
 
@@ -80,7 +81,8 @@ const patchedProplineMarketUi = patchProplineMarketUi(patchedRealtimeUi);
 const patchedProplineInsightsUi = patchProplineInsightsUi(patchedProplineMarketUi);
 const patchedProplineFullUi = patchProplineFullUi(patchedProplineInsightsUi);
 const patchedProplinePushBoardUi = patchProplinePushBoardUi(patchedProplineFullUi);
-writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedProplinePushBoardUi), 'utf8');
+const patchedFullTeamFiltersUi = patchFullTeamFiltersUi(patchedProplinePushBoardUi);
+writeFileSync(uiRuntimePath, makeClientSafeVisualUi(patchedFullTeamFiltersUi), 'utf8');
 
 // Compose the core patches inline. The release suite deliberately treats every
 // named `patched*` variable as a UI stage that must be validated by the client

@@ -97,3 +97,28 @@
 @media(min-width:768px) { .research-reference { gap:16px!important; } .op-chart-plot { height:240px; } .op-applied-filter summary { min-height:60px; padding:10px 12px; } .op-sample>strong { font-size:27px; } }
 @media(display-mode:standalone) { body { padding-top:env(safe-area-inset-top); } .op-install-entry { display:none; } }
 @media(prefers-reduced-motion:reduce) { .research-reference * { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+
+@media (max-width: 767px) {
+  .research-reference .op-samples {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    overflow: visible !important;
+    padding: 2px 0 4px !important;
+  }
+
+  .research-reference .op-sample {
+    min-width: 0 !important;
+    width: 100% !important;
+    flex: none !important;
+    min-height: 82px !important;
+    padding: 8px 4px !important;
+  }
+
+  .research-reference .op-sample > span,
+  .research-reference .op-sample > small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

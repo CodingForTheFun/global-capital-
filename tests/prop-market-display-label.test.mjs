@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanMarketLabel, propType } from '../lib/ui/prop-board.mjs';
+import { cleanMarketLabel } from '../lib/ui/prop-board.mjs';
 
 test('market labels keep only the stat category when provider text repeats player, side and line', () => {
   assert.equal(
@@ -13,22 +13,20 @@ test('market labels keep only the stat category when provider text repeats playe
   );
 });
 
-test('source-qualified market ids still resolve to canonical stat labels', () => {
+test('source-qualified market ids still resolve to canonical display labels', () => {
   assert.equal(
-    propType({
+    cleanMarketLabel('Alec Bohm Home Runs Over', {
       sport: 'MLB',
       playerName: 'Alec Bohm',
       marketId: 'propline:batter_home_runs',
-      market: 'Alec Bohm Home Runs Over',
     }),
     'Home runs',
   );
   assert.equal(
-    propType({
+    cleanMarketLabel('Alec Bohm Total Bases Over', {
       sport: 'MLB',
       playerName: 'Alec Bohm',
       marketId: 'sportsgameodds:batter_total_bases',
-      market: 'Alec Bohm Total Bases Over',
     }),
     'Total bases',
   );

@@ -10,6 +10,7 @@ import type {
 } from './types';
 import { isDfs, quotePeriod, variantKey } from './prop-signals';
 import { knownTeam, researchPlayerName } from './player-identity';
+import { isWageringBookQuote } from './quote-books';
 
 /**
  * Every call goes through this app's own /api/* proxy, which forwards to the
@@ -198,7 +199,7 @@ function bestQuote(rows: PropRow[], side: Side): PropRow | null {
   // ordering for favourites and underdogs.
   return (
     rows
-      .filter((row) => String(row.side || '').toUpperCase() === side)
+      .filter((row) => isWageringBookQuote(row) && String(row.side || '').toUpperCase() === side)
       .sort((a, b) => Number(isDfs(a)) - Number(isDfs(b)) || Number(b.price ?? -1e6) - Number(a.price ?? -1e6))[0] || null
   );
 }

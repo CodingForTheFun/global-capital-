@@ -1,3 +1,4 @@
+// release-recovery: verified stat-label/mobile-scores production snapshot 2026-09-21
 (async function(){
 'use strict';
 var {BOOKS,bookId,bookInfo,bookSelection,bookEnabled,filterBookGroups}=await import('/assets/lib/constants/books.mjs');

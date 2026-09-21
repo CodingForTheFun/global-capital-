@@ -1,7 +1,7 @@
 'use client';
 import * as React from 'react';
 import {Minus,Plus,Star,RotateCcw} from 'lucide-react';
-import type {GameLogRow,PropGroup,PropRow} from '@/lib/types';
+import type {GameLogRow,PropGroup,PropRow,ResearchResponse} from '@/lib/types';
 import {applyFilters,buildWindows,computeWindow,distinct,EMPTY_FILTERS,filtersActive,headToHead,sampleFor,sortRecentFirst,type SampleFilters,type SampleId,type Window as ResearchWindow} from '@/lib/analytics';
 import {isDfs,quotePriceLabel,quoteVariant} from '@/lib/prop-signals';
 import {DfsVariantIcon} from '@/components/dfs-variant-icon';
@@ -20,7 +20,7 @@ function SampleTile({window:item,selected,onSelect}:{window:ResearchWindow;selec
 }
 /** Presentation over the existing research engine. Book controls may be supplied
  * by the canonical player workspace, which also knows books at other lines. */
-export function PropExplorer({group,games,loading,unavailableReason,state,onState,favourite,onFavourite,hideBookFilter=false,currentOpponent=null,season=null}:{group:PropGroup;games:GameLogRow[];loading?:boolean;unavailableReason?:string|null;state:ExplorerState;onState(next:ExplorerState):void;favourite:boolean;onFavourite():void;hideBookFilter?:boolean;currentOpponent?:string|null;season?:number|string|null}){
+export function PropExplorer({group,games,loading,unavailableReason,leagueTeams=[],state,onState,favourite,onFavourite,hideBookFilter=false,currentOpponent=null,season=null}:{group:PropGroup;games:GameLogRow[];loading?:boolean;unavailableReason?:string|null;leagueTeams?:NonNullable<ResearchResponse['leagueTeams']>;state:ExplorerState;onState(next:ExplorerState):void;favourite:boolean;onFavourite():void;hideBookFilter?:boolean;currentOpponent?:string|null;season?:number|string|null}){
  const tennis=sportFamily(group.sport)==='tennis';
  const [filters,setFilters]=React.useState<SampleFilters>(EMPTY_FILTERS),[sample,setSample]=React.useState<ChartSample>('l15');
  React.useEffect(()=>{setFilters(EMPTY_FILTERS);setSample('l15');},[group.key]);
@@ -28,7 +28,7 @@ export function PropExplorer({group,games,loading,unavailableReason,state,onStat
  const filtered=React.useMemo(()=>applyFilters(played,filters),[played,filters]);
  const windows=React.useMemo(()=>{const result=buildWindows(filtered,state.line,state.side);result[3]=computeWindow(currentSeasonGames(filtered,filters.season==='all'?season:filters.season),state.line,state.side,'season','Season');result.splice(3,0,computeWindow(filtered,state.line,state.side,'l20','L20',20));return result;},[filtered,state.line,state.side,filters.season,season]);
  const opponentIdentity=analysisOpponent(group,currentOpponent);
- const opponentOptions=React.useMemo(()=>buildOpponentOptions(distinct(played.map(g=>g.opponent)),{...group,opponent:opponentIdentity},tennis),[played,opponentIdentity,group.team,group.homeTeam,group.awayTeam,tennis]);
+ const opponentOptions=React.useMemo(()=>buildOpponentOptions(distinct(played.map(g=>g.opponent)),{...group,opponent:opponentIdentity},leagueTeams,tennis),[played,opponentIdentity,group.team,group.homeTeam,group.awayTeam,leagueTeams,tennis]);
  const currentOpponentValue=React.useMemo(()=>opponentOptions.find(option=>option.label.endsWith(' ★'))?.value||null,[opponentOptions]);
  const h2hOpponent=filters.opponent!=='all'?filters.opponent:currentOpponentValue;
  const seasonGames=React.useMemo(()=>currentSeasonGames(filtered,filters.season==='all'?season:filters.season),[filtered,filters.season,season]);

@@ -16,7 +16,7 @@ export type PremiumPlayerResearchProps = {
   side: Side; favourite: boolean; canFollow: boolean;
   onCategory(key: string): void; onBook(key: string): void;
   onOffer(offer: WorkspaceOffer): void; onFavourite(): void;
-  research: React.ReactNode; model: React.ReactNode; gameLog?: React.ReactNode; quoteHistory?: React.ReactNode;
+  research: React.ReactNode; model: React.ReactNode; gameLog?: React.ReactNode; quoteHistory?: React.ReactNode; historyRetry?: React.ReactNode;
   /** Undefined uses the canonical selected book; null retains legacy best prices. */
   bookSelection?: string | null; allowBestPrices?: boolean; onLine?(line: number): void;
   team?: string | null; matchupLabel?: string; supporting?: React.ReactNode;

@@ -26,7 +26,7 @@ import {
   streakOf,
   windowOf,
 } from '@/lib/api';
-import { pctValue } from '@/lib/utils';
+import { marketDisplayLabel, pctValue } from '@/lib/utils';
 import {
   marketArbitrage,
   marketArbitrageLabel,
@@ -1094,7 +1094,7 @@ function DesktopMatrix({
                   </span>
                 </td>
                 <td className={styles.marketCell}>
-                  <span className={styles.marketText}>{group.market}</span>
+                  <span className={styles.marketText}>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</span>
                   {arb ? (
                     <span className={styles.arbBadge} data-push={arb.possiblePush ? 'true' : 'false'}>
                       {marketArbitrageLabel(arb)}
@@ -1216,7 +1216,7 @@ function MobileMatrix({
             </button>
 
             <div className={styles.mobileMeta}>
-              <span><b>{group.line}</b> {group.market}</span>
+              <span><b>{group.line}</b> {marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</span>
               <span>O L5 <b>{rateLabel(summary === undefined ? undefined : summary?.l5 ?? null)}</b></span>
               <span>O L10 <b>{rateLabel(summary === undefined ? undefined : summary?.l10 ?? null)}</b></span>
               <span>O L15 <b>{rateLabel(summary === undefined ? undefined : summary?.l15 ?? null)}</b></span>
@@ -1309,7 +1309,7 @@ function Inspector({
         </div>
 
         <div className={styles.inspectorLine}>
-          <div><span>Market</span><b>{group.market}</b></div>
+          <div><span>Market</span><b>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</b></div>
           <div><span>Line</span><b>{group.line}</b></div>
           <div><span>Model</span><b>{projection !== null ? projection.toFixed(1) : '—'}</b></div>
           <div><span>Best EV</span><b data-positive={ev && ev.ev > 0 ? 'true' : 'false'}>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}%` : '—'}</b></div>
@@ -1461,7 +1461,7 @@ function SlipDrawer({
               <div>
                 <span>{item.side} · {item.sportsbook}</span>
                 <b>{item.player}</b>
-                <small>{item.market} · {item.line} · {priceLabel(item.price)}</small>
+                <small>{marketDisplayLabel(item.market, item.player)} · {item.line} · {priceLabel(item.price)}</small>
               </div>
               <button type="button" aria-label={`Remove ${item.player}`} onClick={() => onRemove(item.id)}>
                 <X size={15} />

@@ -1,6 +1,7 @@
 import type { PropGroup, PropRow, Side } from './types';
 import type { WorkspacePlayer, WorkspaceMarket, WorkspaceOffer } from './workspace';
 import { quotePeriod, quoteVariant, variantKey } from './prop-signals';
+import { isWageringBookQuote } from './quote-books';
 
 export type LegacyCategory = { key: string; label: string; variants: PropGroup[] };
 type QuoteMetadata = PropRow & { period?: string; periodKey?: string; dfs?: boolean; dfsOddsType?: string; dfs_odds_type?: string; multiplier?: number | string; payoutMultiplier?: number | string; conflict?: boolean };
@@ -10,7 +11,15 @@ const numeric = (value: unknown): number | null => value == null || typeof value
 /** Parse only explicit period evidence. These display fields never enter an API request. */
 export function legacyPeriod(group: PropGroup): { period: string | null; label: string } {
   const row = group.quotes[0] as QuoteMetadata | undefined;
-  const label = group.market.trim();
+  let label = group.market.trim();
+  // Supplemental providers occasionally put the athlete and outcome into the
+  // market display label. Keep provider identity untouched, but clean only
+  // presentation text so a player name cannot become a stat tab.
+  const playerPrefix = group.player.trim();
+  if (playerPrefix && label.toLowerCase().startsWith(`${playerPrefix.toLowerCase()} `)) {
+    label = label.slice(playerPrefix.length + 1);
+  }
+  label = label.replace(/\s+(?:over|under)(?:\s+[+-]?\d+(?:\.\d+)?)?$/i, '').trim();
   const suffix = label.match(/\s*[·|]\s*(?:Period\s+)?(h1|h2|q1|q2|q3|q4|1h|2h|1q|2q|3q|4q|first half|second half|first quarter|second quarter|third quarter|fourth quarter)$/i);
   const rawSuffix = label.match(/_(h1|h2|q1|q2|q3|q4|1h|2h|1q|2q|3q|4q)$/i);
   const supplied = String(quotePeriod(row) || suffix?.[1] || rawSuffix?.[1] || '').trim().toLowerCase();
@@ -23,7 +32,8 @@ export function legacyPeriod(group: PropGroup): { period: string | null; label: 
 function offerFor(category: string, group: PropGroup, row: PropRow): WorkspaceOffer | null {
   const metadata = row as QuoteMetadata;
   const book = clean(row.sportsbookKey || row.sportsbook);
-  if (!book) return null;
+  // Provider/research rows can enrich a prop, but they are not selectable books.
+  if (!book || !isWageringBookQuote(row)) return null;
   const rawSide = String(row.side || '').trim().toUpperCase();
   const side: Side | null = rawSide === 'OVER' || rawSide === 'UNDER' ? rawSide : null;
   const line = numeric(row.line) ?? group.line;
@@ -73,6 +83,7 @@ export function legacyPresentation(categories: LegacyCategory[], group: PropGrou
   const selected = target && market ? market.offers.find(offer => offer.key === target.key) || null : null;
   const player: WorkspacePlayer = {
     key: cardKey || group.key, playerId: group.providerPlayerId, name: group.player,
+    position: group.position ?? null,
     aliases: [group.player], sport: group.sport,
     eventId: String(group.quotes.find(row => row.eventId)?.eventId || ''),
     startsAt: group.startsAt, homeTeam: group.homeTeam, awayTeam: group.awayTeam, markets,

@@ -2,6 +2,7 @@ import type { PropGroup, PropRow } from './types';
 import { knownTeam, sameExplicitTeam } from './player-identity';
 import { canonicalMarketLabel } from './market-display';
 import { isDfs, quotePeriod, quoteVariant, variantKey } from './prop-signals';
+import { isWageringBookQuote } from './quote-books';
 
 const clean = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 const id = (group: PropGroup) => clean(group.providerPlayerId);
@@ -158,8 +159,14 @@ function canonicalCategory(value: string): string {
   try { const parts = JSON.parse(value); return Array.isArray(parts) && parts.length === 4 && parts.every(part => typeof part === 'string') ? categoryIdentity(parts[0], parts[1], parts[2], parts[3]) : value; } catch { return value; }
 }
 export function playerMarketKey(group: PropGroup): string {
-  const row = group.quotes[0], key = clean(group.marketId || group.market), label = clean(group.market);
-  // Only audited label aliases share a category. Unknown same-ID labels stay distinct.
+  const row = group.quotes[0], key = clean(group.marketId || group.market);
+  const player = name(group);
+  let label = clean(group.market).replace(/[.’']/g, '');
+  // Some supplemental feeds send display prose like "<player> Doubles Over".
+  // Strip only the exact current player prefix and outcome suffix; unknown
+  // market ids still stay distinct by their remaining verified market text.
+  if (player && label.startsWith(`${player} `)) label = label.slice(player.length + 1);
+  label = label.replace(/\s+(?:over|under)(?:\s+[+-]?\d+(?:\.\d+)?)?$/, '').trim();
   return categoryIdentity(key, label, clean(group.period || quotePeriod(row)), variantKey(row));
 }
 export type PlayerCard = { key: string; variants: PropGroup[]; aliases?: string[] };
@@ -322,11 +329,13 @@ export function bookKey(row: PropRow): string { return clean(row.sportsbookKey |
 export function bookLabel(row: PropRow): string { return String(row.sportsbook || row.sportsbookKey || '').trim(); }
 export function quotedBooks(groups: PropGroup[]): { key: string; label: string }[] {
   const books = new Map<string, string>();
-  for (const group of groups) for (const row of group.quotes) if (bookKey(row)) books.set(bookKey(row), bookLabel(row));
+  for (const group of groups) for (const row of group.quotes) {
+    if (bookKey(row) && isWageringBookQuote(row)) books.set(bookKey(row), bookLabel(row));
+  }
   return [...books].map(([key, label]) => ({ key, label })).sort((a, b) => a.label.localeCompare(b.label));
 }
 export function restrictBook(group: PropGroup, book: string | null): PropGroup {
-  const rows = group.quotes.filter(q => !book || bookKey(q) === clean(book) || clean(bookLabel(q)) === clean(book));
+  const rows = group.quotes.filter(q => isWageringBookQuote(q) && (!book || bookKey(q) === clean(book) || clean(bookLabel(q)) === clean(book)));
   // Repeated ingestion rows are not repeated quote choices.
   const quotes = [...new Map(rows.map(q => [JSON.stringify([bookKey(q), clean(q.side), q.line, q.price]), q])).values()];
   const best = (side: string) => quotes.filter(q => !isDfs(q) && clean(q.side) === side && q.price !== undefined && q.price !== null && String(q.price).trim() !== '' && Number.isFinite(Number(q.price)) && Number(q.price) !== 0).sort((a, b) => Number(b.price) - Number(a.price))[0] || null;

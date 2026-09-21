@@ -2,6 +2,7 @@ import type { PropGroup, PropRow } from './types';
 import { knownTeam, sameExplicitTeam } from './player-identity';
 import { canonicalMarketLabel } from './market-display';
 import { isDfs, quotePeriod, quoteVariant, variantKey } from './prop-signals';
+import { isWageringBookQuote } from './quote-books';
 
 const clean = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase().replace(/\s+/g, ' ');
 const id = (group: PropGroup) => clean(group.providerPlayerId);
@@ -151,7 +152,11 @@ const marketAliases: Record<string, string> = {
 };
 function categoryIdentity(rawKey: string, label: string, period: string, variant: string): string {
   const key = marketAliases[rawKey] || rawKey;
-  const sameLabel = label === rawKey || label === key || label === clean(canonicalMarketLabel(key)) || knownMarketLabels[key]?.test(label);
+  // Once a market id is in the audited display catalog, the id owns category
+  // identity. Provider prose can contain player names / side text and must not
+  // split one stat into duplicate tabs.
+  const canonical = canonicalMarketLabel(key);
+  const sameLabel = Boolean(canonical) || label === rawKey || label === key || knownMarketLabels[key]?.test(label);
   return JSON.stringify([key, sameLabel ? key : label, period, variant]);
 }
 function canonicalCategory(value: string): string {
@@ -322,11 +327,13 @@ export function bookKey(row: PropRow): string { return clean(row.sportsbookKey |
 export function bookLabel(row: PropRow): string { return String(row.sportsbook || row.sportsbookKey || '').trim(); }
 export function quotedBooks(groups: PropGroup[]): { key: string; label: string }[] {
   const books = new Map<string, string>();
-  for (const group of groups) for (const row of group.quotes) if (bookKey(row)) books.set(bookKey(row), bookLabel(row));
+  for (const group of groups) for (const row of group.quotes) {
+    if (bookKey(row) && isWageringBookQuote(row)) books.set(bookKey(row), bookLabel(row));
+  }
   return [...books].map(([key, label]) => ({ key, label })).sort((a, b) => a.label.localeCompare(b.label));
 }
 export function restrictBook(group: PropGroup, book: string | null): PropGroup {
-  const rows = group.quotes.filter(q => !book || bookKey(q) === clean(book) || clean(bookLabel(q)) === clean(book));
+  const rows = group.quotes.filter(q => isWageringBookQuote(q) && (!book || bookKey(q) === clean(book) || clean(bookLabel(q)) === clean(book)));
   // Repeated ingestion rows are not repeated quote choices.
   const quotes = [...new Map(rows.map(q => [JSON.stringify([bookKey(q), clean(q.side), q.line, q.price]), q])).values()];
   const best = (side: string) => quotes.filter(q => !isDfs(q) && clean(q.side) === side && q.price !== undefined && q.price !== null && String(q.price).trim() !== '' && Number.isFinite(Number(q.price)) && Number(q.price) !== 0).sort((a, b) => Number(b.price) - Number(a.price))[0] || null;

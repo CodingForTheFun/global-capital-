@@ -52,6 +52,11 @@ try{
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),name+' root has no horizontal overflow');
   check(await page.locator('.asIdentity').getAttribute('href')==='/',name+' brand opens same-domain research home');
   await page.screenshot({path:`${out}/${name}-research.png`,fullPage:true});
+  if(name==='mobile'){
+   check(await page.locator('#as5.asMobileRefReady #asMobileRefMenu').isVisible(),'mobile reference top menu renders');
+   const railsSwipe=await page.evaluate(()=>{const f=document.getElementById('asMobileRefFilterRail'),m=document.getElementById('asMobileRefMetricRail');return !!f&&!!m&&f.scrollWidth>f.clientWidth&&m.scrollWidth>m.clientWidth;});
+   check(railsSwipe,'mobile filter and metric rails are horizontally swipeable');
+  }
   const mobileReferenceSearch=name==='mobile'&&(await page.locator('#asMobileRefSearchInput').count())>0;
   const searchBox=mobileReferenceSearch?page.locator('#asMobileRefSearchInput'):page.locator('#asSearch');
   if(mobileReferenceSearch)await page.locator('#asMobileRefSearchToggle').click();

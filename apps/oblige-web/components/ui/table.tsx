@@ -5,11 +5,13 @@ import { cn } from '@/lib/utils';
  *  document's own horizontal overflow. */
 export function TableWrap({ className, style, ...props }: React.ComponentProps<'div'>) {
   return (
-    <div
-      className={cn('w-full max-w-full min-w-0 overflow-x-auto [overscroll-behavior-x:contain]', className)}
-      style={{ contain: 'inline-size', ...style }}
-      {...props}
-    />
+    <div className="w-full max-w-full min-w-0 overflow-hidden [contain:inline-size]">
+      <div
+        className={cn('w-full max-w-full min-w-0 overflow-x-auto [overscroll-behavior-x:contain]', className)}
+        style={style}
+        {...props}
+      />
+    </div>
   );
 }
 

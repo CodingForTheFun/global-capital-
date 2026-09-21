@@ -1,0 +1,12 @@
+Release: actual Next mobile Scores tab, 2026-09-21
+Scores implementation PR: #539
+Scores merge SHA: e5652223fa9a48221dd091cc8a1a8e14e1a5e49c
+Release base SHA: 3c871ffa1514e5448e119702c608f754f2fe4bbd
+
+Deploy the current production-stable apps/oblige-web snapshot. It contains the
+actual mobile-shell Scores destination between Props and Research, the /scores
+Next route, the strict five-sport scoreboard, and the mobile overflow repairs
+validated by frontend typecheck/build and browser QA. The newer multi-year
+research-history change in the immediate parent is preserved. Backend score
+routing remains ESPN-first with verified Sportradar fallback. Prop/odds routing,
+auth, domains, and database schema are unchanged.

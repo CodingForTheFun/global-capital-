@@ -2,8 +2,10 @@ import {appendPublicFeeds,publicFeeds} from '../lib/ingestion/public-feeds.mjs';
 import {normalizedDataFromBoardRows} from '../lib/ingestion/normalize.mjs';
 import { publicPersistenceConfigured, readPublicProps } from '../lib/ingestion/public-persistence.mjs';
 import { mergeCachedPropline, proplineSupplementHealth } from '../lib/ingestion/propline-supplement.mjs';
+import { mergeCachedSportsGameOdds, sportsGameOddsSupplementHealth } from '../lib/ingestion/sportsgameodds-supplement.mjs';
 import { filterCustomerBoardFreshness } from '../lib/ingestion/customer-prop-freshness.mjs';
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
+import { sportsGameOddsConfigured } from '../lib/data-sources/sportsgameodds/client.mjs';
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
 import { loadPersistedDiagnostics, snapshotDiagnostics } from '../lib/autoscout/runtime-store.mjs';
@@ -245,6 +247,7 @@ async function fetchPublicFirstBoard(sport, options) {
   // PropLine is cache-only on the customer path. Existing direct/public rows
   // win identity collisions; PropLine only fills missing book/market coverage.
   board = mergeCachedPropline(board, sport);
+  board = mergeCachedSportsGameOdds(board, sport);
   if (persistedReadFailed) {
     board = { ...board, meta: { ...board.meta, persistedReadFailed: true } };
   }
@@ -255,7 +258,8 @@ async function fetchPublicFirstBoard(sport, options) {
   const live = await fetchBaseBoard(sport, { ...options, cacheOnly: false });
   board = await appendPublicFeeds(live, sport);
   board = mergePersistedPublic(board, persisted, sport);
-  return mergeCachedPropline(board, sport);
+  board = mergeCachedPropline(board, sport);
+  return mergeCachedSportsGameOdds(board, sport);
 }
 
 export async function fetchUnifiedBoard(league,options={}) {
@@ -277,11 +281,11 @@ export async function fetchUnifiedBoard(league,options={}) {
       ? {props:[],data:{events:[],players:[],props:[],lines:[]},meta:{provider:base?.meta?.provider||'Provider cache',cacheHit:true,stale:false,knownStaleRejected:true}}
       : base;
     const board=await appendPublicFeeds(customerBase,sport);
-    return filterCustomerBoardFreshness(mergeCachedPropline(board,sport));
+    return filterCustomerBoardFreshness(mergeCachedSportsGameOdds(mergeCachedPropline(board,sport),sport));
   }
   catch(error){
     let fallback=await appendPublicFeeds({props:[],data:{events:[],players:[],props:[],lines:[]},meta:{provider:'Public platform feeds',stale:true,cacheHit:true,warning:'Primary sportsbook feed is temporarily unavailable.'}},sport);
-    fallback=filterCustomerBoardFreshness(mergeCachedPropline(fallback,sport));
+    fallback=filterCustomerBoardFreshness(mergeCachedSportsGameOdds(mergeCachedPropline(fallback,sport),sport));
     if(fallback.props.length)return fallback;
     throw error;
   }
@@ -293,6 +297,7 @@ export function providerDiagnostics() {
     catalog: providerCatalog(),
     publicFeeds: publicFeeds.health(),
     proplineSupplement: proplineSupplementHealth(),
+    sportsGameOddsSupplement: sportsGameOddsSupplementHealth(),
     runtime: snapshotDiagnostics(),
     inflightRefreshes: [...inflight.keys()].map((key) => key.replace(/^[^|]+\|/, '')),
   };
@@ -304,12 +309,13 @@ export function providerHealth() {
   const publicFirst = publicPersistenceConfigured() && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false';
   return {
     theOddsApiConfigured: oddsProvider?.id === 'the-odds-api' && oddsProvider.isConfigured(),
-    sportsGameOddsConfigured: Boolean(text(process.env.SPORTSGAMEODDS_API_KEY)),
+    sportsGameOddsConfigured: sportsGameOddsConfigured(),
     sportsDataIoConfigured: sportsDataIoConfigured(),
     preferredProvider: publicFirst ? 'Public feed database' : oddsProvider?.name || 'SportsDataIO fallback',
     publicFirst,
     regularLinesOnly: true,
     proplineSupplement: proplineSupplementHealth(),
+    sportsGameOddsSupplement: sportsGameOddsSupplementHealth(),
     // `provider` describes the provider actually serving page requests. In
     // public-first production the metered provider is intentionally paused, so
     // reporting it as the active provider makes healthy zero-credit deploys

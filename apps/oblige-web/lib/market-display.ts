@@ -115,7 +115,10 @@ export function marketName(market: Pick<WorkspaceMarket, 'label' | 'marketKey'>)
   if (canonical) return canonical;
   const supplied = String(market.label || '').trim().replace(/\s*[·|]\s*Period\s+[^·|]+$/i, '').trim();
   const embedded = embeddedCanonicalLabel(supplied);
-  if (embedded) return embedded;
+  // Preserve an already-clean provider label verbatim (including its casing).
+  // Only replace it when the canonical stat is embedded inside extra player,
+  // side or line text.
+  if (embedded && displayWords(supplied) !== displayWords(embedded)) return embedded;
   if (supplied && !supplied.includes('_')) return supplied;
   const raw = marketKeyTail(supplied || marketKey);
   return MARKET_NAMES[raw] || humanize(supplied || marketKey) || 'Player Prop';

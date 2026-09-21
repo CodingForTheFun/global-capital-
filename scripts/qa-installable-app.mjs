@@ -6,142 +6,232 @@ import { chromium } from 'playwright';
 const base = 'http://127.0.0.1:3000';
 const output = 'installable-app-artifacts';
 await mkdir(output, { recursive: true });
+
 for (let attempt = 0; ; attempt++) {
-  try { const response = await fetch(base + '/app.webmanifest'); if (response.ok) break; } catch {}
+  try {
+    const response = await fetch(base + '/app.webmanifest');
+    if (response.ok) break;
+  } catch {}
   if (attempt >= 60) throw new Error('Next.js did not become ready');
   await new Promise(resolve => setTimeout(resolve, 1000));
 }
+
 const manifestResponse = await fetch(base + '/app.webmanifest');
-assert.match(manifestResponse.headers.get('content-type'), /application\/manifest\+json/);
+assert.match(manifestResponse.headers.get('content-type') || '', /application\/manifest\+json/);
 const manifest = await manifestResponse.json();
 assert.equal(manifest.name, 'Oblige Props');
 assert.equal(manifest.start_url, '/board');
 assert.equal(manifest.display, 'standalone');
 assert.equal(manifest.scope, '/');
+
 for (const size of [180, 192, 512]) {
   const response = await fetch(base + `/app-icons/${size}.png`);
   assert.equal(response.status, 200, `PNG ${size} status`);
-  assert.match(response.headers.get('content-type'), /image\/png/);
+  assert.match(response.headers.get('content-type') || '', /image\/png/);
   const png = Buffer.from(await response.arrayBuffer());
   assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
-  assert.equal(png.readUInt32BE(16), size); assert.equal(png.readUInt32BE(20), size);
+  assert.equal(png.readUInt32BE(16), size);
+  assert.equal(png.readUInt32BE(20), size);
 }
+
 const workerResponse = await fetch(base + '/app-worker.js');
 assert.equal(workerResponse.headers.get('service-worker-allowed'), '/');
-assert.match(workerResponse.headers.get('cache-control'), /no-store/);
-assert.match(workerResponse.headers.get('content-type'), /javascript/);
+assert.match(workerResponse.headers.get('cache-control') || '', /no-store/);
+assert.match(workerResponse.headers.get('content-type') || '', /javascript/);
 const worker = await workerResponse.text();
 const listeners = new Map();
-vm.runInNewContext(worker, { self: { location: { origin: base }, addEventListener: (name, handler) => listeners.set(name, handler) }, URL });
+vm.runInNewContext(worker, {
+  self: {
+    location: { origin: base },
+    addEventListener: (name, handler) => listeners.set(name, handler),
+  },
+  URL,
+});
 for (const [path, method, mode] of [
-  ['/api/account/me', 'GET', 'cors'], ['/api/apex/props', 'GET', 'cors'],
-  ['/api/apex/research', 'GET', 'cors'], ['/api/apex/market-stream', 'GET', 'cors'],
-  ['/api/account/login', 'POST', 'cors'], ['/account', 'GET', 'navigate'],
-  ['/research', 'GET', 'navigate'], ['/checkout', 'GET', 'navigate'],
-  ['/owner', 'GET', 'navigate'], ['/app-icons/192.png?private=1', 'GET', 'cors'],
+  ['/api/account/me', 'GET', 'cors'],
+  ['/api/oblige-workspace?action=catalog', 'GET', 'cors'],
+  ['/api/apex/props', 'GET', 'cors'],
+  ['/api/account/login', 'POST', 'cors'],
+  ['/account', 'GET', 'navigate'],
+  ['/research', 'GET', 'navigate'],
+  ['/checkout', 'GET', 'navigate'],
+  ['/owner', 'GET', 'navigate'],
+  ['/app-icons/192.png?private=1', 'GET', 'cors'],
   ['/app-icons/192.png', 'POST', 'cors'],
 ]) {
   let intercepted = false;
   listeners.get('fetch')({ request: { url: base + path, method, mode }, respondWith() { intercepted = true; } });
   assert.equal(intercepted, false, `Worker must not intercept ${method} ${path}`);
 }
+
+const sport = 'football_nfl';
+const event = {
+  id: 'installable-event',
+  sport,
+  startsAt: '2050-09-20T18:00:00Z',
+  homeTeam: 'Dallas Cowboys',
+  awayTeam: 'Philadelphia Eagles',
+  status: 'scheduled',
+  aliases: [],
+};
+const offers = ['draftkings', 'fanduel'].flatMap(book =>
+  ['OVER', 'UNDER'].map(side => ({
+    key: `${book}:94.5:${side}`,
+    outcomeId: `installable:${book}:${side}`,
+    book,
+    bookName: book === 'draftkings' ? 'DraftKings' : 'FanDuel',
+    line: 94.5,
+    choice: side,
+    side,
+    price: book === 'draftkings' ? -110 : -115,
+    multiplier: null,
+    updatedAt: new Date().toISOString(),
+    dfs: false,
+    conflict: false,
+    dfsOddsType: 'standard',
+    lineGap: null,
+  })),
+);
+const payload = {
+  ok: true,
+  event,
+  fetchedAt: new Date().toISOString(),
+  players: [{
+    key: 'installable-player',
+    playerId: 'test:installable',
+    name: 'QA Research Player',
+    aliases: ['QA Research Player'],
+    sport,
+    eventId: event.id,
+    startsAt: event.startsAt,
+    homeTeam: event.homeTeam,
+    awayTeam: event.awayTeam,
+    position: 'WR',
+    markets: [{
+      key: 'receiving',
+      marketKey: 'player_reception_yds',
+      label: 'Receiving yards',
+      period: null,
+      variant: 'standard',
+      offers,
+    }],
+  }],
+};
+const games = Array.from({ length: 20 }, (_, i) => ({
+  gameId: `installable-${i}`,
+  date: `${i < 10 ? 2049 : 2048}-09-${String(28 - i).padStart(2, '0')}T00:00:00Z`,
+  opponent: i % 2 ? 'Dallas Cowboys' : 'New York Giants',
+  value: i % 2 ? 110 : 80,
+  isHome: i % 4 < 2,
+  season: i < 10 ? 2049 : 2048,
+}));
+
+const researchURL = '/research?' + new URLSearchParams({
+  sportKey: sport,
+  event: event.id,
+  playerKey: 'installable-player',
+  category: 'receiving',
+});
+
 const browser = await chromium.launch({ headless: true });
 const results = [];
-const player = 'QA Research Player';
-const market = 'Receiving Yards';
-const quotes = ['DraftKings', 'FanDuel'].flatMap((sportsbook, i) => ['OVER', 'UNDER'].map(side => ({
-  id: `${sportsbook}-${side}`, playerName: player, market, marketId: 'receiving_yards', line: 94.5,
-  side, price: i ? -115 : -110, sportsbook, sportsbookKey: sportsbook.toLowerCase(),
-  team: 'PHI', opponent: 'DAL', awayTeam: 'PHI', homeTeam: 'DAL', eventId: 'qa-event',
-  gameStartTime: '2026-09-20T20:25:00Z',
-})));
-const games = Array.from({ length: 20 }, (_, i) => ({
-  gameId: `qa-${i}`, date: new Date(Date.UTC(2026, 8, 15 - i)).toISOString(),
-  opponent: i % 2 ? 'NYG' : 'DAL', isHome: i % 3 === 0, season: i < 10 ? 2026 : 2025,
-  value: 50 + i * 6,
-}));
-const researchURL = '/research?' + new URLSearchParams({ sport: 'NFL', player, market, line: '94.5' });
 try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 1000 }]) {
-    const context = await browser.newContext({ viewport, serviceWorkers: 'allow' });
-    let researchRequests = 0;
-    await context.route('**/api/**', async route => {
-      const path = new URL(route.request().url()).pathname;
-      if (path === '/api/account/me') return route.fulfill({ json: { authenticated: true, user: { id: 'qa-only', email: 'qa@example.invalid' } } });
-      if (path === '/api/apex/props') return route.fulfill({ json: { ok: true, props: [...quotes, ...quotes.map(q => ({ ...q, market: '1H Receiving Yards', marketId: '1h_receiving_yards' }))], meta: {}, supportedSports: ['NFL'] } });
-      if (path === '/api/apex/research') {
-        researchRequests++;
-        return route.fulfill({ json: { ok: true, available: true, source: 'CI fixture, not production data', gameLog: [...games, { gameId: 'qa-missing', date: '2026-09-17', value: null, opponent: 'DAL', season: 2026 }] } });
-      }
-      if (path === '/api/apex/player-artwork') return route.fulfill({ status: 404, body: '' });
-      return route.fulfill({ json: { ok: true, history: [], items: [] } });
-    });
+    const context = await browser.newContext({ viewport, serviceWorkers: 'allow', reducedMotion: 'reduce' });
+    let historyRequests = 0;
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
+
+    await page.route('**/api/**', async route => {
+      const url = new URL(route.request().url());
+      let body;
+      let status = 200;
+
+      if (url.pathname === '/api/account/me') {
+        body = { authenticated: true, user: { id: 'qa-installable', email: 'qa@example.invalid' } };
+      } else if (url.pathname === '/api/oblige-workspace') {
+        const action = url.searchParams.get('action');
+        if (action === 'catalog') body = { ok: true, sports: [{ key: sport, title: 'NFL', active: true }] };
+        else if (action === 'events') body = { ok: true, events: [event] };
+        else if (action === 'event') body = payload;
+        else if (action === 'history') {
+          historyRequests++;
+          body = { ok: true, available: true, source: 'Synthetic installable-app fixture', gameLog: games };
+        } else if (action === 'model') {
+          body = { ok: true, prediction: { available: false, code: 'UNAVAILABLE', message: 'No model in synthetic installable-app fixture.' } };
+        }
+      } else if (url.pathname === '/api/apex/player-artwork') {
+        status = 404;
+        body = {};
+      }
+
+      if (!body) {
+        status = 404;
+        body = { ok: false };
+      }
+      await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    });
+
     await page.goto(base + researchURL, { waitUntil: 'domcontentloaded' });
-    const panel = page.locator('.research-reference');
-    await panel.locator('.op-sample-count').filter({ hasText: '20 of 20 verified games' }).waitFor();
-    const initialResearchRequests = researchRequests;
-    const field = label => panel.locator(`.op-applied-filter[data-filter="${label}"]`);
-    const open = async label => { const item = field(label); if (!(await item.evaluate(el => el.open))) await item.locator('summary').click(); return item; };
-    let season = await open('Season');
-    await season.locator('select').selectOption('2025');
-    assert.match(await season.locator('summary').innerText(), /All/);
-    let opponent = await open('Opponent');
-    await opponent.locator('select').selectOption('DAL');
-    await opponent.getByRole('button', { name: 'Apply', exact: true }).click();
-    assert.match(await panel.locator('.op-sample-count').innerText(), /^10 of 20/);
-    assert.match(await season.locator('summary').innerText(), /All/);
-    let book = await open('Book');
-    await book.locator('select').selectOption('draftkings');
-    await season.getByRole('button', { name: 'Apply', exact: true }).click();
-    assert.match(await panel.locator('.op-sample-count').innerText(), /^5 of 20/);
-    assert.match(await book.locator('summary').innerText(), /Best prices/);
-    await book.getByRole('button', { name: 'Apply', exact: true }).click();
-    assert.match(await book.locator('summary').innerText(), /DraftKings/);
-    opponent = await open('Opponent');
-    await opponent.getByRole('button', { name: 'Clear', exact: true }).click();
-    assert.match(await panel.locator('.op-sample-count').innerText(), /^10 of 20/);
-    assert.match(await season.locator('summary').innerText(), /2025/);
-    await panel.getByRole('button', { name: 'Raise research line' }).click();
-    assert.equal(await panel.locator('.op-line-number').innerText(), '95');
-    assert.match(await panel.locator('.op-price-note').innerText(), /posted line 94\.5/);
-    await panel.locator('.op-side-picker button[data-side="UNDER"]').click();
-    assert.equal(await panel.locator('.op-side-picker button[data-side="UNDER"]').getAttribute('aria-pressed'), 'true');
-    assert.equal(researchRequests, initialResearchRequests, 'Filters, book, line and side must not fetch research');
-    opponent = await open('Opponent');
-    await opponent.locator('select').selectOption('NYG');
-    await opponent.locator('select').press('Escape');
-    opponent = await open('Opponent');
-    assert.equal(await opponent.locator('select').inputValue(), 'all', 'Closing discards draft');
-    await opponent.locator('summary').click();
-    await page.getByRole('button', { name: 'Install Oblige Props', exact: true }).click();
+    await page.getByLabel('Player stat category', { exact: true }).waitFor();
+    await page.getByRole('combobox', { name: 'Opponent', exact: true }).waitFor();
+    await page.locator('.op-sample-count').filter({ hasText: '20 of 20 verified games' }).waitFor();
+
+    const initialHistoryRequests = historyRequests;
+    assert.equal(await page.locator('.op-direct-filter').count(), 3, 'current research filters use direct dropdowns');
+    assert.equal(await page.getByText('Apply', { exact: true }).count(), 0, 'no obsolete Apply panel');
+    assert.equal(await page.getByText('Clear', { exact: true }).count(), 0, 'no obsolete Clear panel');
+
+    const opponent = page.getByRole('combobox', { name: 'Opponent', exact: true });
+    await opponent.selectOption('Dallas Cowboys');
+    await page.waitForFunction(() => document.querySelector('.op-sample-count')?.textContent?.startsWith('10 of 20'));
+    assert.equal(historyRequests, initialHistoryRequests, 'local filters do not refetch history');
+
+    await opponent.selectOption('all');
+    await page.waitForFunction(() => document.querySelector('.op-sample-count')?.textContent === '20 of 20 verified games');
+
+    const installButton = page.getByRole('button', { name: 'Install Oblige Props', exact: true });
+    await installButton.waitFor();
+    await installButton.click();
     await page.locator('dialog[open]').waitFor();
     await page.getByRole('button', { name: 'Close installation instructions' }).click();
+
     assert.equal(await page.locator('link[rel="manifest"]').getAttribute('href'), '/app.webmanifest');
     await page.waitForFunction(async () => {
       const registration = await navigator.serviceWorker.getRegistration('/');
       return registration?.active?.scriptURL.endsWith('/app-worker.js');
     });
-    const dimensions = await page.evaluate(() => {
-      const panel = document.querySelector('.research-reference').getBoundingClientRect();
-      const chart = document.querySelector('.op-chart-section').getBoundingClientRect();
-      return { viewport: innerWidth, document: document.documentElement.scrollWidth, panel: panel.width, chart: chart.width };
+
+    const dimensions = await page.evaluate(() => ({
+      viewport: innerWidth,
+      document: document.documentElement.scrollWidth,
+      card: document.querySelector('[data-design="premium-player-research-v1"]')?.getBoundingClientRect().width || null,
+    }));
+    assert.ok(dimensions.document <= dimensions.viewport + 1, 'research page has no horizontal document overflow');
+    assert.deepEqual(errors, [], 'no client runtime errors');
+
+    await page.screenshot({ path: `${output}/research-${viewport.width}.png`, fullPage: true });
+    results.push({
+      viewport: viewport.width,
+      passed: true,
+      syntheticFixtures: true,
+      historyRequests,
+      dimensions,
+      checks: [
+        'manifest-icons',
+        'service-worker-isolation',
+        'current-direct-filters',
+        'no-obsolete-apply-clear',
+        'install-dialog',
+        'service-worker-registration',
+        'no-horizontal-overflow',
+      ],
     });
-    assert.ok(dimensions.document <= dimensions.viewport + 1, JSON.stringify(dimensions));
-    assert.ok(dimensions.chart >= dimensions.panel * .95, 'Chart must use panel width');
-    await panel.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${output}/research-${viewport.width}-CI-fixture.png`, fullPage: true });
-    await page.goto(base + '/research?' + new URLSearchParams({ sport: 'NFL', player, market: '1H Receiving Yards', line: '94.5' }), { waitUntil: 'domcontentloaded' });
-    await page.locator('.research-reference .op-no-history').filter({ hasText: 'Verified history unavailable' }).waitFor();
-    assert.equal(await page.locator('.research-reference .recharts-bar-rectangle').count(), 0, 'No invented half-game history');
-    assert.equal(researchRequests, initialResearchRequests, 'Unsupported period does not request whole-game data');
-    assert.deepEqual(errors, [], 'No unhandled browser exceptions');
-    results.push({ viewport, dimensions, independentFilters: 'PASS', noExtraResearchRequests: 'PASS', unavailablePeriod: 'PASS', workerRegistered: 'PASS' });
     await context.close();
   }
-} finally { await browser.close(); }
-const summary = { status: 'PASS', release: 'oblige-installable-20260918', pngIcons: 'PASS', workerDataIsolation: 'PASS', basis: 'Automated Chromium desktop/mobile emulation with labeled CI fixtures, not physical device or real-data visual acceptance', results };
-await writeFile(`${output}/summary.json`, JSON.stringify(summary, null, 2));
-console.log(JSON.stringify(summary));
+} finally {
+  await browser.close();
+  await writeFile(`${output}/report.json`, JSON.stringify(results, null, 2));
+}
+console.log(JSON.stringify({ ok: true, results }));

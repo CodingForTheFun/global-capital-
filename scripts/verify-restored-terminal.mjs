@@ -62,7 +62,7 @@ try{
   await page.getByLabel('Player stat category').selectOption({label:'Points'});
   await page.getByText('Synthetic test: verified history unavailable.',{exact:true}).first().waitFor();
   const historyBefore=researchCalls;
-  assert.deepEqual(await page.getByLabel('Selected book',{exact:true}).locator('option').allTextContents(),['Best prices · all books','book-a'],'legacy hero selector keeps Best prices plus exact-line books only');
+  assert.deepEqual(await page.getByLabel('Selected book',{exact:true}).locator('option').allTextContents(),['Best price','book-a'],'hero selector keeps the compact best-price option plus exact-line books only');
   await page.getByRole('button',{name:'Select book-b',exact:true}).click();
   await page.waitForURL(value=>new URL(value).searchParams.get('book')==='book-b');
   await page.waitForFunction(()=>document.querySelector('.op-line-number')?.textContent==='21.5');

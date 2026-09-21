@@ -8,12 +8,14 @@ import { filterCustomerBoardFreshness } from '../lib/ingestion/customer-prop-fre
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
 import { sportsGameOddsConfigured } from '../lib/data-sources/sportsgameodds/client.mjs';
 import { sportradarConfigured } from '../lib/data-sources/sportradar/client.mjs';
+import { sportradarNbaV8Health, startSportradarNbaV8Probe } from '../lib/data-sources/sportradar/nba-v8.mjs';
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
 import { propProviderMode } from '../lib/autoscout/provider-mode.mjs';
 import { loadPersistedDiagnostics, snapshotDiagnostics } from '../lib/autoscout/runtime-store.mjs';
 
 await loadPersistedDiagnostics();
+startSportradarNbaV8Probe();
 
 const text = (value) => String(value ?? '').trim();
 const num = (value) => {
@@ -374,6 +376,7 @@ export function providerDiagnostics() {
     providerMode: propProviderMode(),
     proplineSupplement: proplineSupplementHealth(),
     sportradarSupplement: sportradarSupplementHealth(),
+    sportradarNbaV8: sportradarNbaV8Health(),
     sportsGameOddsSupplement: sportsGameOddsSupplementHealth(),
     runtime: snapshotDiagnostics(),
     inflightRefreshes: [...inflight.keys()].map((key) => key.replace(/^[^|]+\|/, '')),
@@ -388,6 +391,7 @@ export function providerHealth() {
     theOddsApiConfigured: oddsProvider?.id === 'the-odds-api' && oddsProvider.isConfigured(),
     providerMode: propProviderMode(),
     sportradarConfigured: sportradarConfigured(),
+    sportradarNbaV8: sportradarNbaV8Health(),
     sportsGameOddsConfigured: sportsGameOddsConfigured(),
     sportsDataIoConfigured: sportsDataIoConfigured(),
     preferredProvider: publicFirst ? 'Public feed database' : oddsProvider?.name || 'SportsDataIO fallback',

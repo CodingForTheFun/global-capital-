@@ -35,7 +35,7 @@ for (const fixture of cases) {
     assert.equal(starred[0].value, fixture.expected);
     assert.equal(starred[0].label, `${fixture.expected} ★`);
     assert.equal(options[0].value, 'all');
-    assert.equal(options[0].label, 'All opponents');
+    assert.equal(options[0].label, 'All');
   });
 }
 
@@ -98,7 +98,7 @@ test('full league directory fills the dropdown and collapses city aliases', () =
     ],
   );
 
-  assert.equal(options[0].label, 'All opponents');
+  assert.equal(options[0].label, 'All');
   assert.ok(options.some(option => option.label === 'Atlanta Braves'));
   assert.ok(options.some(option => option.label === 'Los Angeles Dodgers'));
   assert.ok(options.some(option => option.label === 'Detroit Tigers ★'));

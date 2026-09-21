@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const scriptPath = new URL('../scripts/verify-organized-production.mjs', import.meta.url);
@@ -18,7 +18,13 @@ test('organized production verifier uses the current safe account flow', () => {
   assert.match(source, /skipped-no-preprovisioned-credentials/);
 });
 
-test('organized board workflow passes exact revision and optional smoke identity', () => {
+test('organized board workflow passes exact revision and optional smoke identity', (t) => {
+  // Railway production images intentionally exclude .github. Keep this CI-only
+  // assertion active when the workflow file exists instead of breaking the app build.
+  if (!existsSync(workflowPath)) {
+    t.skip('workflow source is not included in the production image');
+    return;
+  }
   const workflow = readFileSync(workflowPath, 'utf8');
   assert.doesNotMatch(workflow, /AUTOSCOUT_EXPECTED_SHA:\s*\$\{\{ github\.sha \}\}/);
   assert.match(workflow, /AUTOSCOUT_SMOKE_EMAIL:\s*\$\{\{ secrets\.AUTOSCOUT_SMOKE_EMAIL \}\}/);

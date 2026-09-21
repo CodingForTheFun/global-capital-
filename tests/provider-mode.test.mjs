@@ -67,3 +67,14 @@ test('SGO mode disables public feeds and public ingestion globally', async () =>
     else process.env.OBLIGE_PROP_PROVIDER_MODE = previousMode;
   }
 });
+
+
+test('MESH mode keeps SportsGameOdds primary and enables PropLine only as fallback', () => {
+  assert.deepEqual(providerRouting({ OBLIGE_PROP_PROVIDER_MODE: 'MESH' }), {
+    mode: 'mesh',
+    primary: 'sportsgameodds',
+    enabled: ['sportsgameodds', 'propline'],
+    fallback: ['propline'],
+  });
+  assert.equal(proplineTrafficEnabled({ OBLIGE_PROP_PROVIDER_MODE: 'MESH' }), true);
+});

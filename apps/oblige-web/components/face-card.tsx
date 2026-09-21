@@ -4,7 +4,7 @@ import * as React from 'react';
 import { ART, teamFor } from '@/lib/teams';
 import { artworkUrl, fetchResearch, playedGames } from '@/lib/api';
 import type { GameLogRow, PropGroup } from '@/lib/types';
-import { cn, initials, odds, rateTone, shortTime } from '@/lib/utils';
+import { cn, initials, marketDisplayLabel, odds, rateTone, shortTime } from '@/lib/utils';
 import { Badge, Dot } from '@/components/ui/badge';
 
 /* ------------------------------------------------------------- team scene */
@@ -341,7 +341,7 @@ export function PropCard({
         type="button"
         onClick={() => onOpen(group)}
         className="prop-card-v2__open grid w-full text-left"
-        aria-label={`Open ${group.player}, ${group.market} ${group.line}`}
+        aria-label={`Open ${group.player}, ${marketDisplayLabel(group.market, group.player, group.marketId, group.sport)} ${group.line}`}
       >
         <span className="prop-card-v2__identity flex items-center gap-3">
           <PlayerPortraits
@@ -371,7 +371,7 @@ export function PropCard({
 
         <span className="prop-card-v2__market-row border-t border-[var(--line)]">
           <span className="prop-card-v2__market-label min-w-0">
-            <span className="truncate">{group.market}</span>
+            <span className="truncate">{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</span>
             <span>{bookCount ? `${bookCount} book${bookCount === 1 ? '' : 's'} available` : 'Book unavailable'}</span>
           </span>
           <span className="prop-card-v2__line num shrink-0 font-bold tracking-tight">

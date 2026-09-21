@@ -19,7 +19,7 @@ test('production advanced filters use the verified full league directory', () =>
 test('production team filters compare aliases semantically instead of exact strings', () => {
   const client = patchFullTeamFiltersUi(source());
 
-  assert.match(client, /la:\["los","angeles"\]/);
+  assert.match(client, /"la":\["los","angeles"\]/);
   assert.match(client, /if\(advanced\.team&&!fullTeamFilterSame\(team,advanced\.team\)\)return false/);
   assert.match(client, /if\(advanced\.opponent&&!fullTeamFilterSame\(opp,advanced\.opponent\)\)return false/);
   assert.match(client, /teams:\[\],opponents:\[\],games:/);

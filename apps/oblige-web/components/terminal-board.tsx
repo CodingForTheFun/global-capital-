@@ -5,22 +5,25 @@ import {
   Activity,
   BarChart3,
   BookOpen,
+  CalendarDays,
   ChevronRight,
   CircleDollarSign,
   Layers3,
   Search,
   SlidersHorizontal,
   Sparkles,
+  Users,
   X,
   Zap,
 } from 'lucide-react';
-import type { BoardMeta, PropGroup, PropRow, Side } from '@/lib/types';
+import type { BoardMeta, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
 import {
   ApiError,
   artworkUrl,
   fetchAccount,
   fetchBoard,
-  fetchResearch,
+  fetchResearchBatch,
+  streakOf,
   windowOf,
 } from '@/lib/api';
 import { pctValue } from '@/lib/utils';
@@ -38,7 +41,22 @@ const LOAD_MORE_ROWS = 40;
 const FALLBACK_REFRESH_MS = 60_000;
 const STREAM_REFRESH_DEBOUNCE_MS = 450;
 const ALL = 'ALL';
+const RESEARCH_BATCH_SIZE = 100;
 
+const PERFORMANCE_SORTS = [
+  { id: 'ev', label: 'EV' },
+  { id: 'avgL10', label: 'Avg L10' },
+  { id: 'diff', label: 'Diff' },
+  { id: 'l5', label: 'L5' },
+  { id: 'l10', label: 'L10' },
+  { id: 'l15', label: 'L15' },
+  { id: 'h2h', label: 'H2H' },
+  { id: 'streak', label: 'Streak' },
+  { id: 'season', label: 'Season' },
+] as const;
+
+type PerformanceSort = (typeof PERFORMANCE_SORTS)[number]['id'];
+type SortDirection = 'desc' | 'asc';
 type FeedMode = 'connecting' | 'live' | 'fallback';
 
 type ModelPrediction = {
@@ -58,12 +76,18 @@ type RateWindow = {
   hits: number | null;
   sample: number | null;
   rate: number | null;
+  average: number | null;
+  partial: boolean;
 };
 
 type ResearchSummary = {
   l5: RateWindow | null;
   l10: RateWindow | null;
-  l20: RateWindow | null;
+  l15: RateWindow | null;
+  h2h: RateWindow | null;
+  season: RateWindow | null;
+  streak: { count: number; over: boolean } | null;
+  diff: number | null;
 };
 
 type MlTarget = {
@@ -132,6 +156,40 @@ function timeLabel(value: string | null) {
 
 function quoteBook(row: PropRow | null | undefined) {
   return text(row?.sportsbook || row?.sportsbookKey) || 'Book unavailable';
+}
+
+function titleCase(value: string) {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function quoteModifier(row: PropRow | null | undefined) {
+  if (!row) return '';
+  const special = text(row.specialType || row.dfsOddsType || row.payoutType);
+  if (special && !/^(standard|regular|normal|none)$/i.test(special)) return titleCase(special);
+  if (row.isAlternate === true) return 'Alternate line';
+  const multiplier = numberOf(row.payoutMultiplier);
+  if (multiplier !== null && Math.abs(multiplier - 1) > 0.0001) return `${multiplier}x payout`;
+  if (row.requiresParlay === true) return 'Parlay only';
+  return '';
+}
+
+function boardDateKey(value: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function boardDateLabel(key: string) {
+  const [year, month, day] = key.split('-').map(Number);
+  const date = new Date(year, Math.max(0, month - 1), day);
+  if (!Number.isFinite(date.getTime())) return key;
+  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function probability01(value: unknown) {
@@ -250,8 +308,46 @@ function rateWindow(window: ReturnType<typeof windowOf>): RateWindow | null {
   const hits = finite(window.hits) ? window.hits : null;
   const sampleRaw = window.sampleSize ?? window.games;
   const sample = finite(sampleRaw) ? sampleRaw : null;
-  if (rate === null && hits === null && sample === null) return null;
-  return { rate, hits, sample };
+  const average = numberOf(window.average);
+  if (rate === null && hits === null && sample === null && average === null) return null;
+  return { rate, hits, sample, average, partial: window.partial === true };
+}
+
+function summarizeResearch(row: ResearchResponse | null | undefined, line: number): ResearchSummary | null {
+  if (!row) return null;
+  const l10 = rateWindow(windowOf(row, 'last10', 'l10', 'lastTen'));
+  const average = l10?.average ?? null;
+  return {
+    l5: rateWindow(windowOf(row, 'last5', 'l5', 'lastFive')),
+    l10,
+    l15: rateWindow(windowOf(row, 'last15', 'l15', 'lastFifteen')),
+    h2h: rateWindow(row.h2h || null),
+    season: rateWindow(windowOf(row, 'season', 'szn')),
+    streak: streakOf(row),
+    diff: average === null ? null : Number((average - line).toFixed(2)),
+  };
+}
+
+function performanceValue(
+  group: PropGroup,
+  metric: PerformanceSort,
+  predictions: Record<string, ModelPrediction>,
+  research: Record<string, ResearchSummary | null>,
+) {
+  const summary = research[group.key];
+  if (metric === 'ev') return evFor(group, predictions[group.key])?.ev ?? null;
+  if (!summary) return null;
+  if (metric === 'avgL10') return summary.l10?.average ?? null;
+  if (metric === 'diff') return summary.diff;
+  if (metric === 'l5') return summary.l5?.rate ?? null;
+  if (metric === 'l10') return summary.l10?.rate ?? null;
+  if (metric === 'l15') return summary.l15?.rate ?? null;
+  if (metric === 'h2h') return summary.h2h?.rate ?? null;
+  if (metric === 'season') return summary.season?.rate ?? null;
+  if (metric === 'streak') {
+    return summary.streak ? (summary.streak.over ? summary.streak.count : -summary.streak.count) : null;
+  }
+  return null;
 }
 
 function rateLabel(window: RateWindow | null | undefined) {
@@ -280,6 +376,11 @@ export function TerminalBoard() {
   const [query, setQuery] = React.useState('');
   const [market, setMarket] = React.useState(ALL);
   const [book, setBook] = React.useState(ALL);
+  const [dateFilter, setDateFilter] = React.useState(ALL);
+  const [gameFilter, setGameFilter] = React.useState(ALL);
+  const [modifierFilter, setModifierFilter] = React.useState(ALL);
+  const [performanceSort, setPerformanceSort] = React.useState<PerformanceSort>('ev');
+  const [sortDirection, setSortDirection] = React.useState<SortDirection>('desc');
   const [evFloor, setEvFloor] = React.useState<number | null>(null);
   const [arbOnly, setArbOnly] = React.useState(false);
   const [shown, setShown] = React.useState(INITIAL_ROWS);
@@ -322,6 +423,11 @@ export function TerminalBoard() {
         if (initial) {
           setMarket(ALL);
           setBook(ALL);
+          setDateFilter(ALL);
+          setGameFilter(ALL);
+          setModifierFilter(ALL);
+          setPerformanceSort('ev');
+          setSortDirection('desc');
           setEvFloor(null);
           setArbOnly(false);
           setShown(INITIAL_ROWS);
@@ -400,40 +506,77 @@ export function TerminalBoard() {
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [groups]);
 
-  const filtered = React.useMemo(() => {
+  const games = React.useMemo(
+    () => [...new Set(groups.map((group) => group.matchup).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [groups],
+  );
+
+  const dates = React.useMemo(
+    () => [...new Set(groups.map((group) => boardDateKey(group.startsAt)).filter(Boolean))].sort(),
+    [groups],
+  );
+
+  const modifiers = React.useMemo(() => {
+    const values = new Set<string>();
+    groups.forEach((group) => group.quotes.forEach((quote) => {
+      const modifier = quoteModifier(quote);
+      if (modifier) values.add(modifier);
+    }));
+    return [...values].sort((a, b) => a.localeCompare(b));
+  }, [groups]);
+
+  const scopedGroups = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
+    return groups.filter((group) => {
+      if (market !== ALL && group.market !== market) return false;
+      if (book !== ALL && !group.quotes.some((quote) => quoteBook(quote) === book)) return false;
+      if (dateFilter !== ALL && boardDateKey(group.startsAt) !== dateFilter) return false;
+      if (gameFilter !== ALL && group.matchup !== gameFilter) return false;
+      if (modifierFilter !== ALL && !group.quotes.some((quote) => quoteModifier(quote) === modifierFilter)) return false;
+      if (
+        needle &&
+        !`${group.player} ${group.market} ${group.matchup} ${group.team || ''} ${group.opponent || ''}`
+          .toLowerCase()
+          .includes(needle)
+      ) return false;
+      if (arbOnly && !marketArbitrage(group)) return false;
+      return true;
+    });
+  }, [arbOnly, book, dateFilter, gameFilter, groups, market, modifierFilter, query]);
 
-    return groups
+  const filtered = React.useMemo(() => {
+    return scopedGroups
       .filter((group) => {
-        if (market !== ALL && group.market !== market) return false;
-        if (book !== ALL && !group.quotes.some((quote) => quoteBook(quote) === book)) return false;
-        if (
-          needle &&
-          !`${group.player} ${group.market} ${group.matchup} ${group.team || ''} ${group.opponent || ''}`
-            .toLowerCase()
-            .includes(needle)
-        ) return false;
-
-        if (evFloor !== null) {
-          const best = evFor(group, predictions[group.key]);
-          if (!best || best.ev < evFloor) return false;
-        }
-        if (arbOnly && !marketArbitrage(group)) return false;
-
-        return true;
+        if (evFloor === null) return true;
+        const best = evFor(group, predictions[group.key]);
+        return Boolean(best && best.ev >= evFloor);
       })
       .sort((a, b) => {
-        const evA = evFor(a, predictions[a.key])?.ev ?? -Infinity;
-        const evB = evFor(b, predictions[b.key])?.ev ?? -Infinity;
-        if (evA !== evB) return evB - evA;
-        const l10A = research[a.key]?.l10?.rate ?? -1;
-        const l10B = research[b.key]?.l10?.rate ?? -1;
-        return l10B - l10A || a.player.localeCompare(b.player);
+        const valueA = performanceValue(a, performanceSort, predictions, research);
+        const valueB = performanceValue(b, performanceSort, predictions, research);
+        if (valueA === null && valueB !== null) return 1;
+        if (valueA !== null && valueB === null) return -1;
+        if (valueA !== null && valueB !== null && valueA !== valueB) {
+          return sortDirection === 'desc' ? valueB - valueA : valueA - valueB;
+        }
+
+        if (performanceSort === 'ev') {
+          const l10A = research[a.key]?.l10?.rate ?? -1;
+          const l10B = research[b.key]?.l10?.rate ?? -1;
+          if (l10A !== l10B) return l10B - l10A;
+        }
+        return a.player.localeCompare(b.player);
       });
-  }, [arbOnly, book, evFloor, groups, market, predictions, query, research]);
+  }, [evFloor, performanceSort, predictions, research, scopedGroups, sortDirection]);
 
   const page = React.useMemo(() => filtered.slice(0, shown), [filtered, shown]);
   const pageKey = page.map((group) => group.key).join('|');
+  const researchTargets = performanceSort === 'ev' ? page : scopedGroups;
+  const researchTargetKey = researchTargets.map((group) => group.key).join('|');
+
+  React.useEffect(() => {
+    setShown(INITIAL_ROWS);
+  }, [arbOnly, book, dateFilter, evFloor, gameFilter, market, modifierFilter, performanceSort, query, sortDirection, sport]);
 
   React.useEffect(() => {
     if (!account || !page.length) return;
@@ -452,38 +595,43 @@ export function TerminalBoard() {
   }, [account, pageKey]);
 
   React.useEffect(() => {
-    if (!account || !page.length) return;
+    if (!account || !researchTargets.length) return;
     const controller = new AbortController();
-    const queue = page.filter((group) => research[group.key] === undefined);
-    if (!queue.length) return () => controller.abort();
+    const missing = researchTargets.filter((group) => research[group.key] === undefined);
+    if (!missing.length) return () => controller.abort();
 
-    const worker = async () => {
-      while (queue.length && !controller.signal.aborted) {
-        const group = queue.shift();
-        if (!group) break;
+    const batches: PropGroup[][] = [];
+    for (let index = 0; index < missing.length; index += RESEARCH_BATCH_SIZE) {
+      batches.push(missing.slice(index, index + RESEARCH_BATCH_SIZE));
+    }
 
+    const hydrate = async () => {
+      for (const batch of batches) {
+        if (controller.signal.aborted) return;
         try {
-          const row = await fetchResearch(group, 'OVER', controller.signal);
-          const summary: ResearchSummary = {
-            l5: rateWindow(windowOf(row, 'last5', 'l5', 'lastFive')),
-            l10: rateWindow(windowOf(row, 'last10', 'l10', 'lastTen')),
-            l20: rateWindow(windowOf(row, 'last20', 'l20', 'lastTwenty')),
-          };
-          if (!controller.signal.aborted) {
-            setResearch((current) => ({ ...current, [group.key]: summary }));
+          const rows = await fetchResearchBatch(batch, 'OVER', controller.signal);
+          if (controller.signal.aborted) return;
+          const next: Record<string, ResearchSummary | null> = {};
+          batch.forEach((group) => {
+            next[group.key] = summarizeResearch(rows[group.key], group.line);
+          });
+          setResearch((current) => ({ ...current, ...next }));
+        } catch (cause) {
+          if (controller.signal.aborted) return;
+          if (cause instanceof ApiError && cause.status === 401) {
+            setAccount(null);
+            return;
           }
-        } catch {
-          if (!controller.signal.aborted) {
-            setResearch((current) => ({ ...current, [group.key]: null }));
-          }
+          const unavailable = Object.fromEntries(batch.map((group) => [group.key, null])) as Record<string, null>;
+          setResearch((current) => ({ ...current, ...unavailable }));
         }
       }
     };
 
-    void Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+    void hydrate();
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, pageKey]);
+  }, [account, researchTargetKey]);
 
   const visibleBooks = React.useMemo(() => {
     if (!inspector) return [];
@@ -591,7 +739,7 @@ export function TerminalBoard() {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search player / team / market"
+                placeholder="Search players, teams, or props..."
               />
             </label>
 
@@ -599,7 +747,7 @@ export function TerminalBoard() {
               <Activity size={14} aria-hidden="true" />
               <span className="sr-only">Market</span>
               <select value={market} onChange={(event) => setMarket(event.target.value)}>
-                <option value={ALL}>All markets</option>
+                <option value={ALL}>All stats</option>
                 {markets.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
@@ -608,7 +756,7 @@ export function TerminalBoard() {
               <BookOpen size={14} aria-hidden="true" />
               <span className="sr-only">Sportsbook</span>
               <select value={book} onChange={(event) => setBook(event.target.value)}>
-                <option value={ALL}>All books</option>
+                <option value={ALL}>All apps / books</option>
                 {books.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
@@ -627,8 +775,60 @@ export function TerminalBoard() {
             </button>
           </div>
 
+          <div className={styles.secondaryFilterRow} aria-label="Game and modifier filters">
+            <label className={styles.selectControl}>
+              <CalendarDays size={14} aria-hidden="true" />
+              <span className="sr-only">Game date</span>
+              <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
+                <option value={ALL}>Any date</option>
+                {dates.map((option) => <option key={option} value={option}>{boardDateLabel(option)}</option>)}
+              </select>
+            </label>
+
+            <label className={styles.selectControl}>
+              <Users size={14} aria-hidden="true" />
+              <span className="sr-only">Game</span>
+              <select value={gameFilter} onChange={(event) => setGameFilter(event.target.value)}>
+                <option value={ALL}>All games</option>
+                {games.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>
+
+            <label className={styles.selectControl}>
+              <Sparkles size={14} aria-hidden="true" />
+              <span className="sr-only">Projection modifier</span>
+              <select value={modifierFilter} onChange={(event) => setModifierFilter(event.target.value)}>
+                <option value={ALL}>All modifiers</option>
+                {modifiers.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <div className={styles.evRail} role="group" aria-label="Performance sorting">
+            <span><BarChart3 size={13} /> Performance</span>
+            {PERFORMANCE_SORTS.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                aria-pressed={performanceSort === option.id}
+                className={performanceSort === option.id ? styles.active : ''}
+                onClick={() => setPerformanceSort(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              aria-label={sortDirection === 'desc' ? 'Show worst performers first' : 'Show top performers first'}
+              onClick={() => setSortDirection((value) => value === 'desc' ? 'asc' : 'desc')}
+              title="Toggle top or worst performers first"
+            >
+              {sortDirection === 'desc' ? 'Top first' : 'Worst first'}
+            </button>
+          </div>
+
           <div className={styles.evRail} role="group" aria-label="Expected value and arbitrage filters">
-            <span><SlidersHorizontal size={13} /> Market filters</span>
+            <span><SlidersHorizontal size={13} /> Edge filters</span>
             {[
               { label: 'All', value: null },
               { label: '0%+', value: 0 },
@@ -760,7 +960,7 @@ function DesktopMatrix({
             <th>Best under</th>
             <th>L5</th>
             <th>L10</th>
-            <th>L20</th>
+            <th>L15</th>
             <th>Model</th>
             <th>EV</th>
             <th aria-label="Open" />
@@ -827,7 +1027,7 @@ function DesktopMatrix({
                 </td>
                 <RateCell window={summary === undefined ? undefined : summary?.l5 ?? null} />
                 <RateCell window={summary === undefined ? undefined : summary?.l10 ?? null} />
-                <RateCell window={summary === undefined ? undefined : summary?.l20 ?? null} />
+                <RateCell window={summary === undefined ? undefined : summary?.l15 ?? null} />
                 <td className={styles.modelCell}>
                   {prediction === undefined ? (
                     <span className={styles.loadingDot}>…</span>
@@ -916,7 +1116,7 @@ function MobileMatrix({
               <span><b>{group.line}</b> {group.market}</span>
               <span>O L5 <b>{rateLabel(summary === undefined ? undefined : summary?.l5 ?? null)}</b></span>
               <span>O L10 <b>{rateLabel(summary === undefined ? undefined : summary?.l10 ?? null)}</b></span>
-              <span>O L20 <b>{rateLabel(summary === undefined ? undefined : summary?.l20 ?? null)}</b></span>
+              <span>O L15 <b>{rateLabel(summary === undefined ? undefined : summary?.l15 ?? null)}</b></span>
             </div>
 
             <div className={styles.mobileQuotes}>
@@ -1022,7 +1222,7 @@ function Inspector({
             {[
               { label: 'L5', window: research === undefined ? undefined : research?.l5 ?? null },
               { label: 'L10', window: research === undefined ? undefined : research?.l10 ?? null },
-              { label: 'L20', window: research === undefined ? undefined : research?.l20 ?? null },
+              { label: 'L15', window: research === undefined ? undefined : research?.l15 ?? null },
             ].map(({ label, window }) => (
               <div key={label}>
                 <span>{label}</span>

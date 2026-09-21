@@ -68,6 +68,14 @@ test('one bounded raw endpoint request, never history/trends or a forced refresh
   assert.equal(calls[0][2].ttlSeconds, 900);
   assert.equal(calls[0][2].bypassCache, undefined);
 });
+test('deep history uses PropLine game endpoint maximum without widening normal board requests', async () => {
+  const calls = [];
+  const get = async (...args) => { calls.push(args); return payload([row('a', 24)]); };
+  const data = await fetchPropLineGameResearch({ ...target, games: 100, historyYears: 5 }, { get, configured: () => true, now: () => NOW });
+  assert.equal(data.available, true);
+  assert.deepEqual(calls[0][1], { limit: 100 });
+});
+
 test('unconfigured/unsupported targets do not call a provider; outages remain retryable', async () => {
   let calls = 0;
   const get = async () => { calls++; throw new Error('test outage'); };

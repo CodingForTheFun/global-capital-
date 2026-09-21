@@ -1,11 +1,12 @@
-Release: full league Team/Opponent filter directories, 2026-09-21
-Source PR: #504
-Release SHA: ab9a39d4b9afbeeb4c49113520b7ccdb78c4129f
-Verified deployed recovery anchor: 0f5aec58a0423615a2f79362c142f2d95db1a4bc
+Release: canonical PropLine quote joins over verified SportsGameOdds gap-fill, 2026-09-21
+Source PR: #512
+Release SHA: 7cb8c42ac2fc64dfab56c7486551d16add80897b
+Verified deployed recovery anchor: 31d7923ba0e4a7f321e93e4a69a49cd49a5eadc4
 
-Deploy the already-merged filter repair through the existing reviewed release gates.
-The customer-facing Team and Opponent filters now use the verified league directory
-instead of only teams present on the current board or in the selected player's recent
-history, while preserving exact observed aliases for filtering. Common aliases such as
-LA Angels / Los Angeles Angels are deduplicated. No provider priority, polling cadence,
-lease, quote-expiry, auth, secret, database schema, or fabricated-history changes.
+Deploy the already-merged and fully tested provider-priority correction through the
+existing reviewed release gates. PropLine remains primary for fresh quote slots,
+SportsGameOdds remains verified gap-fill, canonical ObligeProps event/player joins stay
+stable, unchanged last_seen observations refresh presence without fake line-history
+movement, and the SportsGameOdds metadata hydration already deployed at the recovery
+anchor is preserved. No auth, secret, polling cadence, lease, quota, TTL, destructive
+database, or UI-layout changes.

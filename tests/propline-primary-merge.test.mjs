@@ -145,9 +145,11 @@ test('fresh PropLine wins conflicting quote slots while identical presence stays
   assert.equal(same.proplinePlayerId, 'nfl:priority-player');
   assert.equal(same.ingestedAt, seenAt);
 
-  assert.equal(merged.props.some((row) => row.id === 'stale-fd'), false);
-  const fanduel = merged.props.find((row) => row.sportsbookKey === 'fanduel' && row.period === 'game' && row.side === 'OVER');
+  const fanduelSlots = merged.props.filter((row) => row.sportsbookKey === 'fanduel' && row.period === 'game' && row.side === 'OVER');
+  assert.equal(fanduelSlots.length, 1, 'primary replacement must not leave a duplicate stale slot');
+  const fanduel = fanduelSlots[0];
   assert.ok(fanduel);
+  assert.equal(fanduel.id, 'stale-fd', 'canonical row identity stays stable while its quote is refreshed');
   assert.equal(fanduel.provider, 'propline');
   assert.equal(fanduel.line, 250.5);
   assert.equal(fanduel.price, -110);

@@ -43,6 +43,8 @@ const STREAM_REFRESH_DEBOUNCE_MS = 450;
 const ALL = 'ALL';
 const RESEARCH_BATCH_SIZE = 100;
 const BOARD_STATE_KEY = 'oblige:terminal-board-state:v1';
+const statCategory = (group: PropGroup) =>
+  marketDisplayLabel(group.market, group.player, group.marketId, group.sport);
 
 const PERFORMANCE_SORTS = [
   { id: 'ev', label: 'EV' },
@@ -581,9 +583,13 @@ export function TerminalBoard() {
   }, [viewRestored, checking, account, sport]);
 
   const markets = React.useMemo(
-    () => [...new Set(groups.map((group) => group.market).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    () => [...new Set(groups.map(statCategory).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [groups],
   );
+
+  React.useEffect(() => {
+    if (market !== ALL && !markets.includes(market)) setMarket(ALL);
+  }, [market, markets]);
 
   const books = React.useMemo(() => {
     const names = new Set<string>();
@@ -616,14 +622,14 @@ export function TerminalBoard() {
   const scopedGroups = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
     return groups.filter((group) => {
-      if (market !== ALL && group.market !== market) return false;
+      if (market !== ALL && statCategory(group) !== market) return false;
       if (book !== ALL && !group.quotes.some((quote) => quoteBook(quote) === book)) return false;
       if (dateFilter !== ALL && boardDateKey(group.startsAt) !== dateFilter) return false;
       if (gameFilter !== ALL && group.matchup !== gameFilter) return false;
       if (modifierFilter !== ALL && !group.quotes.some((quote) => quoteModifier(quote) === modifierFilter)) return false;
       if (
         needle &&
-        !`${group.player} ${group.market} ${group.matchup} ${group.team || ''} ${group.opponent || ''}`
+        !`${group.player} ${group.market} ${statCategory(group)} ${group.matchup} ${group.team || ''} ${group.opponent || ''}`
           .toLowerCase()
           .includes(needle)
       ) return false;

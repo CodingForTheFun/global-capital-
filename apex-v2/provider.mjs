@@ -184,6 +184,26 @@ async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
   });
 }
 
+async function fetchMeshBoard(sport, options = {}) {
+  // Keep the fast SportsGameOdds path as the primary customer response. The
+  // mesh never serially waits on secondary providers.
+  let board = await fetchSportsGameOddsOnlyBoard(sport, options);
+  // PropLine is cache-only here: it can fill missing quote slots and enrich
+  // exact matches, but cannot replace a differing SportsGameOdds quote.
+  board = mergeCachedPropline(board, sport, { primary: false });
+  return filterCustomerBoardFreshness({
+    ...board,
+    meta: {
+      ...(board.meta || {}),
+      providerMode: 'mesh',
+      mesh: true,
+      publicFeedsActive: false,
+      quotePrimary: 'SportsGameOdds',
+      quoteFallbacks: ['PropLine'],
+    },
+  });
+}
+
 function mergeProviderCaches(board, sport) {
   const mode = propProviderMode();
   if (mode === 'sportradar') {
@@ -376,6 +396,9 @@ export async function fetchUnifiedBoard(league,options={}) {
     return fetchSportsGameOddsOnlyBoard(sport, options);
   }
   if (mode === 'mesh') {
+    return fetchMeshBoard(sport, options);
+  }
+  if (mode === 'mesh') {
     const primary = await fetchSportsGameOddsOnlyBoard(sport, options);
     return filterCustomerBoardFreshness(mergeCachedPropline(primary, sport, { primary: false }));
   }
@@ -411,8 +434,8 @@ export function providerDiagnostics() {
   return {
     checkedAt: new Date().toISOString(),
     catalog: providerCatalog(),
-    publicFeedsActive: mode !== 'sportsgameodds',
-    publicFeeds: mode === 'sportsgameodds' ? [] : publicFeeds.health(),
+    publicFeedsActive: !['sportsgameodds','mesh'].includes(mode),
+    publicFeeds: ['sportsgameodds','mesh'].includes(mode) ? [] : publicFeeds.health(),
     providerMode: mode,
     mesh: mode === 'mesh' ? meshPolicy() : null,
     sportradarTrials: sportradarTrialHealth(),
@@ -429,7 +452,7 @@ export function providerHealth() {
   const oddsProvider = primaryOddsProvider();
   const oddsHealth = oddsProvider?.health?.() || null;
   const mode = propProviderMode();
-  const publicFirst = mode !== 'sportsgameodds'
+  const publicFirst = !['sportsgameodds','mesh'].includes(mode)
     && publicPersistenceConfigured()
     && text(process.env.AUTOSCOUT_PUBLIC_FIRST).toLowerCase() !== 'false';
   return {

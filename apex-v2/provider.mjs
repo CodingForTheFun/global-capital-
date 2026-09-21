@@ -2,7 +2,7 @@ import {appendPublicFeeds,publicFeeds} from '../lib/ingestion/public-feeds.mjs';
 import {normalizedDataFromBoardRows} from '../lib/ingestion/normalize.mjs';
 import { publicPersistenceConfigured, readPublicProps } from '../lib/ingestion/public-persistence.mjs';
 import { mergeCachedPropline, proplineSupplementHealth } from '../lib/ingestion/propline-supplement.mjs';
-import { mergeCachedSportsGameOdds, sportsGameOddsSupplementHealth, noteSportsGameOddsDemand } from '../lib/ingestion/sportsgameodds-supplement.mjs';
+import { mergeCachedSportsGameOdds, sportsGameOddsSupplementHealth, noteSportsGameOddsDemand, rememberSportsGameOddsBoard } from '../lib/ingestion/sportsgameodds-supplement.mjs';
 import { mergeCachedSportradar, sportradarSupplementHealth } from '../lib/ingestion/sportradar-supplement.mjs';
 import { filterCustomerBoardFreshness } from '../lib/ingestion/customer-prop-freshness.mjs';
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
@@ -239,7 +239,7 @@ async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
     });
     if (filtered.props.length) {
       if (cached?.meta?.stale === true && options.cacheOnly !== true) {
-        void fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false }).catch(() => {});
+        void fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false }).then((board) => rememberSportsGameOddsBoard(sport, board)).catch(() => {});
       }
       return filtered;
     }
@@ -247,7 +247,8 @@ async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
 
   const livePromise = options.cacheOnly === true
     ? null
-    : fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false });
+    : fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false })
+        .then((board) => rememberSportsGameOddsBoard(sport, board));
 
   let persisted = [];
   if (publicPersistenceConfigured()) {

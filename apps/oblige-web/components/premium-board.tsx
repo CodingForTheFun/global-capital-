@@ -1,4 +1,5 @@
 'use client';
+// Release path marker: player prop deep-dive rollout is covered by the guarded frontend verification workflows.
 // Release path marker: dense board acceptance verifies automatic visible-row PROJ and EV loading.
 import * as React from 'react';
 import Link from 'next/link';

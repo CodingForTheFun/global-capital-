@@ -78,3 +78,25 @@ test('MESH mode keeps SportsGameOdds primary and enables PropLine only as fallba
   });
   assert.equal(proplineTrafficEnabled({ OBLIGE_PROP_PROVIDER_MODE: 'MESH' }), true);
 });
+
+
+test('MESH mode keeps public prop feeds off while PropLine remains available as backup', async () => {
+  const previousMode = process.env.OBLIGE_PROP_PROVIDER_MODE;
+  try {
+    process.env.OBLIGE_PROP_PROVIDER_MODE = 'MESH';
+    await publicFeeds.refresh();
+    const board = {
+      props: [{ id: 'sgo', provider: 'sportsgameodds' }],
+      data: { events: [], players: [], props: [], lines: [] },
+      meta: { provider: 'SportsGameOdds' },
+    };
+    const result = await appendPublicFeeds(board, 'NFL');
+    assert.equal(result.props.length, 1);
+    assert.equal(result.props[0].provider, 'sportsgameodds');
+    assert.equal(result.meta.publicFeedsActive, false);
+    assert.equal(proplineTrafficEnabled({ OBLIGE_PROP_PROVIDER_MODE: 'MESH' }), true);
+  } finally {
+    if (previousMode === undefined) delete process.env.OBLIGE_PROP_PROVIDER_MODE;
+    else process.env.OBLIGE_PROP_PROVIDER_MODE = previousMode;
+  }
+});

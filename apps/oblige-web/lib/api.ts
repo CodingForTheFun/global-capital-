@@ -159,6 +159,28 @@ const num = (value: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+const DATA_PROVIDER_BOOKS = new Set([
+  'espn',
+  'sportsdataio',
+  'sportsgameodds',
+  'propline',
+  'clearsports',
+  'sportradar',
+]);
+
+const sourceBookKey = (value: unknown) =>
+  String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+const isDataProviderBook = (row: Pick<PropRow, 'sportsbook' | 'sportsbookKey'>) =>
+  DATA_PROVIDER_BOOKS.has(sourceBookKey(row.sportsbookKey)) ||
+  DATA_PROVIDER_BOOKS.has(sourceBookKey(row.sportsbook));
+
+const cleanPosition = (value: unknown): string | null => {
+  const raw = String(value || '').trim();
+  if (!raw || /^(?:position\s*)?(?:unavailable|unknown|not\s+available|n\/?a|none|null|-)$/i.test(raw)) return null;
+  return raw;
+};
+
 function matchupLabel(row: PropRow) {
   if (row.awayTeam && row.homeTeam) return `${row.awayTeam} @ ${row.homeTeam}`;
   if (row.team && row.opponent) return `${row.team} vs ${row.opponent}`;
@@ -208,11 +230,12 @@ function canonicalPeriod(value: unknown, market = '') {
 }
 
 function bestQuote(rows: PropRow[], side: Side): PropRow | null {
-  // Best price is the highest American number on that side, which is the same
-  // ordering for favourites and underdogs.
+  // Only actual books/DFS platforms may win "best price". Aggregators and
+  // statistics providers can carry sportsbook-shaped fields in fallback rows;
+  // presenting those as books creates fake-looking prices such as ESPN +5000.
   return (
     rows
-      .filter((row) => String(row.side || '').toUpperCase() === side)
+      .filter((row) => String(row.side || '').toUpperCase() === side && !isDataProviderBook(row))
       .sort((a, b) => Number(b.price ?? -1e6) - Number(a.price ?? -1e6))[0] || null
   );
 }
@@ -244,7 +267,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         sport,
         period,
         team: row.team || null,
-        position: row.position || null,
+        position: cleanPosition(row.position),
         opponent: row.opponent || null,
         homeTeam: row.homeTeam || null,
         awayTeam: row.awayTeam || null,
@@ -272,7 +295,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
       return Boolean(book && marketId.startsWith(`${book}:`));
     });
     if (qualified?.marketId) group.marketId = qualified.marketId;
-    if (qualified?.position) group.position = qualified.position;
+    if (qualified?.position) group.position = cleanPosition(qualified.position) || group.position;
     group.bestOver = bestQuote(group.quotes, 'OVER');
     group.bestUnder = bestQuote(group.quotes, 'UNDER');
   }

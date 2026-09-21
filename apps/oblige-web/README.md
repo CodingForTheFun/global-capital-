@@ -96,3 +96,5 @@ and 1440 wide, in all three directions, on all four surfaces:
   prices with the best flagged, and a 15-row game log
 - a pasted `/research?...` link opens the same prop
 - with reduced motion on, every card, meter and counter still renders its value
+
+<!-- release-retry: 2026-09-21 player-detail source-position mapping -->

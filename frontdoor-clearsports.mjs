@@ -21,7 +21,6 @@ import { patchObligePropsVisualUi } from './lib/autoscout/oblige-props-visual-ru
 import { patchReferenceAcceptanceLiveUi } from './lib/autoscout/reference-acceptance-live-runtime-patch.mjs';
 import { patchMobileNavDockUi } from './lib/autoscout/mobile-nav-dock-runtime-patch.mjs';
 import { patchHeaderMenuUi } from './lib/autoscout/header-menu-runtime-patch.mjs';
-import { patchMobileTopMenuUi } from './lib/autoscout/mobile-top-menu-runtime-patch.mjs';
 import { patchBoardCoverageUi } from './lib/autoscout/board-coverage-runtime-patch.mjs';
 import { patchFullTeamFiltersUi } from './lib/autoscout/full-team-filter-runtime-patch.mjs';
 import { patchProfileAvatarUi } from './lib/auth/avatar-ui-runtime-patch.mjs';
@@ -59,8 +58,7 @@ function makeClientSafeVisualUi(source) {
   if (scopedVisualClient === visualClient) throw new Error('Profile avatar bootstrap could not locate the client scope boundary.');
   const avatarClient = patchProfileAvatarUi(scopedVisualClient);
   const headerMenuClient = patchHeaderMenuUi(avatarClient);
-  const mobileTopMenuClient = patchMobileTopMenuUi(headerMenuClient);
-  const dockClient = patchMobileNavDockUi(mobileTopMenuClient);
+  const dockClient = patchMobileNavDockUi(headerMenuClient);
   const client = patchBoardCoverageUi(dockClient);
   try { new Function(client); }
   catch (error) { throw new Error(`Auto Scout client bundle is invalid: ${error?.message || error}`); }

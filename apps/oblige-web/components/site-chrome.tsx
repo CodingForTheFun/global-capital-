@@ -3,13 +3,14 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Home, LayoutGrid, Menu, User, X } from 'lucide-react';
+import { BarChart3, Home, LayoutGrid, Menu, RadioTower, User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
 
 const NAV = [
   { href: '/board', label: 'Props' },
+  { href: '/scores', label: 'Scores' },
   { href: '/research', label: 'Research' },
   { href: '/#pricing', label: 'Pricing' },
   { href: '/account', label: 'Account' },
@@ -18,6 +19,7 @@ const NAV = [
 const MOBILE_NAV = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/board', label: 'Props', icon: LayoutGrid },
+  { href: '/scores', label: 'Scores', icon: RadioTower },
   { href: '/research', label: 'Research', icon: BarChart3 },
   { href: '/account', label: 'Profile', icon: User },
 ];
@@ -250,7 +252,7 @@ export function MobileNav() {
       data-board={board ? 'true' : 'false'}
       data-scroll-hidden={board && hidden ? 'true' : 'false'}
       className={cn(
-        'fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 lg:hidden',
+        'fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 lg:hidden',
         'border-t border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_94%,transparent)] backdrop-blur-xl',
         'pb-[env(safe-area-inset-bottom)]',
         'transition-[transform,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
@@ -302,6 +304,7 @@ export function SiteFooter() {
             title="Product"
             links={[
               { href: '/board', label: 'Props' },
+              { href: '/scores', label: 'Scores' },
               { href: '/research', label: 'Player research' },
               { href: '/#pricing', label: 'Pricing' },
             ]}

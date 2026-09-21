@@ -151,6 +151,10 @@ test('fresh PropLine wins conflicting quote slots while identical presence stays
   assert.equal(fanduel.provider, 'propline');
   assert.equal(fanduel.line, 250.5);
   assert.equal(fanduel.price, -110);
+  assert.equal(fanduel.eventId, 'public-event', 'preferred quote must retain canonical event identity');
+  assert.equal(fanduel.playerId, 'public-player', 'preferred quote must retain canonical player identity');
+  assert.equal(fanduel.providerPlayerId, 'public-player', 'native PropLine player id stays separate metadata');
+  assert.equal(fanduel.proplinePlayerId, 'nfl:priority-player');
 
   const half = merged.props.find((row) => row.id === 'h1-dk');
   assert.ok(half);
@@ -164,6 +168,12 @@ test('fresh PropLine wins conflicting quote slots while identical presence stays
     new Set(merged.props.map((row) => row.id)),
     'normalized persistence must match the rows actually served',
   );
+  const normalizedFanduelLine = merged.data.lines.find((row) => row.id === fanduel.id);
+  const normalizedFanduelProp = merged.data.props.find((row) => row.id === normalizedFanduelLine?.propId);
+  assert.ok(normalizedFanduelLine);
+  assert.ok(normalizedFanduelProp);
+  assert.equal(normalizedFanduelProp.eventId, 'public-event');
+  assert.equal(normalizedFanduelProp.playerId, 'public-player');
 
   const seen = new Map();
   const before = { propId: 'quote', bookmakerKey: 'draftkings', side: 'OVER', line: 250.5, price: -110, ingestedAt: oldObservation };

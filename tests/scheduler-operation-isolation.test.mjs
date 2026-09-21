@@ -77,14 +77,30 @@ for(const failure of ['body','transport']) {
   });
 }
 
+// `startPropLineRefresh` counts rather than throws. The paid providers do not
+// wait on the public lease — nothing needs to grant ownership when no public
+// worker is running — so calling it here is correct, and the counter lets the
+// deadline tests below stay about deadlines. The scraped-feed cycles keep
+// throwing: two processes scraping one book is the contention the lease exists
+// to prevent, and none of them may run without it.
+let proplineRefreshes = 0;
 function schedulerDeps(fetchBoard, persistBoard) {
   return {persistenceHealth:()=>({configured:true}), publicWorkerConfigured:()=>false,
     publicFeeds:{refresh:async()=>{},health:()=>[]}, fetchUnifiedBoard:fetchBoard,
     decorateBoardWithScoutAudit:x=>x,persistNormalizedBoard:persistBoard,
-    retentionConfig:()=>({enabled:false}),startPropLineRefresh:()=>{throw Error('must not poll');},
+    retentionConfig:()=>({enabled:false}),startPropLineRefresh:()=>{proplineRefreshes+=1;},
     runFastPrizePicksCycle:()=>{throw Error('must not poll');},runFreeSportsbooksCycle:()=>{throw Error('must not poll');},runDraftKingsPick6Cycle:()=>{throw Error('must not poll');},
   };
 }
+
+// The regression itself: with no public worker to arbitrate, the paid providers
+// must still refresh. This stayed at zero in production for the life of every
+// process running in mesh mode.
+test('paid providers refresh when no public worker holds the lease',async()=>{
+  proplineRefreshes=0;
+  await __testPersistBoards('test-lease-retry',schedulerDeps(async sport=>({sport}),async()=>({persisted:true})),{cycle:5000,sport:100});
+  assert.ok(proplineRefreshes>0,'PropLine must refresh when nothing else owns ingestion');
+});
 test('one hung cache-only sport does not wedge remaining sports or later scheduler ticks',async()=>{
   const gate=deferred(), fetched=[],written=[];let stalled=true;
   const deps=schedulerDeps(async(sport,options)=>{assert.equal(options.cacheOnly,true);fetched.push(sport);if(sport==='NFL'&&stalled)return gate.promise;return {sport};},async board=>{written.push(board.sport);return {persisted:true};});

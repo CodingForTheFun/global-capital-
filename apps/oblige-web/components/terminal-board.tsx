@@ -493,11 +493,7 @@ export function TerminalBoard() {
   }, [checking, account, sport]);
 
   const markets = React.useMemo(
-    () => [...new Set(
-      groups
-        .map((group) => marketDisplayLabel(group.market, group.player, group.marketId, group.sport))
-        .filter(Boolean),
-    )].sort((a, b) => a.localeCompare(b)),
+    () => [...new Set(groups.map((group) => group.market).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [groups],
   );
 
@@ -532,7 +528,7 @@ export function TerminalBoard() {
   const scopedGroups = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
     return groups.filter((group) => {
-      if (market !== ALL && marketDisplayLabel(group.market, group.player, group.marketId, group.sport) !== market) return false;
+      if (market !== ALL && group.market !== market) return false;
       if (book !== ALL && !group.quotes.some((quote) => quoteBook(quote) === book)) return false;
       if (dateFilter !== ALL && boardDateKey(group.startsAt) !== dateFilter) return false;
       if (gameFilter !== ALL && group.matchup !== gameFilter) return false;

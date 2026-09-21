@@ -100,7 +100,6 @@ export function PropExplorer({ group, games, loading, unavailableReason, leagueT
   const under = activeBook ? activeBook.under : group.bestUnder;
   const moved = Math.abs(state.line - group.line) > .001;
   const quoteOdds = (quote: PropRow | null | undefined) => numberOrNull(quote?.price) === null || Number(quote?.price) === 0 ? '—' : odds(quote?.price);
-  const options = (values: string[]) => [{ value: 'all', label: 'All' }, ...values.map(value => ({ value, label: value }))];
   const seasonOptions = [{ value: 'all', label: 'All years' }, ...seasons.map(value => ({ value, label: value }))];
   function step(amount: number) { onState({ ...state, line: Math.max(0, Math.round((state.line + amount) * 100) / 100) }); }
 

@@ -8,6 +8,8 @@ import type {
   ResearchResponse,
   Side,
 } from './types';
+import { isDfs, quotePeriod, variantKey } from './prop-signals';
+import { knownTeam, researchPlayerName } from './player-identity';
 
 /**
  * Every call goes through this app's own /api/* proxy, which forwards to the
@@ -62,25 +64,38 @@ function wait(ms: number, signal?: AbortSignal) {
   });
 }
 
-async function fetchGet(path: string, parentSignal?: AbortSignal) {
+async function fetchGet(path: string, parentSignal?: AbortSignal, timeoutMs = GET_TIMEOUT_MS) {
   if (parentSignal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
 
   const controller = new AbortController();
   const abortFromParent = () => controller.abort();
   parentSignal?.addEventListener('abort', abortFromParent, { once: true });
-  const timeout = setTimeout(() => controller.abort(), GET_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(path, {
+    const response = await fetch(path, {
       credentials: 'same-origin',
       cache: 'no-store',
       signal: controller.signal,
     });
-  } catch {
+    // Keep cancellation and the deadline active until the body is consumed.
+    // Headers alone do not mean that research finished loading.
+    const raw = await response.text();
+    let body: Record<string, unknown> = {};
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid JSON envelope');
+      body = parsed as Record<string, unknown>;
+    } catch {
+      if (response.ok) throw new ApiError('The service returned an incomplete response. Please retry.', response.status, 'INVALID_RESPONSE');
+    }
+    return { response, body };
+  } catch (error) {
     if (parentSignal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
     if (controller.signal.aborted) {
       throw new ApiError('Oblige Props took too long to respond.', 0, 'TIMEOUT');
     }
+    if (error instanceof ApiError) throw error;
     throw new ApiError('Oblige Props could not be reached.', 0, 'NETWORK');
   } finally {
     clearTimeout(timeout);
@@ -94,22 +109,35 @@ async function fetchGet(path: string, parentSignal?: AbortSignal) {
  * never retries auth/client errors. This gives the UI a calmer failure mode
  * without increasing normal polling frequency or touching provider logic.
  */
-async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+export async function getJson<T>(path: string, signal?: AbortSignal, timeoutMs = GET_TIMEOUT_MS, totalTimeoutMs?: number): Promise<T> {
+  const deadline = totalTimeoutMs === undefined ? Infinity : Date.now() + totalTimeoutMs;
+  const remaining = () => Math.max(0, deadline - Date.now());
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await fetchGet(path, signal);
-    const body = (await response.json().catch(() => ({}))) as T & { message?: string; code?: string };
+    if (signal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
+    if (remaining() <= 0) throw new ApiError('Oblige Props took too long to respond.', 0, 'TIMEOUT');
+    let result: Awaited<ReturnType<typeof fetchGet>>;
+    try {
+      result = await fetchGet(path, signal, Math.min(timeoutMs, remaining()));
+    } catch (error) {
+      if (attempt === 0 && error instanceof ApiError && ['TIMEOUT', 'NETWORK', 'INVALID_RESPONSE'].includes(error.code)) {
+        await wait(Math.min(450, remaining()), signal);
+        continue;
+      }
+      throw error;
+    }
+    const { response, body } = result;
 
-    if (response.ok) return body;
+    if (response.ok) return body as T;
 
     if (attempt === 0 && RETRYABLE_GET_STATUSES.has(response.status)) {
-      await wait(retryAfterMs(response, attempt), signal);
+      await wait(Math.min(retryAfterMs(response, attempt), remaining()), signal);
       continue;
     }
 
     throw new ApiError(
-      body?.message || 'That request could not be completed.',
+      typeof body.message === 'string' ? body.message : 'That request could not be completed.',
       response.status,
-      body?.code || 'REQUEST_FAILED',
+      typeof body.code === 'string' ? body.code : 'REQUEST_FAILED',
     );
   }
 
@@ -154,9 +182,26 @@ export async function postAccount(
 /* ------------------------------------------------------------------ board */
 
 const num = (value: unknown): number | null => {
-  if (value === null || value === undefined || value === '') return null;
+  if (value === null || value === undefined || String(value).trim() === '') return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+};
+
+const DATA_PROVIDER_BOOKS = new Set([
+  'espn',
+  'sportsdataio',
+  'sportsgameodds',
+  'propline',
+  'clearsports',
+  'sportradar',
+]);
+const bookToken = (value: unknown) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+const isDataProviderBook = (row: Pick<PropRow, 'sportsbook' | 'sportsbookKey'>) =>
+  DATA_PROVIDER_BOOKS.has(bookToken(row.sportsbookKey)) || DATA_PROVIDER_BOOKS.has(bookToken(row.sportsbook));
+const cleanPosition = (value: unknown): string | null => {
+  const raw = String(value || '').trim();
+  if (!raw || /^(?:position\s*)?(?:unavailable|unknown|not\s+available|n\/?a|none|null|-)$/i.test(raw)) return null;
+  return raw;
 };
 
 function matchupLabel(row: PropRow) {
@@ -167,11 +212,15 @@ function matchupLabel(row: PropRow) {
 
 function bestQuote(rows: PropRow[], side: Side): PropRow | null {
   // Best price is the highest American number on that side, which is the same
-  // ordering for favourites and underdogs.
+  // ordering for favourites and underdogs. Data vendors can sometimes arrive
+  // in the sportsbook-shaped field; never present ESPN/PropLine/etc. as a book
+  // when an actual posted sportsbook quote exists for the same side.
+  const sided = rows.filter((row) => String(row.side || '').toUpperCase() === side);
+  const sportsbookRows = sided.filter((row) => !isDataProviderBook(row));
+  const pool = sportsbookRows.length ? sportsbookRows : sided;
   return (
-    rows
-      .filter((row) => String(row.side || '').toUpperCase() === side)
-      .sort((a, b) => Number(b.price ?? -1e6) - Number(a.price ?? -1e6))[0] || null
+    pool
+      .sort((a, b) => Number(isDfs(a)) - Number(isDfs(b)) || Number(b.price ?? -1e6) - Number(a.price ?? -1e6))[0] || null
   );
 }
 
@@ -182,12 +231,20 @@ function bestQuote(rows: PropRow[], side: Side): PropRow | null {
 export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
   const groups = new Map<string, PropGroup>();
   for (const row of rows) {
-    const player = String(row.playerName || '').trim();
+    const player = researchPlayerName(row.playerName, { ...row, sport });
+    // A removed tag was verified against this game's metadata. Retain that
+    // team evidence when the source omitted its separate team field.
+    const verifiedTag = player !== String(row.playerName || '').trim() ? String(row.playerName).match(/\(([A-Z0-9]{2,5})\)$/)?.[1] : null;
+    const team = row.team || (verifiedTag ? knownTeam(verifiedTag, sport) || verifiedTag : null);
     const market = String(row.market || '').trim();
     const line = num(row.line);
     if (!player || !market || line === null) continue;
 
-    const key = [row.eventId || matchupLabel(row), player, market, line].join('|');
+    // Keep provider decoration in the fallback identity: opposing namesakes
+    // must remain separate until player cards compare their team evidence.
+    const playerIdentity = String(row.providerPlayerId || '').trim() || String(row.playerName || '').trim().toLowerCase();
+    const period = quotePeriod(row);
+    const key = [row.eventId || matchupLabel(row), playerIdentity, market, period || '', variantKey(row), line].join('|');
     let group = groups.get(key);
     if (!group) {
       group = {
@@ -199,14 +256,15 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         marketId: row.marketId || null,
         line,
         sport,
-        team: row.team || null,
-        position: row.position || null,
+        team,
+        position: cleanPosition(row.position),
         opponent: row.opponent || null,
         homeTeam: row.homeTeam || null,
         awayTeam: row.awayTeam || null,
         matchup: matchupLabel(row),
         startsAt: row.gameStartTime || null,
         live: row.live === true,
+        period,
         quotes: [],
         bestOver: null,
         bestUnder: null,
@@ -218,17 +276,17 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
   }
 
   for (const group of groups.values()) {
-    // Fantasy scoring belongs to the platform that posted the line. If one
-    // quote carries a source-qualified market id (for example PrizePicks),
-    // preserve that verified identity for research even when another DFS book
-    // happens to post the same display label and number.
+    // PrizePicks fantasy scoring must retain the exact platform-qualified market
+    // identity and player role that the backend attached to its live line.
+    // Without this, the UI still has the real number but asks research as a
+    // generic fantasy market and incorrectly gets an unavailable response.
     const qualified = group.quotes.find((row) => {
       const marketId = String(row.marketId || '').trim().toLowerCase();
       const book = String(row.sportsbookKey || '').trim().toLowerCase();
       return Boolean(book && marketId.startsWith(`${book}:`));
     });
     if (qualified?.marketId) group.marketId = qualified.marketId;
-    if (qualified?.position) group.position = qualified.position;
+    if (qualified?.position) group.position = cleanPosition(qualified.position) || group.position;
     group.bestOver = bestQuote(group.quotes, 'OVER');
     group.bestUnder = bestQuote(group.quotes, 'UNDER');
   }
@@ -237,12 +295,17 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
 
 export async function fetchBoard(sport: string, signal?: AbortSignal) {
   const body = await getJson<BoardResponse>(
-    `/api/apex/props?sport=${encodeURIComponent(sport)}`,
+    `/api/apex/props?sport=${encodeURIComponent(sport)}&alternates=1`,
     signal,
   );
   const rows = Array.isArray(body?.props) ? body.props : [];
+  const players = new Map((body?.data?.players || []).map(player => [player.id, player]));
+  const quotes = rows.map(row => {
+    const player = row.playerId ? players.get(row.playerId) : undefined;
+    return player ? { ...row, providerPlayerId: row.providerPlayerId || player.providerPlayerId, position: cleanPosition(row.position) || cleanPosition(player.position) || undefined, team: row.team || player.team } : { ...row, position: cleanPosition(row.position) || undefined };
+  });
   return {
-    groups: groupProps(rows, sport),
+    groups: groupProps(quotes, sport),
     meta: body?.meta || {},
     supportedSports: body?.supportedSports || [],
     quoteCount: rows.length,
@@ -275,94 +338,37 @@ export async function fetchResearch(
     games: '20',
   });
   if (group.providerPlayerId) params.set('providerPlayerId', group.providerPlayerId);
-  if (group.marketId) params.set('marketId', group.marketId);
+  if (group.marketId) {
+    let marketId = group.marketId;
+    if (/fantasy/i.test(`${group.market} ${marketId}`)) {
+      const books = [...new Set(group.quotes.filter(row => !row.conflict).map(row =>
+        String(row.sportsbookKey || '').trim().toLowerCase()).filter(Boolean))];
+      // A book-filtered selection owns its scoring formula, even when its
+      // parent group retained another provider's qualified market identifier.
+      if (books.length === 1) marketId = `${books[0]}:${marketId.replace(/^[^:]+:/, '')}`;
+    }
+    params.set('marketId', marketId);
+  }
   if (group.position) params.set('position', group.position);
   if (group.team) params.set('team', group.team);
   if (group.opponent) params.set('opponent', group.opponent);
   if (group.homeTeam) params.set('homeTeam', group.homeTeam);
   if (group.awayTeam) params.set('awayTeam', group.awayTeam);
+  if (group.period) params.set('period', group.period);
+  if (group.startsAt) params.set('gameStartTime', group.startsAt);
+  const eventId = group.quotes?.find(row => row.eventId)?.eventId;
+  if (eventId) params.set('eventId', eventId);
 
   const path = `/api/apex/research?${params}`;
   const cached = researchCache.get(path);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   if (cached) researchCache.delete(path);
 
-  const value = await getJson<ResearchResponse>(path, signal);
-  rememberResearch(path, value);
+  const value = await getJson<ResearchResponse>(path, signal, 45000, 45000);
+  // A provider miss is not a successful sample: an explicit UI retry must
+  // reach the service instead of replaying the same unavailable cache entry.
+  if (value.available !== false) rememberResearch(path, value);
   return value;
-}
-
-
-const RESEARCH_BATCH_SIZE = 100;
-
-/**
- * Resolve verified research summaries for a slate in one bounded request.
- * The production frontdoor caps this route at 100 props, so callers should
- * chunk larger slates and can merge each completed batch progressively.
- */
-export async function fetchResearchBatch(
-  groups: PropGroup[],
-  side: Side,
-  signal?: AbortSignal,
-): Promise<Record<string, ResearchResponse>> {
-  if (!groups.length) return {};
-  if (groups.length > RESEARCH_BATCH_SIZE) {
-    throw new ApiError(
-      `Research batches are limited to ${RESEARCH_BATCH_SIZE} props.`,
-      400,
-      'RESEARCH_BATCH_TOO_LARGE',
-    );
-  }
-
-  const props = groups.map((group) => {
-    const quote = group.bestOver || group.bestUnder || group.quotes[0] || null;
-    return {
-      key: group.key,
-      sport: group.sport,
-      playerName: group.player,
-      market: group.market,
-      line: group.line,
-      side,
-      providerPlayerId: group.providerPlayerId,
-      position: group.position,
-      team: group.team,
-      opponent: group.opponent,
-      homeTeam: group.homeTeam,
-      awayTeam: group.awayTeam,
-      marketId: group.marketId,
-      eventId: quote?.eventId || null,
-      gameStartTime: group.startsAt,
-      period: quote?.period || null,
-      games: 40,
-    };
-  });
-
-  const response = await fetch('/api/apex/research-batch', {
-    method: 'POST',
-    credentials: 'same-origin',
-    signal,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ props }),
-  });
-  const body = (await response.json().catch(() => ({}))) as {
-    ok?: boolean;
-    code?: string;
-    message?: string;
-    results?: Record<string, ResearchResponse>;
-  };
-
-  if (response.status === 401) {
-    throw new ApiError('Sign in to view verified research.', 401, 'AUTH_REQUIRED');
-  }
-  if (!response.ok || body.ok === false || !body.results) {
-    throw new ApiError(
-      body.message || 'Verified research is temporarily unavailable.',
-      response.status,
-      body.code || 'RESEARCH_BATCH_UNAVAILABLE',
-    );
-  }
-
-  return body.results;
 }
 
 export async function fetchLineHistory(propId: string, signal?: AbortSignal) {

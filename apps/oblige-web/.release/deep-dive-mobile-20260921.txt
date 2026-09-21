@@ -1,0 +1,4 @@
+ObligeProps deep-dive mobile repair release trigger.
+Verified PR: #531
+Verified code commit: f81fe102261685d107c7f96b9b29e715a0022389
+Purpose: trigger the existing Railway oblige-web release lock without changing runtime behavior.

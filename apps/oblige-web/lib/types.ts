@@ -15,6 +15,7 @@ export type PropRow = {
   propId?: string;
   playerName?: string;
   providerPlayerId?: string;
+  playerId?: string;
   market?: string;
   marketId?: string;
   line?: number | string;
@@ -29,25 +30,35 @@ export type PropRow = {
   awayTeam?: string;
   gameStartTime?: string;
   eventId?: string;
+  provider?: string;
+  providerEventId?: string;
+  proplineEventId?: string;
+  proplinePlayerId?: string;
+  proplineOutcomeId?: string;
   live?: boolean;
-  period?: string;
-  entityType?: string;
-  payoutType?: string;
-  /** PropLine DFS modifier metadata when the source exposes it. */
-  specialType?: string;
-  dfsOddsType?: string;
-  payoutMultiplier?: number | string;
-  lineGap?: number | string;
-  isAlternate?: boolean;
-  stale?: boolean;
-  suspended?: boolean;
-  started?: boolean;
-  completed?: boolean;
-  requiresParlay?: boolean;
-  lastSeenAt?: string;
-  ingestedAt?: string;
   providerUpdatedAt?: string;
   updatedAt?: string;
+  period?: string;
+  periodKey?: string;
+  isAlternate?: boolean;
+  specialType?: string;
+  specialVerified?: boolean;
+  specialSideVerified?: boolean;
+  dfs?: boolean;
+  dfsOddsType?: string;
+  dfs_odds_type?: string;
+  multiplier?: number | string;
+  payoutMultiplier?: number | string;
+  lineGap?: number | string | null;
+  liquidity?: number | string | null;
+  liquidityUpdatedAt?: string;
+  providerOutcomeId?: string;
+  bookOutcomeId?: string;
+  bookEventId?: string;
+  bookUpdatedAt?: string;
+  lastChangeAt?: string;
+  lastSeenAt?: string;
+  conflict?: boolean;
 };
 
 export type BoardMeta = {
@@ -63,6 +74,7 @@ export type BoardMeta = {
 export type BoardResponse = {
   ok?: boolean;
   props?: PropRow[];
+  data?: { players?: Array<{ id: string; providerPlayerId?: string; position?: string; team?: string }> };
   meta?: BoardMeta;
   supportedSports?: string[];
   message?: string;
@@ -80,13 +92,14 @@ export type PropGroup = {
   line: number;
   sport: string;
   team: string | null;
-  position: string | null;
+  position?: string | null;
   opponent: string | null;
   homeTeam: string | null;
   awayTeam: string | null;
   matchup: string;
   startsAt: string | null;
   live: boolean;
+  period?: string | null;
   quotes: PropRow[];
   bestOver: PropRow | null;
   bestUnder: PropRow | null;
@@ -110,6 +123,17 @@ export type ResearchWindow = {
 };
 
 export type GameLogRow = {
+  gameResult?: string | null;
+  scoreFor?: number | null;
+  scoreAgainst?: number | null;
+  points?: number | null;
+  rebounds?: number | null;
+  assists?: number | null;
+  threes?: number | null;
+  started?: boolean | null;
+  dnp?: boolean;
+  didNotPlay?: boolean;
+  [stat: string]: unknown;
   gameId?: string;
   date?: string;
   opponent?: string;
@@ -131,7 +155,7 @@ export type ResearchResponse = {
   source?: string;
   fetchedAt?: string;
   cached?: boolean;
-  player?: { playerName?: string; providerPlayerId?: string; team?: string | null };
+  player?: { position?: string | null; playerName?: string; providerPlayerId?: string; team?: string | null };
   matchup?: {
     opponent?: string | null;
     isHome?: boolean | null;
@@ -148,8 +172,7 @@ export type ResearchResponse = {
   streak?: { count?: number | null; type?: string | null } | number | null;
   diff?: number | null;
   gameLog?: GameLogRow[];
-  /** Verified public team directory for this league. Used only to populate the
-   * opponent picker; it never creates history rows or changes hit rates. */
+  /** Verified league directory used to populate team-sport opponent filters. */
   leagueTeams?: Array<{ id?: string; abbreviation?: string; name?: string }>;
   coverage?: Record<string, unknown>;
 };

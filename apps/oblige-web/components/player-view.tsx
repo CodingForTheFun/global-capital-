@@ -3,505 +3,209 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronLeft, TriangleAlert } from 'lucide-react';
-import type { PropGroup, ResearchResponse } from '@/lib/types';
+import type { PropGroup, ResearchResponse, Side } from '@/lib/types';
 import { ApiError, fetchAccount, fetchBoard, fetchResearch, playedGames } from '@/lib/api';
-import {
-  computeWindow,
-  headToHead,
-  playable,
-  sortRecentFirst,
-  type Side,
-} from '@/lib/analytics';
-import { teamFor } from '@/lib/teams';
-import { cn, odds, shortTime } from '@/lib/utils';
-import { Badge, Dot } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { CardPanel } from '@/components/ui/card';
+import { groupPlayerCards, playerMarketKey, playerCategories, quotedBooks, postedSelection, playerResearchHref } from '@/lib/player-cards';
+import { computeWindow, headToHead, playable, sortRecentFirst } from '@/lib/analytics';
+import { legacyPresentation } from '@/lib/legacy-research-presentation';
+import { marketName } from '@/lib/market-display';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PlayerAvatar, TeamScene } from '@/components/face-card';
-import { BookPrices } from '@/components/book-prices';
 import { GameLog } from '@/components/research';
 import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
-import { Reveal } from '@/components/motion';
+import { PlayerAnalysisPage } from '@/components/player-analysis-page';
+import { PostedModel } from '@/components/posted-model';
+import { QuoteHistory } from '@/components/quote-history';
 
 const DERIVED_MARKET =
   /(?:\b(?:1q|2q|3q|4q|1h|2h)\b)|quarter|first half|second half|first inning|1st inning/i;
 
 const FAVOURITES_KEY = 'oblige-followed';
-
-type PlayerSection = 'overview' | 'props' | 'trends' | 'splits';
-
-const PLAYER_SECTIONS: { id: PlayerSection; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'props', label: 'Props' },
-  { id: 'trends', label: 'Trends' },
-  { id: 'splits', label: 'Splits' },
-];
-
 function readFavourites(): string[] {
   try {
-    const raw = localStorage.getItem(FAVOURITES_KEY);
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch {
-    return [];
-  }
+    const value: unknown = JSON.parse(localStorage.getItem(FAVOURITES_KEY) || '[]');
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  } catch { return []; }
 }
 
+/**
+ * The live board emits this legacy URL format. Keep its existing board and
+ * research APIs, but render the SAME premium component as canonical links.
+ * No fabricated canonical identities or extra provider fetches are introduced.
+ */
 export function PlayerView() {
   const router = useRouter();
   const params = useSearchParams();
   const sport = params.get('sport') || 'NFL';
   const player = params.get('player') || '';
   const market = params.get('market') || '';
-  const lineParam = Number(params.get('line'));
-  const postedLine = Number.isFinite(lineParam) ? lineParam : null;
-
+  const lineRaw = params.get('line');
+  const postedLine = lineRaw !== null && lineRaw.trim() !== '' && Number.isFinite(Number(lineRaw)) ? Number(lineRaw) : null;
+  const cardKey = params.get('card') || '';
+  const categoryKey = params.get('category') || '';
+  const selectedBook = params.get('book') || null;
+  const [resolvedCardKey, setResolvedCardKey] = React.useState(cardKey);
   const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
   const [checking, setChecking] = React.useState(true);
   const [markets, setMarkets] = React.useState<PropGroup[]>([]);
   const [research, setResearch] = React.useState<ResearchResponse | null>(null);
+  const [loadedResearchIdentity, setLoadedResearchIdentity] = React.useState('');
   const [loadingBoard, setLoadingBoard] = React.useState(true);
   const [loadingResearch, setLoadingResearch] = React.useState(true);
   const [error, setError] = React.useState('');
+  const [researchError, setResearchError] = React.useState('');
+  const [retry, setRetry] = React.useState(0);
   const [favourites, setFavourites] = React.useState<string[]>([]);
-  const [section, setSection] = React.useState<PlayerSection>('overview');
+  const [state, setState] = React.useState<ExplorerState>({ line: 0, side: 'OVER', book: null });
 
   React.useEffect(() => {
     const controller = new AbortController();
-    fetchAccount(controller.signal)
-      .then(setAccount)
-      .finally(() => setChecking(false));
+    void fetchAccount(controller.signal)
+      .then(value => { if (!controller.signal.aborted) setAccount(value); })
+      .finally(() => { if (!controller.signal.aborted) setChecking(false); });
     setFavourites(readFavourites());
     return () => controller.abort();
   }, []);
 
   React.useEffect(() => {
-    if (checking || !account || !player) {
-      setLoadingBoard(false);
-      return;
-    }
+    if (checking || !account || !player) return;
     const controller = new AbortController();
     setLoadingBoard(true);
     setError('');
-    fetchBoard(sport, controller.signal)
-      .then((board) => {
-        const mine = board.groups.filter((candidate) => candidate.player === player);
+    void fetchBoard(sport, controller.signal)
+      .then(board => {
+        if (controller.signal.aborted) return;
+        const cards = groupPlayerCards(board.groups);
+        const selected = cardKey ? cards.find(card => card.key === cardKey || card.aliases?.includes(cardKey)) : cards.find(card => card.variants.some(candidate => candidate.player === player || candidate.quotes.some(quote => quote.playerName === player)));
+        const mine = selected?.variants || [];
+        setResolvedCardKey(selected?.key || cardKey);
         if (!mine.length) setError(`${player} is not on the ${sport} board right now.`);
         setMarkets(mine);
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
-        if (cause instanceof ApiError && cause.status === 401) {
-          setAccount(null);
-          return;
-        }
+        if (cause instanceof ApiError && cause.status === 401) { setAccount(null); return; }
         setError(cause instanceof Error ? cause.message : 'The board is unavailable.');
       })
-      .finally(() => setLoadingBoard(false));
+      .finally(() => { if (!controller.signal.aborted) setLoadingBoard(false); });
     return () => controller.abort();
-  }, [checking, account, sport, player]);
+  }, [checking, account, sport, player, cardKey]);
 
-  const group = React.useMemo(() => {
-    if (!markets.length) return null;
-    return (
-      markets.find((candidate) => candidate.market === market && candidate.line === postedLine) ||
-      markets.find((candidate) => candidate.market === market) ||
-      markets[0]
-    );
-  }, [markets, market, postedLine]);
-
-  const derived = group ? DERIVED_MARKET.test(group.market) : false;
-  const [state, setState] = React.useState<ExplorerState>({ line: 0, side: 'OVER', book: null });
+  const categories = React.useMemo(() => playerCategories(markets), [markets]);
+  const group = React.useMemo(() => postedSelection(markets, categoryKey, selectedBook, postedLine, market), [markets, categoryKey, selectedBook, postedLine, market]);
+  const derived = group ? DERIVED_MARKET.test([group.market, group.marketId, group.period].filter(Boolean).join(' ')) : false;
+  const categoryVariants = React.useMemo(() => group ? markets.filter(candidate => playerMarketKey(candidate) === playerMarketKey(group)) : [], [markets, group]);
+  const allBooks = React.useMemo(() => quotedBooks(categoryVariants), [categoryVariants]);
+  const researchIdentity = group ? JSON.stringify([resolvedCardKey, playerMarketKey(group)]) : '';
+  const presentation = React.useMemo(() => group ? legacyPresentation(categories, group, playerMarketKey(group), resolvedCardKey, state.side) : null, [categories, group, resolvedCardKey, state.side]);
 
   React.useEffect(() => {
-    if (!group) return;
-    setState({ line: group.line, side: 'OVER', book: null });
-    setSection('overview');
-  }, [group?.key, group?.line]);
+    if (group) setState(previous => ({ line: group.line, side: previous.side, book: selectedBook }));
+  }, [group?.key, group?.line, selectedBook]);
 
   React.useEffect(() => {
-    if (!group) return;
+    if (!group || !account) return;
     if (derived) {
       setResearch(null);
+      setResearchError('Verified history unavailable for this period.');
+      setLoadedResearchIdentity(researchIdentity);
       setLoadingResearch(false);
       return;
     }
     const controller = new AbortController();
-    setLoadingResearch(true);
-    fetchResearch(group, state.side, controller.signal)
-      .then(setResearch)
-      .catch(() => setResearch(null))
-      .finally(() => setLoadingResearch(false));
+    setLoadingResearch(true); setResearch(null); setResearchError('');
+    void fetchResearch(group, state.side, controller.signal)
+      .then(value => {
+        if (controller.signal.aborted) return;
+        setResearch(value); setResearchError(''); setLoadedResearchIdentity(researchIdentity);
+      })
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return;
+        if (cause instanceof ApiError && cause.status === 401) { setAccount(null); return; }
+        setResearch(null); setLoadedResearchIdentity(researchIdentity);
+        setResearchError(cause instanceof Error ? cause.message : 'Historical research could not load. Try again shortly.');
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoadingResearch(false); });
     return () => controller.abort();
-    // The game sample is the same for Over and Under; line/side changes are
-    // recalculated client-side so they do not create extra provider requests.
+    // Preserve the existing exact-category sample cache. Books, line and side
+    // only recalculate in-browser and must not trigger additional history calls.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group?.key, derived]);
+  }, [researchIdentity, retry, account, derived]);
 
-  function selectMarket(next: PropGroup) {
-    const search = new URLSearchParams({
-      sport: next.sport,
-      player: next.player,
-      market: next.market,
-      line: String(next.line),
-    });
-    router.replace(`/research?${search}`, { scroll: false });
+  function choose(category: string, book: string | null, line: number | null) {
+    const variants = markets.filter(candidate => playerMarketKey(candidate) === category);
+    const next = postedSelection(variants, category, book, line);
+    if (next) router.replace(playerResearchHref(next, resolvedCardKey, book), { scroll: false });
   }
-
-  function selectSection(next: PlayerSection) {
-    setSection(next);
-    requestAnimationFrame(() => {
-      document.getElementById(`player-${next}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+  function selectCategory(category: string) {
+    const variants = markets.filter(candidate => playerMarketKey(candidate) === category);
+    const keepBook = selectedBook && quotedBooks(variants).some(book => book.key === selectedBook.toLowerCase() || book.label === selectedBook) ? selectedBook : null;
+    choose(category, keepBook, postedLine);
   }
-
   function toggleFavourite(key: string) {
-    setFavourites((prev) => {
-      const next = prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key];
-      try {
-        localStorage.setItem(FAVOURITES_KEY, JSON.stringify(next));
-      } catch {
-        /* a followed prop is a per-device convenience, never required */
-      }
+    setFavourites(previous => {
+      const next = previous.includes(key) ? previous.filter(item => item !== key) : [...previous, key];
+      try { localStorage.setItem(FAVOURITES_KEY, JSON.stringify(next)); } catch { /* optional per-device preference */ }
       return next;
     });
   }
 
-  if (checking) {
-    return (
-      <Shell>
-        <Skeleton className="mt-4 h-40 rounded-[var(--radius-lg)]" />
-      </Shell>
-    );
-  }
-  if (!account) {
-    return (
-      <Shell>
-        <SignInPanel onSignedIn={setAccount} />
-      </Shell>
-    );
-  }
-  if (!player) {
-    return (
-      <Shell>
-        <Empty
-          title="Pick a prop to research"
-          body="Open any card on the board and its markets, history, splits and book prices land here."
-        />
-      </Shell>
-    );
-  }
-  if (loadingBoard && !group) {
-    return (
-      <Shell>
-        <Skeleton className="mt-4 h-40 rounded-[var(--radius-lg)]" />
-        <Skeleton className="mt-4 h-12 rounded-full" />
-        <Skeleton className="mt-4 h-[460px] rounded-[var(--radius)]" />
-      </Shell>
-    );
-  }
-  if (!group) {
-    return (
-      <Shell>
-        <Empty
-          title="That prop is no longer posted"
-          body={error || 'The market may have settled or been pulled from the board.'}
-        />
-      </Shell>
-    );
-  }
+  if (checking) return <Shell><Skeleton className="mt-4 h-40 rounded-xl"/></Shell>;
+  if (!account) return <Shell><SignInPanel onSignedIn={setAccount}/></Shell>;
+  if (!player) return <Shell><Empty title="Pick a prop to research" body="Open a player on the board to see all their stats, history and book prices."/></Shell>;
+  if (loadingBoard && !group) return <Shell><Skeleton className="mt-4 h-40 rounded-xl"/><Skeleton className="mt-4 h-72 rounded-xl"/></Shell>;
+  if (!group) return <Shell><Empty title="That prop is no longer posted" body={error || 'The market may have settled or been pulled from the board.'}/></Shell>;
+  if (!presentation?.market || !presentation.selected) return <Shell><Empty title="This quote is unavailable" body="No verifiable sportsbook selection is attached to this prop. Choose another posted market from the board."/></Shell>;
 
-  const club = teamFor(group.team);
-  const kickoff = shortTime(group.startsAt);
-  const games = playedGames(research);
+  const activeResearch = loadedResearchIdentity === researchIdentity ? research : null;
+  const activeError = loadedResearchIdentity === researchIdentity ? researchError : '';
+  const pending = loadingResearch || loadedResearchIdentity !== researchIdentity;
+  const unavailable = activeError || (activeResearch?.available === false ? activeResearch.message || 'No verified game log is available for this exact market.' : null);
+  const games = unavailable ? [] : playedGames(activeResearch);
+  const displayGroup = { ...group, market: marketName(presentation.market) };
   const favourite = favourites.includes(group.key);
+  const normalizedBook = selectedBook ? allBooks.find(book => book.key === selectedBook.toLowerCase() || book.label === selectedBook)?.key || selectedBook : null;
 
-  return (
-    <Shell>
-      <section id="player-overview" className="player-section-anchor">
-        <Reveal>
-          <div className="face player-cinematic-hero mt-4 p-5 md:p-6">
-            <TeamScene team={group.team} tall />
-            <div className="player-identity-row flex flex-wrap items-center gap-4">
-              <span className="relative flex-none">
-                <PlayerAvatar
-                  name={group.player}
-                  sport={group.sport}
-                  team={group.team}
-                  providerPlayerId={group.providerPlayerId}
-                  size={82}
-                />
-                <span
-                  aria-hidden="true"
-                  className="absolute -right-1 -bottom-1 grid size-7 place-items-center rounded-full border-2 border-[var(--face-1)] text-[9px] font-extrabold text-white"
-                  style={{ background: club.c1 }}
-                >
-                  {(group.team || '—').slice(0, 3)}
-                </span>
-              </span>
-
-              <div className="min-w-0 flex-1">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge size="md">{group.sport}</Badge>
-                  {group.live && (
-                    <Badge variant="live" size="md">
-                      <Dot pulse />
-                      Live
-                    </Badge>
-                  )}
-                </div>
-                <h1
-                  className="text-[length:var(--fs-xl)] text-balance sm:text-[length:var(--fs-2xl)]"
-                  style={{ textTransform: 'var(--display-case)' as 'none' }}
-                >
-                  {group.player}
-                </h1>
-                <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-xs)] text-[var(--face-text-2)] sm:text-[length:var(--fs-sm)]">
-                  <span className="truncate font-semibold">{club.name}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{group.matchup}</span>
-                  {kickoff && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>{kickoff}</span>
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="player-line-glance mt-5 grid gap-3 rounded-[var(--radius)] border border-[var(--face-line)] bg-[color-mix(in_srgb,var(--face-1)_72%,transparent)] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-              <div className="min-w-0">
-                <p className="truncate text-[length:var(--fs-sm)] font-semibold">{group.market}</p>
-                <p className="mt-1 text-[length:var(--fs-micro)] text-[var(--face-text-3)]">
-                  Best of {new Set(group.quotes.map((q) => q.sportsbookKey || q.sportsbook)).size} books
-                </p>
-              </div>
-              <div className="flex items-center justify-between gap-5 sm:justify-end">
-                <span className="num text-[length:var(--fs-2xl)] font-bold tracking-tight">{group.line}</span>
-                <span className="grid gap-1 text-right">
-                  <span className="num text-[length:var(--fs-sm)] font-semibold text-[var(--face-pos)]">
-                    O {odds(group.bestOver?.price)}
-                  </span>
-                  <span className="num text-[length:var(--fs-sm)] font-semibold text-[var(--face-neg)]">
-                    U {odds(group.bestUnder?.price)}
-                  </span>
-                </span>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      <PlayerSectionNav active={section} onSelect={selectSection} />
-
-      <section id="player-props" className="player-section-anchor player-section-block">
-        <div className="player-section-heading">
-          <div>
-            <span className="player-section-kicker">Prop markets</span>
-            <h2>Choose the number you want to research.</h2>
-          </div>
-          <span className="player-section-count">{markets.length} market{markets.length === 1 ? '' : 's'}</span>
-        </div>
-        <div className="rail player-market-rail" role="tablist" aria-label="Markets for this player">
-          {markets.map((candidate) => {
-            const active = candidate.key === group.key;
-            return (
-              <button
-                key={candidate.key}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => selectMarket(candidate)}
-                className={cn(
-                  'flex min-h-11 flex-none items-center gap-2 rounded-full border px-4',
-                  'text-[length:var(--fs-xs)] font-semibold whitespace-nowrap',
-                  'transition-[color,background-color,border-color,transform] duration-200 ease-[var(--ease-out)] active:scale-[.97]',
-                  active
-                    ? 'border-transparent bg-[var(--accent)] text-[var(--accent-ink)]'
-                    : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)]',
-                )}
-              >
-                {candidate.market}
-                <span className={cn('num', active ? 'opacity-80' : 'text-[var(--text-3)]')}>
-                  {candidate.line}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section id="player-trends" className="player-section-anchor player-section-block">
-        <div className="player-section-heading">
-          <div>
-            <span className="player-section-kicker">Interactive research</span>
-            <h2>Move the line. Change the side. Recalculate instantly.</h2>
-          </div>
-          <span className="player-section-count">No extra provider calls</span>
-        </div>
-        <Reveal>
-          <CardPanel className="player-explorer-panel p-4 sm:p-5">
-            <PropExplorer
-              group={group}
-              games={games}
-              loading={loadingResearch}
-              unavailableReason={
-                derived
-                  ? 'This period-specific number cannot be rebuilt from a full-game box score, so Oblige does not substitute unrelated history. The live line remains available.'
-                  : research && research.available === false
-                    ? research.message || 'No verified game log is available for this player and market yet.'
-                    : null
-              }
-              leagueTeams={research?.leagueTeams || []}
-              state={state}
-              onState={setState}
-              favourite={favourite}
-              onFavourite={() => toggleFavourite(group.key)}
-            />
-          </CardPanel>
-        </Reveal>
-
-        {research?.available === false && !derived && !loadingResearch && (
-          <p className="mt-4 flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_36%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            {research.message || 'No verified history is available for this player and market yet.'}
-          </p>
-        )}
-      </section>
-
-      <section id="player-splits" className="player-section-anchor player-section-block">
-        <div className="player-section-heading">
-          <div>
-            <span className="player-section-kicker">Context splits</span>
-            <h2>See where the current line has actually worked.</h2>
-          </div>
-          <span className="player-section-count">{state.side} {state.line}</span>
-        </div>
-        <SplitSummary
-          games={games}
-          group={group}
-          line={state.line}
-          side={state.side}
-          loading={loadingResearch && !derived}
-        />
-      </section>
-
-      <section className="player-detail-grid mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:items-start">
-        <div className="min-w-0">
-          <Reveal>
-            <GameLog
-              games={games}
-              line={state.line}
-              market={group.market}
-              loading={loadingResearch && !derived}
-            />
-          </Reveal>
-        </div>
-        <div className="min-w-0">
-          <Reveal>
-            <BookPrices group={group} />
-          </Reveal>
-        </div>
-      </section>
-    </Shell>
-  );
+  return <PlayerAnalysisPage
+    analysis={{group: displayGroup, history: activeResearch, line: state.line, loading: pending, unavailable, onLineChange: line => setState(previous => ({ ...previous, line }))}}
+    routeKind="legacy-board-premium-v2"
+    player={presentation.player} market={presentation.market} selected={presentation.selected}
+    team={group.team} matchupLabel={group.matchup}
+    side={state.side} favourite={favourite} canFollow
+    allowBestPrices bookSelection={normalizedBook}
+    onCategory={selectCategory}
+    onBook={book => choose(playerMarketKey(group), book || null, group.line)}
+    onLine={line => choose(playerMarketKey(group), selectedBook, line)}
+    onOffer={offer => {
+      setState(previous => ({ line: offer.line ?? group.line, book: offer.book, side: offer.side || previous.side }));
+      choose(playerMarketKey(group), offer.book, offer.line);
+    }}
+    onFavourite={() => toggleFavourite(group.key)}
+    research={<PropExplorer group={displayGroup} games={games} loading={pending} unavailableReason={unavailable} leagueTeams={activeResearch?.leagueTeams || []} currentOpponent={activeResearch?.matchup?.opponent ?? group.opponent} season={activeResearch?.season} hideBookFilter state={state} onState={setState} favourite={favourite} onFavourite={() => toggleFavourite(group.key)}/>}
+    historyRetry={!pending && unavailable ? <button type="button" onClick={() => setRetry(value => value + 1)}>Retry history</button> : null}
+    supporting={!pending && !unavailable && games.length > 0 ? <SplitSummary games={games} group={displayGroup} line={state.line} side={state.side}/> : null}
+    model={<PostedModel group={group} side={state.side} book={presentation.selected.book} researchLine={state.line}/>}
+    quoteHistory={<QuoteHistory group={group} side={presentation.selected.side || state.side} book={presentation.selected.book}/>}
+    gameLog={<GameLog games={games} line={state.line} market={displayGroup.market} loading={pending}/>}
+  />;
 }
 
-function PlayerSectionNav({
-  active,
-  onSelect,
-}: {
-  active: PlayerSection;
-  onSelect: (section: PlayerSection) => void;
-}) {
-  return (
-    <nav className="player-section-nav" aria-label="Player analysis sections">
-      {PLAYER_SECTIONS.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          aria-pressed={active === item.id}
-          onClick={() => onSelect(item.id)}
-        >
-          {item.label}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-function SplitSummary({
-  games,
-  group,
-  line,
-  side,
-  loading,
-}: {
-  games: ReturnType<typeof playedGames>;
-  group: PropGroup;
-  line: number;
-  side: Side;
-  loading: boolean;
-}) {
-  if (loading) {
-    return <Skeleton className="h-[116px] rounded-[var(--radius)]" />;
-  }
-
+function SplitSummary({ games, group, line, side }: { games: ReturnType<typeof playedGames>; group: PropGroup; line: number; side: Side }) {
   const rows = sortRecentFirst(playable(games));
-  const home = computeWindow(rows.filter((game) => game.isHome === true), line, side, 'home', 'Home');
-  const away = computeWindow(rows.filter((game) => game.isHome === false), line, side, 'away', 'Away');
+  const home = computeWindow(rows.filter(game => game.isHome === true), line, side, 'home', 'Home');
+  const away = computeWindow(rows.filter(game => game.isHome === false), line, side, 'away', 'Away');
   const h2h = headToHead(rows, group.opponent, line, side);
   const splits = [home, away, h2h || computeWindow([], line, side, 'h2h', 'H2H')];
-
-  return (
-    <div className="player-split-grid">
-      {splits.map((split) => {
-        const rate = split.hitRate;
-        const tone = rate === null ? 'none' : rate >= 60 ? 'pos' : rate < 45 ? 'neg' : 'mid';
-        return (
-          <article key={split.id} className="player-split-card" data-tone={tone}>
-            <div className="player-split-topline">
-              <span>{split.label}</span>
-              <span className="num">{split.games ? `${split.hits}/${split.games}` : 'No sample'}</span>
-            </div>
-            <strong className="num">{rate === null ? '—' : `${rate}%`}</strong>
-            <div className="player-split-meta">
-              <span>{split.average === null ? 'Average unavailable' : `Avg ${split.average}`}</span>
-              {split.id === 'h2h' && group.opponent ? <span>vs {group.opponent}</span> : null}
-            </div>
-          </article>
-        );
-      })}
-    </div>
-  );
+  return <><h2 style={{fontSize: 14, marginBottom: 12}}>Supporting context</h2><div style={{display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 10}}>{splits.map(split => <article key={split.id} style={{minWidth: 0}}>
+    <p style={{fontSize: 11, color: '#a6b6cf'}}>{split.label}</p>
+    <strong style={{display: 'block', fontSize: 22, margin: '5px 0', color: split.hitRate === null ? '#8c9db8' : split.hitRate >= 60 ? '#26ddb1' : split.hitRate < 45 ? '#f16986' : '#f2f6fe'}}>{split.hitRate === null ? '—' : `${split.hitRate}%`}</strong>
+    <p style={{fontSize: 10, color: '#a6b6cf'}}>{split.average === null ? 'Average unavailable' : `Avg ${split.average}`}</p>
+    <p style={{fontSize: 10, color: '#8c9db8', marginTop: 4}}>{split.games ? `${split.hits}/${split.games} games` : 'No sample'}</p>
+  </article>)}</div></>;
 }
-
 function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="player-app-shell mx-auto w-full max-w-[var(--maxw)] px-4 pt-5 pb-20 md:px-8">
-      <Link
-        href="/board"
-        className="player-back-link inline-flex min-h-10 items-center gap-2 text-[length:var(--fs-sm)] text-[var(--text-2)] transition-colors duration-200 ease-[var(--ease-out)] hover:text-[var(--text)]"
-      >
-        <ChevronLeft className="size-4" aria-hidden="true" />
-        Back to board
-      </Link>
-      {children}
-    </div>
-  );
+  return <div className="mx-auto w-full max-w-[var(--maxw)] px-4 pt-4 pb-24 md:px-8"><Link href="/board" className="inline-flex min-h-11 items-center text-sm text-[var(--text-2)]">Back to props</Link>{children}</div>;
 }
-
 function Empty({ title, body }: { title: string; body: string }) {
-  return (
-    <CardPanel className="mt-4 grid justify-items-center gap-3 py-16 text-center">
-      <h1 className="text-[length:var(--fs-md)] normal-case">{title}</h1>
-      <p className="max-w-[48ch] text-[length:var(--fs-sm)] text-[var(--text-3)]">{body}</p>
-      <Button asChild variant="ghost" size="sm">
-        <Link href="/board">Open the board</Link>
-      </Button>
-    </CardPanel>
-  );
+  return <section className="mt-4 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-6"><h1 className="text-xl normal-case">{title}</h1><p className="mt-3 text-sm text-[var(--text-2)]">{body}</p><Link href="/board" className="mt-4 inline-flex min-h-11 items-center text-sm text-[var(--accent)]">Open the board</Link></section>;
 }

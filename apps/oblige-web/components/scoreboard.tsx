@@ -136,7 +136,7 @@ export function ScoresWorkspace() {
 
   const refresh = React.useCallback(async (force = false) => {
     setError(null);
-    setLoading((current) => current || events.length === 0);
+    setLoading(true);
     try {
       const query = new URLSearchParams({
         sports: 'NFL,NBA,SOCCER,NHL,MLB',
@@ -159,7 +159,7 @@ export function ScoresWorkspace() {
     } finally {
       setLoading(false);
     }
-  }, [events.length]);
+  }, []);
 
   React.useEffect(() => {
     void refresh(false);
@@ -214,7 +214,7 @@ export function ScoresWorkspace() {
         activeFilter={activeFilter}
         onSportChange={setActiveSport}
         onFilterChange={setActiveFilter}
-        isLoading={loading}
+        isLoading={loading && events.length === 0}
       />
 
       <div className="mt-2 text-right text-[10px] text-[var(--text-3)]">

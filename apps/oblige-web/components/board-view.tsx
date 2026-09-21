@@ -345,6 +345,7 @@ export function BoardView() {
       player: group.player,
       market: group.market,
       line: String(group.line),
+      period: group.period || 'game',
     });
     router.push(`/research?${params}`);
   }

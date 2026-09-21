@@ -29,7 +29,8 @@ try{for(const width of [390,1440])for(const sport of ['NBA','NFL','TENNIS']){
  const calls=historyCalls;await page.getByRole('button',{name:'Raise research line',exact:true}).click();assert.equal(Number(await page.locator('.op-line-number').textContent()),markets[0][1]+.5);assert.equal(historyCalls,calls);
  await page.locator('.op-sample').filter({hasText:/^H2H/}).click();assert.equal(await page.locator('.recharts-bar-rectangle').count(),5);
  await page.locator('.op-sample').filter({hasText:/^Season/}).click();assert.equal(await page.locator('.recharts-bar-rectangle').count(),20);
- const log=page.getByRole('region',{name:'Sortable game log; scroll for all statistics'});assert.equal(await log.locator('tbody tr').count(),15);
+ await page.getByRole('button',{name:'View Full Research',exact:true}).click();
+ const log=page.getByRole('region',{name:'Sortable game log; scroll for all statistics'});await log.waitFor();assert.equal(await log.locator('tbody tr').count(),15);
  await log.getByRole('button',{name:'Date',exact:true}).click();assert.equal(await log.locator('th').first().getAttribute('aria-sort'),'ascending');
  if(tennis){assert.equal(await page.getByRole('combobox',{name:'Home / Away',exact:true}).count(),0);await page.getByRole('heading',{name:'Opponent matchup',exact:true}).waitFor();assert.equal(await page.getByLabel('Defense team').count(),0);assert.equal(await page.getByRole('heading',{name:'Lineups & depth chart',exact:true}).count(),0);assert.ok((await log.innerText()).includes('Aces'));assert.ok(!(await log.innerText()).includes('PTS'));}
  else {await page.getByLabel('Defense team').selectOption('11');await page.getByRole('group',{name:'Opponent position'}).getByRole('button',{name:football?'QB':'C',exact:true}).click();assert.ok((await page.getByRole('region',{name:'Defense vs position',exact:true}).innerText()).includes('26th / 30'));}

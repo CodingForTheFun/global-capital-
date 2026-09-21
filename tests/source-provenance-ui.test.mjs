@@ -55,3 +55,25 @@ test('current research board includes compact provenance, book count, and freshn
   assert.match(css, /\.asSourceChip\.espn/);
   assert.match(css, /\.asSourceChip\.multi/);
 });
+
+test('research board quote provenance outranks SportsGameOdds identity enrichment', () => {
+  const source = fs.readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url), 'utf8');
+  const start = source.indexOf('function canonicalSourceLabel');
+  const end = source.indexOf('function researchSourceLabel', start);
+  assert.ok(start >= 0 && end > start);
+  const fnSource = source.slice(start, end);
+  const canonicalSourceLabel = Function(`${fnSource}; return canonicalSourceLabel;`)();
+
+  assert.equal(canonicalSourceLabel('PropLine', {
+    provider: 'propline',
+    sportsGameOddsPlayerId: 'identity-only',
+  }), 'PropLine');
+
+  assert.equal(canonicalSourceLabel('SportsGameOdds', {
+    provider: 'sportsgameodds',
+  }), 'SportsGameOdds');
+
+  assert.equal(canonicalSourceLabel('', {
+    sportsGameOddsPlayerId: 'identity-only',
+  }), 'SportsGameOdds');
+});

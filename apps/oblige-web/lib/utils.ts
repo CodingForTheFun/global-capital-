@@ -63,3 +63,125 @@ export function shortDate(value?: string | null) {
   if (!Number.isFinite(date.getTime())) return '—';
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
+
+
+const MARKET_DISPLAY_LABELS: Record<string, string> = {
+  player_points: 'Points',
+  player_rebounds: 'Rebounds',
+  player_assists: 'Assists',
+  player_threes: '3-Pointers Made',
+  player_blocks: 'Blocks',
+  player_steals: 'Steals',
+  player_turnovers: 'Turnovers',
+  player_points_rebounds_assists: 'Points + Rebounds + Assists',
+  player_points_rebounds: 'Points + Rebounds',
+  player_points_assists: 'Points + Assists',
+  player_rebounds_assists: 'Rebounds + Assists',
+  player_blocks_steals: 'Blocks + Steals',
+  player_pass_yds: 'Passing Yards',
+  player_pass_tds: 'Passing Touchdowns',
+  player_pass_attempts: 'Passing Attempts',
+  player_pass_completions: 'Passing Completions',
+  player_pass_interceptions: 'Passing Interceptions',
+  player_rush_yds: 'Rushing Yards',
+  player_rush_attempts: 'Rushing Attempts',
+  player_rush_tds: 'Rushing Touchdowns',
+  player_reception_yds: 'Receiving Yards',
+  player_receptions: 'Receptions',
+  player_reception_tds: 'Receiving Touchdowns',
+  player_rush_reception_yds: 'Rushing + Receiving Yards',
+  batter_hits: 'Hits',
+  batter_total_bases: 'Total Bases',
+  batter_home_runs: 'Home Runs',
+  batter_runs_scored: 'Runs',
+  batter_runs: 'Runs',
+  batter_rbis: 'RBIs',
+  batter_hits_runs_rbis: 'Hits + Runs + RBIs',
+  batter_strikeouts: 'Batter Strikeouts',
+  batter_walks: 'Batter Walks',
+  pitcher_strikeouts: 'Pitcher Strikeouts',
+  pitcher_hits_allowed: 'Hits Allowed',
+  pitcher_earned_runs: 'Earned Runs Allowed',
+  pitcher_outs: 'Pitching Outs',
+  pitcher_outs_recorded: 'Pitching Outs',
+  pitcher_walks: 'Walks Allowed',
+  pitcher_innings_pitched: 'Innings Pitched',
+  pitcher_pitches: 'Pitches',
+  pitcher_pitches_thrown: 'Pitches',
+  pitcher_batters_faced: 'Batters Faced',
+  player_shots_on_goal: 'Shots on Goal',
+  player_goals: 'Goals',
+  player_total_saves: 'Saves',
+  player_saves: 'Saves',
+  player_blocked_shots: 'Blocked Shots',
+  player_shots: 'Shots',
+  player_shots_on_target: 'Shots on Target',
+  player_aces: 'Aces',
+  player_double_faults: 'Double Faults',
+  player_games: 'Games',
+  player_games_won: 'Games Won',
+  player_sets_won: 'Sets Won',
+  player_total_sets: 'Total Sets',
+  fantasy_score: 'Fantasy Score',
+};
+
+function displayMarketKey(value?: string | null) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return '';
+  return (raw.split(':').pop() || raw).replace(/^market[_:-]?/, '');
+}
+
+function displayMarketFromKey(key: string) {
+  const bare = key.replace(/^(?:player|batter|pitcher|team)_/, '');
+  if (!bare || !/^[a-z0-9_]+$/.test(bare)) return '';
+  const tokens: Record<string, string> = {
+    yds: 'Yards',
+    tds: 'Touchdowns',
+    rbi: 'RBI',
+    rbis: 'RBIs',
+    fg: 'FG',
+    ft: 'FT',
+    qb: 'QB',
+    hr: 'HR',
+    hrs: 'HRs',
+  };
+  return bare
+    .split('_')
+    .filter(Boolean)
+    .map((token) => tokens[token] || token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
+}
+
+/**
+ * Customer-facing stat name only. This never changes the raw market value used
+ * for routing, provider lookups, grouping, or research requests.
+ */
+export function marketDisplayLabel(
+  market?: string | null,
+  playerName?: string | null,
+  marketId?: string | null,
+  sport?: string | null,
+) {
+  const key = displayMarketKey(marketId);
+  if (['NFL', 'NCAAF'].includes(String(sport || '').toUpperCase()) && key === 'player_assists') {
+    return 'Assisted Tackles';
+  }
+  if (MARKET_DISPLAY_LABELS[key]) return MARKET_DISPLAY_LABELS[key];
+
+  let label = String(market || '').trim();
+  if (label && playerName) {
+    const escaped = String(playerName).trim().replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+    if (escaped) label = label.replace(new RegExp(escaped, 'ig'), ' ');
+  }
+  label = label
+    .replace(/^\s*(?:player|batter|pitcher)\s+/i, '')
+    .replace(/\b(?:alternate|alt|main line|over|under|higher|lower)\b/gi, ' ')
+    .replace(/\b(?:full[- ]game|first half|1st half|second half|2nd half|1q|2q|3q|4q|1h|2h)\b/gi, ' ')
+    .replace(/\b(?:o|u)\s*[+-]?\d+(?:\.\d+)?\b/gi, ' ')
+    .replace(/\s+[+-]?\d+(?:\.\d+)?\s*$/, ' ')
+    .replace(/[|·:–—]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return label || displayMarketFromKey(key) || 'Prop';
+}

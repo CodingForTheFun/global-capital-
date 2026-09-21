@@ -6,8 +6,9 @@ const source = readFileSync(new URL('../apex-v2/scout-ui-v5.js', import.meta.url
 
 test('live board keeps period props distinct and carries exact detail context', () => {
   assert.match(source, /function canonicalPeriod\(value,market\)/);
-  assert.match(source, /groupKey\(r\)\{return \[r\.sport,r\.eventId,r\.playerId\|\|r\.playerName,r\.marketId\|\|r\.market,canonicalPeriod\(r\.period,r\.market\)\]/);
+  assert.match(source, /groupKey\(r\)\{var base=\[r\.sport,r\.eventId,r\.playerId\|\|r\.playerName,r\.marketId\|\|r\.market\]\.join\('\|'\),period=canonicalPeriod\(r\.period,r\.market\);return period==='game'\?base:base\+'\|'\+period;\}/);
   assert.match(source, /period:canonicalPeriod\(r\.period,r\.market\)/);
+  assert.match(source, /period==='game'\?base:base\+'\|'\+period/, 'full-game saved prop keys stay backward compatible');
   assert.match(source, /eventId:g\.eventId\|\|'',gameStartTime:g\.gameStartTime\|\|'',period:g\.period\|\|'game'/);
 });
 

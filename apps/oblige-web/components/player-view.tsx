@@ -14,7 +14,7 @@ import {
   type Side,
 } from '@/lib/analytics';
 import { teamFor } from '@/lib/teams';
-import { cn, odds, shortTime } from '@/lib/utils';
+import { cn, marketDisplayLabel, odds, shortTime } from '@/lib/utils';
 import { Badge, Dot } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CardPanel } from '@/components/ui/card';
@@ -274,7 +274,7 @@ export function PlayerView() {
 
             <div className="player-line-glance mt-5 grid gap-3 rounded-[var(--radius)] border border-[var(--face-line)] bg-[color-mix(in_srgb,var(--face-1)_72%,transparent)] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
               <div className="min-w-0">
-                <p className="truncate text-[length:var(--fs-sm)] font-semibold">{group.market}</p>
+                <p className="truncate text-[length:var(--fs-sm)] font-semibold">{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</p>
                 <p className="mt-1 text-[length:var(--fs-micro)] text-[var(--face-text-3)]">
                   Best of {new Set(group.quotes.map((q) => q.sportsbookKey || q.sportsbook)).size} books
                 </p>
@@ -324,7 +324,7 @@ export function PlayerView() {
                     : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)]',
                 )}
               >
-                {candidate.market}
+                {marketDisplayLabel(candidate.market, candidate.player, candidate.marketId, candidate.sport)}
                 <span className={cn('num', active ? 'opacity-80' : 'text-[var(--text-3)]')}>
                   {candidate.line}
                 </span>
@@ -395,7 +395,7 @@ export function PlayerView() {
             <GameLog
               games={games}
               line={state.line}
-              market={group.market}
+              market={marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}
               loading={loadingResearch && !derived}
             />
           </Reveal>

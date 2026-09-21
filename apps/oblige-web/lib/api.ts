@@ -187,6 +187,23 @@ const num = (value: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+const DATA_PROVIDER_BOOKS = new Set([
+  'espn',
+  'sportsdataio',
+  'sportsgameodds',
+  'propline',
+  'clearsports',
+  'sportradar',
+]);
+const bookToken = (value: unknown) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+const isDataProviderBook = (row: Pick<PropRow, 'sportsbook' | 'sportsbookKey'>) =>
+  DATA_PROVIDER_BOOKS.has(bookToken(row.sportsbookKey)) || DATA_PROVIDER_BOOKS.has(bookToken(row.sportsbook));
+const cleanPosition = (value: unknown): string | null => {
+  const raw = String(value || '').trim();
+  if (!raw || /^(?:position\s*)?(?:unavailable|unknown|not\s+available|n\/?a|none|null|-)$/i.test(raw)) return null;
+  return raw;
+};
+
 function matchupLabel(row: PropRow) {
   if (row.awayTeam && row.homeTeam) return `${row.awayTeam} @ ${row.homeTeam}`;
   if (row.team && row.opponent) return `${row.team} vs ${row.opponent}`;
@@ -195,10 +212,14 @@ function matchupLabel(row: PropRow) {
 
 function bestQuote(rows: PropRow[], side: Side): PropRow | null {
   // Best price is the highest American number on that side, which is the same
-  // ordering for favourites and underdogs.
+  // ordering for favourites and underdogs. Data vendors can sometimes arrive
+  // in the sportsbook-shaped field; never present ESPN/PropLine/etc. as a book
+  // when an actual posted sportsbook quote exists for the same side.
+  const sided = rows.filter((row) => String(row.side || '').toUpperCase() === side);
+  const sportsbookRows = sided.filter((row) => !isDataProviderBook(row));
+  const pool = sportsbookRows.length ? sportsbookRows : sided;
   return (
-    rows
-      .filter((row) => String(row.side || '').toUpperCase() === side)
+    pool
       .sort((a, b) => Number(isDfs(a)) - Number(isDfs(b)) || Number(b.price ?? -1e6) - Number(a.price ?? -1e6))[0] || null
   );
 }
@@ -236,7 +257,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         line,
         sport,
         team,
-        position: row.position || null,
+        position: cleanPosition(row.position),
         opponent: row.opponent || null,
         homeTeam: row.homeTeam || null,
         awayTeam: row.awayTeam || null,
@@ -265,7 +286,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
       return Boolean(book && marketId.startsWith(`${book}:`));
     });
     if (qualified?.marketId) group.marketId = qualified.marketId;
-    if (qualified?.position) group.position = qualified.position;
+    if (qualified?.position) group.position = cleanPosition(qualified.position) || group.position;
     group.bestOver = bestQuote(group.quotes, 'OVER');
     group.bestUnder = bestQuote(group.quotes, 'UNDER');
   }
@@ -281,7 +302,7 @@ export async function fetchBoard(sport: string, signal?: AbortSignal) {
   const players = new Map((body?.data?.players || []).map(player => [player.id, player]));
   const quotes = rows.map(row => {
     const player = row.playerId ? players.get(row.playerId) : undefined;
-    return player ? { ...row, providerPlayerId: row.providerPlayerId || player.providerPlayerId, position: row.position || player.position, team: row.team || player.team } : row;
+    return player ? { ...row, providerPlayerId: row.providerPlayerId || player.providerPlayerId, position: cleanPosition(row.position) || cleanPosition(player.position) || undefined, team: row.team || player.team } : { ...row, position: cleanPosition(row.position) || undefined };
   });
   return {
     groups: groupProps(quotes, sport),

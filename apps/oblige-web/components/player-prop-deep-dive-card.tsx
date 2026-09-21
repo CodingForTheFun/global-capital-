@@ -178,7 +178,15 @@ function initials(name: string) {
 
 function sourceLikeBook(name: string) {
   const key = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return ['espn', 'sportsdataio', 'sportsgameodds', 'propline'].includes(key);
+  return ['espn', 'sportsdataio', 'sportsgameodds', 'propline', 'clearsports', 'sportradar'].includes(key);
+}
+
+function verifiedPosition(...values: unknown[]) {
+  for (const value of values) {
+    const raw = text(value);
+    if (raw && !/^(?:position\s*)?(?:unavailable|unknown|not\s+available|n\/?a|none|null|-)$/i.test(raw)) return raw;
+  }
+  return null;
 }
 
 function visibleBookName(name: string) {
@@ -281,9 +289,14 @@ export function PlayerPropDeepDiveCard({
   const variantLabel = offerVariantLabel(selected);
   const period = periodName(market.period);
   const game = matchupLabel || group?.matchup || [player.awayTeam, player.homeTeam].filter(Boolean).join(' @ ') || 'Matchup unavailable';
-  const position = text(history?.player?.position || group?.position || player.position) || null;
-  const bookList = React.useMemo(() => booksFor(market), [market]);
-  const currentBook = bookSelection === undefined ? selected.book : bookSelection;
+  const position = verifiedPosition(history?.player?.position, group?.position, player.position);
+  const allBookList = React.useMemo(() => booksFor(market), [market]);
+  const bookList = React.useMemo(() => {
+    const sportsbooks = allBookList.filter(book => !sourceLikeBook(book.key) && !sourceLikeBook(book.name));
+    return sportsbooks.length ? sportsbooks : allBookList;
+  }, [allBookList]);
+  const requestedBook = bookSelection === undefined ? selected.book : bookSelection;
+  const currentBook = requestedBook && bookList.some(book => book.key === requestedBook) ? requestedBook : null;
   const applicableBooks = React.useMemo(() => bookList.filter(book => market.offers.some(offer => offer.book === book.key && !offer.conflict && (selected.line === null ? offer.line === null && offer.choice === selected.choice : offer.line === selected.line))), [bookList, market.offers, selected.line, selected.choice]);
   const activePostedOffers = React.useMemo(() => market.offers.filter(offer => !currentBook || offer.book === currentBook), [market.offers, currentBook]);
   const numericPosted = activePostedOffers.length > 0 && activePostedOffers.every(offer => offer.line !== null && !!offer.side);
@@ -441,9 +454,9 @@ export function PlayerPropDeepDiveCard({
         </div>
 
         <div className="space-y-3">
-          <div className="flex items-center gap-2"><div role="group" aria-label="Stat categories" className="flex min-w-0 flex-1 snap-x snap-proximity gap-2 overflow-x-auto scroll-px-2 pb-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{statFamilies.map(item => { const active = marketFamily(item) === family; return <button key={marketFamily(item)} type="button" onClick={() => chooseStat(item)} aria-pressed={active} title={marketName(item)} className={`h-9 shrink-0 rounded-lg border px-3 text-[11px] font-black tracking-wide transition ${active ? 'border-sky-400/50 bg-sky-500/15 text-sky-300 shadow-[0_0_20px_rgba(56,189,248,0.16)]' : 'border-slate-800 bg-slate-900/60 text-slate-500 hover:border-slate-700 hover:text-slate-300'}`}>{compactStatLabel(marketName(item))}</button>; })}</div><select aria-label="Player stat category" value={market.key} onChange={event => onCategory(event.target.value)} className="h-9 max-w-[130px] shrink-0 rounded-lg border border-slate-700 bg-slate-900 px-2 text-[10px] font-bold text-slate-300 outline-none">{player.markets.map(item => <option key={item.key} value={item.key}>{marketOptionName(item)}</option>)}</select></div>
+          <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"><div role="group" aria-label="Stat categories" className="-mx-1 flex min-w-0 snap-x snap-proximity gap-2 overflow-x-auto scroll-px-2 px-1 pb-1 pr-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0">{statFamilies.map(item => { const active = marketFamily(item) === family; return <button key={marketFamily(item)} type="button" onClick={() => chooseStat(item)} aria-pressed={active} title={marketName(item)} className={`h-9 shrink-0 rounded-lg border px-3 text-[11px] font-black tracking-wide transition ${active ? 'border-sky-400/50 bg-sky-500/15 text-sky-300 shadow-[0_0_20px_rgba(56,189,248,0.16)]' : 'border-slate-800 bg-slate-900/60 text-slate-500 hover:border-slate-700 hover:text-slate-300'}`}>{compactStatLabel(marketName(item))}</button>; })}</div><select aria-label="Player stat category" value={market.key} onChange={event => onCategory(event.target.value)} className="h-9 w-full min-w-0 rounded-lg border border-slate-700 bg-slate-900 px-2 text-[10px] font-bold text-slate-300 outline-none sm:w-auto sm:max-w-[170px] sm:shrink-0">{player.markets.map(item => <option key={item.key} value={item.key}>{marketOptionName(item)}</option>)}</select></div>
           <div role="group" aria-label="Available game periods" className="flex snap-x snap-proximity gap-2 overflow-x-auto scroll-px-2 pb-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{periodMarkets.map(item => { const active = item.key === market.key; return <button key={item.key} type="button" onClick={() => onCategory(item.key)} aria-pressed={active} className={`h-8 shrink-0 rounded-full border px-3 text-[10px] font-bold transition ${active ? 'border-blue-400/40 bg-blue-500 text-white shadow-[0_0_18px_rgba(59,130,246,0.24)]' : 'border-slate-800 bg-[#0e1522] text-slate-500 hover:text-slate-300'}`}>{periodName(item.period)}</button>; })}</div>
-          <div className="flex snap-x snap-proximity gap-2 overflow-x-auto scroll-px-2 pb-1 pr-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="-mx-1 flex min-w-0 snap-x snap-proximity gap-2 overflow-x-auto scroll-px-2 px-1 pb-1 pr-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mx-0 sm:px-0">
             <SelectFilter label="Opponent" value={opponentFilter} options={opponentOptions} onChange={setOpponentFilter} historyFilter/>
             <SelectFilter label="Season" value={seasonFilter} options={seasonOptions} onChange={setSeasonFilter} historyFilter/>
             {sportType !== 'tennis' && <SelectFilter label="Home/Away" ariaLabel="Home / Away" value={venueFilter} options={[{value:'all',label:'All'},{value:'home',label:'Home'},{value:'away',label:'Away'}]} onChange={setVenueFilter} historyFilter/>} 

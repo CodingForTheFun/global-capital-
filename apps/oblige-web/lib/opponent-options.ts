@@ -9,12 +9,36 @@ const text = (value: unknown) =>
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
 
+const CITY_ALIASES: Record<string, string[]> = {
+  la: ['los', 'angeles'],
+  ny: ['new', 'york'],
+  sf: ['san', 'francisco'],
+  sd: ['san', 'diego'],
+  kc: ['kansas', 'city'],
+  tb: ['tampa', 'bay'],
+  lv: ['las', 'vegas'],
+  no: ['new', 'orleans'],
+  gb: ['green', 'bay'],
+  okc: ['oklahoma', 'city'],
+  stl: ['saint', 'louis'],
+};
+
 function words(value: unknown): string[] {
-  return text(value)
-    .toLowerCase()
-    .replace(/\bst\.?\b/g, 'state')
-    .replace(/\buniversity\b/g, '')
-    .match(/[a-z0-9]+/g) || [];
+  const parts =
+    text(value)
+      .toLowerCase()
+      .replace(/\buniversity\b/g, '')
+      .match(/[a-z0-9]+/g) || [];
+
+  const city = parts[0] ? CITY_ALIASES[parts[0]] : null;
+  const expanded = city ? [...city, ...parts.slice(1)] : [...parts];
+
+  // "St. Louis" means Saint; a trailing school "St." means State.
+  if (expanded[0] === 'st' && expanded.length > 1) expanded[0] = 'saint';
+  for (let index = 1; index < expanded.length; index += 1) {
+    if (expanded[index] === 'st') expanded[index] = 'state';
+  }
+  return expanded;
 }
 
 const compact = (value: unknown) => words(value).join('');
@@ -25,8 +49,9 @@ function initials(value: unknown) {
 
 /**
  * Team labels arrive from several verified sources with different display
- * conventions (for example SJSU, San Jose St., San José State Spartans).
- * Matching is intentionally conservative: exact normalized forms,
+ * conventions (for example SJSU, San Jose St., San José State Spartans,
+ * or LA Angels versus Los Angeles Angels). Matching is intentionally
+ * conservative: exact normalized forms, common city aliases,
  * abbreviation/initial forms, or a multi-word school/club prefix.
  */
 export function sameTeamLabel(left: unknown, right: unknown): boolean {

@@ -49,7 +49,10 @@ test('production book changes cannot reuse another platform fantasy cache or que
   assert.equal(q.get('eventId'),group.eventId);
   assert.equal(q.get('gameStartTime'),group.gameStartTime);
   assert.equal(q.get('period'),'full_game');
-  assert.match(fn(generated,'getResearch'), /query:researchParams\(g,valueLine,valueSide\)/);
+  assert.equal(q.get('detail'),null);
+  assert.equal(q.get('games'),'40');
+  assert.equal(q.get('historyYears'),'1');
+  assert.match(fn(generated,'getResearch'), /query:researchParams\(g,valueLine,valueSide,isDetail\)/);
   assert.match(fn(generated,'runResearch'), /research\?'\+job.query/);
   assert.equal(c.researchMarketKey({...group,marketId:'prizepicks:player_fantasy_score'},20,'OVER'),'underdog:player_fantasy_score');
 });

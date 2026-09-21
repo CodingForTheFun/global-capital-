@@ -165,9 +165,28 @@ function matchupLabel(row: PropRow) {
   return row.team || row.opponent || 'Matchup unavailable';
 }
 
-function canonicalPeriod(value: unknown) {
-  const raw = String(value || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
-  if (!raw || ['game', 'full', 'fullgame', 'match', 'singlestat'].includes(raw)) return 'game';
+function canonicalPeriod(value: unknown, market = '') {
+  const explicit = String(value || '').trim();
+  const label = String(market || '').trim().toLowerCase();
+  if (!explicit) {
+    const compact = label.match(/\b([1-9])\s*(q|h|p|i|s)\b/i);
+    if (compact) return `${compact[1]}${compact[2].toLowerCase()}`;
+    const namedFromLabel: Array<[RegExp, string]> = [
+      [/\b(?:first|1st)\s+quarter\b/i, '1q'], [/\b(?:second|2nd)\s+quarter\b/i, '2q'],
+      [/\b(?:third|3rd)\s+quarter\b/i, '3q'], [/\b(?:fourth|4th)\s+quarter\b/i, '4q'],
+      [/\b(?:first|1st)\s+half\b/i, '1h'], [/\b(?:second|2nd)\s+half\b/i, '2h'],
+      [/\b(?:first|1st)\s+period\b/i, '1p'], [/\b(?:second|2nd)\s+period\b/i, '2p'],
+      [/\b(?:third|3rd)\s+period\b/i, '3p'], [/\b(?:first|1st)\s+inning\b/i, '1i'],
+      [/\b(?:first|1st)\s+set\b/i, '1s'], [/\b(?:second|2nd)\s+set\b/i, '2s'],
+      [/\b(?:third|3rd)\s+set\b/i, '3s'], [/\b(?:fourth|4th)\s+set\b/i, '4s'],
+      [/\b(?:fifth|5th)\s+set\b/i, '5s'],
+    ];
+    for (const [pattern, period] of namedFromLabel) if (pattern.test(label)) return period;
+    return 'game';
+  }
+
+  const raw = explicit.toLowerCase().replace(/[\s_-]+/g, '');
+  if (['game', 'full', 'fullgame', 'match', 'singlestat'].includes(raw)) return 'game';
   const direct = raw.match(/^([1-9])([qhpis])$/);
   if (direct) return `${direct[1]}${direct[2]}`;
   const reversed = raw.match(/^([qhpis])([1-9])$/);
@@ -208,7 +227,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
     const player = String(row.playerName || '').trim();
     const market = String(row.market || '').trim();
     const line = num(row.line);
-    const period = canonicalPeriod(row.period);
+    const period = canonicalPeriod(row.period, market);
     if (!player || !market || line === null) continue;
 
     const key = [row.eventId || matchupLabel(row), player, market, period, line].join('|');

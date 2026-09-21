@@ -28,26 +28,6 @@ export function legacyPeriod(group: PropGroup): { period: string | null; label: 
     period: supplied ? known[supplied] || supplied : /(?:\b(?:half|quarter|inning|period)\b)/i.test(label) ? 'as_posted' : null,
     label: suffix ? label.slice(0, suffix.index).trim() : rawSuffix ? label.slice(0, rawSuffix.index).trim() : label,
   };
-} {
-  const row = group.quotes[0] as QuoteMetadata | undefined;
-  let label = group.market.trim();
-  // Supplemental providers occasionally put the athlete and outcome into the
-  // market display label. Keep the provider identity untouched, but clean the
-  // presentation label so the player name cannot become a stat tab.
-  const escapedPlayer = group.player.trim().replace(/[.*+?^${'}()|[\]\\]/g, '\\export function legacyPeriod(group: PropGroup): { period: string | null; label: string } {
-  const row = group.quotes[0] as QuoteMetadata | undefined;
-  const label = group.market.trim();
-  const suffix = label.match(/\s*[·|]\s*(?:Period\s+)?(h1|h2|q1|q2|q3|q4|1h|2h|1q|2q|3q|4q|first half|second half|first quarter|second quarter|third quarter|fourth quarter)$/i);');
-  if (escapedPlayer) label = label.replace(new RegExp(`^${escapedPlayer}\\s+`, 'i'), '');
-  label = label.replace(/\s+(?:over|under)(?:\s+[+-]?\d+(?:\.\d+)?)?$/i, '').trim();
-  const suffix = label.match(/\s*[·|]\s*(?:Period\s+)?(h1|h2|q1|q2|q3|q4|1h|2h|1q|2q|3q|4q|first half|second half|first quarter|second quarter|third quarter|fourth quarter)$/i);
-  const rawSuffix = label.match(/_(h1|h2|q1|q2|q3|q4|1h|2h|1q|2q|3q|4q)$/i);
-  const supplied = String(quotePeriod(row) || suffix?.[1] || rawSuffix?.[1] || '').trim().toLowerCase();
-  const known: Record<string, string> = { 'first half': 'h1', 'second half': 'h2', 'first quarter': 'q1', 'second quarter': 'q2', 'third quarter': 'q3', 'fourth quarter': 'q4' };
-  return {
-    period: supplied ? known[supplied] || supplied : /(?:\b(?:half|quarter|inning|period)\b)/i.test(label) ? 'as_posted' : null,
-    label: suffix ? label.slice(0, suffix.index).trim() : rawSuffix ? label.slice(0, rawSuffix.index).trim() : label,
-  };
 }
 function offerFor(category: string, group: PropGroup, row: PropRow): WorkspaceOffer | null {
   const metadata = row as QuoteMetadata;

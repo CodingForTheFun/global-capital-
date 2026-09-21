@@ -1,12 +1,14 @@
-Release: hybrid Scores board, 2026-09-21
-Source PR: #535
-Unreleased Scores SHA: f479330b2bf8ce5ac2f28dfe235b0967585f0490
-Verified deployed recovery anchor: 13ec006966bc898011f993f113de31f1b81ed4e6
+Release: multi-year prop history, 2026-09-21
+Source PR: #546
+Merged history SHA: 3c871ffa1514e5448e119702c608f754f2fe4bbd
+Current production snapshot: 37fb47f21742613ee7b81fbb4d9d3089c719f604
+Verified deployed recovery anchor: 8ea9d17918574dcbfa857ad364803a82b158a7f0
 
-Release the already-merged and fully tested Scores-board upgrade through the existing
-reviewed recovery gate. ESPN remains the high-frequency score source; verified Sportradar
-trial products are automatic fallback only when ESPN fails for that sport, which preserves
-trial quota. The customer Scores UI is the compact five-sport NFL/NBA/EPL/NHL/MLB board
-with All/Live/Finished filters, centered scores, team marks, status detail and venue or
-broadcast context. The prop/odds provider mesh, auth, domains, database schema and
-customer access are unchanged.
+Release the already-merged and fully tested multi-year player-prop history upgrade through
+the existing reviewed recovery gate. Full player research may load up to five verified
+seasons and 100 raw PropLine games, while board hydration remains at the existing 40-game
+window. ESPN backfill accepts only the exact requested season and existing competition
+checks; missing history remains unavailable rather than synthesized. The Season control
+shows All years plus returned verified years, while SZN analytics remain scoped to the
+active regular season. This release changes no auth, domain, database schema, provider
+polling cadence, secret, or customer-access policy.

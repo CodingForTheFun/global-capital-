@@ -78,7 +78,7 @@ export function legacyPresentation(categories: LegacyCategory[], group: PropGrou
   const quote = requestedQuote || group.quotes.find(candidate => String(candidate.side).toUpperCase() === side) || group.quotes[0];
   const target = quote ? offerFor(categoryKey, group, quote) : null;
   const direct = target && market ? market.offers.find(offer => offer.key === target.key) || null : null;
-  const exactSide = market
+  const exactSide = quote && market
     ? market.offers
         .filter(offer => !offer.conflict && offer.line === group.line && (offer.side === side || offer.side === null))
         .sort((a, b) => (b.price ?? -1e9) - (a.price ?? -1e9))

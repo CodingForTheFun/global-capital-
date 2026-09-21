@@ -29,6 +29,7 @@ import type { PremiumPlayerResearchProps } from '@/components/premium-player-res
 import { computeWindow } from '@/lib/analytics';
 import { marketFamily, marketName, marketOptionName, offerPrice, offerVariantLabel, periodName, sportName } from '@/lib/market-display';
 import { finite, sportFamily } from '@/lib/player-analysis';
+import { buildOpponentOptions, sameTeamLabel } from '@/lib/opponent-options';
 import type { GameLogRow, PropGroup, ResearchResponse } from '@/lib/types';
 import { booksFor, chooseOffer, type WorkspaceMarket } from '@/lib/workspace';
 
@@ -280,10 +281,32 @@ export function PlayerPropDeepDiveCard({
   const statFamilies = React.useMemo(() => [...new Map(player.markets.map(item => [marketFamily(item), item])).values()], [player.markets]);
   const periodMarkets = React.useMemo(() => [...new Map(player.markets.filter(item => marketFamily(item) === family).map(item => [periodName(item.period), item])).values()], [player.markets, family]);
 
-  const opponentOptions = React.useMemo<FilterOption[]>(() => {
-    const values = [...new Set(rawGames.map(row => text(row.opponent)).filter(Boolean))].sort();
-    return [{ value: 'all', label: 'All' }, ...values.map(value => ({ value, label: currentOpponent && value === currentOpponent ? `★ ${value}` : value }))];
-  }, [rawGames, currentOpponent]);
+  const opponentOptions = React.useMemo<FilterOption[]>(
+    () => buildOpponentOptions(
+      rawGames.map(row => text(row.opponent)),
+      {
+        team: group?.team || team || history?.player?.team || null,
+        opponent: currentOpponent,
+        homeTeam: group?.homeTeam || player.homeTeam || null,
+        awayTeam: group?.awayTeam || player.awayTeam || null,
+      },
+      history?.leagueTeams || [],
+      sportType === 'tennis',
+    ),
+    [
+      rawGames,
+      group?.team,
+      group?.homeTeam,
+      group?.awayTeam,
+      team,
+      history?.player?.team,
+      history?.leagueTeams,
+      currentOpponent,
+      player.homeTeam,
+      player.awayTeam,
+      sportType,
+    ],
+  );
   const seasonOptions = React.useMemo<FilterOption[]>(() => {
     const values = [...new Set(rawGames.map(row => text(row.season)).filter(Boolean))].sort().reverse();
     return [{ value: 'all', label: text(history?.season) || 'All' }, ...values.filter(value => value !== text(history?.season)).map(value => ({ value, label: value }))];
@@ -295,18 +318,27 @@ export function PlayerPropDeepDiveCard({
   const bookOptions = React.useMemo<FilterOption[]>(() => [{ value: 'all', label: 'All' }, ...bookList.map(book => ({ value: book.key, label: book.name }))], [bookList]);
 
   const filteredGames = React.useMemo(() => rawGames.filter(row => {
-    if (opponentFilter !== 'all' && text(row.opponent) !== opponentFilter) return false;
+    if (opponentFilter !== 'all') {
+      const matches = sportType === 'tennis'
+        ? text(row.opponent).toLowerCase() === text(opponentFilter).toLowerCase()
+        : sameTeamLabel(row.opponent, opponentFilter);
+      if (!matches) return false;
+    }
     if (seasonFilter !== 'all' && text(row.season) !== seasonFilter) return false;
     if (venueFilter === 'home' && row.isHome !== true) return false;
     if (venueFilter === 'away' && row.isHome !== false) return false;
     if (teamFilter !== 'all' && gameTeam(row) !== teamFilter) return false;
     return true;
-  }), [rawGames, opponentFilter, seasonFilter, venueFilter, teamFilter]);
+  }), [rawGames, opponentFilter, seasonFilter, venueFilter, teamFilter, sportType]);
 
   const verifiedTotal = React.useMemo(() => rawGames.filter(row => finite(row.value) !== null && row.dnp !== true && row.didNotPlay !== true).length, [rawGames]);
   const recent = React.useMemo(() => [...filteredGames].sort((a, b) => (Date.parse(text(b.date)) || 0) - (Date.parse(text(a.date)) || 0)), [filteredGames]);
   const played = React.useMemo(() => recent.filter(row => finite(row.value) !== null && row.dnp !== true && row.didNotPlay !== true), [recent]);
-  const h2hRows = React.useMemo(() => currentOpponent ? played.filter(row => text(row.opponent) === currentOpponent) : [], [played, currentOpponent]);
+  const h2hRows = React.useMemo(() => currentOpponent
+    ? played.filter(row => sportType === 'tennis'
+      ? text(row.opponent).toLowerCase() === text(currentOpponent).toLowerCase()
+      : sameTeamLabel(row.opponent, currentOpponent))
+    : [], [played, currentOpponent, sportType]);
   const windowRows = React.useMemo(() => [
     computeWindow(played, targetLine, side, 'l5', 'L5', 5),
     computeWindow(played, targetLine, side, 'l10', 'L10', 10),
@@ -316,14 +348,18 @@ export function PlayerPropDeepDiveCard({
   ], [played, h2hRows, targetLine, side, history?.season]);
 
   const chartSampleRows = React.useMemo(() => {
-    if (sample === 'h2h') return currentOpponent ? recent.filter(row => text(row.opponent) === currentOpponent) : [];
+    if (sample === 'h2h') return currentOpponent ? recent.filter(row =>
+      sportType === 'tennis'
+        ? text(row.opponent).toLowerCase() === text(currentOpponent).toLowerCase()
+        : sameTeamLabel(row.opponent, currentOpponent)
+    ) : [];
     if (sample === 'season') {
       const season = seasonFilter !== 'all' ? seasonFilter : text(history?.season);
       return season ? recent.filter(row => text(row.season) === season) : recent;
     }
     const take = sample === 'l5' ? 5 : sample === 'l10' ? 10 : 15;
     return recent.slice(0, take);
-  }, [sample, currentOpponent, recent, seasonFilter, history?.season]);
+  }, [sample, currentOpponent, recent, seasonFilter, history?.season, sportType]);
   const chartRows = React.useMemo<ChartRow[]>(() => {
     const chronological = [...chartSampleRows].reverse();
     const observed = chronological.map(row => finite(row.value)).filter((value): value is number => value !== null);

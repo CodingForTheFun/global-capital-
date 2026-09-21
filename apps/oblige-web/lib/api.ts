@@ -266,13 +266,14 @@ export async function fetchResearch(
 ): Promise<ResearchResponse> {
   if (signal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
 
+  const quote = group.bestOver || group.bestUnder || group.quotes[0] || null;
   const params = new URLSearchParams({
     sport: group.sport,
     playerName: group.player,
     market: group.market,
     line: String(group.line),
     side,
-    games: '20',
+    games: '40',
   });
   if (group.providerPlayerId) params.set('providerPlayerId', group.providerPlayerId);
   if (group.marketId) params.set('marketId', group.marketId);
@@ -281,6 +282,9 @@ export async function fetchResearch(
   if (group.opponent) params.set('opponent', group.opponent);
   if (group.homeTeam) params.set('homeTeam', group.homeTeam);
   if (group.awayTeam) params.set('awayTeam', group.awayTeam);
+  if (quote?.eventId) params.set('eventId', String(quote.eventId));
+  if (group.startsAt) params.set('gameStartTime', group.startsAt);
+  if (quote?.period) params.set('period', String(quote.period));
 
   const path = `/api/apex/research?${params}`;
   const cached = researchCache.get(path);

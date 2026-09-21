@@ -155,7 +155,7 @@ function stripPlayerFromMarket(value?: string | null, playerName?: string | null
   let label = String(value || '').normalize('NFKC').replace(/\u00a0/g, ' ').trim();
   if (!label || !playerName) return label;
   const pattern = flexiblePlayerPattern(playerName);
-  if (pattern) label = label.replace(new RegExp(\`\${pattern}(?:['’]s)?\`, 'ig'), ' ');
+  if (pattern) label = label.replace(new RegExp(pattern + "(?:['’]s)?", 'ig'), ' ');
   if (displayNorm(label) === displayNorm(playerName)) return '';
   return label;
 }

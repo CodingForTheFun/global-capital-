@@ -129,6 +129,24 @@ try {
       const chart = document.querySelector('.op-chart-section').getBoundingClientRect();
       return { viewport: innerWidth, document: document.documentElement.scrollWidth, panel: panel.width, chart: chart.width };
     });
+    if (dimensions.document > dimensions.viewport + 1) {
+      const offenders = await page.evaluate(() => [...document.querySelectorAll('body *')]
+        .map((node) => {
+          const rect = node.getBoundingClientRect();
+          return {
+            tag: node.tagName,
+            id: node.id || '',
+            className: typeof node.className === 'string' ? node.className.slice(0, 180) : '',
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+          };
+        })
+        .filter((row) => row.right > innerWidth + 1 || row.left < -1)
+        .sort((a, b) => Math.max(b.right - innerWidth, -b.left) - Math.max(a.right - innerWidth, -a.left))
+        .slice(0, 12));
+      console.log('[installable-overflow-diagnostic]', JSON.stringify({ dimensions, offenders }));
+    }
     assert.ok(dimensions.document <= dimensions.viewport + 1, JSON.stringify(dimensions));
     assert.ok(dimensions.chart >= dimensions.panel * .95, 'Chart must use panel width');
     await panel.scrollIntoViewIfNeeded();

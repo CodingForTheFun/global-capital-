@@ -317,7 +317,6 @@ export function PropCard({
   picked?: 'OVER' | 'UNDER' | null;
   delay?: number;
 }) {
-  const club = teamFor(group.team);
   const kickoff = shortTime(group.startsAt);
   const bookCount = new Set(group.quotes.map((quote) => quote.sportsbookKey || quote.sportsbook).filter(Boolean)).size;
   const [recentGames, setRecentGames] = React.useState<GameLogRow[]>([]);
@@ -356,7 +355,7 @@ export function PropCard({
               {group.player}
             </span>
             <span className="prop-card-v2__meta mt-0.5 block truncate">
-              {club.name} · {group.matchup}{kickoff ? ` · ${kickoff}` : ''}
+              {group.matchup}{kickoff ? ` · ${kickoff}` : ''}
             </span>
           </span>
           {group.live ? (

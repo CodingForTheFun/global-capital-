@@ -165,6 +165,35 @@ function matchupLabel(row: PropRow) {
   return row.team || row.opponent || 'Matchup unavailable';
 }
 
+function isPropLineRow(row: PropRow) {
+  return /propline/i.test(`${row.provider || ''} ${row.source || ''}`);
+}
+
+function promoteGroupMetadata(group: PropGroup, row: PropRow) {
+  const rowHasEventTeams = Boolean(row.homeTeam && row.awayTeam);
+  const groupHasEventTeams = Boolean(group.homeTeam && group.awayTeam);
+
+  // PropLine documents event-level home_team / away_team as the normalized
+  // source of truth for orientation. If a mixed board also carries an older
+  // public-feed spelling, prefer the PropLine event pair for the visible
+  // matchup instead of freezing whichever quote happened to be grouped first.
+  if (rowHasEventTeams && (!groupHasEventTeams || isPropLineRow(row))) {
+    group.homeTeam = row.homeTeam || null;
+    group.awayTeam = row.awayTeam || null;
+    group.matchup = matchupLabel(row);
+  }
+
+  // Player-team identity is separate from event orientation. Fill these only
+  // when a provider actually supplied them; never infer which side a player is
+  // on merely from the two event teams.
+  if (!group.team && row.team) group.team = row.team;
+  if (!group.opponent && row.opponent) group.opponent = row.opponent;
+  if (!group.providerPlayerId && row.providerPlayerId) group.providerPlayerId = row.providerPlayerId;
+  if (!group.marketId && row.marketId) group.marketId = row.marketId;
+  if (!group.propId && (row.propId || row.id)) group.propId = row.propId || row.id || null;
+  if ((!group.startsAt || isPropLineRow(row)) && row.gameStartTime) group.startsAt = row.gameStartTime;
+}
+
 function bestQuote(rows: PropRow[], side: Side): PropRow | null {
   // Best price is the highest American number on that side, which is the same
   // ordering for favourites and underdogs.
@@ -213,6 +242,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
       };
       groups.set(key, group);
     }
+    promoteGroupMetadata(group, row);
     group.quotes.push(row);
     if (row.live === true) group.live = true;
   }

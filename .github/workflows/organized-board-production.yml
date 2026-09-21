@@ -18,6 +18,11 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - name: Verify actual desktop and mobile production cards
+        env:
+          AUTOSCOUT_PUBLIC_URL: https://www.obligeprops.com
+          AUTOSCOUT_EXPECTED_SHA: ${{ github.sha }}
+          AUTOSCOUT_SMOKE_EMAIL: ${{ secrets.AUTOSCOUT_SMOKE_EMAIL }}
+          AUTOSCOUT_SMOKE_PASSWORD: ${{ secrets.AUTOSCOUT_SMOKE_PASSWORD }}
         run: node scripts/verify-organized-production.mjs
       - uses: actions/upload-artifact@v4
         if: always()

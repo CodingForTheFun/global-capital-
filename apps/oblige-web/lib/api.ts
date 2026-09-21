@@ -292,6 +292,79 @@ export async function fetchResearch(
   return value;
 }
 
+
+const RESEARCH_BATCH_SIZE = 100;
+
+/**
+ * Resolve verified research summaries for a slate in one bounded request.
+ * The production frontdoor caps this route at 100 props, so callers should
+ * chunk larger slates and can merge each completed batch progressively.
+ */
+export async function fetchResearchBatch(
+  groups: PropGroup[],
+  side: Side,
+  signal?: AbortSignal,
+): Promise<Record<string, ResearchResponse>> {
+  if (!groups.length) return {};
+  if (groups.length > RESEARCH_BATCH_SIZE) {
+    throw new ApiError(
+      `Research batches are limited to ${RESEARCH_BATCH_SIZE} props.`,
+      400,
+      'RESEARCH_BATCH_TOO_LARGE',
+    );
+  }
+
+  const props = groups.map((group) => {
+    const quote = group.bestOver || group.bestUnder || group.quotes[0] || null;
+    return {
+      key: group.key,
+      sport: group.sport,
+      playerName: group.player,
+      market: group.market,
+      line: group.line,
+      side,
+      providerPlayerId: group.providerPlayerId,
+      position: group.position,
+      team: group.team,
+      opponent: group.opponent,
+      homeTeam: group.homeTeam,
+      awayTeam: group.awayTeam,
+      marketId: group.marketId,
+      eventId: quote?.eventId || null,
+      gameStartTime: group.startsAt,
+      period: quote?.period || null,
+      games: 40,
+    };
+  });
+
+  const response = await fetch('/api/apex/research-batch', {
+    method: 'POST',
+    credentials: 'same-origin',
+    signal,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ props }),
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    ok?: boolean;
+    code?: string;
+    message?: string;
+    results?: Record<string, ResearchResponse>;
+  };
+
+  if (response.status === 401) {
+    throw new ApiError('Sign in to view verified research.', 401, 'AUTH_REQUIRED');
+  }
+  if (!response.ok || body.ok === false || !body.results) {
+    throw new ApiError(
+      body.message || 'Verified research is temporarily unavailable.',
+      response.status,
+      body.code || 'RESEARCH_BATCH_UNAVAILABLE',
+    );
+  }
+
+  return body.results;
+}
+
 export async function fetchLineHistory(propId: string, signal?: AbortSignal) {
   const body = await getJson<LineHistoryResponse>(
     `/api/apex/line-history?propId=${encodeURIComponent(propId)}&limit=60`,

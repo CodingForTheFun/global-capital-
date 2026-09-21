@@ -8,12 +8,14 @@ import { filterCustomerBoardFreshness } from '../lib/ingestion/customer-prop-fre
 import { isConfigured as sportsDataIoConfigured } from '../lib/data-sources/sportsdataio/client.mjs';
 import { sportsGameOddsConfigured } from '../lib/data-sources/sportsgameodds/client.mjs';
 import { sportradarConfigured } from '../lib/data-sources/sportradar/client.mjs';
+import { sportradarNbaV8Health, startSportradarNbaV8Probe } from '../lib/data-sources/sportradar/nba-v8.mjs';
 import { sportsDataIoPropBoard } from '../lib/data-sources/sportsdataio/prop-board.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
 import { propProviderMode } from '../lib/autoscout/provider-mode.mjs';
 import { loadPersistedDiagnostics, snapshotDiagnostics } from '../lib/autoscout/runtime-store.mjs';
 
 await loadPersistedDiagnostics();
+startSportradarNbaV8Probe();
 
 const text = (value) => String(value ?? '').trim();
 const num = (value) => {
@@ -127,21 +129,68 @@ async function fetchBaseBoard(league, { signal, force = false, includeAlternates
   throw Object.assign(new Error('No odds provider is configured.'), { code: 'NO_PROVIDER' });
 }
 
+function rowProvider(row) {
+  const provider = text(row?.provider).toLowerCase();
+  if (provider) return provider;
+  const source = text(row?.source).toLowerCase();
+  if (source.includes('propline')) return 'propline';
+  if (source.includes('sportradar')) return 'sportradar';
+  if (source.includes('sportsgameodds')) return 'sportsgameodds';
+  return '';
+}
+
+function stripProviderRows(board, providerId) {
+  const rows = Array.isArray(board?.props) ? board.props : [];
+  const kept = rows.filter((row) => rowProvider(row) !== providerId);
+  const removed = rows.length - kept.length;
+  if (!removed) return board;
+  const data = normalizedDataFromBoardRows(kept);
+  return {
+    ...board,
+    props: kept,
+    data,
+    meta: {
+      ...(board?.meta || {}),
+      lineCount: kept.filter((row) => row?.isAlternate !== true).length,
+      propCount: data.props.length,
+      events: data.events.length,
+      disabledProviderRows: {
+        ...(board?.meta?.disabledProviderRows || {}),
+        [providerId]: removed,
+      },
+    },
+  };
+}
+
 function mergeProviderCaches(board, sport) {
   const mode = propProviderMode();
   if (mode === 'sportradar') {
+    // A provider switch must remove the disabled provider's persisted rows too,
+    // not merely stop future merges. Otherwise yesterday's PropLine quote can
+    // continue to occupy the slot and block the selected provider/fallback.
+    const withoutPropLine = stripProviderRows(board, 'propline');
+    const withRadar = mergeCachedSportradar(withoutPropLine, sport, { primary: true });
+    const radarReady = withRadar?.meta?.sportradarSupplement?.cached === true;
     return mergeCachedSportsGameOdds(
-      mergeCachedSportradar(board, sport, { primary: true }),
+      withRadar,
       sport,
-      { primary: false },
+      // If the Sportradar Player Props entitlement is unavailable, make the
+      // verified paid fallback authoritative instead of reviving stale/public
+      // sportsbook rows. Sportradar remains the selected mode and is retried on
+      // its entitlement-aware backoff.
+      { primary: !radarReady },
     );
   }
   if (mode === 'sportsgameodds') {
-    return mergeCachedSportsGameOdds(board, sport, { primary: true });
+    return mergeCachedSportsGameOdds(
+      stripProviderRows(stripProviderRows(board, 'propline'), 'sportradar'),
+      sport,
+      { primary: true },
+    );
   }
   if (mode === 'propline') {
     return mergeCachedSportsGameOdds(
-      mergeCachedPropline(board, sport),
+      mergeCachedPropline(stripProviderRows(board, 'sportradar'), sport),
       sport,
       { primary: false },
     );
@@ -327,6 +376,7 @@ export function providerDiagnostics() {
     providerMode: propProviderMode(),
     proplineSupplement: proplineSupplementHealth(),
     sportradarSupplement: sportradarSupplementHealth(),
+    sportradarNbaV8: sportradarNbaV8Health(),
     sportsGameOddsSupplement: sportsGameOddsSupplementHealth(),
     runtime: snapshotDiagnostics(),
     inflightRefreshes: [...inflight.keys()].map((key) => key.replace(/^[^|]+\|/, '')),
@@ -341,6 +391,7 @@ export function providerHealth() {
     theOddsApiConfigured: oddsProvider?.id === 'the-odds-api' && oddsProvider.isConfigured(),
     providerMode: propProviderMode(),
     sportradarConfigured: sportradarConfigured(),
+    sportradarNbaV8: sportradarNbaV8Health(),
     sportsGameOddsConfigured: sportsGameOddsConfigured(),
     sportsDataIoConfigured: sportsDataIoConfigured(),
     preferredProvider: publicFirst ? 'Public feed database' : oddsProvider?.name || 'SportsDataIO fallback',

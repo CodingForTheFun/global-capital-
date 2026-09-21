@@ -6,6 +6,7 @@ import {
   __resetSportsGameOddsSupplement,
   maybeRefreshSportsGameOddsSupplement,
   mergeCachedSportsGameOdds,
+  sportsGameOddsIdentityFor,
 } from '../lib/ingestion/sportsgameodds-supplement.mjs';
 
 function sgoEvent(startsAt) {
@@ -154,6 +155,16 @@ test('SportsGameOdds supplement fills missing slots without replacing primary qu
     assert.ok(merged.props.some((row) => row.sportsbookKey === 'fanduel' && row.side === 'UNDER'));
     assert.equal(merged.meta.sportsGameOddsSupplement.added, 3);
     assert.equal(merged.meta.sportsGameOddsSupplement.enriched, 1);
+
+    const pointsIdentity = sportsGameOddsIdentityFor({
+      sport: 'NBA', playerName: 'Test Player', team: 'Home Team', gameStartTime: startsAt,
+      marketKey: 'player_points', marketName: 'Points',
+    });
+    assert.equal(pointsIdentity?.statId, 'points');
+    assert.equal(sportsGameOddsIdentityFor({
+      sport: 'NBA', playerName: 'Test Player', team: 'Home Team', gameStartTime: startsAt,
+      marketKey: 'player_assists', marketName: 'Assists',
+    }), null);
   } finally {
     globalThis.fetch = oldFetch;
     if (oldKey === undefined) delete process.env.SPORTS_ODDS_API_KEY_HEADER;

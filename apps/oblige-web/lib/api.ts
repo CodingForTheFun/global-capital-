@@ -165,6 +165,48 @@ function matchupLabel(row: PropRow) {
   return row.team || row.opponent || 'Matchup unavailable';
 }
 
+function canonicalPeriod(value: unknown, market = '') {
+  const explicit = String(value || '').trim();
+  const label = String(market || '').trim().toLowerCase();
+  if (!explicit) {
+    const compact = label.match(/\b([1-9])\s*(q|h|p|i|s)\b/i);
+    if (compact) return `${compact[1]}${compact[2].toLowerCase()}`;
+    const namedFromLabel: Array<[RegExp, string]> = [
+      [/\b(?:first|1st)\s+quarter\b/i, '1q'], [/\b(?:second|2nd)\s+quarter\b/i, '2q'],
+      [/\b(?:third|3rd)\s+quarter\b/i, '3q'], [/\b(?:fourth|4th)\s+quarter\b/i, '4q'],
+      [/\b(?:first|1st)\s+half\b/i, '1h'], [/\b(?:second|2nd)\s+half\b/i, '2h'],
+      [/\b(?:first|1st)\s+period\b/i, '1p'], [/\b(?:second|2nd)\s+period\b/i, '2p'],
+      [/\b(?:third|3rd)\s+period\b/i, '3p'], [/\b(?:first|1st)\s+inning\b/i, '1i'],
+      [/\b(?:first|1st)\s+set\b/i, '1s'], [/\b(?:second|2nd)\s+set\b/i, '2s'],
+      [/\b(?:third|3rd)\s+set\b/i, '3s'], [/\b(?:fourth|4th)\s+set\b/i, '4s'],
+      [/\b(?:fifth|5th)\s+set\b/i, '5s'],
+    ];
+    for (const [pattern, period] of namedFromLabel) if (pattern.test(label)) return period;
+    return 'game';
+  }
+
+  const raw = explicit.toLowerCase().replace(/[\s_-]+/g, '');
+  if (['game', 'full', 'fullgame', 'match', 'singlestat'].includes(raw)) return 'game';
+  const direct = raw.match(/^([1-9])([qhpis])$/);
+  if (direct) return `${direct[1]}${direct[2]}`;
+  const reversed = raw.match(/^([qhpis])([1-9])$/);
+  if (reversed) return `${reversed[2]}${reversed[1]}`;
+  const firstN = raw.match(/^f([357])$/);
+  if (firstN) return `1ix${firstN[1]}`;
+  if (/^1ix[357]$/.test(raw) || ['reg', 'ot', 'so', 'dec'].includes(raw)) return raw;
+  const named: Record<string, string> = {
+    firstquarter: '1q', secondquarter: '2q', thirdquarter: '3q', fourthquarter: '4q',
+    '1stquarter': '1q', '2ndquarter': '2q', '3rdquarter': '3q', '4thquarter': '4q',
+    firsthalf: '1h', secondhalf: '2h', '1sthalf': '1h', '2ndhalf': '2h',
+    firstperiod: '1p', secondperiod: '2p', thirdperiod: '3p',
+    '1stperiod': '1p', '2ndperiod': '2p', '3rdperiod': '3p',
+    firstinning: '1i', '1stinning': '1i',
+    firstset: '1s', secondset: '2s', thirdset: '3s', fourthset: '4s', fifthset: '5s',
+    '1stset': '1s', '2ndset': '2s', '3rdset': '3s', '4thset': '4s', '5thset': '5s',
+  };
+  return named[raw] || raw;
+}
+
 function bestQuote(rows: PropRow[], side: Side): PropRow | null {
   // Best price is the highest American number on that side, which is the same
   // ordering for favourites and underdogs.
@@ -185,9 +227,10 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
     const player = String(row.playerName || '').trim();
     const market = String(row.market || '').trim();
     const line = num(row.line);
+    const period = canonicalPeriod(row.period, market);
     if (!player || !market || line === null) continue;
 
-    const key = [row.eventId || matchupLabel(row), player, market, line].join('|');
+    const key = [row.eventId || matchupLabel(row), player, market, period, line].join('|');
     let group = groups.get(key);
     if (!group) {
       group = {
@@ -199,6 +242,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         marketId: row.marketId || null,
         line,
         sport,
+        period,
         team: row.team || null,
         position: row.position || null,
         opponent: row.opponent || null,
@@ -263,6 +307,7 @@ export async function fetchResearch(
   group: PropGroup,
   side: Side,
   signal?: AbortSignal,
+  options: { detail?: boolean } = {},
 ): Promise<ResearchResponse> {
   if (signal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
 
@@ -285,7 +330,8 @@ export async function fetchResearch(
   if (group.awayTeam) params.set('awayTeam', group.awayTeam);
   if (quote?.eventId) params.set('eventId', String(quote.eventId));
   if (group.startsAt) params.set('gameStartTime', group.startsAt);
-  if (quote?.period) params.set('period', String(quote.period));
+  if (group.period) params.set('period', group.period);
+  if (options.detail === true) params.set('detail', '1');
 
   const path = `/api/apex/research?${params}`;
   const cached = researchCache.get(path);
@@ -337,7 +383,7 @@ export async function fetchResearchBatch(
       marketId: group.marketId,
       eventId: quote?.eventId || null,
       gameStartTime: group.startsAt,
-      period: quote?.period || null,
+      period: group.period || quote?.period || null,
       games: 40,
     };
   });

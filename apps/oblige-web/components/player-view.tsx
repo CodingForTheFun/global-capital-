@@ -26,9 +26,6 @@ import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
 import { Reveal } from '@/components/motion';
 
-const DERIVED_MARKET =
-  /(?:\b(?:1q|2q|3q|4q|1h|2h)\b)|quarter|first half|second half|first inning|1st inning/i;
-
 const FAVOURITES_KEY = 'oblige-followed';
 
 type PlayerSection = 'overview' | 'props' | 'trends' | 'splits';
@@ -55,6 +52,7 @@ export function PlayerView() {
   const sport = params.get('sport') || 'NFL';
   const player = params.get('player') || '';
   const market = params.get('market') || '';
+  const period = params.get('period') || 'game';
   const lineParam = Number(params.get('line'));
   const postedLine = Number.isFinite(lineParam) ? lineParam : null;
 
@@ -106,13 +104,16 @@ export function PlayerView() {
   const group = React.useMemo(() => {
     if (!markets.length) return null;
     return (
+      markets.find((candidate) =>
+        candidate.market === market &&
+        candidate.line === postedLine &&
+        (candidate.period || 'game') === period
+      ) ||
       markets.find((candidate) => candidate.market === market && candidate.line === postedLine) ||
       markets.find((candidate) => candidate.market === market) ||
       markets[0]
     );
-  }, [markets, market, postedLine]);
-
-  const derived = group ? DERIVED_MARKET.test(group.market) : false;
+  }, [markets, market, period, postedLine]);
   const [state, setState] = React.useState<ExplorerState>({ line: 0, side: 'OVER', book: null });
 
   React.useEffect(() => {
@@ -123,14 +124,9 @@ export function PlayerView() {
 
   React.useEffect(() => {
     if (!group) return;
-    if (derived) {
-      setResearch(null);
-      setLoadingResearch(false);
-      return;
-    }
     const controller = new AbortController();
     setLoadingResearch(true);
-    fetchResearch(group, state.side, controller.signal)
+    fetchResearch(group, state.side, controller.signal, { detail: true })
       .then(setResearch)
       .catch(() => setResearch(null))
       .finally(() => setLoadingResearch(false));
@@ -138,7 +134,7 @@ export function PlayerView() {
     // The game sample is the same for Over and Under; line/side changes are
     // recalculated client-side so they do not create extra provider requests.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group?.key, derived]);
+  }, [group?.key]);
 
   function selectMarket(next: PropGroup) {
     const search = new URLSearchParams({
@@ -146,6 +142,7 @@ export function PlayerView() {
       player: next.player,
       market: next.market,
       line: String(next.line),
+      period: next.period || 'game',
     });
     router.replace(`/research?${search}`, { scroll: false });
   }
@@ -340,7 +337,7 @@ export function PlayerView() {
             <span className="player-section-kicker">Interactive research</span>
             <h2>Move the line. Change the side. Recalculate instantly.</h2>
           </div>
-          <span className="player-section-count">No extra provider calls</span>
+          <span className="player-section-count">Verified source fallback</span>
         </div>
         <Reveal>
           <CardPanel className="player-explorer-panel p-4 sm:p-5">
@@ -349,11 +346,9 @@ export function PlayerView() {
               games={games}
               loading={loadingResearch}
               unavailableReason={
-                derived
-                  ? 'This period-specific number cannot be rebuilt from a full-game box score, so Oblige does not substitute unrelated history. The live line remains available.'
-                  : research && research.available === false
-                    ? research.message || 'No verified game log is available for this player and market yet.'
-                    : null
+                research && research.available === false
+                  ? research.message || 'No verified game log is available for this player and market yet.'
+                  : null
               }
               leagueTeams={research?.leagueTeams || []}
               state={state}
@@ -364,7 +359,7 @@ export function PlayerView() {
           </CardPanel>
         </Reveal>
 
-        {research?.available === false && !derived && !loadingResearch && (
+        {research?.available === false && !loadingResearch && (
           <p className="mt-4 flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_36%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {research.message || 'No verified history is available for this player and market yet.'}
@@ -385,7 +380,7 @@ export function PlayerView() {
           group={group}
           line={state.line}
           side={state.side}
-          loading={loadingResearch && !derived}
+          loading={loadingResearch}
         />
       </section>
 
@@ -396,7 +391,7 @@ export function PlayerView() {
               games={games}
               line={state.line}
               market={marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}
-              loading={loadingResearch && !derived}
+              loading={loadingResearch}
             />
           </Reveal>
         </div>

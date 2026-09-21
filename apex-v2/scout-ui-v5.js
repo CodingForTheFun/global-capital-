@@ -107,14 +107,20 @@ function researchFor(g,line,side){
  return null;
 }
 function canonicalSourceLabel(value,row){
- var raw=[value,row&&row.source,row&&row.provider].filter(Boolean).join(' ').toLowerCase();
- if(raw.includes('sportsgameodds')||row?.sportsGameOddsOddId||row?.sportsGameOddsPlayerId)return 'SportsGameOdds';
- if(raw.includes('propline')||raw.includes('prop line'))return 'PropLine';
- if(raw.includes('espn'))return 'ESPN';
- if(raw.includes('sportsdataio'))return 'SportsDataIO';
- if(raw.includes('clearsports'))return 'ClearSports';
- var provider=String(row?.provider||'').toLowerCase();
- if(['draftkings','fanduel','betmgm','betrivers','bovada','pinnacle','underdog','prizepicks','fanatics','hardrock'].includes(provider))return 'Book feed';
+ var explicit=String(value||'').toLowerCase();
+ var classify=function(raw){
+  if(raw.includes('sportsgameodds'))return 'SportsGameOdds';
+  if(raw.includes('propline')||raw.includes('prop line'))return 'PropLine';
+  if(raw.includes('espn'))return 'ESPN';
+  if(raw.includes('sportsdataio'))return 'SportsDataIO';
+  if(raw.includes('clearsports'))return 'ClearSports';
+  if(['draftkings','fanduel','betmgm','betrivers','bovada','pinnacle','underdog','prizepicks','fanatics','hardrock'].includes(raw))return 'Book feed';
+  return null;
+ };
+ var label=classify(explicit);if(label)return label;
+ label=classify(String(row?.source||'').toLowerCase());if(label)return label;
+ label=classify(String(row?.provider||'').toLowerCase());if(label)return label;
+ if(row?.sportsGameOddsOddId||row?.sportsGameOddsPlayerId)return 'SportsGameOdds';
  return null;
 }
 function researchSourceLabel(r){

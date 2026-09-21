@@ -7,10 +7,10 @@ import {createPublicFeeds} from '../lib/ingestion/public-feeds.mjs';
 const start='2099-09-14T20:00:00Z',updated='2026-09-13T15:00:00Z';
 function pp(){return {data:[{id:'q',type:'projection',attributes:{stat_type:'Points',line_score:24.5,start_time:start,updated_at:updated,odds_type:'standard'},relationships:{new_player:{data:{id:'p',type:'new_player'}},league:{data:{id:'nba',type:'league'}}}}],included:[{id:'p',type:'new_player',attributes:{name:'Test Player',team:'BOS'}},{id:'nba',type:'league',attributes:{name:'NBA'}}]};}
 function ud(){return {players:[{id:'p',first_name:'Test',last_name:'Player',sport_id:'NBA',team:'BOS'}],appearances:[{id:'a',player_id:'p',match_id:'g'}],games:[{id:'g',scheduled_at:start}],over_under_lines:[{id:'u',stat_value:'25.5',updated_at:updated,over_under:{appearance_stat:{appearance_id:'a',stat:'Points'}},options:[{choice:'higher',payout_multiplier:'1.0'},{choice:'lower',payout_multiplier:'1.0'}]}]};}
-test('registry contains all 25 unique books, aliases and intentional empty selection',()=>{
- assert.equal(BOOKS.length,25);assert.equal(new Set(BOOKS.map(b=>b.id)).size,25);
+test('registry contains the full supported book catalog, aliases and intentional empty selection',()=>{
+ assert.ok(BOOKS.length>=35);assert.equal(new Set(BOOKS.map(b=>b.id)).size,BOOKS.length);
  for(const b of BOOKS){assert.match(b.badgeColor,/^#[0-9A-F]{6}$/i);assert.ok(['dfs','exchange','sportsbook','sweepstakes'].includes(b.type));}
- assert.equal(bookId('Bovada'),'bvda');assert.equal(bookId('betonlineag'),'boag');assert.equal(bookId('williamhill_us'),'caesars');
+ assert.equal(bookId('Bovada'),'bvda');assert.equal(bookId('betonlineag'),'boag');assert.equal(bookId('williamhill_us'),'caesars');assert.equal(bookId('LowVig.ag'),'lowvig');assert.equal(bookId('tab'),'tab_au');assert.equal(bookId('Polymarket US'),'polymarket_us');
  assert.deepEqual(bookSelection(['FanDuel','fanduel']),['fanduel']);assert.ok(bookEnabled({sportsbookKey:'New Book'},null));assert.equal(bookEnabled({sportsbookKey:'fanduel'},[]),false);
  const groups=[{rows:[{sportsbookKey:'fanduel',line:20},{sportsbookKey:'draftkings',line:25}],comparisonOffers:[{sportsbookKey:'draftkings',line:25}]}];
  const filtered=filterBookGroups(groups,['fanduel']);assert.equal(filtered[0].rows.length,1);assert.equal(filtered[0].comparisonOffers.length,0);assert.equal(groups[0].rows.length,2);
@@ -43,18 +43,25 @@ test('exchanges retain contracts without guessing settlement or executable Gamma
  assert.equal(normalizeKalshi({markets:[{...m,rules_primary:'Different terms'}]},{mappings:[mapping]}).records.length,0);assert.equal(americanFromAsk('0'),null);
  const poly=normalizePolymarket([{id:'e',markets:[{id:'q',question:'Any winner',outcomes:'["Yes","No"]',outcomePrices:'["0.7","0.3"]',active:true,acceptingOrders:true}]}]);assert.equal(poly.contracts.length,1);assert.equal(poly.records.length,0);
 });
-test('public feeds deduplicate 10 refreshes, preserve cache on 429 and respect Retry-After',async()=>{
+test('public feeds deduplicate refreshes, retain recovery cache on 429 but hide it from customers',async()=>{
  let time=Date.parse(updated),calls=0,fail=false;const service=createPublicFeeds({now:()=>time,feeds:[{id:'prizepicks',url:'https://api.prizepicks.com/projections',ttl:1000}],fetcher:async()=>{calls++;return fail?new Response('',{status:429,headers:{'retry-after':'120'}}):Response.json(pp());}});
  await Promise.all(Array.from({length:10},()=>service.refresh()));assert.equal(calls,1);assert.equal((await service.board('NBA',{props:[]})).props.length,2);
- time+=1001;fail=true;await service.refresh();assert.equal(calls,2);await service.refresh();assert.equal(calls,2);assert.equal((await service.board('NBA',{props:[]})).props.length,2);time+=119999;await service.refresh();assert.equal(calls,2);time+=1;await service.refresh();assert.equal(calls,3);
+ time+=1001;fail=true;await service.refresh();assert.equal(calls,2);await service.refresh();assert.equal(calls,2);
+ assert.equal((await service.board('NBA',{props:[]})).props.length,0,'a retained 429 snapshot is recovery data, not a current customer line');
+ assert.equal(service.health()[0].lineCount,1,'last-good raw records remain retained internally');
+ assert.equal(service.health()[0].status,'cooldown');
+ time+=119999;await service.refresh();assert.equal(calls,2);time+=1;await service.refresh();assert.equal(calls,3);
 });
 test('negative cache and sequential public feed concurrency are bounded',async()=>{
  let calls=0,active=0,max=0;const service=createPublicFeeds({feeds:[{id:'prizepicks',url:'https://api.prizepicks.com/projections',ttl:1000},{id:'underdog',url:'https://api.underdogfantasy.com/beta/v5/over_under_lines',ttl:1000}],fetcher:async url=>{calls++;max=Math.max(max,++active);await new Promise(r=>setTimeout(r,5));active--;return Response.json(url.includes('prizepicks')?{data:[],included:[]}:{players:[],appearances:[],over_under_lines:[]});}});await service.refresh();await service.refresh();assert.equal(calls,2);assert.equal(max,1);
 });
-test('unsafe next-page URLs and malformed snapshots cannot replace the last valid board',async()=>{
+test('unsafe or malformed refreshes retain last-good records internally but fail closed on customer board',async()=>{
  let time=0,mode='good',calls=0;const service=createPublicFeeds({now:()=>time,feeds:[{id:'prizepicks',url:'https://api.prizepicks.com/projections',ttl:1}],fetcher:async()=>{calls++;if(mode==='bad')return Response.json({data:[],included:[],links:{next:'https://other.example/projections'}});if(mode==='invalid')return Response.json({error:'busy'});return Response.json(pp());}});
- await service.refresh();time=2;mode='bad';await service.refresh();assert.equal(calls,2);assert.equal((await service.board('NBA',{props:[]})).props.length,2);
- time=1e9;mode='invalid';await service.refresh();assert.equal((await service.board('NBA',{props:[]})).props.length,2);
+ await service.refresh();assert.equal((await service.board('NBA',{props:[]})).props.length,2);
+ time=2;mode='bad';await service.refresh();assert.equal(calls,2);assert.equal((await service.board('NBA',{props:[]})).props.length,0);
+ assert.equal(service.health()[0].lineCount,1,'invalid refresh must not erase the held recovery snapshot');
+ time=1e9;mode='invalid';await service.refresh();assert.equal((await service.board('NBA',{props:[]})).props.length,0);
+ assert.equal(service.health()[0].lineCount,1);
 });
 test('DFS keeps source player categories while still excluding team-unit props',()=>{
  const firstHalf=pp();firstHalf.data[0].attributes.stat_type='1H Points';const firstHalfRows=normalizePrizePicks(firstHalf);assert.equal(firstHalfRows.length,1);assert.equal(firstHalfRows[0].period,'h1');

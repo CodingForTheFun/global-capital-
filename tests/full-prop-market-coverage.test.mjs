@@ -4,6 +4,7 @@ import { record, normalizedFeedBoard } from '../lib/ingestion/normalize.mjs';
 import { marketContract, statValue } from '../lib/data-sources/espn/stat-contract.mjs';
 import { fieldsFor } from '../lib/data-sources/sportsdataio/markets.mjs';
 import { propType, categoryOptions } from '../lib/ui/prop-board.mjs';
+import { rawStatFor } from '../lib/data-sources/propline/game-research.mjs';
 
 const start = '2026-09-14T19:00:00.000Z';
 const at = '2026-09-13T18:30:00.000Z';
@@ -30,12 +31,12 @@ test('live player props survive even when historical research has no contract ye
   assert.equal(board.props[0].period, 'first_inning');
 });
 
-test('fantasy and source-specific categories remain visible without fabricated history', () => {
+test('PrizePicks fantasy categories remain visible with exact source identity for verified research', () => {
   const row = live({ sport:'NBA', market:'Fantasy Score', line:42.5, team:'BOS', opponent:'NYK' });
   assert.ok(row);
   assert.equal(row.contract, null);
   const board = normalizedFeedBoard([row], { props: [] }, at);
-  assert.equal(board.props[0].marketId, 'player_fantasy_score');
+  assert.equal(board.props[0].marketId, 'prizepicks:player_fantasy_score');
   assert.equal(board.props[0].market, 'Fantasy Score');
 });
 
@@ -46,6 +47,33 @@ test('basketball combination props retain their canonical market identities', ()
   const board = normalizedFeedBoard([row], { props: [] }, at);
   assert.equal(board.props[0].marketId, 'player_points_rebounds_assists');
   assert.equal(propType({ sport:'NBA', marketId:board.props[0].marketId, market:board.props[0].market }), 'Points + Rebounds + Assists');
+});
+
+test('basketball split rebounds use exact verified fields across ESPN and PropLine', () => {
+  const offensive = marketContract({ sport:'WNBA', market:'Offensive Rebounds', providerMarketKey:'player_offensive_rebounds' });
+  const defensive = marketContract({ sport:'NBA', market:'Defensive Rebounds', providerMarketKey:'player_defensive_rebounds' });
+  assert.deepEqual(offensive.fields, ['OffensiveRebounds']);
+  assert.deepEqual(defensive.fields, ['DefensiveRebounds']);
+  assert.equal(statValue({ offensiveRebounds:6 }, offensive), 6);
+  assert.equal(statValue({ defensiveRebounds:9 }, defensive), 9);
+  assert.deepEqual(fieldsFor('WNBA','Offensive Rebounds','player_offensive_rebounds'), ['OffensiveRebounds']);
+  assert.deepEqual(fieldsFor('NBA','Defensive Rebounds','player_defensive_rebounds'), ['DefensiveRebounds']);
+  assert.equal(rawStatFor({ sport:'WNBA', market:'Offensive Rebounds', providerMarketKey:'player_offensive_rebounds', period:'game' }), 'offensive_rebounds');
+  assert.equal(rawStatFor({ sport:'NBA', market:'Defensive Rebounds', providerMarketKey:'player_defensive_rebounds', period:'game' }), 'defensive_rebounds');
+});
+
+test('basketball shooting-count markets use exact made/attempted fields', () => {
+  const fgm = marketContract({ sport:'WNBA', market:'FG Made', providerMarketKey:'player_fg_made' });
+  const fta = marketContract({ sport:'WNBA', market:'Free Throws Attempted', providerMarketKey:'player_free_throws_attempted' });
+  const fg3a = marketContract({ sport:'NBA', market:'3-Pointers Attempted', providerMarketKey:'player_three_pointers_attempted' });
+  assert.deepEqual(fgm.fields, ['FieldGoalsMade']);
+  assert.deepEqual(fta.fields, ['FreeThrowsAttempted']);
+  assert.deepEqual(fg3a.fields, ['ThreePointersAttempted']);
+  assert.equal(statValue({ 'fieldGoalsMade-fieldGoalsAttempted':'7-13' }, fgm), 7);
+  assert.equal(statValue({ 'freeThrowsMade-freeThrowsAttempted':'6-9' }, fta), 9);
+  assert.equal(statValue({ 'threePointFieldGoalsMade-threePointFieldGoalsAttempted':'2-6' }, fg3a), 6);
+  assert.equal(rawStatFor({ sport:'WNBA', market:'FG Made', providerMarketKey:'player_fg_made', period:'game' }), 'field_goals_made');
+  assert.equal(rawStatFor({ sport:'WNBA', market:'Free Throws Attempted', providerMarketKey:'player_free_throws_attempted', period:'game' }), 'free_throws_attempted');
 });
 
 test('MLB pitches, batters faced and innings pitched use measured source fields', () => {

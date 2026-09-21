@@ -20,19 +20,20 @@ function productionResearchClient() {
   return patchResearchTabsUi(books);
 }
 
-test('bottom research tabs are useful live-data views instead of empty specialty filters', () => {
+test('bottom research tabs use the former Trends slot for real live Scores', () => {
   const client = productionResearchClient();
   assert.match(client, /players:'Player Index'/);
   assert.match(client, /popular:'Hot Trends'/);
   assert.match(client, /snipes:'Best Lines'/);
   assert.match(client, /discrepancies:'Book Compare'/);
-  assert.match(client, /<span>Trends<\/span>/);
+  assert.match(client, /class="asNavScores"[^>]*>[\s\S]*?<span>Scores<\/span><\/button>/);
+  assert.doesNotMatch(client, /<button data-view="popular"[^>]*>[\s\S]*?<span>Trends<\/span><\/button>/);
   assert.match(client, /<span>Best Lines<\/span>/);
   assert.doesNotMatch(client, /activeView==='snipes'[^\n]*a=a\.filter\(g=>staleFor\(g\)\)/);
   assert.doesNotMatch(client, /activeView==='discrepancies'[^\n]*a=a\.filter\(g=>spreads\.get\(g\.key\)>0\)/);
 });
 
-test('Trends ranks verified recent form first and falls back to live market coverage', () => {
+test('legacy Trends ranking remains non-empty if deep-linked while Scores owns the nav slot', () => {
   const client = productionResearchClient();
   assert.match(client, /xw=xr\?\.windows\?\.l5/);
   assert.match(client, /yr5-xr5\|\|yg-xg\|\|books\(y\)\.length-books\(x\)\.length/);
@@ -48,10 +49,12 @@ test('Best Lines and Compare keep live rows visible when a special signal is abs
   assert.doesNotThrow(() => new Function(client));
 });
 
-test('production bootstrap applies the research-tabs patch after the sportsbook selector', () => {
+test('production bootstrap applies research tabs before the inline score view patch', () => {
   const frontdoor = readFileSync(new URL('../frontdoor-clearsports.mjs', import.meta.url), 'utf8');
   assert.match(frontdoor, /patchResearchTabsUi/);
+  assert.match(frontdoor, /patchLiveMainViewUi/);
   assert.ok(frontdoor.indexOf('patchPropBookSelectorUi(patchedNavAndRingUi)') < frontdoor.indexOf('patchResearchTabsUi(patchedPropBookSelectorUi)'));
+  assert.ok(frontdoor.indexOf('patchResearchTabsUi(patchedPropBookSelectorUi)') < frontdoor.indexOf('patchLiveMainViewUi(patchedResearchTabsUi)'));
 });
 
 // The note under each tab is product copy, not a contract, so no test pins its

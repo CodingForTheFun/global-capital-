@@ -1,10 +1,12 @@
 import http from 'node:http';
+import { BOARD_SPORTS } from './lib/autoscout/models.mjs';
+import { SCOPED_PUBLIC_SPORTS } from './lib/autoscout/board-coverage-catalog.mjs';
 import {createMLHandler} from './lib/ml/routes.mjs';
 const maybeServeML = createMLHandler();
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
-import { fetchMatchupResearch } from './lib/data-sources/espn/research.mjs';
+import { fetchMatchupResearch, fetchDefensePosition } from './lib/data-sources/espn/research.mjs';
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
 import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
 import { projectPlayerProp, projectionsConfigured } from './lib/projections/service.mjs';
@@ -33,6 +35,7 @@ const APEX_NEXT_PORT = 3003;
 const APEX_SHELL = readFileSync('./apex-v2/scout-ui-v5.js', 'utf8').replace(/<\/script/gi, '<\\/script');
 const ARTWORK_SPORTS = new Set(['NFL','NBA','MLB','NHL','WNBA','NCAAF','NCAAB']);
 const RESEARCH_SPORTS = new Set([...ARTWORK_SPORTS,'MLS','EPL','UCL']);
+const researchSportAllowed = (sport, market) => RESEARCH_SPORTS.has(sport) || (BOARD_SPORTS.includes(sport) && !SCOPED_PUBLIC_SPORTS[sport] && !sport.endsWith('SZN') && /fantasy/i.test(market));
 const researchLimits = new Map();
 // One board load hydrates at most this many cards, resolved this many at a time.
 const MAX_BATCH_PROPS = 100;
@@ -171,7 +174,7 @@ function safeParam(url, name, max = 100) {
 
 async function maybeServeResearch(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
-  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup') return false;
+  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup' && url.pathname !== '/api/apex/research-defense-position') return false;
   if (req.method !== 'GET') {
     directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
     return true;
@@ -189,7 +192,11 @@ async function maybeServeResearch(req, res) {
     directJson(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many research requests. Try again shortly.' }, { 'retry-after': '60' });
     return true;
   }
-  const sport = safeParam(url, 'sport', 12).toUpperCase();
+  const sport = safeParam(url, 'sport', 90).toUpperCase();
+  if(url.pathname === '/api/apex/research-defense-position') {
+    const result = await fetchDefensePosition({sport}).catch(()=>({ok:true,available:false,message:'Position defense could not load. Try again shortly.',teams:[],rows:[]}));
+    directJson(res,200,sanitizePublicPayload(result,{statsContext:true}));return true;
+  }
   if(url.pathname === '/api/apex/research-matchup') {
     const result = await fetchMatchupResearch({sport,eventId:safeParam(url,'eventId',160),homeTeam:safeParam(url,'homeTeam',100),awayTeam:safeParam(url,'awayTeam',100),gameStartTime:safeParam(url,'gameStartTime',40)}).catch(()=>({ok:true,available:false,code:'MATCHUP_SOURCE_UNAVAILABLE',message:'Game context could not load. Try again shortly.'}));
     directJson(res,result.code==='INVALID_MATCHUP'?400:200,sanitizePublicPayload(result,{statsContext:true}));
@@ -200,7 +207,7 @@ async function maybeServeResearch(req, res) {
   const lineRaw = safeParam(url, 'line', 24);
   const line = lineRaw === '' ? null : Number(lineRaw);
   const side = safeParam(url, 'side', 10).toUpperCase() || 'OVER';
-  if (!RESEARCH_SPORTS.has(sport) || !playerName || !market || (line !== null && !Number.isFinite(line)) || !['OVER','UNDER'].includes(side)) {
+  if (!researchSportAllowed(sport, market) || !playerName || !market || (line !== null && !Number.isFinite(line)) || !['OVER','UNDER'].includes(side)) {
     directJson(res, 400, { ok: false, code: 'INVALID_RESEARCH_REQUEST', message: 'Valid sport, player, market, line and side are required.' });
     return true;
   }
@@ -209,12 +216,16 @@ async function maybeServeResearch(req, res) {
       sport,
       playerName,
       providerPlayerId: safeParam(url, 'providerPlayerId', 48) || null,
+      position: safeParam(url, 'position', 16) || null,
       team: safeParam(url, 'team', 40) || null,
       homeTeam: safeParam(url, 'homeTeam', 60) || null,
       awayTeam: safeParam(url, 'awayTeam', 60) || null,
       opponent: safeParam(url, 'opponent', 60) || null,
       market,
       providerMarketKey: safeParam(url, 'marketId', 64) || null,
+      period: safeParam(url, 'period', 24) || null,
+      eventId: safeParam(url, 'eventId', 160) || null,
+      gameStartTime: safeParam(url, 'gameStartTime', 40) || null,
       line,
       side,
       games: Math.min(40, Math.max(5, Number(url.searchParams.get('games')) || 20)),
@@ -252,14 +263,14 @@ function readJsonBody(req, limit = 96 * 1024) {
 
 function batchEntry(raw) {
   const text = (value, max) => String(value ?? '').trim().slice(0, max);
-  const sport = text(raw?.sport, 12).toUpperCase();
+  const sport = text(raw?.sport, 90).toUpperCase();
   const playerName = text(raw?.playerName, 90);
   const market = text(raw?.market, 100);
   const key = String(raw?.key??'').trim();
   if (key.length>512 || ['__proto__','constructor','prototype'].includes(key)) return null;
   const line = raw?.line === null || raw?.line === undefined || raw?.line === '' ? null : Number(raw.line);
   const side = text(raw?.side, 10).toUpperCase() || 'OVER';
-  if (!key || !RESEARCH_SPORTS.has(sport) || !playerName || !market) return null;
+  if (!key || !researchSportAllowed(sport, market) || !playerName || !market) return null;
   if (line !== null && !Number.isFinite(line)) return null;
   if (!['OVER', 'UNDER'].includes(side)) return null;
   return {
@@ -267,11 +278,15 @@ function batchEntry(raw) {
     params: {
       sport, playerName, market, line, side,
       providerPlayerId: text(raw?.providerPlayerId, 48) || null,
+      position: text(raw?.position, 16) || null,
       team: text(raw?.team, 40) || null,
       homeTeam: text(raw?.homeTeam, 60) || null,
       awayTeam: text(raw?.awayTeam, 60) || null,
       opponent: text(raw?.opponent, 60) || null,
       providerMarketKey: text(raw?.marketId, 64) || null,
+      eventId: text(raw?.eventId, 160) || null,
+      gameStartTime: text(raw?.gameStartTime, 40) || null,
+      period: text(raw?.period, 24) || null,
       games: Math.min(40, Math.max(5, Number(raw?.games) || 40)),
     },
   };

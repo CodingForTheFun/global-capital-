@@ -64,6 +64,35 @@ test('history is ordered oldest to newest so it can be drawn', () => {
   assert.deepEqual(points.map((p) => p.line), [20.5, 21]);
 });
 
+test('documented nested history keeps the exact outcome id, DFS flavor and liquidity', () => {
+  const { points } = normalizeHistory({ bookmakers: [{
+    key: 'prizepicks',
+    markets: [{
+      key: 'player_points',
+      outcomes: [{
+        name: 'Over',
+        description: 'Example Player',
+        outcome_id: 'out-123',
+        book_outcome_id: 'pp-456',
+        dfs_odds_type: 'demon',
+        snapshots: [
+          { recorded_at: '2026-09-16T10:00:00Z', point: 24.5, price: 100, liquidity: 50 },
+          { recorded_at: '2026-09-16T11:00:00Z', point: 25.5, price: 100, liquidity: 75 },
+        ],
+      }],
+    }],
+  }] });
+  assert.equal(points.length, 2);
+  assert.equal(points[0].outcomeId, 'out-123');
+  assert.equal(points[0].bookOutcomeId, 'pp-456');
+  assert.equal(points[0].bookmakerKey, 'prizepicks');
+  assert.equal(points[0].marketKey, 'player_points');
+  assert.equal(points[0].playerName, 'Example Player');
+  assert.equal(points[0].side, 'OVER');
+  assert.equal(points[0].dfsOddsType, 'demon');
+  assert.equal(points[1].liquidity, 75);
+});
+
 test('a closing line captured too early is flagged, not quietly used', () => {
   const { closes } = normalizeClosing({ closing: [
     { player_name: 'A', closing_point: 20.5, is_stale: true },

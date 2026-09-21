@@ -1,0 +1,21 @@
+name: Canonical workspace API
+on:
+  push:
+    branches: ['chatgpt/canonical-workspace-api-20260918']
+  pull_request:
+    branches: [production-stable]
+    paths: ['lib/web/prop-workspace.mjs', 'lib/web/workspace-api.mjs', 'lib/web/new-web.mjs', 'tests/prop-workspace.test.mjs', '.github/workflows/canonical-workspace-api.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: node --check lib/web/workspace-api.mjs && node --test tests/prop-workspace.test.mjs
+      - run: npm run check

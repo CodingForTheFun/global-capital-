@@ -562,6 +562,44 @@ function fairValueStrip(g){
  return '<div class="asFairStrip'+(edge?' asFairEdge':'')+'" aria-label="Sharp fair value">'
   +'<b>'+(edge?'Edge':'Fair value')+'</b><span>'+esc(copy)+'</span></div>';
 }
+// Surface the repository's settlement-aware Pro Tools arb engine on the
+// ordinary card and Compare Lines view. This is read-only analysis over quotes
+// already loaded by the board: no extra provider request, polling or bet action.
+function arbitrageFor(g){
+ if(g.archived)return null;
+ try{
+  var analysis=proToolsAnalysis({...g,rows:g.rows||[],comparisonOffers:g.comparisonOffers||g.rows||[]});
+  return analysis&&analysis.arbitrage&&analysis.arbitrage[0]||null;
+ }catch(_error){return null;}
+}
+function arbPct(value){
+ var n=Number(value);
+ return Number.isFinite(n)?n.toFixed(2)+'%':'—';
+}
+function arbBook(quote){return quote&&(quote.sportsbook||quote.bookName||quote.bookKey)||'Book';}
+function arbitrageStrip(g){
+ var signal=arbitrageFor(g);
+ if(!signal)return '';
+ var push=signal.possiblePush?' · push can break even':'';
+ return '<div class="asFairStrip asFairEdge" aria-label="Settlement-aware arbitrage candidate">'
+  +'<b>Arb candidate</b><span>Worst case '+esc(arbPct(signal.minimumReturnPercent))
+  +' · decided '+esc(arbPct(signal.decidedReturnPercent))
+  +' · '+esc(arbBook(signal.over))+' O '+esc(dec(signal.over.line))+' '+esc(money(signal.over.price))
+  +' / '+esc(arbBook(signal.under))+' U '+esc(dec(signal.under.line))+' '+esc(money(signal.under.price))
+  +esc(push)+'</span></div>';
+}
+function arbitragePanel(g){
+ if(g.archived)return '<p class="asNotice">Arbitrage requires current sportsbook quotes; saved snapshots are not scanned.</p>';
+ var signal=arbitrageFor(g);
+ if(!signal)return '<p class="asNotice">No settlement-aware cross-book arbitrage candidate is present in the current fresh straight-book quotes. Stale, non-contemporaneous, live, promotional, mismatched-event, unsupported-stat and ambiguous offers are rejected.</p>';
+ var pushNote=signal.possiblePush?'An exact-stat push can refund both stakes, so positive profit is not guaranteed on that outcome.':'These lines have no attainable push outcome in the supported integer-stat domain.';
+ return '<div class="asMarketSummary">'
+  +'<div><small>Worst-case theoretical return</small><b>'+esc(arbPct(signal.minimumReturnPercent))+'</b><span>'+esc(pushNote)+'</span></div>'
+  +'<div><small>Decided-outcome theoretical return</small><b>'+esc(arbPct(signal.decidedReturnPercent))+'</b><span>'
+  +esc(arbBook(signal.over))+' O '+esc(dec(signal.over.line))+' '+esc(money(signal.over.price))
+  +' · '+esc(arbBook(signal.under))+' U '+esc(dec(signal.under.line))+' '+esc(money(signal.under.price))+'</span></div>'
+  +'</div><p class="asNotice">'+esc(signal.assumptions)+'</p>';
+}
 // ---------------------------------------------------------------------------
 // Modelled projection card.
 //
@@ -960,6 +998,7 @@ function rowHtml(g){
   +staleBadge(g)
   +(activeView==='discrepancies'?compareTable(g):oddsStrip(g))
   +fairValueStrip(g)
+  +arbitrageStrip(g)
   +'<details class="asCardModels"><summary>Model estimates &amp; projection</summary>'+mlPanel(g,line,side)+predictionStrip(g,line)+'</details>'
   +'<div class="asRowActions"><span class="asResearchState '+(r&&r.available?'ready':'')+'">'
    +esc(g.archived?'Saved snapshot · no current line':state)+'</span>'
@@ -1364,7 +1403,7 @@ function renderDrawer(){
  var pillsHtml=section('Hit rate',hitPills(r||base));
  var panels={context:section('Game context',gameContextHtml(g.archived?{available:false,message:'Current game context is not available for a saved snapshot.'}:matchupClient.peek(g))),win:section('Win Predictor',winPredictorPanel(g)),pro:panel==='pro'?section('Pro Tools',proToolsPanel(g)):'',matchup:section('Matchup research',matchupPanel(base||{},g)),similar:section('Similar games · same player',similarPanel(base||{},g)),sandbox:section('Scenario sandbox',sandboxPanel(g,line,side),'Simulated'),
   ask:section('Ask about this prop',askPanel(g,line,side)),
-  overview:(base?.available?'<div class="asTrendPills">'+windowCards(r,drawerState.window)+'</div>'+section('Game-by-game performance',filters+chartHtml(r),esc(side+' '+dec(line)))+section('Supporting stats',supportingStats(r,g)):'')+'<details class="asDetailModels"><summary>Model estimates &amp; projection</summary>'+projectionHtml+'</details>'+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Supporting stats',supportingStats(r,g))+section('Results',logContent),lines:section('Best Line Finder',comparisonRows(g))+section('Every book',bookMatrix(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
+  overview:(base?.available?'<div class="asTrendPills">'+windowCards(r,drawerState.window)+'</div>'+section('Game-by-game performance',filters+chartHtml(r),esc(side+' '+dec(line)))+section('Supporting stats',supportingStats(r,g)):'')+'<details class="asDetailModels"><summary>Model estimates &amp; projection</summary>'+projectionHtml+'</details>'+section('Player context',contextGrid(r||base,line,g)),games:windowCards(r,drawerState.window)+filters+section('Supporting stats',supportingStats(r,g))+section('Results',logContent),lines:section('Best Line Finder',comparisonRows(g))+section('Arbitrage check',arbitragePanel(g),'Exact-line prices')+section('Every book',bookMatrix(g))+section('Line movement','<label>Sportsbook<select class="asMarketSelect" id="asHistoryBook">'+books(g).map(b=>'<option value="'+esc(b)+'" '+(b===drawerState.historyBook?'selected':'')+'>'+esc(g.rows.find(x=>x.sportsbookKey===b)?.sportsbook||b)+'</option>').join('')+'</select></label><div id="asHistory" aria-live="polite"><p class="asNotice">Loading observed history…</p></div>',esc(side))};
  intelligence?.disposeDetails();
  panels.intelligence='<div id="asIntelligenceDetail">'+(intelligence?'':'<p class="asNotice">Intelligence tools could not load. Reload the page; existing research remains available.</p>')+'</div>';
  document.getElementById('asDrawerBody').innerHTML=(g.archived?'<p class="asAvailability">Saved snapshot from '+esc(when(g.savedAt))+'. Current sportsbook offers are unavailable for this prop.</p>':'')+'<div class="asDetailBooks">'+oddsStrip(g)+'</div>'+controls+(!base?'<div class="asLoading" role="status">Loading player research…</div>':!base.available?'<p class="asAvailability">'+esc(researchAvailability(base))+'</p><button class="asBtn" id="asRetryResearch">Retry research</button>':'')+tabBar+'<div role="tabpanel" id="asPanel-'+panel+'" aria-labelledby="asTab-'+panel+'" tabindex="0">'+panels[panel]+'</div>';

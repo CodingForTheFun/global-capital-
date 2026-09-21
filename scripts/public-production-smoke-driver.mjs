@@ -4,6 +4,8 @@ import { chromium } from 'playwright';
 const BASE = process.env.AUTOSCOUT_PUBLIC_URL || 'https://www.obligeprops.com';
 const EXPECTED_SHA = process.env.AUTOSCOUT_EXPECTED_SHA || '';
 const HEALTH_ATTEMPTS = Math.max(1, Number.parseInt(process.env.AUTOSCOUT_SMOKE_HEALTH_ATTEMPTS || '60', 10) || 60);
+const SMOKE_EMAIL = String(process.env.AUTOSCOUT_SMOKE_EMAIL || '').trim();
+const SMOKE_PASSWORD = String(process.env.AUTOSCOUT_SMOKE_PASSWORD || '');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function waitForHealth() {
@@ -97,14 +99,16 @@ const account = await accountHealth();
 await verifySignedOutApiGate();
 const browser = await verifySignedOutBrowserGate();
 
-// In instant-signup beta mode, preserve the full authenticated prop-card smoke.
-// When production requires email verification, do not create disposable fake
-// customer accounts merely to satisfy CI. Verify the fail-closed account gate,
-// canonical customer domain and production health instead.
+// Never create disposable customer accounts in production just to satisfy CI.
+// Authenticated smoke runs only when a pre-provisioned smoke identity is supplied
+// explicitly; otherwise the health, signed-out API, browser gate and stability
+// checks above still run on every release.
 let authenticatedSmoke = 'not-required';
-if (account?.gate?.beta === true) {
+if (account?.gate?.beta === true && SMOKE_EMAIL && SMOKE_PASSWORD) {
   runBetaAuthenticatedSmoke();
   authenticatedSmoke = 'passed';
+} else if (account?.gate?.beta === true) {
+  authenticatedSmoke = 'skipped-no-credentials';
 } else {
   authenticatedSmoke = 'verification-required';
 }

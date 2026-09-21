@@ -200,6 +200,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         line,
         sport,
         team: row.team || null,
+        position: row.position || null,
         opponent: row.opponent || null,
         homeTeam: row.homeTeam || null,
         awayTeam: row.awayTeam || null,
@@ -217,6 +218,17 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
   }
 
   for (const group of groups.values()) {
+    // Fantasy scoring belongs to the platform that posted the line. If one
+    // quote carries a source-qualified market id (for example PrizePicks),
+    // preserve that verified identity for research even when another DFS book
+    // happens to post the same display label and number.
+    const qualified = group.quotes.find((row) => {
+      const marketId = String(row.marketId || '').trim().toLowerCase();
+      const book = String(row.sportsbookKey || '').trim().toLowerCase();
+      return Boolean(book && marketId.startsWith(`${book}:`));
+    });
+    if (qualified?.marketId) group.marketId = qualified.marketId;
+    if (qualified?.position) group.position = qualified.position;
     group.bestOver = bestQuote(group.quotes, 'OVER');
     group.bestUnder = bestQuote(group.quotes, 'UNDER');
   }
@@ -264,6 +276,7 @@ export async function fetchResearch(
   });
   if (group.providerPlayerId) params.set('providerPlayerId', group.providerPlayerId);
   if (group.marketId) params.set('marketId', group.marketId);
+  if (group.position) params.set('position', group.position);
   if (group.team) params.set('team', group.team);
   if (group.opponent) params.set('opponent', group.opponent);
   if (group.homeTeam) params.set('homeTeam', group.homeTeam);
@@ -277,6 +290,79 @@ export async function fetchResearch(
   const value = await getJson<ResearchResponse>(path, signal);
   rememberResearch(path, value);
   return value;
+}
+
+
+const RESEARCH_BATCH_SIZE = 100;
+
+/**
+ * Resolve verified research summaries for a slate in one bounded request.
+ * The production frontdoor caps this route at 100 props, so callers should
+ * chunk larger slates and can merge each completed batch progressively.
+ */
+export async function fetchResearchBatch(
+  groups: PropGroup[],
+  side: Side,
+  signal?: AbortSignal,
+): Promise<Record<string, ResearchResponse>> {
+  if (!groups.length) return {};
+  if (groups.length > RESEARCH_BATCH_SIZE) {
+    throw new ApiError(
+      `Research batches are limited to ${RESEARCH_BATCH_SIZE} props.`,
+      400,
+      'RESEARCH_BATCH_TOO_LARGE',
+    );
+  }
+
+  const props = groups.map((group) => {
+    const quote = group.bestOver || group.bestUnder || group.quotes[0] || null;
+    return {
+      key: group.key,
+      sport: group.sport,
+      playerName: group.player,
+      market: group.market,
+      line: group.line,
+      side,
+      providerPlayerId: group.providerPlayerId,
+      position: group.position,
+      team: group.team,
+      opponent: group.opponent,
+      homeTeam: group.homeTeam,
+      awayTeam: group.awayTeam,
+      marketId: group.marketId,
+      eventId: quote?.eventId || null,
+      gameStartTime: group.startsAt,
+      period: quote?.period || null,
+      games: 40,
+    };
+  });
+
+  const response = await fetch('/api/apex/research-batch', {
+    method: 'POST',
+    credentials: 'same-origin',
+    signal,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ props }),
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    ok?: boolean;
+    code?: string;
+    message?: string;
+    results?: Record<string, ResearchResponse>;
+  };
+
+  if (response.status === 401) {
+    throw new ApiError('Sign in to view verified research.', 401, 'AUTH_REQUIRED');
+  }
+  if (!response.ok || body.ok === false || !body.results) {
+    throw new ApiError(
+      body.message || 'Verified research is temporarily unavailable.',
+      response.status,
+      body.code || 'RESEARCH_BATCH_UNAVAILABLE',
+    );
+  }
+
+  return body.results;
 }
 
 export async function fetchLineHistory(propId: string, signal?: AbortSignal) {

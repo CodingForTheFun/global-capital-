@@ -2,11 +2,13 @@
 
 import * as React from 'react';
 import { Minus, Plus, Star, RotateCcw } from 'lucide-react';
-import type { GameLogRow, PropGroup, PropRow } from '@/lib/types';
+import type { GameLogRow, PropGroup, PropRow, ResearchResponse } from '@/lib/types';
+import { catalogBookRows } from '@/lib/book-catalog';
 import { applyFilters, buildWindows, computeWindow, distinct, EMPTY_FILTERS, filtersActive, headToHead, sampleFor, sortRecentFirst, type SampleFilters, type SampleId, type Side, type Window as ResearchWindow } from '@/lib/analytics';
 import { odds, shortDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppliedFilter } from '@/components/applied-filter';
+import { buildOpponentOptions } from '@/lib/opponent-options';
 
 export type ExplorerState = { line: number; side: Side; book: string | null };
 type ChartSample = SampleId | 'l20';
@@ -49,8 +51,9 @@ function ValueChart({ games, line, side }: { games: GameLogRow[]; line: number; 
 
 /** Same input/output contract and existing research engine. No fetch, provider
  * polling, auth change or new data source is introduced by these controls. */
-export function PropExplorer({ group, games, loading, unavailableReason, state, onState, favourite, onFavourite }: {
+export function PropExplorer({ group, games, loading, unavailableReason, leagueTeams = [], state, onState, favourite, onFavourite }: {
   group: PropGroup; games: GameLogRow[]; loading?: boolean; unavailableReason?: string | null;
+  leagueTeams?: NonNullable<ResearchResponse['leagueTeams']>;
   state: ExplorerState; onState(next: ExplorerState): void; favourite: boolean; onFavourite(): void;
 }) {
   const [filters, setFilters] = React.useState<SampleFilters>(EMPTY_FILTERS);
@@ -68,24 +71,14 @@ export function PropExplorer({ group, games, loading, unavailableReason, state, 
   const h2h = React.useMemo(() => headToHead(filtered, group.opponent, state.line, state.side), [filtered, group.opponent, state.line, state.side]);
   const chartGames = React.useMemo(() => sample === 'l20' ? filtered.slice(0, 20) : sampleFor(filtered, sample, group.opponent), [filtered, sample, group.opponent]);
   const summary = React.useMemo(() => computeWindow(chartGames, state.line, state.side, 'chart', 'Shown'), [chartGames, state.line, state.side]);
-  const opponents = React.useMemo(() => distinct(played.map(game => game.opponent)).sort(), [played]);
+  const opponentOptions = React.useMemo(
+    () => buildOpponentOptions(played.map(game => game.opponent), group, leagueTeams),
+    [played, group.team, group.opponent, group.homeTeam, group.awayTeam, leagueTeams],
+  );
   const seasons = React.useMemo(() => distinct(played.map(game => game.season == null ? null : String(game.season))).sort().reverse(), [played]);
-  const books = React.useMemo(() => {
-    const map = new Map<string, { key: string; name: string; over: PropRow | null; under: PropRow | null }>();
-    for (const quote of group.quotes) {
-      const name = String(quote.sportsbook || quote.sportsbookKey || '').trim();
-      if (!name) continue;
-      const key = (quote.sportsbookKey || name).toLowerCase();
-      if (!map.has(key)) map.set(key, { key, name, over: null, under: null });
-      const book = map.get(key)!;
-      const price = numberOrNull(quote.price);
-      if (price === null || price === 0) continue;
-      const side = String(quote.side || '').toUpperCase();
-      if (side === 'OVER' && (!book.over || price > Number(book.over.price))) book.over = quote;
-      if (side === 'UNDER' && (!book.under || price > Number(book.under.price))) book.under = quote;
-    }
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [group.quotes]);
+  // Every supported book remains visible for every prop. Missing exact lines are
+  // explicit instead of disappearing, while observed future books are retained.
+  const books = React.useMemo(() => catalogBookRows(group.quotes), [group.quotes]);
   const activeBook = books.find(book => book.key === state.book);
   const over = activeBook ? activeBook.over : group.bestOver;
   const under = activeBook ? activeBook.under : group.bestUnder;
@@ -97,17 +90,17 @@ export function PropExplorer({ group, games, loading, unavailableReason, state, 
   return <div className="research-reference" data-release="oblige-installable-20260918">
     <div className="op-research-title"><div><span>PLAYER RESEARCH</span><h3>{group.market}</h3></div><button type="button" className="op-follow" aria-label={favourite ? `Unfollow ${group.player}` : `Follow ${group.player}`} aria-pressed={favourite} onClick={onFavourite} title="Follow on this device"><Star size={19} fill={favourite ? 'currentColor' : 'none'} /></button></div>
     <div className="op-research-filters">
-      <AppliedFilter key={`${group.key}-opponent`} label="Opponent" value={filters.opponent} options={options(opponents)} onApply={opponent => setFilters(previous => ({ ...previous, opponent }))} />
+      <AppliedFilter key={`${group.key}-opponent`} label="Opponent" value={filters.opponent} options={opponentOptions} onApply={opponent => setFilters(previous => ({ ...previous, opponent }))} />
       <AppliedFilter key={`${group.key}-season`} label="Season" value={filters.season} options={options(seasons)} onApply={season => setFilters(previous => ({ ...previous, season }))} />
       <AppliedFilter key={`${group.key}-venue`} label="Home / Away" value={filters.venue} options={[{ value: 'all', label: 'All' }, { value: 'home', label: 'Home' }, { value: 'away', label: 'Away' }]} onApply={venue => setFilters(previous => ({ ...previous, venue: venue as SampleFilters['venue'] }))} />
-      <AppliedFilter key={`${group.key}-book`} label="Book" value={state.book || 'all'} options={[{ value: 'all', label: 'Best prices' }, ...books.map(book => ({ value: book.key, label: book.name }))]} onApply={book => onState({ ...state, book: book === 'all' ? null : book })} />
+      <AppliedFilter key={`${group.key}-book`} label="Book" value={state.book || 'all'} options={[{ value: 'all', label: 'Best prices · all books' }, ...books.map(book => ({ value: book.key, label: book.available ? `${book.name} · Line ${group.line}` : `${book.name} · No line` }))]} onApply={book => onState({ ...state, book: book === 'all' ? null : book })} />
     </div>
     <div className="op-sample-caption"><span className="op-sample-count">{filtered.length} of {played.length} verified games</span>{filtersActive(filters) && <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}><RotateCcw size={12} /> Clear all history filters</button>}</div>
     <div className="op-line-controls">
       <div className="op-line-stepper"><button type="button" aria-label="Lower research line" onClick={() => step(-.5)}><Minus size={18} /></button><output className="op-line-number" aria-live="polite">{state.line}</output><button type="button" aria-label="Raise research line" onClick={() => step(.5)}><Plus size={18} /></button></div>
       <div className="op-side-picker" role="group" aria-label="Research side">{(['OVER', 'UNDER'] as const).map(side => <button key={side} type="button" aria-pressed={state.side === side} data-side={side} onClick={() => onState({ ...state, side })}><strong>{side === 'OVER' ? 'O' : 'U'} {quoteOdds(side === 'OVER' ? over : under)}</strong><span>{side === 'OVER' ? 'Over' : 'Under'}</span></button>)}</div>
     </div>
-    <p className="op-price-note">{activeBook?.name || 'Best available book prices'} · Prices shown at posted line {group.line}.{moved && <> Research line adjusted to {state.line}. <button type="button" onClick={() => onState({ ...state, line: group.line })}>Reset line</button></>}</p>
+    <p className="op-price-note">{activeBook ? (activeBook.available ? `${activeBook.name} · Prices shown at posted line ${group.line}.` : `${activeBook.name} · No line posted for this exact prop.`) : `Best available book prices · Posted line ${group.line}.`}{moved && <> Research line adjusted to {state.line}. <button type="button" onClick={() => onState({ ...state, line: group.line })}>Reset line</button></>}</p>
     {loading ? <Skeleton className="h-[90px]" /> : <div className="op-samples" aria-label="History windows">{windows.map(item => <SampleTile key={item.id} window={item} selected={sample === item.id} onSelect={() => setSample(item.id as ChartSample)} />)}{h2h && <SampleTile window={{ ...h2h, label: `H2H · ${group.opponent}` }} selected={sample === 'h2h'} onSelect={() => setSample('h2h')} />}</div>}
     {loading ? <Skeleton className="h-[230px]" /> : unavailableReason ? <div className="op-no-history"><strong>Verified history unavailable</strong><p>{unavailableReason}</p></div> : <section className="op-chart-section"><div className="op-chart-heading"><h4>{sample === 'h2h' ? `Head to head · ${group.opponent}` : sample === 'season' ? 'Available history' : `Last ${sample.slice(1)} games`} · {group.market}</h4><span>{summary.hits}/{summary.games} hits · {summary.hitRate ?? '—'}{summary.hitRate === null ? '' : '%'} · Avg {summary.average ?? '—'}</span></div><div className="op-chart-legend"><span>Hit</span><span>Miss</span><span>Push</span><span>— Research line</span></div><ValueChart games={chartGames} line={state.line} side={state.side} /></section>}
     <p className="op-research-footnote">Rates use verified games played. Pushes remain in the denominator. Missing/DNP values are excluded. “Available” describes the returned sample, not a claim of complete season coverage.</p>

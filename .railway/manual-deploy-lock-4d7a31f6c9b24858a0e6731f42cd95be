@@ -1,0 +1,4 @@
+deploy: verified NFL + NCAAF history repairs
+source-prs: #419, #423
+release-sha: ecb2d3d6ed9ce36063fdaf388c5b8091c9c94adc
+reason: trigger autoprop-live exact watched release lock after green history checks

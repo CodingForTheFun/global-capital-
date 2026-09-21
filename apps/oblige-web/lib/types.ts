@@ -23,12 +23,29 @@ export type PropRow = {
   sportsbook?: string;
   sportsbookKey?: string;
   team?: string;
+  position?: string;
   opponent?: string;
   homeTeam?: string;
   awayTeam?: string;
   gameStartTime?: string;
   eventId?: string;
   live?: boolean;
+  period?: string;
+  entityType?: string;
+  payoutType?: string;
+  /** PropLine DFS modifier metadata when the source exposes it. */
+  specialType?: string;
+  dfsOddsType?: string;
+  payoutMultiplier?: number | string;
+  lineGap?: number | string;
+  isAlternate?: boolean;
+  stale?: boolean;
+  suspended?: boolean;
+  started?: boolean;
+  completed?: boolean;
+  requiresParlay?: boolean;
+  lastSeenAt?: string;
+  ingestedAt?: string;
   providerUpdatedAt?: string;
   updatedAt?: string;
 };
@@ -63,6 +80,7 @@ export type PropGroup = {
   line: number;
   sport: string;
   team: string | null;
+  position: string | null;
   opponent: string | null;
   homeTeam: string | null;
   awayTeam: string | null;
@@ -130,6 +148,9 @@ export type ResearchResponse = {
   streak?: { count?: number | null; type?: string | null } | number | null;
   diff?: number | null;
   gameLog?: GameLogRow[];
+  /** Verified public team directory for this league. Used only to populate the
+   * opponent picker; it never creates history rows or changes hit rates. */
+  leagueTeams?: Array<{ id?: string; abbreviation?: string; name?: string }>;
   coverage?: Record<string, unknown>;
 };
 

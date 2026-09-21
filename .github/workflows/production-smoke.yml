@@ -14,7 +14,10 @@ permissions:
 
 jobs:
   production-smoke:
-    # PRs use mocked regression/browser checks. Live verification runs once after deployment.
+    # Pull requests use the hermetic release checks. Push runs verify the
+    # currently-live customer baseline before Railway is allowed to replace it.
+    # A manual dispatch on production-stable remains the exact-SHA post-deploy
+    # acceptance proof after Railway reports SUCCESS.
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -32,7 +35,10 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Verify customer domain, account gate, and live pipeline
         env:
-          AUTOSCOUT_EXPECTED_SHA: ${{ github.sha }}
+          # A push run is a pre-deploy health baseline, so it must not wait for
+          # the incoming SHA to already be live. Manual dispatches are run after
+          # Railway success and still verify the exact selected production SHA.
+          AUTOSCOUT_EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || '' }}
           AUTOSCOUT_SMOKE_SPORTS: NFL,MLB
           AUTOSCOUT_PUBLIC_URL: https://www.obligeprops.com
         run: node scripts/public-production-smoke-driver.mjs

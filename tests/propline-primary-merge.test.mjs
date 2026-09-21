@@ -155,7 +155,7 @@ test('fresh PropLine wins conflicting quote slots while identical presence stays
   assert.equal(fanduel.price, -110);
   assert.equal(fanduel.eventId, 'public-event', 'preferred quote must retain canonical event identity');
   assert.equal(fanduel.playerId, 'public-player', 'preferred quote must retain canonical player identity');
-  assert.equal(fanduel.providerPlayerId, 'public-player', 'native PropLine player id stays separate metadata');
+  assert.equal(fanduel.providerPlayerId, 'nfl:priority-player', 'providerPlayerId follows the quote provider while canonical playerId stays stable');
   assert.equal(fanduel.proplinePlayerId, 'nfl:priority-player');
 
   const half = merged.props.find((row) => row.id === 'h1-dk');

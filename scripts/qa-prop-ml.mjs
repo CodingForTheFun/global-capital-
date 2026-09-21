@@ -60,8 +60,17 @@ try{
   await page.locator('[data-side="UNDER"]').click();assert.ok((await page.locator('#asDrawerBody .asMLSelected').innerText()).includes('Under'));
   await page.locator('#asLinePlus').click();await page.waitForSelector('#asDrawerBody [data-ml-state="TARGET_UNVERIFIED"]');
   assert.ok(!(await page.locator('#asDrawerBody .asML').innerText()).includes('231.4'),'No forecast borrowed for an unscored line');
-  await page.locator('#asClose').click();await page.locator('#asBoardFilterMenu > summary').click();await page.locator('[data-prop-type="all"]').click();
-  await page.locator('#asSearch').fill('QA Model Fixture');await page.waitForTimeout(350);
+  await page.locator('#asClose').click();
+  const mobileReference=label==='mobile'&&(await page.locator('#asMobileRefSearchInput').count())>0;
+  const searchBox=mobileReference?page.locator('#asMobileRefSearchInput'):page.locator('#asSearch');
+  if(mobileReference){
+   const marketProxy=page.locator('#asMobileRefFilterRail [data-ref-filter="market"] select');
+   if(await marketProxy.count())await marketProxy.selectOption('all');
+   await page.locator('#asMobileRefSearchToggle').click();
+  }else{
+   await page.locator('#asBoardFilterMenu > summary').click();await page.locator('[data-prop-type="all"]').click();
+  }
+  await searchBox.fill('QA Model Fixture');await page.waitForTimeout(350);
   const control=page.locator('.asCard [data-card-choice]');
   const option=await control.locator('option').evaluateAll(items=>items.find(i=>i.textContent.startsWith('Rushing')).value);
   await control.selectOption(option);await page.waitForSelector('.asCard [data-ml-state="MODEL_NOT_READY"]',{state:'attached'});

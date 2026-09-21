@@ -42,6 +42,7 @@ const FALLBACK_REFRESH_MS = 60_000;
 const STREAM_REFRESH_DEBOUNCE_MS = 450;
 const ALL = 'ALL';
 const RESEARCH_BATCH_SIZE = 100;
+const BOARD_STATE_KEY = 'oblige:terminal-board-state:v1';
 
 const PERFORMANCE_SORTS = [
   { id: 'ev', label: 'EV' },
@@ -121,6 +122,20 @@ type SlipSelection = {
   side: Side;
   sportsbook: string;
   price: number | null;
+};
+
+type TerminalBoardState = {
+  sport: string;
+  query: string;
+  market: string;
+  book: string;
+  dateFilter: string;
+  gameFilter: string;
+  modifierFilter: string;
+  performanceSort: PerformanceSort;
+  sortDirection: SortDirection;
+  evFloor: number | null;
+  arbOnly: boolean;
 };
 
 function finite(value: unknown): value is number {
@@ -365,6 +380,34 @@ function selectionId(groupKey: string, side: Side) {
   return `${groupKey}|${side}`;
 }
 
+function readTerminalBoardState(): TerminalBoardState | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(BOARD_STATE_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw) as Partial<TerminalBoardState>;
+    const savedSport = text(saved.sport).toUpperCase();
+    const savedSort = text(saved.performanceSort);
+    return {
+      sport: SPORTS.includes(savedSport) ? savedSport : 'NFL',
+      query: text(saved.query),
+      market: text(saved.market) || ALL,
+      book: text(saved.book) || ALL,
+      dateFilter: text(saved.dateFilter) || ALL,
+      gameFilter: text(saved.gameFilter) || ALL,
+      modifierFilter: text(saved.modifierFilter) || ALL,
+      performanceSort: PERFORMANCE_SORTS.some((option) => option.id === savedSort)
+        ? (savedSort as PerformanceSort)
+        : 'ev',
+      sortDirection: saved.sortDirection === 'asc' ? 'asc' : 'desc',
+      evFloor: typeof saved.evFloor === 'number' && Number.isFinite(saved.evFloor) ? saved.evFloor : null,
+      arbOnly: saved.arbOnly === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function TerminalBoard() {
   const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
   const [checking, setChecking] = React.useState(true);
@@ -390,6 +433,60 @@ export function TerminalBoard() {
   const [inspector, setInspector] = React.useState<PropGroup | null>(null);
   const [slip, setSlip] = React.useState<SlipSelection[]>([]);
   const [slipOpen, setSlipOpen] = React.useState(false);
+  const [viewRestored, setViewRestored] = React.useState(false);
+
+  React.useEffect(() => {
+    const saved = readTerminalBoardState();
+    if (saved) {
+      setSport(saved.sport);
+      setQuery(saved.query);
+      setMarket(saved.market);
+      setBook(saved.book);
+      setDateFilter(saved.dateFilter);
+      setGameFilter(saved.gameFilter);
+      setModifierFilter(saved.modifierFilter);
+      setPerformanceSort(saved.performanceSort);
+      setSortDirection(saved.sortDirection);
+      setEvFloor(saved.evFloor);
+      setArbOnly(saved.arbOnly);
+    }
+    setViewRestored(true);
+  }, []);
+
+  React.useEffect(() => {
+    if (!viewRestored) return;
+    const snapshot: TerminalBoardState = {
+      sport,
+      query,
+      market,
+      book,
+      dateFilter,
+      gameFilter,
+      modifierFilter,
+      performanceSort,
+      sortDirection,
+      evFloor,
+      arbOnly,
+    };
+    try {
+      window.sessionStorage.setItem(BOARD_STATE_KEY, JSON.stringify(snapshot));
+    } catch {
+      // Board continuity is a convenience; storage failure must never block research.
+    }
+  }, [
+    viewRestored,
+    sport,
+    query,
+    market,
+    book,
+    dateFilter,
+    gameFilter,
+    modifierFilter,
+    performanceSort,
+    sortDirection,
+    evFloor,
+    arbOnly,
+  ]);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -400,7 +497,7 @@ export function TerminalBoard() {
   }, []);
 
   React.useEffect(() => {
-    if (checking || !account) return;
+    if (!viewRestored || checking || !account) return;
     let cancelled = false;
     let activeController: AbortController | null = null;
     let stream: EventSource | null = null;
@@ -421,15 +518,6 @@ export function TerminalBoard() {
         setGroups(board.groups);
         setMeta(board.meta);
         if (initial) {
-          setMarket(ALL);
-          setBook(ALL);
-          setDateFilter(ALL);
-          setGameFilter(ALL);
-          setModifierFilter(ALL);
-          setPerformanceSort('ev');
-          setSortDirection('desc');
-          setEvFloor(null);
-          setArbOnly(false);
           setShown(INITIAL_ROWS);
           setPredictions({});
           setResearch({});
@@ -490,7 +578,7 @@ export function TerminalBoard() {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', fallbackTick);
     };
-  }, [checking, account, sport]);
+  }, [viewRestored, checking, account, sport]);
 
   const markets = React.useMemo(
     () => [...new Set(groups.map((group) => group.market).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
@@ -671,6 +759,21 @@ export function TerminalBoard() {
     });
   }, []);
 
+  const selectSport = React.useCallback((nextSport: string) => {
+    if (nextSport === sport) return;
+    setQuery('');
+    setMarket(ALL);
+    setBook(ALL);
+    setDateFilter(ALL);
+    setGameFilter(ALL);
+    setModifierFilter(ALL);
+    setPerformanceSort('ev');
+    setSortDirection('desc');
+    setEvFloor(null);
+    setArbOnly(false);
+    setSport(nextSport);
+  }, [sport]);
+
   if (checking) return <TerminalLoading />;
 
   if (!account) {
@@ -724,7 +827,7 @@ export function TerminalBoard() {
                 type="button"
                 aria-pressed={sport === option}
                 className={sport === option ? styles.active : ''}
-                onClick={() => setSport(option)}
+                onClick={() => selectSport(option)}
               >
                 {option}
               </button>

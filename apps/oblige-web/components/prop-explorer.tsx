@@ -8,7 +8,7 @@ import { applyFilters, buildWindows, computeWindow, distinct, EMPTY_FILTERS, fil
 import { odds, shortDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppliedFilter } from '@/components/applied-filter';
-import { buildOpponentOptions } from '@/lib/opponent-options';
+import { buildOpponentOptions, sameTeamLabel } from '@/lib/opponent-options';
 
 export type ExplorerState = { line: number; side: Side; book: string | null };
 type ChartSample = SampleId | 'l20';
@@ -75,6 +75,22 @@ export function PropExplorer({ group, games, loading, unavailableReason, leagueT
     () => buildOpponentOptions(played.map(game => game.opponent), group, leagueTeams),
     [played, group.team, group.opponent, group.homeTeam, group.awayTeam, leagueTeams],
   );
+  // A research response can replace a pre-load full team name with the exact
+  // historical abbreviation used by the game log. Keep an already-selected
+  // opponent attached to its equivalent option instead of silently showing All.
+  React.useEffect(() => {
+    const selected = filters.opponent;
+    if (!selected || selected === 'all' || opponentOptions.some(option => option.value === selected)) return;
+    const equivalent = opponentOptions.find(
+      option =>
+        sameTeamLabel(option.value, selected) ||
+        sameTeamLabel(option.label.replace(/\s+★$/, ''), selected),
+    );
+    if (!equivalent) return;
+    setFilters(previous =>
+      previous.opponent === selected ? { ...previous, opponent: equivalent.value } : previous,
+    );
+  }, [filters.opponent, opponentOptions]);
   const seasons = React.useMemo(() => distinct(played.map(game => game.season == null ? null : String(game.season))).sort().reverse(), [played]);
   // Every supported book remains visible for every prop. Missing exact lines are
   // explicit instead of disappearing, while observed future books are retained.

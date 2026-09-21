@@ -272,6 +272,7 @@ export function MobileNav() {
           <Link
             key={item.href}
             href={item.href}
+            data-mobile-nav-item={item.label.toLowerCase()}
             aria-current={active ? 'page' : undefined}
             className={cn(
               'grid min-h-14 min-w-0 content-center justify-items-center gap-[3px] overflow-hidden',

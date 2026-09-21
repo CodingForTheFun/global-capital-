@@ -53,25 +53,31 @@ const quotes = ['DraftKings', 'FanDuel'].flatMap((sportsbook, i) => ['OVER', 'UN
   id: `${sportsbook}-${side}`, playerName: player, market, marketId: 'receiving_yards', line: 94.5,
   side, price: i ? -115 : -110, sportsbook, sportsbookKey: sportsbook.toLowerCase(),
   team: 'PHI', opponent: 'DAL', awayTeam: 'PHI', homeTeam: 'DAL', eventId: 'qa-event',
-  gameStartTime: '2026-09-20T20:25:00Z',
+  gameStartTime: '2026-09-20T20:25:00Z', period: 'game',
 })));
 const games = Array.from({ length: 20 }, (_, i) => ({
   gameId: `qa-${i}`, date: new Date(Date.UTC(2026, 8, 15 - i)).toISOString(),
   opponent: i % 2 ? 'NYG' : 'DAL', isHome: i % 3 === 0, season: i < 10 ? 2026 : 2025,
   value: 50 + i * 6,
 }));
+const halfGames = games.map((game, i) => ({ ...game, gameId: `qa-half-${i}`, value: 20 + i * 2 }));
 const researchURL = '/research?' + new URLSearchParams({ sport: 'NFL', player, market, line: '94.5' });
 try {
   for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 1000 }]) {
     const context = await browser.newContext({ viewport, serviceWorkers: 'allow' });
     let researchRequests = 0;
+    const researchRequestUrls = [];
     await context.route('**/api/**', async route => {
       const path = new URL(route.request().url()).pathname;
       if (path === '/api/account/me') return route.fulfill({ json: { authenticated: true, user: { id: 'qa-only', email: 'qa@example.invalid' } } });
-      if (path === '/api/apex/props') return route.fulfill({ json: { ok: true, props: [...quotes, ...quotes.map(q => ({ ...q, market: '1H Receiving Yards', marketId: '1h_receiving_yards' }))], meta: {}, supportedSports: ['NFL'] } });
+      if (path === '/api/apex/props') return route.fulfill({ json: { ok: true, props: [...quotes, ...quotes.map(q => ({ ...q, market: '1H Receiving Yards', marketId: '1h_receiving_yards', period: '1h' }))], meta: {}, supportedSports: ['NFL'] } });
       if (path === '/api/apex/research') {
         researchRequests++;
-        return route.fulfill({ json: { ok: true, available: true, source: 'CI fixture, not production data', gameLog: [...games, { gameId: 'qa-missing', date: '2026-09-17', value: null, opponent: 'DAL', season: 2026 }] } });
+        const requestUrl = new URL(route.request().url());
+        researchRequestUrls.push(requestUrl);
+        const isHalf = requestUrl.searchParams.get('period') === '1h';
+        const sample = isHalf ? halfGames : games;
+        return route.fulfill({ json: { ok: true, available: true, source: isHalf ? 'CI exact-period fixture' : 'CI full-game fixture', gameLog: [...sample, { gameId: isHalf ? 'qa-half-missing' : 'qa-missing', date: '2026-09-17', value: null, opponent: 'DAL', season: 2026 }] } });
       }
       if (path === '/api/apex/player-artwork') return route.fulfill({ status: 404, body: '' });
       return route.fulfill({ json: { ok: true, history: [], items: [] } });
@@ -151,12 +157,15 @@ try {
     assert.ok(dimensions.chart >= dimensions.panel * .95, 'Chart must use panel width');
     await panel.scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${output}/research-${viewport.width}-CI-fixture.png`, fullPage: true });
-    await page.goto(base + '/research?' + new URLSearchParams({ sport: 'NFL', player, market: '1H Receiving Yards', line: '94.5' }), { waitUntil: 'domcontentloaded' });
-    await page.locator('.research-reference .op-no-history').filter({ hasText: 'Verified history unavailable' }).waitFor();
-    assert.equal(await page.locator('.research-reference .op-chart-bar').count(), 0, 'No invented half-game history');
-    assert.equal(researchRequests, initialResearchRequests, 'Unsupported period does not request whole-game data');
+    await page.goto(base + '/research?' + new URLSearchParams({ sport: 'NFL', player, market: '1H Receiving Yards', line: '94.5', period: '1h' }), { waitUntil: 'domcontentloaded' });
+    await page.locator('.research-reference .op-chart-section').waitFor();
+    assert.ok(await page.locator('.research-reference .op-chart-bar').count() > 0, 'Exact half-game fixture history should render');
+    assert.equal(researchRequests, initialResearchRequests + 1, 'Opening an exact-period player page makes one detail research request');
+    const periodRequest = researchRequestUrls.at(-1);
+    assert.equal(periodRequest?.searchParams.get('period'), '1h', 'Player detail must request the selected period');
+    assert.equal(periodRequest?.searchParams.get('detail'), '1', 'Exact-period paid fallback is detail-only');
     assert.deepEqual(errors, [], 'No unhandled browser exceptions');
-    results.push({ viewport, dimensions, independentFilters: 'PASS', noExtraResearchRequests: 'PASS', unavailablePeriod: 'PASS', workerRegistered: 'PASS' });
+    results.push({ viewport, dimensions, independentFilters: 'PASS', noExtraResearchRequests: 'PASS', exactPeriodResearch: 'PASS', workerRegistered: 'PASS' });
     await context.close();
   }
 } finally { await browser.close(); }

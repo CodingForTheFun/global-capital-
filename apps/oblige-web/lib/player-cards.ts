@@ -163,8 +163,14 @@ function canonicalCategory(value: string): string {
   try { const parts = JSON.parse(value); return Array.isArray(parts) && parts.length === 4 && parts.every(part => typeof part === 'string') ? categoryIdentity(parts[0], parts[1], parts[2], parts[3]) : value; } catch { return value; }
 }
 export function playerMarketKey(group: PropGroup): string {
-  const row = group.quotes[0], key = clean(group.marketId || group.market), label = clean(group.market);
-  // Only audited label aliases share a category. Unknown same-ID labels stay distinct.
+  const row = group.quotes[0], key = clean(group.marketId || group.market);
+  const player = name(group);
+  let label = clean(group.market).replace(/[.’']/g, '');
+  // Some supplemental feeds send display prose like "<player> Doubles Over".
+  // Strip only the exact current player prefix and outcome suffix; unknown
+  // market ids still stay distinct by their remaining verified market text.
+  if (player && label.startsWith(`${player} `)) label = label.slice(player.length + 1);
+  label = label.replace(/\s+(?:over|under)(?:\s+[+-]?\d+(?:\.\d+)?)?$/, '').trim();
   return categoryIdentity(key, label, clean(group.period || quotePeriod(row)), variantKey(row));
 }
 export type PlayerCard = { key: string; variants: PropGroup[]; aliases?: string[] };

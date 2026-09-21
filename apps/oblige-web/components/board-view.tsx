@@ -88,6 +88,7 @@ const AUTO_REFRESH_MS = 15_000;
 const bookName = (value: unknown) => String(value || '').trim();
 const sortedUnique = (values: Array<string | null | undefined>) =>
   [...new Set(values.map((value) => String(value || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+// Release marker: the Stat selector intentionally displays normalized stat categories only.
 const statCategory = (group: PropGroup) =>
   marketDisplayLabel(group.market, group.player, group.marketId, group.sport);
 

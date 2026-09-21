@@ -1,62 +1,40 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { collapsePlayerCards, groupPlayerCards, restrictBook, playerResearchHref, type PlayerCardGroup } from '@/lib/player-cards';
 import {
   Activity,
   BarChart3,
   BookOpen,
-  CalendarDays,
   ChevronRight,
   CircleDollarSign,
   Layers3,
   Search,
   SlidersHorizontal,
   Sparkles,
-  Users,
   X,
   Zap,
 } from 'lucide-react';
-import type { BoardMeta, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
+import type { BoardMeta, PropGroup, PropRow, Side } from '@/lib/types';
 import {
   ApiError,
-  artworkUrl,
   fetchAccount,
   fetchBoard,
-  fetchResearchBatch,
-  streakOf,
+  fetchResearch,
   windowOf,
 } from '@/lib/api';
 import { pctValue } from '@/lib/utils';
-import {
-  marketArbitrage,
-  marketArbitrageLabel,
-  type MarketArbitrageCandidate,
-} from '@/lib/arbitrage.mjs';
 import { SignInPanel } from '@/components/sign-in';
+import { PlayerHeadshot } from '@/components/player-headshot';
 import styles from './terminal-board.module.css';
 
-const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'WNBA', 'SOCCER'];
 const INITIAL_ROWS = 40;
 const LOAD_MORE_ROWS = 40;
 const FALLBACK_REFRESH_MS = 60_000;
 const STREAM_REFRESH_DEBOUNCE_MS = 450;
 const ALL = 'ALL';
-const RESEARCH_BATCH_SIZE = 100;
 
-const PERFORMANCE_SORTS = [
-  { id: 'ev', label: 'EV' },
-  { id: 'avgL10', label: 'Avg L10' },
-  { id: 'diff', label: 'Diff' },
-  { id: 'l5', label: 'L5' },
-  { id: 'l10', label: 'L10' },
-  { id: 'l15', label: 'L15' },
-  { id: 'h2h', label: 'H2H' },
-  { id: 'streak', label: 'Streak' },
-  { id: 'season', label: 'Season' },
-] as const;
-
-type PerformanceSort = (typeof PERFORMANCE_SORTS)[number]['id'];
-type SortDirection = 'desc' | 'asc';
 type FeedMode = 'connecting' | 'live' | 'fallback';
 
 type ModelPrediction = {
@@ -76,18 +54,12 @@ type RateWindow = {
   hits: number | null;
   sample: number | null;
   rate: number | null;
-  average: number | null;
-  partial: boolean;
 };
 
 type ResearchSummary = {
   l5: RateWindow | null;
   l10: RateWindow | null;
-  l15: RateWindow | null;
-  h2h: RateWindow | null;
-  season: RateWindow | null;
-  streak: { count: number; over: boolean } | null;
-  diff: number | null;
+  l20: RateWindow | null;
 };
 
 type MlTarget = {
@@ -132,14 +104,15 @@ function text(value: unknown) {
 }
 
 function numberOf(value: unknown) {
-  if (value === null || value === undefined || value === '') return null;
+  if (value === null || value === undefined || String(value).trim() === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
 function priceLabel(value: unknown) {
-  const number = numberOf(value);
-  if (number === null || number === 0) return '—';
+  if (value === null || value === undefined || String(value).trim() === '') return '—';
+  const number = Number(value);
+  if (!Number.isFinite(number) || number === 0) return '—';
   return number > 0 ? `+${number}` : String(number);
 }
 
@@ -156,40 +129,6 @@ function timeLabel(value: string | null) {
 
 function quoteBook(row: PropRow | null | undefined) {
   return text(row?.sportsbook || row?.sportsbookKey) || 'Book unavailable';
-}
-
-function titleCase(value: string) {
-  return value
-    .replace(/[_-]+/g, ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function quoteModifier(row: PropRow | null | undefined) {
-  if (!row) return '';
-  const special = text(row.specialType || row.dfsOddsType || row.payoutType);
-  if (special && !/^(standard|regular|normal|none)$/i.test(special)) return titleCase(special);
-  if (row.isAlternate === true) return 'Alternate line';
-  const multiplier = numberOf(row.payoutMultiplier);
-  if (multiplier !== null && Math.abs(multiplier - 1) > 0.0001) return `${multiplier}x payout`;
-  if (row.requiresParlay === true) return 'Parlay only';
-  return '';
-}
-
-function boardDateKey(value: string | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return '';
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function boardDateLabel(key: string) {
-  const [year, month, day] = key.split('-').map(Number);
-  const date = new Date(year, Math.max(0, month - 1), day);
-  if (!Number.isFinite(date.getTime())) return key;
-  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function probability01(value: unknown) {
@@ -308,46 +247,8 @@ function rateWindow(window: ReturnType<typeof windowOf>): RateWindow | null {
   const hits = finite(window.hits) ? window.hits : null;
   const sampleRaw = window.sampleSize ?? window.games;
   const sample = finite(sampleRaw) ? sampleRaw : null;
-  const average = numberOf(window.average);
-  if (rate === null && hits === null && sample === null && average === null) return null;
-  return { rate, hits, sample, average, partial: window.partial === true };
-}
-
-function summarizeResearch(row: ResearchResponse | null | undefined, line: number): ResearchSummary | null {
-  if (!row) return null;
-  const l10 = rateWindow(windowOf(row, 'last10', 'l10', 'lastTen'));
-  const average = l10?.average ?? null;
-  return {
-    l5: rateWindow(windowOf(row, 'last5', 'l5', 'lastFive')),
-    l10,
-    l15: rateWindow(windowOf(row, 'last15', 'l15', 'lastFifteen')),
-    h2h: rateWindow(row.h2h || null),
-    season: rateWindow(windowOf(row, 'season', 'szn')),
-    streak: streakOf(row),
-    diff: average === null ? null : Number((average - line).toFixed(2)),
-  };
-}
-
-function performanceValue(
-  group: PropGroup,
-  metric: PerformanceSort,
-  predictions: Record<string, ModelPrediction>,
-  research: Record<string, ResearchSummary | null>,
-) {
-  const summary = research[group.key];
-  if (metric === 'ev') return evFor(group, predictions[group.key])?.ev ?? null;
-  if (!summary) return null;
-  if (metric === 'avgL10') return summary.l10?.average ?? null;
-  if (metric === 'diff') return summary.diff;
-  if (metric === 'l5') return summary.l5?.rate ?? null;
-  if (metric === 'l10') return summary.l10?.rate ?? null;
-  if (metric === 'l15') return summary.l15?.rate ?? null;
-  if (metric === 'h2h') return summary.h2h?.rate ?? null;
-  if (metric === 'season') return summary.season?.rate ?? null;
-  if (metric === 'streak') {
-    return summary.streak ? (summary.streak.over ? summary.streak.count : -summary.streak.count) : null;
-  }
-  return null;
+  if (rate === null && hits === null && sample === null) return null;
+  return { rate, hits, sample };
 }
 
 function rateLabel(window: RateWindow | null | undefined) {
@@ -366,9 +267,11 @@ function selectionId(groupKey: string, side: Side) {
 }
 
 export function TerminalBoard() {
+  const router = useRouter();
   const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
   const [checking, setChecking] = React.useState(true);
   const [sport, setSport] = React.useState('NFL');
+  const [sports, setSports] = React.useState<string[]>(['NFL']);
   const [groups, setGroups] = React.useState<PropGroup[]>([]);
   const [meta, setMeta] = React.useState<BoardMeta>({});
   const [loading, setLoading] = React.useState(false);
@@ -376,18 +279,11 @@ export function TerminalBoard() {
   const [query, setQuery] = React.useState('');
   const [market, setMarket] = React.useState(ALL);
   const [book, setBook] = React.useState(ALL);
-  const [dateFilter, setDateFilter] = React.useState(ALL);
-  const [gameFilter, setGameFilter] = React.useState(ALL);
-  const [modifierFilter, setModifierFilter] = React.useState(ALL);
-  const [performanceSort, setPerformanceSort] = React.useState<PerformanceSort>('ev');
-  const [sortDirection, setSortDirection] = React.useState<SortDirection>('desc');
   const [evFloor, setEvFloor] = React.useState<number | null>(null);
-  const [arbOnly, setArbOnly] = React.useState(false);
   const [shown, setShown] = React.useState(INITIAL_ROWS);
   const [predictions, setPredictions] = React.useState<Record<string, ModelPrediction>>({});
   const [research, setResearch] = React.useState<Record<string, ResearchSummary | null>>({});
   const [feedMode, setFeedMode] = React.useState<FeedMode>('connecting');
-  const [inspector, setInspector] = React.useState<PropGroup | null>(null);
   const [slip, setSlip] = React.useState<SlipSelection[]>([]);
   const [slipOpen, setSlipOpen] = React.useState(false);
 
@@ -420,20 +316,19 @@ export function TerminalBoard() {
         if (cancelled) return;
         setGroups(board.groups);
         setMeta(board.meta);
+        if (board.supportedSports.length) {
+          setSports((current) => {
+            const next = [...new Set([...current, ...board.supportedSports].map((value) => text(value).toUpperCase()).filter(Boolean))];
+            return next.sort((a, b) => a.localeCompare(b));
+          });
+        }
         if (initial) {
           setMarket(ALL);
           setBook(ALL);
-          setDateFilter(ALL);
-          setGameFilter(ALL);
-          setModifierFilter(ALL);
-          setPerformanceSort('ev');
-          setSortDirection('desc');
           setEvFloor(null);
-          setArbOnly(false);
           setShown(INITIAL_ROWS);
           setPredictions({});
           setResearch({});
-          setInspector(null);
         }
       } catch (cause) {
         if (cancelled) return;
@@ -506,77 +401,42 @@ export function TerminalBoard() {
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [groups]);
 
-  const games = React.useMemo(
-    () => [...new Set(groups.map((group) => group.matchup).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-    [groups],
-  );
-
-  const dates = React.useMemo(
-    () => [...new Set(groups.map((group) => boardDateKey(group.startsAt)).filter(Boolean))].sort(),
-    [groups],
-  );
-
-  const modifiers = React.useMemo(() => {
-    const values = new Set<string>();
-    groups.forEach((group) => group.quotes.forEach((quote) => {
-      const modifier = quoteModifier(quote);
-      if (modifier) values.add(modifier);
-    }));
-    return [...values].sort((a, b) => a.localeCompare(b));
-  }, [groups]);
-
-  const scopedGroups = React.useMemo(() => {
+  const matchingProps = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return groups.filter((group) => {
-      if (market !== ALL && group.market !== market) return false;
-      if (book !== ALL && !group.quotes.some((quote) => quoteBook(quote) === book)) return false;
-      if (dateFilter !== ALL && boardDateKey(group.startsAt) !== dateFilter) return false;
-      if (gameFilter !== ALL && group.matchup !== gameFilter) return false;
-      if (modifierFilter !== ALL && !group.quotes.some((quote) => quoteModifier(quote) === modifierFilter)) return false;
-      if (
-        needle &&
-        !`${group.player} ${group.market} ${group.matchup} ${group.team || ''} ${group.opponent || ''}`
-          .toLowerCase()
-          .includes(needle)
-      ) return false;
-      if (arbOnly && !marketArbitrage(group)) return false;
-      return true;
-    });
-  }, [arbOnly, book, dateFilter, gameFilter, groups, market, modifierFilter, query]);
 
-  const filtered = React.useMemo(() => {
-    return scopedGroups
+    return groups
+      .map(group => book === ALL ? group : restrictBook(group, book))
       .filter((group) => {
-        if (evFloor === null) return true;
-        const best = evFor(group, predictions[group.key]);
-        return Boolean(best && best.ev >= evFloor);
+        if (market !== ALL && group.market !== market) return false;
+        if (book !== ALL && !group.quotes.some((quote) => quoteBook(quote) === book)) return false;
+        if (
+          needle &&
+          !`${group.player} ${group.market} ${group.matchup} ${group.team || ''} ${group.opponent || ''}`
+            .toLowerCase()
+            .includes(needle)
+        ) return false;
+
+        if (evFloor !== null) {
+          const best = evFor(group, predictions[group.key]);
+          if (!best || best.ev < evFloor) return false;
+        }
+
+        return true;
       })
       .sort((a, b) => {
-        const valueA = performanceValue(a, performanceSort, predictions, research);
-        const valueB = performanceValue(b, performanceSort, predictions, research);
-        if (valueA === null && valueB !== null) return 1;
-        if (valueA !== null && valueB === null) return -1;
-        if (valueA !== null && valueB !== null && valueA !== valueB) {
-          return sortDirection === 'desc' ? valueB - valueA : valueA - valueB;
-        }
-
-        if (performanceSort === 'ev') {
-          const l10A = research[a.key]?.l10?.rate ?? -1;
-          const l10B = research[b.key]?.l10?.rate ?? -1;
-          if (l10A !== l10B) return l10B - l10A;
-        }
-        return a.player.localeCompare(b.player);
+        const evA = evFor(a, predictions[a.key])?.ev ?? -Infinity;
+        const evB = evFor(b, predictions[b.key])?.ev ?? -Infinity;
+        if (evA !== evB) return evB - evA;
+        const l10A = research[a.key]?.l10?.rate ?? -1;
+        const l10B = research[b.key]?.l10?.rate ?? -1;
+        return l10B - l10A || a.player.localeCompare(b.player);
       });
-  }, [evFloor, performanceSort, predictions, research, scopedGroups, sortDirection]);
+  }, [book, evFloor, groups, market, predictions, query, research]);
 
+  const playerCards = React.useMemo(() => groupPlayerCards(groups), [groups]);
+  const filtered = React.useMemo(() => collapsePlayerCards(matchingProps, groups), [matchingProps, groups]);
   const page = React.useMemo(() => filtered.slice(0, shown), [filtered, shown]);
   const pageKey = page.map((group) => group.key).join('|');
-  const researchTargets = performanceSort === 'ev' ? page : scopedGroups;
-  const researchTargetKey = researchTargets.map((group) => group.key).join('|');
-
-  React.useEffect(() => {
-    setShown(INITIAL_ROWS);
-  }, [arbOnly, book, dateFilter, evFloor, gameFilter, market, modifierFilter, performanceSort, query, sortDirection, sport]);
 
   React.useEffect(() => {
     if (!account || !page.length) return;
@@ -595,52 +455,38 @@ export function TerminalBoard() {
   }, [account, pageKey]);
 
   React.useEffect(() => {
-    if (!account || !researchTargets.length) return;
+    if (!account || !page.length) return;
     const controller = new AbortController();
-    const missing = researchTargets.filter((group) => research[group.key] === undefined);
-    if (!missing.length) return () => controller.abort();
+    const queue = page.filter((group) => research[group.key] === undefined);
+    if (!queue.length) return () => controller.abort();
 
-    const batches: PropGroup[][] = [];
-    for (let index = 0; index < missing.length; index += RESEARCH_BATCH_SIZE) {
-      batches.push(missing.slice(index, index + RESEARCH_BATCH_SIZE));
-    }
+    const worker = async () => {
+      while (queue.length && !controller.signal.aborted) {
+        const group = queue.shift();
+        if (!group) break;
 
-    const hydrate = async () => {
-      for (const batch of batches) {
-        if (controller.signal.aborted) return;
         try {
-          const rows = await fetchResearchBatch(batch, 'OVER', controller.signal);
-          if (controller.signal.aborted) return;
-          const next: Record<string, ResearchSummary | null> = {};
-          batch.forEach((group) => {
-            next[group.key] = summarizeResearch(rows[group.key], group.line);
-          });
-          setResearch((current) => ({ ...current, ...next }));
-        } catch (cause) {
-          if (controller.signal.aborted) return;
-          if (cause instanceof ApiError && cause.status === 401) {
-            setAccount(null);
-            return;
+          const row = await fetchResearch(group, 'OVER', controller.signal);
+          const summary: ResearchSummary = {
+            l5: rateWindow(windowOf(row, 'last5', 'l5', 'lastFive')),
+            l10: rateWindow(windowOf(row, 'last10', 'l10', 'lastTen')),
+            l20: rateWindow(windowOf(row, 'last20', 'l20', 'lastTwenty')),
+          };
+          if (!controller.signal.aborted) {
+            setResearch((current) => ({ ...current, [group.key]: summary }));
           }
-          const unavailable = Object.fromEntries(batch.map((group) => [group.key, null])) as Record<string, null>;
-          setResearch((current) => ({ ...current, ...unavailable }));
+        } catch {
+          if (!controller.signal.aborted) {
+            setResearch((current) => ({ ...current, [group.key]: null }));
+          }
         }
       }
     };
 
-    void hydrate();
+    void Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
     return () => controller.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, researchTargetKey]);
-
-  const visibleBooks = React.useMemo(() => {
-    if (!inspector) return [];
-    return [...inspector.quotes].sort((a, b) => {
-      const bookOrder = quoteBook(a).localeCompare(quoteBook(b));
-      if (bookOrder) return bookOrder;
-      return text(a.side).localeCompare(text(b.side));
-    });
-  }, [inspector]);
+  }, [account, pageKey]);
 
   const feedLabel = meta.stale
     ? 'cached'
@@ -706,8 +552,8 @@ export function TerminalBoard() {
               </b>
             </div>
             <div>
-              <span>Props</span>
-              <b>{groups.length.toLocaleString()}</b>
+              <span>Players</span>
+              <b>{playerCards.length.toLocaleString()}</b>
             </div>
             <div>
               <span>Books</span>
@@ -718,7 +564,7 @@ export function TerminalBoard() {
 
         <div className={styles.commandBar}>
           <div className={styles.leagueRail} role="group" aria-label="League">
-            {SPORTS.map((option) => (
+            {sports.map((option) => (
               <button
                 key={option}
                 type="button"
@@ -739,7 +585,7 @@ export function TerminalBoard() {
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search players, teams, or props..."
+                placeholder="Search player / team / market"
               />
             </label>
 
@@ -747,7 +593,7 @@ export function TerminalBoard() {
               <Activity size={14} aria-hidden="true" />
               <span className="sr-only">Market</span>
               <select value={market} onChange={(event) => setMarket(event.target.value)}>
-                <option value={ALL}>All stats</option>
+                <option value={ALL}>All markets</option>
                 {markets.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
@@ -756,7 +602,7 @@ export function TerminalBoard() {
               <BookOpen size={14} aria-hidden="true" />
               <span className="sr-only">Sportsbook</span>
               <select value={book} onChange={(event) => setBook(event.target.value)}>
-                <option value={ALL}>All apps / books</option>
+                <option value={ALL}>All books</option>
                 {books.map((option) => <option key={option} value={option}>{option}</option>)}
               </select>
             </label>
@@ -765,7 +611,6 @@ export function TerminalBoard() {
               type="button"
               className={styles.slipButton}
               onClick={() => {
-                setInspector(null);
                 setSlipOpen(true);
               }}
             >
@@ -775,60 +620,8 @@ export function TerminalBoard() {
             </button>
           </div>
 
-          <div className={styles.secondaryFilterRow} aria-label="Game and modifier filters">
-            <label className={styles.selectControl}>
-              <CalendarDays size={14} aria-hidden="true" />
-              <span className="sr-only">Game date</span>
-              <select value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}>
-                <option value={ALL}>Any date</option>
-                {dates.map((option) => <option key={option} value={option}>{boardDateLabel(option)}</option>)}
-              </select>
-            </label>
-
-            <label className={styles.selectControl}>
-              <Users size={14} aria-hidden="true" />
-              <span className="sr-only">Game</span>
-              <select value={gameFilter} onChange={(event) => setGameFilter(event.target.value)}>
-                <option value={ALL}>All games</option>
-                {games.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-            </label>
-
-            <label className={styles.selectControl}>
-              <Sparkles size={14} aria-hidden="true" />
-              <span className="sr-only">Projection modifier</span>
-              <select value={modifierFilter} onChange={(event) => setModifierFilter(event.target.value)}>
-                <option value={ALL}>All modifiers</option>
-                {modifiers.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-            </label>
-          </div>
-
-          <div className={styles.evRail} role="group" aria-label="Performance sorting">
-            <span><BarChart3 size={13} /> Performance</span>
-            {PERFORMANCE_SORTS.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                aria-pressed={performanceSort === option.id}
-                className={performanceSort === option.id ? styles.active : ''}
-                onClick={() => setPerformanceSort(option.id)}
-              >
-                {option.label}
-              </button>
-            ))}
-            <button
-              type="button"
-              aria-label={sortDirection === 'desc' ? 'Show worst performers first' : 'Show top performers first'}
-              onClick={() => setSortDirection((value) => value === 'desc' ? 'asc' : 'desc')}
-              title="Toggle top or worst performers first"
-            >
-              {sortDirection === 'desc' ? 'Top first' : 'Worst first'}
-            </button>
-          </div>
-
-          <div className={styles.evRail} role="group" aria-label="Expected value and arbitrage filters">
-            <span><SlidersHorizontal size={13} /> Edge filters</span>
+          <div className={styles.evRail} role="group" aria-label="Minimum expected value">
+            <span><SlidersHorizontal size={13} /> EV filter</span>
             {[
               { label: 'All', value: null },
               { label: '0%+', value: 0 },
@@ -846,15 +639,6 @@ export function TerminalBoard() {
                 {option.label}
               </button>
             ))}
-            <button
-              type="button"
-              aria-pressed={arbOnly}
-              className={arbOnly ? styles.active : ''}
-              onClick={() => setArbOnly((value) => !value)}
-              title="Show only settlement-aware exact-line cross-book arbitrage candidates"
-            >
-              Arb only
-            </button>
             <span className={styles.resultCount}>{filtered.length.toLocaleString()} matching</span>
           </div>
         </div>
@@ -871,7 +655,7 @@ export function TerminalBoard() {
           <div className={styles.statePanel}>
             <Search size={24} />
             <h2>No props match this view</h2>
-            <p>Change the league, book, market, EV / arb filter, or search text.</p>
+            <p>Change the league, book, market, EV threshold, or search text.</p>
           </div>
         ) : (
           <>
@@ -882,7 +666,7 @@ export function TerminalBoard() {
               slip={slip}
               onInspect={(group) => {
                 setSlipOpen(false);
-                setInspector(group);
+                router.push(playerResearchHref(group, undefined, book === ALL ? null : book));
               }}
               onSelect={selectSide}
             />
@@ -893,7 +677,7 @@ export function TerminalBoard() {
               slip={slip}
               onInspect={(group) => {
                 setSlipOpen(false);
-                setInspector(group);
+                router.push(playerResearchHref(group, undefined, book === ALL ? null : book));
               }}
               onSelect={selectSide}
             />
@@ -908,18 +692,6 @@ export function TerminalBoard() {
           </>
         )}
       </section>
-
-      {inspector ? (
-        <Inspector
-          group={inspector}
-          prediction={predictions[inspector.key]}
-          research={research[inspector.key]}
-          quotes={visibleBooks}
-          slip={slip}
-          onClose={() => setInspector(null)}
-          onSelect={selectSide}
-        />
-      ) : null}
 
       {slipOpen ? (
         <SlipDrawer
@@ -941,7 +713,7 @@ function DesktopMatrix({
   onInspect,
   onSelect,
 }: {
-  rows: PropGroup[];
+  rows: PlayerCardGroup[];
   predictions: Record<string, ModelPrediction>;
   research: Record<string, ResearchSummary | null>;
   slip: SlipSelection[];
@@ -960,7 +732,7 @@ function DesktopMatrix({
             <th>Best under</th>
             <th>L5</th>
             <th>L10</th>
-            <th>L15</th>
+            <th>L20</th>
             <th>Model</th>
             <th>EV</th>
             <th aria-label="Open" />
@@ -971,33 +743,21 @@ function DesktopMatrix({
             const prediction = predictions[group.key];
             const summary = research[group.key];
             const bestEv = evFor(group, prediction);
-            const arb = marketArbitrage(group);
             const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
             const overSelected = slip.some((item) => item.id === selectionId(group.key, 'OVER'));
             const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
 
             return (
-              <tr key={group.key} onClick={() => onInspect(group)}>
+              <tr key={group.playerCardKey} data-player-card={group.playerCardKey} onClick={() => onInspect(group)}>
                 <td className={styles.playerCell}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
-                    alt=""
-                    onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-                  />
+                  <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />
                   <span>
                     <b>{group.player}</b>
                     <small>{group.matchup} · {timeLabel(group.startsAt)}</small>
                   </span>
                 </td>
-                <td className={styles.marketCell}>
-                  <span className={styles.marketText}>{group.market}</span>
-                  {arb ? (
-                    <span className={styles.arbBadge} data-push={arb.possiblePush ? 'true' : 'false'}>
-                      {marketArbitrageLabel(arb)}
-                    </span>
-                  ) : null}
-                </td>
+                <td className={styles.marketCell}>{group.market}<small className={styles.unavailable}> · {group.categoryCount} stats</small></td>
                 <td className={styles.numCell}>{group.line}</td>
                 <td>
                   <button
@@ -1027,7 +787,7 @@ function DesktopMatrix({
                 </td>
                 <RateCell window={summary === undefined ? undefined : summary?.l5 ?? null} />
                 <RateCell window={summary === undefined ? undefined : summary?.l10 ?? null} />
-                <RateCell window={summary === undefined ? undefined : summary?.l15 ?? null} />
+                <RateCell window={summary === undefined ? undefined : summary?.l20 ?? null} />
                 <td className={styles.modelCell}>
                   {prediction === undefined ? (
                     <span className={styles.loadingDot}>…</span>
@@ -1050,7 +810,7 @@ function DesktopMatrix({
                     <span className={styles.unavailable}>—</span>
                   )}
                 </td>
-                <td><ChevronRight size={16} className={styles.rowChevron} /></td>
+                <td><button type="button" aria-label={`Research ${group.player}`} onClick={(event) => { event.stopPropagation(); onInspect(group); }}><ChevronRight size={16} className={styles.rowChevron} /></button></td>
               </tr>
             );
           })}
@@ -1068,7 +828,7 @@ function MobileMatrix({
   onInspect,
   onSelect,
 }: {
-  rows: PropGroup[];
+  rows: PlayerCardGroup[];
   predictions: Record<string, ModelPrediction>;
   research: Record<string, ResearchSummary | null>;
   slip: SlipSelection[];
@@ -1081,42 +841,28 @@ function MobileMatrix({
         const prediction = predictions[group.key];
         const summary = research[group.key];
         const bestEv = evFor(group, prediction);
-        const arb = marketArbitrage(group);
         const overSelected = slip.some((item) => item.id === selectionId(group.key, 'OVER'));
         const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
 
         return (
-          <article key={group.key} className={styles.mobileRow}>
+          <article key={group.playerCardKey} data-player-card={group.playerCardKey} className={styles.mobileRow}>
             <button type="button" className={styles.mobileIdentity} onClick={() => onInspect(group)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
-                alt=""
-                onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-              />
+              <PlayerHeadshot sport={group.sport} name={group.player} team={group.team} providerPlayerId={group.providerPlayerId} />
               <span>
                 <b>{group.player}</b>
-                <small>{group.matchup}</small>
+                <small>{group.matchup} · {group.categoryCount} stats · {group.bookCount} books</small>
               </span>
-              <span className={styles.mobileSignals}>
-                <span className={styles.mobileEv}>
-                  {bestEv ? `${bestEv.ev >= 0 ? '+' : ''}${bestEv.ev.toFixed(1)}% EV` : 'EV —'}
-                </span>
-                {arb ? (
-                  <span className={styles.mobileArb} data-push={arb.possiblePush ? 'true' : 'false'}>
-                    {arb.possiblePush
-                      ? `ARB +${arb.decidedReturnPct.toFixed(1)}%*`
-                      : `ARB +${arb.minimumReturnPct.toFixed(1)}%`}
-                  </span>
-                ) : null}
+              <span className={styles.mobileEv}>
+                {bestEv ? `${bestEv.ev >= 0 ? '+' : ''}${bestEv.ev.toFixed(1)}% EV` : 'EV —'}
               </span>
             </button>
 
             <div className={styles.mobileMeta}>
               <span><b>{group.line}</b> {group.market}</span>
-              <span>O L5 <b>{rateLabel(summary === undefined ? undefined : summary?.l5 ?? null)}</b></span>
-              <span>O L10 <b>{rateLabel(summary === undefined ? undefined : summary?.l10 ?? null)}</b></span>
-              <span>O L15 <b>{rateLabel(summary === undefined ? undefined : summary?.l15 ?? null)}</b></span>
+              <span>L5 <b>{rateLabel(summary === undefined ? undefined : summary?.l5 ?? null)}</b></span>
+              <span>L10 <b>{rateLabel(summary === undefined ? undefined : summary?.l10 ?? null)}</b></span>
+              <span>L20 <b>{rateLabel(summary === undefined ? undefined : summary?.l20 ?? null)}</b></span>
             </div>
 
             <div className={styles.mobileQuotes}>
@@ -1140,7 +886,7 @@ function MobileMatrix({
               </button>
               <button type="button" className={styles.inspectButton} onClick={() => onInspect(group)}>
                 <BarChart3 size={15} />
-                Inspect
+                Research
               </button>
             </div>
           </article>
@@ -1157,172 +903,6 @@ function RateCell({ window }: { window: RateWindow | null | undefined }) {
       <b>{rateLabel(window)}</b>
       {sample ? <small>{sample}</small> : null}
     </td>
-  );
-}
-
-function Inspector({
-  group,
-  prediction,
-  research,
-  quotes,
-  slip,
-  onClose,
-  onSelect,
-}: {
-  group: PropGroup;
-  prediction?: ModelPrediction;
-  research?: ResearchSummary | null;
-  quotes: PropRow[];
-  slip: SlipSelection[];
-  onClose: () => void;
-  onSelect: (group: PropGroup, side: Side) => void;
-}) {
-  const ev = evFor(group, prediction);
-  const arb = marketArbitrage(group);
-  const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
-
-  return (
-    <div className={styles.drawerBackdrop} onMouseDown={(event) => {
-      if (event.currentTarget === event.target) onClose();
-    }}>
-      <aside className={styles.inspector} aria-label="Player inspector">
-        <div className={styles.drawerHeader}>
-          <span>Player inspector</span>
-          <button type="button" aria-label="Close inspector" onClick={onClose}><X size={18} /></button>
-        </div>
-
-        <div className={styles.inspectorHero}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
-            alt=""
-            onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-          />
-          <div>
-            <span>{group.sport} · {group.team || 'Team unavailable'}</span>
-            <h2>{group.player}</h2>
-            <p>{group.matchup} · {timeLabel(group.startsAt)}</p>
-          </div>
-        </div>
-
-        <div className={styles.inspectorLine}>
-          <div><span>Market</span><b>{group.market}</b></div>
-          <div><span>Line</span><b>{group.line}</b></div>
-          <div><span>Model</span><b>{projection !== null ? projection.toFixed(1) : '—'}</b></div>
-          <div><span>Best EV</span><b data-positive={ev && ev.ev > 0 ? 'true' : 'false'}>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}%` : '—'}</b></div>
-          <div><span>Arb</span><b data-positive={arb ? 'true' : 'false'}>{arb ? `+${arb.decidedReturnPct.toFixed(2)}%` : '—'}</b></div>
-        </div>
-
-        <section className={styles.drawerSection}>
-          <div className={styles.sectionHeading}>
-            <span>Hit-rate windows</span>
-            <small>OVER · verified game log</small>
-          </div>
-          <div className={styles.hitStrip}>
-            {[
-              { label: 'L5', window: research === undefined ? undefined : research?.l5 ?? null },
-              { label: 'L10', window: research === undefined ? undefined : research?.l10 ?? null },
-              { label: 'L15', window: research === undefined ? undefined : research?.l15 ?? null },
-            ].map(({ label, window }) => (
-              <div key={label}>
-                <span>{label}</span>
-                <b>{rateLabel(window)}</b>
-                <small>{hitSample(window) || 'sample unavailable'}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {arb ? <ArbitragePanel candidate={arb} /> : null}
-
-        <section className={styles.drawerSection}>
-          <div className={styles.sectionHeading}>
-            <span>Multi-book matrix</span>
-            <small>{new Set(quotes.map((quote) => quoteBook(quote))).size} books</small>
-          </div>
-
-          <div className={styles.bookMatrix}>
-            <div className={styles.bookMatrixHead}>
-              <span>Book</span><span>Side</span><span>Line</span><span>Price</span>
-            </div>
-            {quotes.length ? quotes.map((quote, index) => (
-              <div key={`${quoteBook(quote)}-${quote.side}-${quote.line}-${index}`} className={styles.bookMatrixRow}>
-                <span>{quoteBook(quote)}</span>
-                <span>{text(quote.side).toUpperCase() || '—'}</span>
-                <span>{numberOf(quote.line) ?? group.line}</span>
-                <span>{priceLabel(quote.price)}</span>
-              </div>
-            )) : <p className={styles.drawerEmpty}>No verified book matrix is available for this line.</p>}
-          </div>
-        </section>
-
-        <div className={styles.inspectorActions}>
-          <button
-            type="button"
-            data-selected={slip.some((item) => item.id === selectionId(group.key, 'OVER')) ? 'true' : 'false'}
-            onClick={() => onSelect(group, 'OVER')}
-          >
-            <span>Best over</span>
-            <b>{priceLabel(group.bestOver?.price)}</b>
-            <small>{quoteBook(group.bestOver)}</small>
-          </button>
-          <button
-            type="button"
-            data-selected={slip.some((item) => item.id === selectionId(group.key, 'UNDER')) ? 'true' : 'false'}
-            onClick={() => onSelect(group, 'UNDER')}
-          >
-            <span>Best under</span>
-            <b>{priceLabel(group.bestUnder?.price)}</b>
-            <small>{quoteBook(group.bestUnder)}</small>
-          </button>
-        </div>
-
-        <a
-          className={styles.fullResearch}
-          href={`/research?${new URLSearchParams({
-            sport: group.sport,
-            player: group.player,
-            market: group.market,
-            line: String(group.line),
-          })}`}
-        >
-          Open full player research
-          <ChevronRight size={16} />
-        </a>
-      </aside>
-    </div>
-  );
-}
-
-function ArbitragePanel({ candidate }: { candidate: MarketArbitrageCandidate }) {
-  const decided = candidate.decidedReturnPct.toFixed(2);
-  return (
-    <section className={styles.drawerSection}>
-      <div className={styles.sectionHeading}>
-        <span>Cross-book arbitrage candidate</span>
-        <small>{candidate.possiblePush ? 'integer line · push breaks even' : 'exact line · no integer push'}</small>
-      </div>
-      <div className={styles.arbPanel}>
-        <div>
-          <span>{candidate.possiblePush ? 'Decided return' : 'Minimum return'}</span>
-          <b>+{decided}%</b>
-          <small>{candidate.possiblePush ? '0% on an exact push' : 'if both quotes settle normally'}</small>
-        </div>
-        <div>
-          <span>Over</span>
-          <b>{candidate.over.bookName}</b>
-          <small>O {candidate.line} · {priceLabel(candidate.over.price)}</small>
-        </div>
-        <div>
-          <span>Under</span>
-          <b>{candidate.under.bookName}</b>
-          <small>U {candidate.line} · {priceLabel(candidate.under.price)}</small>
-        </div>
-      </div>
-      <p className={styles.arbNote}>
-        {candidate.note} This is read-only market math; Oblige does not place bets or assume the quotes will still be available.
-      </p>
-    </section>
   );
 }
 

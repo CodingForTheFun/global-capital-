@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import { loadLib } from './load-lib.mjs';
+const load = path => loadLib(path.replace('../lib/', '').replace('.ts', ''));
+const {legacyPresentation,legacyPeriod}=await load('../lib/legacy-research-presentation.ts');
+const {marketName,marketFamily,offerPrice}=await load('../lib/market-display.ts');
+const row=(book,line,side='OVER',price=-115)=>({id:`${book}:${line}:${side}`,eventId:'actual-event',sportsbook:book==='dk'?'DraftKings':'FanDuel',sportsbookKey:book,line,side,price});
+const group=(key,line,quotes)=>({key,propId:null,player:'UI Test Player',providerPlayerId:'verified:42',market:'player_reception_longest',marketId:'player_reception_longest',line,sport:'NFL',team:'PHI',opponent:'DAL',homeTeam:'DAL',awayTeam:'PHI',matchup:'PHI @ DAL',startsAt:'2050-09-20T18:00:00Z',live:false,quotes,bestOver:quotes.find(q=>q.side==='OVER')||null,bestUnder:quotes.find(q=>q.side==='UNDER')||null});
+const a=group('a',22.5,[row('dk',22.5),row('dk',22.5,'UNDER',-105)]),b=group('b',24.5,[row('fd',24.5),row('fd',24.5,'UNDER',-110)]);
+const category={key:'unchanged-legacy-category',label:a.market,variants:[a,b]};
+test('actual legacy board data uses premium names while preserving original keys and all book lines',()=>{const before=JSON.stringify([a,b,category]);const p=legacyPresentation([category],a,category.key,'unchanged-game-player-key','OVER');assert.equal(p.player.key,'unchanged-game-player-key');assert.equal(p.player.eventId,'actual-event');assert.equal(p.market.key,category.key);assert.equal(marketName(p.market),'Longest Reception');assert.equal(p.market.offers.length,4);assert.deepEqual([...new Set(p.market.offers.map(o=>o.line))],[22.5,24.5]);assert.equal(p.selected.book,'dk');assert.equal(p.selected.price,-115);assert.equal(JSON.stringify([a,b,category]),before);});
+test('selected book and side resolve to an actual quote, not another book or made-up line',()=>{const p=legacyPresentation([category],b,category.key,'card','UNDER');assert.equal(p.selected.book,'fd');assert.equal(p.selected.line,24.5);assert.equal(p.selected.side,'UNDER');assert.equal(p.selected.price,-110);assert.equal(legacyPresentation([category],{...b,quotes:[],bestOver:null,bestUnder:null},category.key,'card','OVER').selected,null);});
+test('explicit periods stay separately selectable and only share a stat-family presentation',()=>{const half={...a,key:'half',market:a.market+' · First half'};const p=legacyPresentation([category,{key:'half-category',label:half.market,variants:[half]}],a,category.key,'card','OVER');assert.equal(p.player.markets[1].period,'h1');assert.equal(p.player.markets[1].key,'half-category');assert.equal(marketFamily(p.player.markets[0]),marketFamily(p.player.markets[1]));assert.equal(legacyPeriod({...a,market:'Unknown quarter scope'}).period,'as_posted');});
+test('different statistics and DFS variants never become the same family',()=>{const rush={...a,market:'player_rush_longest',marketId:'player_rush_longest'};const p=legacyPresentation([category,{key:'rush-category',label:rush.market,variants:[rush]}],a,category.key,'card','OVER');assert.notEqual(marketFamily(p.player.markets[0]),marketFamily(p.player.markets[1]));});
+test('missing odds and DFS multipliers remain honest',()=>{const q={...row('prizepicks',22.5),sportsbook:'PrizePicks',price:null,multiplier:1.2};const dfs=group('dfs',22.5,[q]);const p=legacyPresentation([{key:'dfs-cat',label:dfs.market,variants:[dfs]}],dfs,'dfs-cat','card','OVER');assert.equal(p.selected.dfs,true);assert.equal(p.selected.price,null);assert.equal(offerPrice(p.selected),'1.2×');});
+test('real TerminalBoard URL loader mounts the shared premium renderer instead of the old stacked form',()=>{const src=readFileSync(new URL('../components/player-view.tsx',import.meta.url),'utf8');assert.match(src,/<PlayerAnalysisPage/);assert.match(src,/legacy-board-premium-v2/);assert.match(src,/fetchResearch\(group,/);assert.doesNotMatch(src,/fetchResearch\(displayGroup,/);assert.doesNotMatch(src,/player-cinematic-hero|PlayerSectionNav|Choose the number you want to research/);});
+
+test('data-provider pseudo books do not replace real sportsbook quotes and placeholder positions stay hidden',()=>{
+  const real={...row('dk',22.5),sportsbook:'DraftKings',sportsbookKey:'dk',price:-110};
+  const source={...row('espn',22.5),sportsbook:'ESPN',sportsbookKey:'espn',price:5000};
+  const mixed={...group('mixed',22.5,[source,real]),position:'Position unavailable',bestOver:source};
+  const cat={key:'mixed-cat',label:mixed.market,variants:[mixed]};
+  const p=legacyPresentation([cat],mixed,cat.key,'mixed-card','OVER');
+  assert.equal(p.market.offers.some(offer=>offer.book==='espn'),false);
+  assert.equal(p.selected.book,'dk');
+  assert.equal(p.selected.price,-110);
+  assert.equal(p.player.position,null);
+  const positioned={...mixed,position:'WR'};
+  const p2=legacyPresentation([{...cat,variants:[positioned]}],positioned,cat.key,'mixed-card','OVER');
+  assert.equal(p2.player.position,'WR');
+});

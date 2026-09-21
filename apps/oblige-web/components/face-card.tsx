@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { ART, teamFor } from '@/lib/teams';
-import { artworkUrl, fetchResearch, playedGames } from '@/lib/api';
+import { fetchResearch, playedGames } from '@/lib/api';
+import { PlayerHeadshot } from '@/components/player-headshot';
 import type { GameLogRow, PropGroup } from '@/lib/types';
 import { cn, initials, odds, rateTone, shortTime } from '@/lib/utils';
 import { Badge, Dot } from '@/components/ui/badge';
@@ -57,39 +58,11 @@ export function PlayerAvatar({
   size?: number;
   className?: string;
 }) {
-  const [failed, setFailed] = React.useState(false);
-  const [loaded, setLoaded] = React.useState(false);
-
   return (
     <span className={cn('ringavatar', className)} style={{ width: size, height: size }}>
-      <span
-        className={cn(
-          'relative grid size-full place-items-center overflow-hidden rounded-full',
-          'bg-[var(--face-surface-2)]',
-        )}
-      >
-        <span className="text-[length:var(--fs-sm)] font-bold text-[var(--face-text-3)]" aria-hidden="true">
-          {initials(name)}
-        </span>
-        {!failed && (
-          // eslint-disable-next-line @next/next/no-img-element -- the artwork
-          // route streams bytes from a same-origin proxy, so the optimizer has
-          // nothing to add and would only add a second hop.
-          <img
-            src={artworkUrl(sport, name, team, providerPlayerId)}
-            alt=""
-            width={size}
-            height={size}
-            loading="lazy"
-            decoding="async"
-            onLoad={() => setLoaded(true)}
-            onError={() => setFailed(true)}
-            className={cn(
-              'absolute inset-0 size-full object-cover object-top transition-opacity duration-300 ease-[var(--ease-out)]',
-              loaded ? 'opacity-100' : 'opacity-0',
-            )}
-          />
-        )}
+      <span className="relative grid size-full place-items-center overflow-hidden rounded-full bg-[var(--face-surface-2)]">
+        <PlayerHeadshot sport={sport} name={name} team={team} providerPlayerId={providerPlayerId}
+          className="absolute inset-0 size-full object-cover object-top" />
       </span>
     </span>
   );

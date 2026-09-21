@@ -3,10 +3,11 @@ import { cn } from '@/lib/utils';
 
 /** The wrapper scrolls, not the page — a wide table never becomes the
  *  document's own horizontal overflow. */
-export function TableWrap({ className, ...props }: React.ComponentProps<'div'>) {
+export function TableWrap({ className, style, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
-      className={cn('min-w-0 overflow-x-auto [overscroll-behavior-x:contain]', className)}
+      className={cn('w-full max-w-full min-w-0 overflow-x-auto [overscroll-behavior-x:contain]', className)}
+      style={{ contain: 'inline-size', ...style }}
       {...props}
     />
   );

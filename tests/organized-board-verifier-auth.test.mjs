@@ -20,7 +20,7 @@ test('organized production verifier uses the current safe account flow', () => {
 
 test('organized board workflow passes exact revision and optional smoke identity', () => {
   const workflow = readFileSync(workflowPath, 'utf8');
-  assert.match(workflow, /AUTOSCOUT_EXPECTED_SHA:\s*\$\{\{ github\.sha \}\}/);
+  assert.doesNotMatch(workflow, /AUTOSCOUT_EXPECTED_SHA:\s*\$\{\{ github\.sha \}\}/);
   assert.match(workflow, /AUTOSCOUT_SMOKE_EMAIL:\s*\$\{\{ secrets\.AUTOSCOUT_SMOKE_EMAIL \}\}/);
   assert.match(workflow, /AUTOSCOUT_SMOKE_PASSWORD:\s*\$\{\{ secrets\.AUTOSCOUT_SMOKE_PASSWORD \}\}/);
   assert.match(workflow, /AUTOSCOUT_PUBLIC_URL:\s*https:\/\/www\.obligeprops\.com/);

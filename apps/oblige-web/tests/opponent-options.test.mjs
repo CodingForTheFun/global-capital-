@@ -85,3 +85,31 @@ test('team matching handles state abbreviations without conflating Kansas and Ka
   assert.equal(sameTeamLabel('KC', 'Kansas City Chiefs'), true);
   assert.equal(sameTeamLabel('Kansas', 'Kansas State Wildcats'), false);
 });
+
+
+test('common city aliases do not create duplicate pro teams', () => {
+  assert.equal(sameTeamLabel('LA Angels', 'Los Angeles Angels'), true);
+  assert.equal(sameTeamLabel('NY Yankees', 'New York Yankees'), true);
+
+  const options = buildOpponentOptions(
+    ['LA Angels', 'St. Louis Cardinals'],
+    {
+      team: 'Detroit Tigers',
+      opponent: 'LA Angels',
+      homeTeam: 'Detroit Tigers',
+      awayTeam: 'Los Angeles Angels',
+    },
+    [
+      { id: '108', abbreviation: 'LAA', name: 'Los Angeles Angels' },
+      { id: '119', abbreviation: 'LAD', name: 'Los Angeles Dodgers' },
+      { id: '138', abbreviation: 'STL', name: 'St. Louis Cardinals' },
+      { id: '147', abbreviation: 'NYY', name: 'New York Yankees' },
+    ],
+  );
+
+  assert.equal(options.filter(option => /Angels/.test(option.label)).length, 1);
+  assert.ok(options.some(option => option.label === 'Los Angeles Dodgers'));
+  assert.ok(options.some(option => option.label === 'New York Yankees'));
+  assert.ok(options.some(option => option.label === 'St. Louis Cardinals'));
+  assert.equal(options.length, 5, 'All opponents plus every directory team exactly once');
+});

@@ -122,3 +122,214 @@
     white-space: nowrap;
   }
 }
+
+/* Inspector-density player research: keep the full toolset without the oversized sheet. */
+.player-app-shell .player-cinematic-hero {
+  min-height: 0 !important;
+  padding: 14px !important;
+  border-radius: 14px !important;
+}
+
+.player-app-shell .player-identity-row {
+  min-height: 76px !important;
+  gap: 12px !important;
+}
+
+.player-app-shell .player-cinematic-hero .ringavatar {
+  width: 64px !important;
+  height: 64px !important;
+  transform: none !important;
+}
+
+.player-app-shell .player-cinematic-hero h1 {
+  font-size: clamp(22px, 3vw, 30px) !important;
+  line-height: 1.04 !important;
+  letter-spacing: -.038em !important;
+}
+
+.player-app-shell .player-line-glance {
+  min-height: 50px !important;
+  margin-top: 10px !important;
+  padding: 9px 11px !important;
+  border-radius: 10px !important;
+}
+
+.player-app-shell .player-explorer-panel {
+  padding: 11px !important;
+  border-radius: 14px !important;
+}
+
+.research-reference {
+  gap: 8px !important;
+}
+
+.op-research-title h3 {
+  margin: 2px 0 !important;
+  font-size: 16px !important;
+}
+
+.research-reference .op-follow {
+  width: 38px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  border-radius: 10px !important;
+}
+
+.op-research-filters {
+  gap: 6px !important;
+}
+
+.op-applied-filter summary {
+  min-height: 46px !important;
+  padding: 6px 7px !important;
+}
+
+.op-applied-filter summary > span:first-child {
+  font-size: 9px !important;
+}
+
+.op-applied-filter summary strong {
+  font-size: 11px !important;
+}
+
+.op-line-controls {
+  grid-template-columns: minmax(118px, .78fr) minmax(0, 1.35fr) !important;
+  gap: 7px !important;
+}
+
+.op-line-stepper {
+  grid-template-columns: 36px minmax(0, 1fr) 36px !important;
+}
+
+.research-reference .op-line-stepper button {
+  width: 36px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+}
+
+.op-line-number {
+  font-size: 18px !important;
+}
+
+.research-reference .op-side-picker button {
+  min-height: 42px !important;
+}
+
+.op-side-picker button strong {
+  font-size: 13px !important;
+}
+
+.op-sample-caption {
+  font-size: 10px !important;
+}
+
+.research-reference .op-samples {
+  display: flex !important;
+  grid-template-columns: none !important;
+  gap: 6px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding: 1px 0 4px !important;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.research-reference .op-samples::-webkit-scrollbar {
+  display: none;
+}
+
+.research-reference .op-sample {
+  flex: 0 0 104px !important;
+  width: 104px !important;
+  min-width: 104px !important;
+  min-height: 68px !important;
+  padding: 6px 5px !important;
+  border-radius: 9px !important;
+  scroll-snap-align: start;
+}
+
+.research-reference .op-sample > strong {
+  font-size: 20px !important;
+}
+
+.research-reference .op-sample > span {
+  font-size: 9px !important;
+}
+
+.research-reference .op-sample > small {
+  font-size: 8px !important;
+}
+
+.op-chart-section {
+  padding: 10px !important;
+  border-radius: 10px !important;
+}
+
+@media (min-width: 768px) {
+  .research-reference {
+    gap: 10px !important;
+  }
+
+  .op-applied-filter summary {
+    min-height: 48px !important;
+    padding: 7px 9px !important;
+  }
+
+  .research-reference .op-sample > strong {
+    font-size: 21px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .player-app-shell .player-cinematic-hero {
+    padding: 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .player-app-shell .player-identity-row {
+    min-height: 58px !important;
+    gap: 9px !important;
+  }
+
+  .player-app-shell .player-cinematic-hero .ringavatar {
+    width: 54px !important;
+    height: 54px !important;
+  }
+
+  .player-app-shell .player-cinematic-hero h1 {
+    font-size: 20px !important;
+  }
+
+  .player-app-shell .player-line-glance {
+    min-height: 46px !important;
+    margin-top: 8px !important;
+    padding: 7px 9px !important;
+  }
+
+  .player-app-shell .player-explorer-panel {
+    padding: 9px !important;
+    border-radius: 12px !important;
+  }
+
+  .op-research-filters {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+  }
+
+  .op-applied-filter summary {
+    min-height: 44px !important;
+    padding: 5px 6px !important;
+  }
+
+  .research-reference .op-sample {
+    flex-basis: 104px !important;
+    width: 104px !important;
+    min-width: 104px !important;
+    min-height: 66px !important;
+  }
+
+  .op-chart-plot {
+    height: 160px !important;
+  }
+}
+

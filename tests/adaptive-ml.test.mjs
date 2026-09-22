@@ -41,7 +41,20 @@ test('snapshot store uses adaptive model when no validated snapshot exists and r
  const t=target('NBA',22.5),calls=[];
  const store=createMLStore({file:'/tmp/definitely-missing-autoscout-model-feed.json',clock:()=>NOW,research:async p=>{calls.push(p);return research(logs(24));}});
  const out=await store.lookup(t);
- assert.equal(out.available,true);assert.equal(out.engine,'Auto Scout Adaptive');assert.equal(targetKey(out),targetKey(t));assert.equal(calls.length,1);assert.equal(calls[0].providerMarketKey,t.marketId);
+ assert.equal(out.available,true);assert.equal(out.engine,'Auto Scout Adaptive');assert.equal(targetKey(out),targetKey(t));assert.equal(calls.length,1);
+ assert.equal(calls[0].providerMarketKey,t.marketId);assert.equal(calls[0].games,30);assert.equal(calls[0].eventId,t.eventId);assert.equal(calls[0].gameStartTime,new Date(t.gameStartTime).toISOString());
+});
+
+test('adaptive store retries through deep verified history when the current sample is too short',async()=>{
+ const t=target('NBA',22.5),calls=[];
+ const store=createMLStore({file:'/tmp/definitely-missing-autoscout-deep-model-feed.json',clock:()=>NOW,research:async p=>{
+  calls.push(p);
+  return research(logs(p.historyYears===3?24:8));
+ }});
+ const out=await store.lookup(t);
+ assert.equal(out.available,true);assert.equal(out.code,'READY');assert.equal(calls.length,2);
+ assert.equal(calls[0].historyYears,undefined);assert.equal(calls[1].historyYears,3);
+ assert.equal(calls[1].games,30);assert.equal(calls[1].eventId,t.eventId);assert.equal(calls[1].gameStartTime,new Date(t.gameStartTime).toISOString());
 });
 
 test('snapshot-only callers preserve legacy missing-model semantics',async()=>{

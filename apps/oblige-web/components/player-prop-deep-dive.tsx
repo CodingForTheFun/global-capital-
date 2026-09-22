@@ -14,7 +14,7 @@ import { buildOpponentOptions } from '@/lib/opponent-options';
 import { catalogBookRows } from '@/lib/book-catalog';
 import { PlayerAvatar } from '@/components/face-card';
 import { marketDisplayLabel, odds, shortDate, shortTime } from '@/lib/utils';
-import { expectedValueFor, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
+import { expectedValueFor, expectedValueSourceLabel, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 
 export type DeepDiveState = {
   line: number;
@@ -366,6 +366,7 @@ export function PlayerPropDeepDive({
     () => expectedValueFor(modelGroup, prediction || undefined),
     [modelGroup, prediction],
   );
+  const selectedEvSource = expectedValueSourceLabel(selectedEv);
 
   const windows = React.useMemo(() => {
     const h2h = headToHead(filteredGames, currentOpponent, state.line, state.side);
@@ -775,7 +776,7 @@ export function PlayerPropDeepDive({
                 <div className="mt-1 text-2xl font-black tabular-nums text-white">{prediction?.available ? probabilityLabel(prediction.probabilityUnder) : '—'}</div>
               </div>
               <div>
-                <div className="text-[10px] font-semibold text-slate-500">Selected-quote EV</div>
+                <div className="text-[10px] font-semibold text-slate-500">{selectedEv?.source === 'model' ? 'Selected-quote model EV' : 'Selected-quote market EV'}</div>
                 <div className={`mt-1 text-2xl font-black tabular-nums ${selectedEv && selectedEv.ev > 0 ? 'text-emerald-400' : selectedEv && selectedEv.ev < 0 ? 'text-rose-400' : 'text-white'}`}>
                   {selectedEv ? `${selectedEv.ev >= 0 ? '+' : ''}${selectedEv.ev.toFixed(1)}%` : '—'}
                 </div>
@@ -784,7 +785,7 @@ export function PlayerPropDeepDive({
             <p className="mt-4 text-[10px] leading-relaxed text-slate-500 sm:text-[11px]">
               {prediction?.available
                 ? `Adaptive estimate from verified game history, evaluated on earlier games. Version ${prediction.engine || 'history model'}. EV includes pushes at zero profit.`
-                : prediction?.message || 'Verified history-model output is unavailable for this exact prop.'}
+                : `${prediction?.message || 'Verified history-model output is unavailable for this exact prop.'}${selectedEvSource ? ` EV shown above uses ${selectedEvSource.toLowerCase()}, not a history-model probability.` : ''}`}
             </p>
             <button
               type="button"

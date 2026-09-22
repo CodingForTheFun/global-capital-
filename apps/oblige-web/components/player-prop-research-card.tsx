@@ -622,7 +622,7 @@ export function PlayerPropResearchCard({
     <section
       className="mx-auto w-full max-w-[430px] text-white [font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]"
       data-design="player-prop-research-card"
-      data-release="verified-live-card-20260921-recovery2"
+      data-release="verified-live-card-20260922-selected-ev-fix"
     >
       <div className="rounded-2xl border border-[#1E2D3D] bg-[#121C26] p-3.5 shadow-[0_12px_38px_rgba(0,0,0,0.22)]">
         <div className="flex items-start gap-3">

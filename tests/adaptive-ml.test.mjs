@@ -10,7 +10,7 @@ function logs(n=22,{integer=true,volatile=false}={}){return Array.from({length:n
 function research(gameLog=logs()){return {available:true,gameLog,opponent:'BOS',matchup:{opponent:'BOS'}};}
 
 test('adaptive model is configured for every current Auto Scout research sport',()=>{
- assert.deepEqual(ADAPTIVE_SPORTS,['NFL','NBA','WNBA','MLB','NHL','NCAAF','NCAAB','MLS','EPL','UCL']);
+ assert.deepEqual(ADAPTIVE_SPORTS,['NFL','NBA','WNBA','MLB','NHL','NCAAF','NCAAB','SOCCER','MLS','EPL','UCL','TENNIS']);
  for(const sport of ADAPTIVE_SPORTS){const out=adaptivePrediction({research:research(),target:target(sport),now:NOW});assert.equal(out.available,true,sport);assert.equal(out.engine,'Auto Scout Adaptive');assert.equal(out.validation.method,'rolling-player-history');assert.ok(out.validation.observations>0);assert.ok(['trained-adjustment','recent-mean-fallback'].includes(out.validation.selectedStrategy));assert.ok(Number.isFinite(out.projection));assert.ok(Math.abs(out.probabilityOver+out.probabilityUnder+out.probabilityPush-1)<1e-9);}
 });
 

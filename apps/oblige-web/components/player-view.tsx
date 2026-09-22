@@ -228,60 +228,6 @@ export function PlayerView() {
         favourite={favourite}
         onFavourite={() => toggleFavourite(group.key)}
         onMarket={selectMarket}
-        fullResearch={
-          <>
-            <CardPanel className="player-explorer-panel p-3 sm:p-4">
-              <PropExplorer
-                group={group}
-                games={games}
-                loading={loadingResearch}
-                unavailableReason={
-                  research && research.available === false
-                    ? research.message || 'No verified game log is available for this player and market yet.'
-                    : null
-                }
-                leagueTeams={research?.leagueTeams || []}
-                state={state}
-                onState={setState}
-                favourite={favourite}
-                onFavourite={() => toggleFavourite(group.key)}
-              />
-            </CardPanel>
-
-            {research?.available === false && !loadingResearch ? (
-              <p className="flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_36%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
-                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                {research.message || 'No verified history is available for this player and market yet.'}
-              </p>
-            ) : null}
-
-            <SplitSummary
-              games={games}
-              group={group}
-              line={state.line}
-              side={state.side}
-              loading={loadingResearch}
-            />
-
-            <section className="player-detail-grid grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:items-start">
-              <div className="min-w-0">
-                <Reveal>
-                  <GameLog
-                    games={games}
-                    line={state.line}
-                    market={marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}
-                    loading={loadingResearch}
-                  />
-                </Reveal>
-              </div>
-              <div className="min-w-0">
-                <Reveal>
-                  <BookPrices group={group} />
-                </Reveal>
-              </div>
-            </section>
-          </>
-        }
       />
     </Shell>
   );

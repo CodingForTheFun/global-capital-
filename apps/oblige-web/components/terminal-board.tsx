@@ -37,6 +37,7 @@ import {
   expectedValueSourceLabel,
   type ExpectedValueSelection,
 } from '@/lib/expected-value.mjs';
+import { uniqueTerminalPlayerCards } from '@/lib/terminal-player-cards.mjs';
 import { SignInPanel } from '@/components/sign-in';
 import styles from './terminal-board.module.css';
 
@@ -621,7 +622,7 @@ export function TerminalBoard() {
   }, [predictions, scopedGroups]);
 
   const filtered = React.useMemo(() => {
-    return scopedGroups
+    const ranked = scopedGroups
       .filter((group) => {
         if (evFloor === null) return true;
         const best = expectedValues[group.key];
@@ -643,6 +644,11 @@ export function TerminalBoard() {
         }
         return a.player.localeCompare(b.player);
       });
+
+    // The API intentionally returns one exact group per market/line. Rank those
+    // exact groups first, then keep one preview card per verified player/event.
+    // All alternate lines, books, and stat categories remain in /research.
+    return uniqueTerminalPlayerCards(ranked);
   }, [evFloor, expectedValues, performanceSort, research, scopedGroups, sortDirection]);
 
   const page = React.useMemo(() => filtered.slice(0, shown), [filtered, shown]);

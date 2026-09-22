@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowRight, ChevronDown, Flame, Minus, Plus, Star } from 'lucide-react';
+import { ChevronDown, Flame, Minus, Plus, Star } from 'lucide-react';
 import type { GameLogRow, PropGroup, ResearchResponse, Side } from '@/lib/types';
 import {
   applyFilters,
@@ -14,6 +14,7 @@ import { buildOpponentOptions } from '@/lib/opponent-options';
 import { catalogBookRows } from '@/lib/book-catalog';
 import { PlayerAvatar } from '@/components/face-card';
 import { marketDisplayLabel, odds, shortDate, shortTime } from '@/lib/utils';
+import { expectedValueFor, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 
 export type DeepDiveState = {
   line: number;
@@ -31,12 +32,97 @@ type Props = {
   favourite: boolean;
   onFavourite(): void;
   onMarket(group: PropGroup): void;
-  fullResearch: React.ReactNode;
 };
 
 type SampleId = 'l5' | 'l10' | 'l15' | 'l20' | 'season' | 'h2h';
 
 const text = (value: unknown) => String(value ?? '').trim();
+
+
+type ModelPrediction = {
+  available?: boolean;
+  projection?: number;
+  probabilityOver?: number;
+  probabilityUnder?: number;
+  probabilityPush?: number;
+  engine?: string;
+  code?: string;
+  message?: string;
+};
+
+type MlTarget = {
+  sport: string;
+  eventId: string;
+  playerId: string;
+  playerName: string;
+  marketId: string;
+  sportsbookKey: string;
+  gameStartTime: string;
+  line: number;
+  entityType: 'player';
+  live: boolean;
+  isAlternate: false;
+};
+
+function mlTargetFor(group: PropGroup): MlTarget | null {
+  const quote = group.bestOver || group.bestUnder || group.quotes[0];
+  const eventId = text(quote?.eventId);
+  const playerId = text(group.providerPlayerId);
+  const marketId = text(group.marketId);
+  const sportsbookKey = text(quote?.sportsbookKey || quote?.sportsbook);
+  const gameStartTime = text(group.startsAt);
+  if (!eventId || !playerId || !marketId || !sportsbookKey || !Number.isFinite(Date.parse(gameStartTime))) return null;
+  return {
+    sport: group.sport,
+    eventId,
+    playerId,
+    playerName: group.player,
+    marketId,
+    sportsbookKey,
+    gameStartTime: new Date(gameStartTime).toISOString(),
+    line: group.line,
+    entityType: 'player',
+    live: group.live,
+    isAlternate: false,
+  };
+}
+
+async function fetchHistoryModel(group: PropGroup, signal?: AbortSignal): Promise<ModelPrediction> {
+  const target = mlTargetFor(group);
+  if (!target) {
+    return {
+      available: false,
+      code: 'TARGET_UNVERIFIED',
+      message: 'Verified model inputs are unavailable for this exact prop.',
+    };
+  }
+  const response = await fetch('/api/props/ml', {
+    method: 'POST',
+    credentials: 'same-origin',
+    signal,
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ props: [{ ...target, key: 'player' }] }),
+  });
+  if (!response.ok) {
+    return {
+      available: false,
+      code: 'MODEL_FEED_UNAVAILABLE',
+      message: 'History model is temporarily unavailable.',
+    };
+  }
+  const body = await response.json() as { ok?: boolean; results?: Record<string, ModelPrediction> };
+  return body.ok && body.results?.player
+    ? body.results.player
+    : { available: false, code: 'MODEL_FEED_UNAVAILABLE', message: 'History model is temporarily unavailable.' };
+}
+
+function probabilityLabel(value: unknown) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  const percent = number <= 1 ? number * 100 : number;
+  return `${percent.toFixed(1)}%`;
+}
+
 
 function periodLabel(value: string | null) {
   const raw = text(value).toLowerCase();
@@ -217,17 +303,27 @@ export function PlayerPropDeepDive({
   favourite,
   onFavourite,
   onMarket,
-  fullResearch,
 }: Props) {
   const [filters, setFilters] = React.useState<SampleFilters>({ opponent: 'all', season: 'all', venue: 'all' });
   const [sample, setSample] = React.useState<SampleId>('l15');
-  const [showFullResearch, setShowFullResearch] = React.useState(false);
+  const [prediction, setPrediction] = React.useState<ModelPrediction | null>(null);
+  const [loadingPrediction, setLoadingPrediction] = React.useState(false);
+  const [forecastRevision, setForecastRevision] = React.useState(0);
 
   React.useEffect(() => {
     setFilters({ opponent: 'all', season: 'all', venue: 'all' });
     setSample('l15');
-    setShowFullResearch(false);
   }, [group.key]);
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    setLoadingPrediction(true);
+    fetchHistoryModel(group, controller.signal)
+      .then(setPrediction)
+      .catch(() => setPrediction({ available: false, code: 'MODEL_FEED_UNAVAILABLE', message: 'History model is temporarily unavailable.' }))
+      .finally(() => setLoadingPrediction(false));
+    return () => controller.abort();
+  }, [group.key, forecastRevision]);
 
   const marketLabel = marketDisplayLabel(group.market, group.player, group.marketId, group.sport);
   const rawGames = research?.gameLog || [];
@@ -258,6 +354,18 @@ export function PlayerPropDeepDive({
   const selectedBook = state.book ? books.find((book) => book.key === state.book) || null : null;
   const over = selectedBook?.over || group.bestOver;
   const under = selectedBook?.under || group.bestUnder;
+  const modelGroup = React.useMemo(() => {
+    if (!selectedBook) return group;
+    const selectedQuotes = group.quotes.filter((quote) => {
+      const key = text(quote.sportsbookKey || quote.sportsbook).toLowerCase().replace(/[^a-z0-9]/g, '');
+      return key === selectedBook.key.toLowerCase().replace(/[^a-z0-9]/g, '');
+    });
+    return selectedQuotes.length ? { ...group, quotes: selectedQuotes } : group;
+  }, [group, selectedBook]);
+  const selectedEv: ExpectedValueSelection | null = React.useMemo(
+    () => expectedValueFor(modelGroup, prediction || undefined),
+    [modelGroup, prediction],
+  );
 
   const windows = React.useMemo(() => {
     const h2h = headToHead(filteredGames, currentOpponent, state.line, state.side);
@@ -646,6 +754,48 @@ export function PlayerPropDeepDive({
           </div>
         </section>
 
+        <section className="rounded-2xl border border-slate-800 bg-[#0d1420] p-3 sm:p-4" aria-label="History model">
+          <div className="mb-3 text-[9px] font-black uppercase tracking-[.16em] text-slate-500">Model choice</div>
+          <div className="rounded-xl border border-slate-800 bg-slate-950/35 p-3 sm:p-4">
+            <h3 className="text-lg font-black tracking-[-.02em] text-white">History model</h3>
+            <div className="mt-3 grid grid-cols-2 gap-x-5 gap-y-4">
+              <div>
+                <div className="text-[10px] font-semibold text-slate-500">Projection</div>
+                <div className="mt-1 text-2xl font-black tabular-nums text-white">
+                  {prediction?.available && Number.isFinite(Number(prediction.projection)) ? Number(prediction.projection).toFixed(1) : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-semibold text-slate-500">Over</div>
+                <div className="mt-1 text-2xl font-black tabular-nums text-white">{prediction?.available ? probabilityLabel(prediction.probabilityOver) : '—'}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-semibold text-slate-500">Under</div>
+                <div className="mt-1 text-2xl font-black tabular-nums text-white">{prediction?.available ? probabilityLabel(prediction.probabilityUnder) : '—'}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-semibold text-slate-500">Selected-quote EV</div>
+                <div className={`mt-1 text-2xl font-black tabular-nums ${selectedEv && selectedEv.ev > 0 ? 'text-emerald-400' : selectedEv && selectedEv.ev < 0 ? 'text-rose-400' : 'text-white'}`}>
+                  {selectedEv ? `${selectedEv.ev >= 0 ? '+' : ''}${selectedEv.ev.toFixed(1)}%` : '—'}
+                </div>
+              </div>
+            </div>
+            <p className="mt-4 text-[10px] leading-relaxed text-slate-500 sm:text-[11px]">
+              {prediction?.available
+                ? `Adaptive estimate from verified game history, evaluated on earlier games. Version ${prediction.engine || 'history model'}. EV includes pushes at zero profit.`
+                : prediction?.message || 'Verified history-model output is unavailable for this exact prop.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setForecastRevision((value) => value + 1)}
+              disabled={loadingPrediction}
+              className="mt-3 min-h-10 rounded-lg border border-slate-700 bg-slate-900/80 px-3 text-[11px] font-bold text-white transition hover:border-slate-600 disabled:cursor-wait disabled:opacity-60"
+            >
+              {loadingPrediction ? 'Refreshing…' : 'Refresh forecast'}
+            </button>
+          </div>
+        </section>
+
         <section className="rounded-2xl border border-slate-800 bg-[#0d1420] p-3 sm:p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
@@ -700,21 +850,6 @@ export function PlayerPropDeepDive({
           )}
         </section>
 
-        <button
-          type="button"
-          onClick={() => setShowFullResearch((value) => !value)}
-          aria-expanded={showFullResearch}
-          className="group flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-sky-500 to-cyan-500 text-sm font-black text-white shadow-[0_10px_32px_rgba(37,99,235,.22)] transition hover:brightness-110"
-        >
-          {showFullResearch ? 'Hide Full Research' : 'View Full Research'}
-          <ArrowRight className={`h-4 w-4 transition-transform ${showFullResearch ? 'rotate-90' : 'group-hover:translate-x-1'}`} />
-        </button>
-
-        {showFullResearch ? (
-          <div className="space-y-4 rounded-2xl border border-slate-800 bg-[#0d1420] p-3 sm:p-4">
-            {fullResearch}
-          </div>
-        ) : null}
       </div>
     </section>
   );

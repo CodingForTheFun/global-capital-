@@ -104,7 +104,7 @@ function SelectFilter({
 }) {
   const selected = options.find((option) => option.value === value)?.label || value;
   return (
-    <label className="relative flex h-10 min-w-[112px] shrink-0 items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-900/80 px-2.5 pr-7 text-[10px] text-slate-400">
+    <label data-filter={label} className="deep-dive-filter relative flex h-10 min-w-[112px] shrink-0 items-center gap-1 rounded-lg border border-slate-700/80 bg-slate-900/80 px-2.5 pr-7 text-[10px] text-slate-400">
       <span className="whitespace-nowrap text-slate-500">{label}:</span>
       <span className="max-w-[108px] truncate font-semibold text-slate-200">{selected}</span>
       <select
@@ -176,7 +176,7 @@ function Chart({
                   <span
                     title={`${shortDate(game.date)} ${game.isHome === false ? '@' : 'vs'} ${game.opponent || 'Opponent'} · ${market}: ${dnp ? 'DNP' : value}`}
                     className={[
-                      'block w-full rounded-t-[5px] border',
+                      'deep-dive-chart-bar block w-full rounded-t-[5px] border',
                       result === 'over'
                         ? 'border-emerald-400/25 bg-gradient-to-t from-emerald-600 to-emerald-400'
                         : result === 'under'
@@ -345,7 +345,7 @@ export function PlayerPropDeepDive({
 
   return (
     <section
-      className="mx-auto w-full max-w-[1180px] overflow-hidden rounded-2xl border border-slate-800/90 bg-[#0b101a] text-slate-100 shadow-[0_18px_70px_rgba(0,0,0,.32)]"
+      className="deep-dive-card mx-auto w-full max-w-[1180px] overflow-hidden rounded-2xl border border-slate-800/90 bg-[#0b101a] text-slate-100 shadow-[0_18px_70px_rgba(0,0,0,.32)]"
       data-design="player-prop-deep-dive-restored"
     >
       <div className="border-b border-slate-800/90 bg-[radial-gradient(580px_180px_at_85%_-25%,rgba(59,130,246,.16),transparent_62%),linear-gradient(180deg,rgba(19,27,46,.94),rgba(10,15,24,.98))] p-3 sm:p-4">
@@ -496,7 +496,7 @@ export function PlayerPropDeepDive({
         </div>
 
         <div className="flex min-h-5 items-center justify-between gap-3 text-[10px] text-slate-500">
-          <span>{filteredGames.length} of {verifiedGames.length} verified games</span>
+          <span className="deep-dive-sample-count">{filteredGames.length} of {verifiedGames.length} verified games</span>
           {(filters.opponent !== 'all' || filters.season !== 'all' || filters.venue !== 'all') ? (
             <button
               type="button"
@@ -534,7 +534,7 @@ export function PlayerPropDeepDive({
               >
                 <Minus className="h-4 w-4" />
               </button>
-              <output className="grid h-10 place-items-center text-lg font-black tabular-nums text-white" aria-live="polite">
+              <output className="deep-dive-line-number grid h-10 place-items-center text-lg font-black tabular-nums text-white" aria-live="polite">
                 {Number.isInteger(state.line) ? state.line : state.line.toFixed(1)}
               </output>
               <button
@@ -550,6 +550,7 @@ export function PlayerPropDeepDive({
               <button
                 type="button"
                 aria-pressed={state.side === 'OVER'}
+                data-side="OVER"
                 onClick={() => onState({ ...state, side: 'OVER' })}
                 className={`px-2 py-2 text-left ${state.side === 'OVER' ? 'bg-emerald-400/[.08]' : ''}`}
               >
@@ -559,6 +560,7 @@ export function PlayerPropDeepDive({
               <button
                 type="button"
                 aria-pressed={state.side === 'UNDER'}
+                data-side="UNDER"
                 onClick={() => onState({ ...state, side: 'UNDER' })}
                 className={`border-l border-slate-800 px-2 py-2 text-left ${state.side === 'UNDER' ? 'bg-rose-400/[.08]' : ''}`}
               >
@@ -566,6 +568,7 @@ export function PlayerPropDeepDive({
                 <strong className="mt-0.5 block text-sm font-black tabular-nums text-rose-400">{odds(under?.price)}</strong>
               </button>
             </div>
+            <p className="deep-dive-price-note mt-1.5 text-[8px] leading-relaxed text-slate-600">Book prices reflect posted line {group.line}; adjusted target line recalculates verified history only.</p>
           </div>
 
           {!loading && research?.available !== false ? (
@@ -598,7 +601,7 @@ export function PlayerPropDeepDive({
           )}
         </div>
 
-        <section className="rounded-2xl border border-slate-800 bg-[#0d1420] p-3 sm:p-4" id="analysis-chart">
+        <section className="deep-dive-chart-section rounded-2xl border border-slate-800 bg-[#0d1420] p-3 sm:p-4" id="analysis-chart">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex items-center gap-2">

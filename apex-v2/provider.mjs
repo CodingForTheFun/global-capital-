@@ -12,6 +12,7 @@ import { sportradarConfigured } from '../lib/data-sources/sportradar/client.mjs'
 import { sportradarNbaV8Health, startSportradarNbaV8Probe } from '../lib/data-sources/sportradar/nba-v8.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
 import { propProviderMode } from '../lib/autoscout/provider-mode.mjs';
+// Release recovery marker for #520 on current production head; no runtime behavior change.
 import { meshPolicy } from '../lib/autoscout/data-mesh-policy.mjs';
 import { sportradarTrialHealth, startSportradarTrialProbe } from '../lib/data-sources/sportradar/trial-products.mjs';
 import { loadPersistedDiagnostics, snapshotDiagnostics } from '../lib/autoscout/runtime-store.mjs';
@@ -141,48 +142,115 @@ function persistedSportsGameOddsBoard(rows, sport) {
   };
 }
 
+function sportsGameOddsRequestTiming(board, timing, startedAt) {
+  const requestTimingMs = {
+    source: timing.source,
+    memoryCache: timing.memoryCache,
+    persistedRead: timing.persistedRead,
+    liveFetch: timing.liveFetch,
+    freshness: timing.freshness,
+    total: Math.max(0, Date.now() - startedAt),
+    backgroundRefreshScheduled: timing.backgroundRefreshScheduled === true,
+  };
+  return {
+    ...board,
+    meta: {
+      ...(board?.meta || {}),
+      requestTimingMs,
+    },
+  };
+}
+
+function scheduleSportsGameOddsRefreshAfterServe(sport, options = {}) {
+  setImmediate(() => {
+    void fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false })
+      .then((board) => rememberSportsGameOddsBoard(sport, board))
+      .catch(() => {});
+  });
+}
+
 async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
+  const startedAt = Date.now();
+  const timing = {
+    source: 'empty',
+    memoryCache: 0,
+    persistedRead: 0,
+    liveFetch: 0,
+    freshness: 0,
+    backgroundRefreshScheduled: false,
+  };
   noteSportsGameOddsDemand(sport);
+
+  const memoryStartedAt = Date.now();
   let cached = null;
   try {
     cached = await fetchSportsGameOddsBoard(sport, { ...options, force: false, cacheOnly: true });
   } catch {}
+  timing.memoryCache = Math.max(0, Date.now() - memoryStartedAt);
 
   if (cached?.props?.length) {
+    const freshnessStartedAt = Date.now();
     const filtered = filterCustomerBoardFreshness({
       ...cached,
       meta: { ...(cached.meta || {}), publicFeedsActive: false, providerMode: 'sportsgameodds' },
     });
+    timing.freshness += Math.max(0, Date.now() - freshnessStartedAt);
     if (filtered.props.length) {
+      timing.source = 'memory';
       if (cached?.meta?.stale === true && options.cacheOnly !== true) {
-        void fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false }).then((board) => rememberSportsGameOddsBoard(sport, board)).catch(() => {});
+        // The provider cache can be past its short TTL while its verified rows
+        // are still inside the stricter customer freshness window. Serve those
+        // rows first and move the paid refresh off the response critical path.
+        scheduleSportsGameOddsRefreshAfterServe(sport, options);
+        timing.backgroundRefreshScheduled = true;
       }
-      return filtered;
+      return sportsGameOddsRequestTiming(filtered, timing, startedAt);
     }
   }
 
-  const livePromise = options.cacheOnly === true
-    ? null
-    : fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false })
-        .then((board) => rememberSportsGameOddsBoard(sport, board));
-
+  // A cold customer request should prefer the bounded persisted read before
+  // starting paid live work. Starting the live fetch first lets its large
+  // response/metadata normalization compete with the 900ms database read and
+  // was the source of multi-second cold board loads after the SGO-only rollout.
+  const persistedStartedAt = Date.now();
   let persisted = [];
   if (publicPersistenceConfigured()) {
     try { persisted = await readPublicProps(sport); } catch {}
   }
+  timing.persistedRead = Math.max(0, Date.now() - persistedStartedAt);
+
+  const persistedFreshnessStartedAt = Date.now();
   const persistedBoard = filterCustomerBoardFreshness(persistedSportsGameOddsBoard(persisted, sport));
+  timing.freshness += Math.max(0, Date.now() - persistedFreshnessStartedAt);
   if (persistedBoard.props.length) {
-    if (livePromise) void livePromise.catch(() => {});
-    return persistedBoard;
+    timing.source = 'persisted';
+    if (options.cacheOnly !== true) {
+      // Preserve the existing demand-driven refresh: exactly one deduplicated
+      // live refresh is still requested, but only after the persisted board has
+      // been selected so the customer response never waits behind that work.
+      scheduleSportsGameOddsRefreshAfterServe(sport, options);
+      timing.backgroundRefreshScheduled = true;
+    }
+    return sportsGameOddsRequestTiming(persistedBoard, timing, startedAt);
   }
 
-  if (options.cacheOnly === true) return persistedBoard;
+  if (options.cacheOnly === true) {
+    return sportsGameOddsRequestTiming(persistedBoard, timing, startedAt);
+  }
 
-  const live = await livePromise;
-  return filterCustomerBoardFreshness({
+  const liveStartedAt = Date.now();
+  const live = await fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false })
+    .then((board) => rememberSportsGameOddsBoard(sport, board));
+  timing.liveFetch = Math.max(0, Date.now() - liveStartedAt);
+  timing.source = 'live';
+
+  const liveFreshnessStartedAt = Date.now();
+  const filteredLive = filterCustomerBoardFreshness({
     ...live,
     meta: { ...(live.meta || {}), publicFeedsActive: false, providerMode: 'sportsgameodds' },
   });
+  timing.freshness += Math.max(0, Date.now() - liveFreshnessStartedAt);
+  return sportsGameOddsRequestTiming(filteredLive, timing, startedAt);
 }
 
 async function fetchMeshBoard(sport, options = {}) {

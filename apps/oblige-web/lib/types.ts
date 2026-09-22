@@ -20,6 +20,13 @@ export type PropRow = {
   line?: number | string;
   side?: string;
   price?: number | string;
+  /** Market-level consensus/fair fields when the odds source supplies them. */
+  impliedProbability?: number | string;
+  fairOdds?: number | string;
+  fairOddsAvailable?: boolean;
+  fairLine?: number | string;
+  fairOverUnder?: number | string;
+  consensusLine?: number | string;
   sportsbook?: string;
   sportsbookKey?: string;
   team?: string;

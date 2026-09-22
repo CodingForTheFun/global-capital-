@@ -281,6 +281,31 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
       groups.set(key, group);
     }
     group.quotes.push(row);
+
+    // A provider/book can omit identity fields that another quote for the exact
+    // same prop supplies. Fill only missing metadata so the first sparse quote
+    // cannot leave the research header with a fake/generic team identity.
+    group.propId ||= row.propId || row.id || null;
+    group.providerPlayerId ||= row.providerPlayerId || null;
+    group.marketId ||= row.marketId || null;
+    group.team ||= row.team || null;
+    group.position ||= cleanPosition(row.position);
+    group.opponent ||= row.opponent || null;
+    group.homeTeam ||= row.homeTeam || null;
+    group.awayTeam ||= row.awayTeam || null;
+    group.startsAt ||= row.gameStartTime || null;
+
+    const candidateMatchup = matchupLabel(row);
+    if (
+      candidateMatchup !== 'Matchup unavailable' &&
+      (
+        group.matchup === 'Matchup unavailable' ||
+        (!group.matchup.includes('@') && Boolean(row.awayTeam && row.homeTeam))
+      )
+    ) {
+      group.matchup = candidateMatchup;
+    }
+
     if (row.live === true) group.live = true;
   }
 

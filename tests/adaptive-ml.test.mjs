@@ -42,7 +42,7 @@ test('snapshot store uses adaptive model when no validated snapshot exists and r
  const store=createMLStore({file:'/tmp/definitely-missing-autoscout-model-feed.json',clock:()=>NOW,research:async p=>{calls.push(p);return research(logs(24));}});
  const out=await store.lookup(t);
  assert.equal(out.available,true);assert.equal(out.engine,'Auto Scout Adaptive');assert.equal(targetKey(out),targetKey(t));assert.equal(calls.length,1);
- assert.equal(calls[0].providerMarketKey,t.marketId);assert.equal(calls[0].games,30);assert.equal(calls[0].eventId,t.eventId);assert.equal(calls[0].gameStartTime,t.gameStartTime);
+ assert.equal(calls[0].providerMarketKey,t.marketId);assert.equal(calls[0].games,30);assert.equal(calls[0].eventId,t.eventId);assert.equal(calls[0].gameStartTime,new Date(t.gameStartTime).toISOString());
 });
 
 test('adaptive store retries through deep verified history when the current sample is too short',async()=>{
@@ -54,7 +54,7 @@ test('adaptive store retries through deep verified history when the current samp
  const out=await store.lookup(t);
  assert.equal(out.available,true);assert.equal(out.code,'READY');assert.equal(calls.length,2);
  assert.equal(calls[0].historyYears,undefined);assert.equal(calls[1].historyYears,3);
- assert.equal(calls[1].games,30);assert.equal(calls[1].eventId,t.eventId);assert.equal(calls[1].gameStartTime,t.gameStartTime);
+ assert.equal(calls[1].games,30);assert.equal(calls[1].eventId,t.eventId);assert.equal(calls[1].gameStartTime,new Date(t.gameStartTime).toISOString());
 });
 
 test('snapshot-only callers preserve legacy missing-model semantics',async()=>{

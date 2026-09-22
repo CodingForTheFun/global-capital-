@@ -26,6 +26,18 @@ test('player, defensive unit, namesake and league identities cannot merge',()=>{
  const g=[p,{...p,key:'team',entityType:'team'},{...p,key:'other',playerId:'other-id',team:'JAX'},{...p,key:'league',sport:'WNBA'}];
  assert.equal(uniquePlayerCards(g).length,4);
 });
+test('provider team aliases and raw market keys do not duplicate one athlete prop',()=>{
+ const base={...row('a'),sport:'NFL',playerId:'arvell-a',playerName:'Arvell Reese',team:'NYG',homeTeam:'Los Angeles Rams',awayTeam:'New York Giants',market:'Solo Tackles',marketId:'',eventId:'game-1'};
+ const groups=[
+  {...base,key:'short',rows:[{sportsbookKey:'fliff',side:'OVER',line:3.5,price:-145}]},
+  {...base,key:'full',playerId:'arvell-b',team:'New York Giants',market:'player_solo_tackles',rows:[{sportsbookKey:'underdog',side:'OVER',line:3.5,price:-141}]},
+ ];
+ const cards=uniquePlayerCards(groups);
+ assert.equal(cards.length,1);
+ assert.equal(cards[0].playerChoices.length,1);
+ assert.equal(propType(cards[0]),'Solo tackles');
+ assert.deepEqual(cards[0].rows.map(x=>x.sportsbookKey).sort(),['fliff','underdog']);
+});
 test('one athlete quoted by several books is one card, not one card per book',()=>{
  // The duplicate-card case: same athlete, a different internal id from each
  // book, and — as on the real board — a team on only some of the rows. All of

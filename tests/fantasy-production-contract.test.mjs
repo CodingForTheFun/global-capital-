@@ -83,3 +83,14 @@ test('batch request and server parser preserve selected event cutoff and period'
   assert.equal(result.params.gameStartTime,group.gameStartTime);
   assert.equal(result.params.period,'full_game');
 });
+
+
+test('missing platform fantasy history reaches the SportsGameOdds chart fallback before failing closed', () => {
+  const source = read('lib/autoscout/research-service-v2.mjs');
+  const requested = source.indexOf('const fantasyRequested =');
+  const fallback = source.indexOf('fetchSportsGameOddsResearch(params)', requested);
+  const failClosed = source.indexOf('if (fantasy) return markPermanentLineOnly(fantasy);', requested);
+  assert.ok(requested >= 0, 'fantasy fallback gate must exist');
+  assert.ok(fallback > requested, 'SportsGameOdds fantasy fallback must run after platform-native attempts');
+  assert.ok(failClosed > fallback, 'verified SportsGameOdds history must be tried before fantasy research fails closed');
+});

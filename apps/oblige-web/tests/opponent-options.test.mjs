@@ -38,7 +38,42 @@ test('Opponent picker lists the entire verified league directory, not only histo
   assert.ok(options.some((option) => option.label === 'UNLV Rebels'));
 
   const current = options.find((option) => option.value === 'SJSU');
-  assert.deepEqual(current, { value: 'SJSU', label: 'San José State Spartans ★' });
+  assert.deepEqual(current, { value: 'SJSU', label: '★ San José State Spartans ★' });
+});
+
+test('current opponent marker stays visible at both edges and sorts immediately after All opponents', () => {
+  const options = buildOpponentOptions(
+    ['MIN', 'OKC'],
+    {
+      team: 'Minnesota Timberwolves',
+      opponent: 'Oklahoma City Thunder',
+      homeTeam: 'Minnesota Timberwolves',
+      awayTeam: 'Oklahoma City Thunder',
+    },
+    [
+      { id: '1', abbreviation: 'MIN', name: 'Minnesota Timberwolves' },
+      { id: '2', abbreviation: 'OKC', name: 'Oklahoma City Thunder' },
+      { id: '3', abbreviation: 'DEN', name: 'Denver Nuggets' },
+    ],
+  );
+
+  assert.equal(options[1].label, '★ Oklahoma City Thunder ★');
+  assert.deepEqual(
+    options.filter((option) => option.label.includes('★')).map((option) => option.label),
+    ['★ Oklahoma City Thunder ★'],
+  );
+});
+
+test('every player research-card opponent dropdown uses the shared opponent option builder', () => {
+  for (const relative of [
+    '../components/player-prop-research-card.tsx',
+    '../components/player-prop-deep-dive.tsx',
+  ]) {
+    const component = readFileSync(new URL(relative, import.meta.url), 'utf8');
+    assert.match(component, /buildOpponentOptions/);
+    assert.match(component, /label="Opponent"/);
+    assert.match(component, /options={opponentOptions}/);
+  }
 });
 
 test('verified historical alias remains the filter value for an existing team', () => {
@@ -57,7 +92,7 @@ test('verified historical alias remains the filter value for an existing team', 
     ],
   );
 
-  assert.equal(options.find((option) => option.label.startsWith('Kansas City Chiefs'))?.value, 'KC');
+  assert.equal(options.find((option) => option.label.includes('Kansas City Chiefs'))?.value, 'KC');
   assert.equal(options.find((option) => option.label === 'Denver Broncos')?.value, 'DEN');
 });
 
@@ -75,7 +110,7 @@ test('current matchup opponent stays available even if the directory is temporar
 
   assert.deepEqual(options, [
     { value: 'all', label: 'All opponents' },
-    { value: 'Phoenix Suns', label: 'Phoenix Suns ★' },
+    { value: 'Phoenix Suns', label: '★ Phoenix Suns ★' },
   ]);
 });
 

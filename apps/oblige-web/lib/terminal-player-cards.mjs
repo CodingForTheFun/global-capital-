@@ -196,6 +196,7 @@ function terminalPlayerCardKey(group, teamIndex = null) {
  * board is player-first, so collapse those exact rows only after filtering and
  * ranking. The first row is intentionally retained as the current preview;
  * every other line/market remains available in the player research workspace.
+ * This player-first projection is intentionally kept at the final render boundary.
  */
 export function uniqueTerminalPlayerCards(groups = []) {
   const teamIndex = playerTeamIndex(groups);

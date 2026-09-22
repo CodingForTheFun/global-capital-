@@ -1170,7 +1170,7 @@ function MobileMatrix({
                 <small>{group.matchup}</small>
               </span>
               <span className={styles.mobileSignals}>
-                <span className={styles.mobileEv} title={bestEv ? expectedValueSourceLabel(bestEv) || undefined : 'Verified EV unavailable'}>
+                <span className={styles.mobileEv} data-positive={bestEv && bestEv.ev > 0 ? 'true' : 'false'} title={bestEv ? expectedValueSourceLabel(bestEv) || undefined : 'Verified EV unavailable'}>
                   {bestEv ? `${bestEv.side === 'OVER' ? 'O' : 'U'} ${bestEv.ev >= 0 ? '+' : ''}${bestEv.ev.toFixed(1)}% EV` : 'EV —'}
                 </span>
                 {arb ? (

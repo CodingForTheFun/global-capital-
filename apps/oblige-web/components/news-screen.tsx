@@ -257,28 +257,38 @@ export function NewsScreen() {
 
 function ArticleArtwork({ article }: { article: NewsArticle }) {
   const [failed, setFailed] = React.useState(false);
+  const [loaded, setLoaded] = React.useState(false);
+  const image = React.useRef<HTMLImageElement | null>(null);
 
   React.useEffect(() => {
     setFailed(false);
+    // A cached image can finish before hydration attaches onLoad.
+    const node = image.current;
+    setLoaded(Boolean(node?.complete && node.naturalWidth > 0));
   }, [article.imageUrl]);
 
   const showImage = Boolean(article.imageUrl && !failed);
 
+  // The placeholder stays underneath and the photo appears only once it has
+  // actually decoded. An image the CSP blocks (img-src 'self' in
+  // lib/web/public-surface.mjs) never fires onError in Chromium, so waiting for
+  // an error left the browser's broken-image glyph on every ESPN story.
   return (
     <div className="relative h-24 min-h-24 overflow-hidden rounded-[9px] border border-[var(--line)] bg-[var(--surface-2)] sm:h-28">
-      {showImage ? (
+      <div className="grid h-full place-items-center bg-[linear-gradient(145deg,var(--surface-2),color-mix(in_srgb,var(--surface-3)_72%,var(--surface-2)))]">
+        <Newspaper className="size-5 text-[var(--text-3)]" aria-hidden="true" />
+      </div>
+      {showImage && (
         <img
+          ref={image}
           src={article.imageUrl || ''}
           alt=""
           loading="lazy"
           decoding="async"
+          onLoad={(event) => setLoaded(event.currentTarget.naturalWidth > 0)}
           onError={() => setFailed(true)}
-          className="h-full w-full object-cover"
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
         />
-      ) : (
-        <div className="grid h-full place-items-center bg-[linear-gradient(145deg,var(--surface-2),color-mix(in_srgb,var(--surface-3)_72%,var(--surface-2)))]">
-          <Newspaper className="size-5 text-[var(--text-3)]" aria-hidden="true" />
-        </div>
       )}
       <span className="absolute bottom-1.5 left-1.5 rounded-[6px] border border-white/10 bg-black/75 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase text-white">{article.sportLabel}</span>
     </div>

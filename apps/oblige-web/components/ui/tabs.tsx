@@ -21,7 +21,7 @@ export function TabsTrigger({
         'text-[length:var(--fs-xs)] font-semibold tracking-wide text-[var(--text-2)]',
         'transition-[color,background-color,border-color,transform] duration-200 ease-[var(--ease-out)]',
         'hover:text-[var(--text)] hover:border-[var(--line-strong)] active:scale-[.97]',
-        'data-[state=active]:bg-[var(--accent)] data-[state=active]:text-[var(--accent-ink)]',
+        'data-[state=active]:bg-[var(--accent-fill)] data-[state=active]:text-[var(--accent-ink)]',
         'data-[state=active]:border-transparent',
         className,
       )}

@@ -54,10 +54,10 @@ test('unreachable embedded frontend falls back to the configured external fronte
 });
 
 test('claims only the pages the new front end implements plus exact legacy customer entries', () => {
-  for (const p of ['/', '/board', '/scores', '/news', '/research', '/account', '/api/news', '/apex', '/apex/', '/_next/static/x.js', '/icon.svg']) {
+  for (const p of ['/', '/board', '/scores', '/news', '/research', '/account', '/api/news', '/api/news/image', '/apex', '/apex/', '/_next/static/x.js', '/icon.svg']) {
     assert.equal(ownsPath(p), true, p);
   }
-  for (const p of ['/terms', '/checkout', '/login', '/api/account/me', '/api/apex/props', '/apex-v2', '/apex/diagnostics']) {
+  for (const p of ['/terms', '/checkout', '/login', '/api/account/me', '/api/apex/props', '/apex-v2', '/apex/diagnostics', '/api/news/image/x', '/api/news/other']) {
     assert.equal(ownsPath(p), false, p);
   }
 });
@@ -194,4 +194,40 @@ test('frontend binary and non-HTML assets are never modified by Scores compatibi
   assert.equal(served, true);
   assert.equal(String(r.body), '<svg>ok</svg>');
   assert.equal(r.headers['x-oblige-scores-compat'], undefined);
+});
+
+// The injected script used to force every mobile nav to five columns. Once the
+// app's own nav carried Scores (and six items), that override wrapped the last
+// item onto a second row on every phone.
+test('Scores compatibility leaves a nav that already has Scores alone', async () => {
+  const { injectScoresCompat } = await import('../lib/web/scores-compat.mjs');
+  const { runInNewContext } = await import('node:vm');
+  const source = injectScoresCompat('<html><body></body></html>').match(/<script[^>]*>([\s\S]*?)<\/script>/)[1];
+  const makeNav = (hasScores) => {
+    const children = [];
+    const nav = {
+      style: {},
+      children,
+      querySelector: (selector) => (selector === 'a[href="/scores"]' && hasScores ? { setAttribute() {} } : null),
+      querySelectorAll: () => [],
+      appendChild: (child) => children.push(child),
+      insertBefore: (child) => children.push(child),
+    };
+    return nav;
+  };
+  for (const [hasScores, expected] of [[true, undefined], [false, 'repeat(5,minmax(0,1fr))']]) {
+    const nav = makeNav(hasScores);
+    runInNewContext(source, {
+      document: {
+        readyState: 'complete',
+        querySelector: (selector) => (selector === 'nav[aria-label="Sections"]' ? nav : null),
+        createElement: () => ({ style: {} }),
+      },
+      location: { pathname: '/news' },
+      window: { addEventListener() {} },
+      setTimeout() {},
+      clearTimeout() {},
+    });
+    assert.equal(nav.style.gridTemplateColumns, expected, `nav ${hasScores ? 'with' : 'without'} Scores`);
+  }
 });

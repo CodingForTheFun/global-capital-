@@ -283,7 +283,7 @@ function MarketPill({
       className={cx(
         'h-10 shrink-0 rounded-full border px-4 text-[11px] font-extrabold tracking-[0.04em] transition',
         active
-          ? 'border-[#2A9FFF] bg-[#112235] text-[#53B8FF] shadow-[0_0_20px_rgba(42,159,255,0.16)]'
+          ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_0_20px_rgb(88_80_236/.22)]'
           : 'border-[#263548] bg-[#0F1722] text-[#73829A]',
       )}
     >
@@ -681,11 +681,11 @@ export function PlayerPropResearchCard({
     >
       <div className="rounded-2xl border border-[#1E2D3D] bg-[#121C26] p-3.5 shadow-[0_12px_38px_rgba(0,0,0,0.22)]">
         <div className="flex items-start gap-3">
-          <div className="relative h-[58px] w-[58px] shrink-0 rounded-full border-2 border-[#2D8CFF] bg-[#101927] p-[2px] shadow-[0_0_18px_rgba(45,140,255,0.55)]">
+          <div className="relative h-[58px] w-[58px] shrink-0 rounded-full border-2 border-[var(--accent)] bg-[#101927] p-[2px] shadow-[0_0_18px_rgb(88_80_236/.55)]">
             <div className="h-full w-full overflow-hidden rounded-full bg-[#101927]">
               <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} size={54} className="!size-full" />
             </div>
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-md border border-[#2C638E] bg-[#0B2840] px-2 py-0.5 text-[9px] font-black tracking-[0.08em] text-[#D6EBFF]">
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-md border border-[var(--line-strong)] bg-[var(--surface-2)] px-2 py-0.5 text-[9px] font-black tracking-[0.08em] text-[var(--text)]">
               {group.sport}
             </div>
           </div>
@@ -714,7 +714,7 @@ export function PlayerPropResearchCard({
 
         <div className="mt-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-[#174B67] bg-[linear-gradient(110deg,#0C2534_0%,#0D1E29_55%,#0D2025_100%)] px-3 py-3">
           <div className="flex items-center gap-2">
-            <div className="rounded-md bg-[#2B8BFF] px-2.5 py-2 text-[10px] font-black text-white shadow-[0_0_18px_rgba(43,139,255,0.24)]">
+            <div className="rounded-md bg-[var(--accent-fill)] px-2.5 py-2 text-[10px] font-black text-[var(--accent-ink)] shadow-[0_0_18px_rgb(88_80_236/.3)]">
               {bookInitials(quoteBook(heroQuote))}
             </div>
             <div className="max-w-[76px] text-[10px] font-black leading-4 text-white">{marketLabel}</div>
@@ -762,7 +762,7 @@ export function PlayerPropResearchCard({
                 className={cx(
                   'h-10 shrink-0 rounded-full border px-5 text-[11px] font-extrabold',
                   (group.period || 'game') === entry.period
-                    ? 'border-[#2492F7] bg-[#188DFF] text-white shadow-[0_0_20px_rgba(24,141,255,0.2)]'
+                    ? 'border-[var(--accent-fill)] bg-[var(--accent-fill)] text-[var(--accent-ink)] shadow-[0_0_20px_rgb(88_80_236/.25)]'
                     : 'border-[#263548] bg-[#0F1722] text-[#73829A]',
                 )}
               >
@@ -828,7 +828,7 @@ export function PlayerPropResearchCard({
                 onClick={() => setSample(item.id as SampleId)}
                 className={cx(
                   'min-h-[94px] border-r border-[#213147] px-1 py-3 text-center last:border-r-0',
-                  active && 'bg-[#0B2B3F]',
+                  active && 'bg-[var(--accent-soft)] shadow-[inset_0_-2px_0_var(--accent)]',
                 )}
               >
                 <div className="text-[8px] font-bold tracking-[0.04em] text-[#8090A6]">{item.label}</div>

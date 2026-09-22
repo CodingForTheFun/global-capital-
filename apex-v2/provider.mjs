@@ -161,24 +161,24 @@ async function fetchSportsGameOddsOnlyBoard(sport, options = {}) {
     }
   }
 
-  const livePromise = options.cacheOnly === true
-    ? null
-    : fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false })
-        .then((board) => rememberSportsGameOddsBoard(sport, board));
-
+  // Read the verified persisted last-known-good board before starting any
+  // metered live request. Starting the provider fetch first made an otherwise
+  // cacheable customer tab compete with a 5–8s cold network path and could also
+  // spend quota that the fresh persisted board did not need.
   let persisted = [];
   if (publicPersistenceConfigured()) {
     try { persisted = await readPublicProps(sport); } catch {}
   }
   const persistedBoard = filterCustomerBoardFreshness(persistedSportsGameOddsBoard(persisted, sport));
-  if (persistedBoard.props.length) {
-    if (livePromise) void livePromise.catch(() => {});
-    return persistedBoard;
-  }
+  if (persistedBoard.props.length) return persistedBoard;
 
   if (options.cacheOnly === true) return persistedBoard;
 
-  const live = await livePromise;
+  // Only a true memory + persisted miss is allowed to block on the paid live
+  // provider. noteSportsGameOddsDemand() above still feeds the existing warmer;
+  // this changes request ordering, not provider mode, cadence, or freshness.
+  const live = await fetchSportsGameOddsBoard(sport, { ...options, force: true, cacheOnly: false })
+    .then((board) => rememberSportsGameOddsBoard(sport, board));
   return filterCustomerBoardFreshness({
     ...live,
     meta: { ...(live.meta || {}), publicFeedsActive: false, providerMode: 'sportsgameodds' },

@@ -1,9 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronLeft, TriangleAlert } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import type { PropGroup, ResearchResponse } from '@/lib/types';
 import { ApiError, fetchAccount, fetchBoard, fetchResearch, playedGames } from '@/lib/api';
 import {
@@ -325,12 +324,6 @@ export function PlayerView() {
           </CardPanel>
         </Reveal>
 
-        {research?.available === false && !loadingResearch && (
-          <p className="mt-4 flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_36%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            {research.message || 'No verified history is available for this player and market yet.'}
-          </p>
-        )}
       </section>
 
       <section id="player-splits" className="player-section-anchor player-section-block">

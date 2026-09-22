@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  terminalPlayerCardKey,
-  uniqueTerminalPlayerCards,
-} from '../apps/oblige-web/lib/terminal-player-cards.mjs';
+import { uniqueTerminalPlayerCards } from '../apps/oblige-web/lib/terminal-player-cards.mjs';
 
 function group(overrides = {}) {
   return {
@@ -70,7 +67,7 @@ test('true namesakes on different teams remain separate', () => {
   ]);
 
   assert.equal(cards.length, 2);
-  assert.notEqual(terminalPlayerCardKey(cards[0]), terminalPlayerCardKey(cards[1]));
+  assert.deepEqual(cards.map((card) => card.key), ['giants-smith', 'jets-smith']);
 });
 
 test('different events and periods remain distinct research contexts', () => {

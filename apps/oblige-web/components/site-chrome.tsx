@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Home, LayoutGrid, Menu, RadioTower, User, X } from 'lucide-react';
+import { BarChart3, Home, LayoutGrid, Menu, Newspaper, RadioTower, User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
@@ -11,6 +11,7 @@ import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
 const NAV = [
   { href: '/board', label: 'Props' },
   { href: '/scores', label: 'Scores' },
+  { href: '/news', label: 'News' },
   { href: '/research', label: 'Research' },
   { href: '/#pricing', label: 'Pricing' },
   { href: '/account', label: 'Account' },
@@ -20,12 +21,14 @@ const MOBILE_NAV = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/board', label: 'Props', icon: LayoutGrid },
   { href: '/scores', label: 'Scores', icon: RadioTower },
+  { href: '/news', label: 'News', icon: Newspaper },
   { href: '/research', label: 'Research', icon: BarChart3 },
   { href: '/account', label: 'Profile', icon: User },
 ];
 
 const MOBILE_MENU = [
   { href: '/account', label: 'Account / Profile' },
+  { href: '/news', label: 'News' },
   { href: '/research', label: 'Research' },
   { href: '/#pricing', label: 'Pricing' },
   { href: '/account', label: 'Help / Support' },
@@ -252,7 +255,7 @@ export function MobileNav() {
       data-board={board ? 'true' : 'false'}
       data-scroll-hidden={board && hidden ? 'true' : 'false'}
       className={cn(
-        'fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 overflow-x-hidden lg:hidden',
+        'fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 overflow-x-hidden lg:hidden',
         'border-t border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_94%,transparent)] backdrop-blur-xl',
         'pb-[env(safe-area-inset-bottom)]',
         'transition-[transform,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
@@ -275,7 +278,7 @@ export function MobileNav() {
             aria-current={active ? 'page' : undefined}
             className={cn(
               'grid min-h-14 min-w-0 content-center justify-items-center gap-[3px] overflow-hidden',
-              'text-[10px] font-semibold tracking-wide',
+              'text-[10px] font-semibold tracking-wide max-[420px]:text-[9px]',
               'transition-colors duration-200 ease-[var(--ease-out)]',
               active ? 'text-[var(--accent)]' : 'text-[var(--text-3)]',
             )}
@@ -305,6 +308,7 @@ export function SiteFooter() {
             links={[
               { href: '/board', label: 'Props' },
               { href: '/scores', label: 'Scores' },
+              { href: '/news', label: 'News' },
               { href: '/research', label: 'Player research' },
               { href: '/#pricing', label: 'Pricing' },
             ]}

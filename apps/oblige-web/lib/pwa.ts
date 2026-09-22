@@ -7,7 +7,7 @@ export const appManifest = {
   background_color: '#050b13', theme_color: '#050b13',
   categories: ['sports', 'utilities'], prefer_related_applications: false,
   icons: [192, 512].map(size => ({ src: `/app-icons/${size}.png`, sizes: `${size}x${size}`, type: 'image/png', purpose: 'any' })),
-  shortcuts: [{ name: 'Research board', url: '/board' }, { name: 'My account', url: '/account' }],
+  shortcuts: [{ name: 'Research board', url: '/board' }, { name: 'Sports news', url: '/news' }, { name: 'My account', url: '/account' }],
 };
 
 // Intentionally no offline document or data cache. Auth, billing, research,

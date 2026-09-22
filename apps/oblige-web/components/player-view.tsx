@@ -14,12 +14,11 @@ import {
   type Side,
 } from '@/lib/analytics';
 import { teamFor } from '@/lib/teams';
-import { cn, marketDisplayLabel, odds, shortTime } from '@/lib/utils';
-import { Badge, Dot } from '@/components/ui/badge';
+import { cn, marketDisplayLabel, shortTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { CardPanel } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PlayerAvatar, TeamScene } from '@/components/face-card';
+import { PlayerAvatar } from '@/components/face-card';
 import { BookPrices } from '@/components/book-prices';
 import { GameLog } from '@/components/research';
 import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
@@ -211,87 +210,17 @@ export function PlayerView() {
   }
 
   const club = teamFor(group.team);
+  const rawTeam = String(group.team || '').trim();
+  const fallbackClubKey = rawTeam.toUpperCase().replace(/[^A-Z]/g, '');
+  const teamLabel = rawTeam
+    ? (club.name === fallbackClubKey ? rawTeam : club.name)
+    : (group.position ? `${group.sport} · ${group.position}` : group.sport);
   const kickoff = shortTime(group.startsAt);
   const games = playedGames(research);
   const favourite = favourites.includes(group.key);
 
   return (
     <Shell>
-      <section id="player-overview" className="player-section-anchor">
-        <Reveal>
-          <div className="face player-cinematic-hero mt-4 p-5 md:p-6">
-            <TeamScene team={group.team} tall />
-            <div className="player-identity-row flex flex-wrap items-center gap-4">
-              <span className="relative flex-none">
-                <PlayerAvatar
-                  name={group.player}
-                  sport={group.sport}
-                  team={group.team}
-                  providerPlayerId={group.providerPlayerId}
-                  size={82}
-                />
-                <span
-                  aria-hidden="true"
-                  className="absolute -right-1 -bottom-1 grid size-7 place-items-center rounded-full border-2 border-[var(--face-1)] text-[9px] font-extrabold text-white"
-                  style={{ background: club.c1 }}
-                >
-                  {(group.team || '—').slice(0, 3)}
-                </span>
-              </span>
-
-              <div className="min-w-0 flex-1">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge size="md">{group.sport}</Badge>
-                  {group.live && (
-                    <Badge variant="live" size="md">
-                      <Dot pulse />
-                      Live
-                    </Badge>
-                  )}
-                </div>
-                <h1
-                  className="text-[length:var(--fs-xl)] text-balance sm:text-[length:var(--fs-2xl)]"
-                  style={{ textTransform: 'var(--display-case)' as 'none' }}
-                >
-                  {group.player}
-                </h1>
-                <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-xs)] text-[var(--face-text-2)] sm:text-[length:var(--fs-sm)]">
-                  <span className="truncate font-semibold">{club.name}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{group.matchup}</span>
-                  {kickoff && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>{kickoff}</span>
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="player-line-glance mt-5 grid gap-3 rounded-[var(--radius)] border border-[var(--face-line)] bg-[color-mix(in_srgb,var(--face-1)_72%,transparent)] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-              <div className="min-w-0">
-                <p className="truncate text-[length:var(--fs-sm)] font-semibold">{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</p>
-                <p className="mt-1 text-[length:var(--fs-micro)] text-[var(--face-text-3)]">
-                  Best of {new Set(group.quotes.map((q) => q.sportsbookKey || q.sportsbook)).size} books
-                </p>
-              </div>
-              <div className="flex items-center justify-between gap-5 sm:justify-end">
-                <span className="num text-[length:var(--fs-2xl)] font-bold tracking-tight">{group.line}</span>
-                <span className="grid gap-1 text-right">
-                  <span className="num text-[length:var(--fs-sm)] font-semibold text-[var(--face-pos)]">
-                    O {odds(group.bestOver?.price)}
-                  </span>
-                  <span className="num text-[length:var(--fs-sm)] font-semibold text-[var(--face-neg)]">
-                    U {odds(group.bestUnder?.price)}
-                  </span>
-                </span>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
       <PlayerSectionNav active={section} onSelect={selectSection} />
 
       <section id="player-props" className="player-section-anchor player-section-block">
@@ -341,6 +270,43 @@ export function PlayerView() {
         </div>
         <Reveal>
           <CardPanel className="player-explorer-panel p-4 sm:p-5">
+            <div id="player-overview" className="player-research-summary player-section-anchor">
+              <span className="player-research-avatar relative flex-none">
+                <PlayerAvatar
+                  name={group.player}
+                  sport={group.sport}
+                  team={group.team}
+                  providerPlayerId={group.providerPlayerId}
+                  size={52}
+                />
+                {group.team && (
+                  <span
+                    aria-hidden="true"
+                    className="player-research-team-mark"
+                    style={{ background: club.c1 }}
+                  >
+                    {group.team.slice(0, 3)}
+                  </span>
+                )}
+              </span>
+              <div className="min-w-0">
+                <div className="player-research-name-row">
+                  <h1>{group.player}</h1>
+                  <span>{group.sport}</span>
+                </div>
+                <p className="player-research-meta">
+                  <span>{teamLabel}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{group.matchup}</span>
+                  {kickoff && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span>{kickoff}</span>
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
             <PropExplorer
               group={group}
               games={games}
@@ -475,15 +441,25 @@ function SplitSummary({
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const returnToBoard = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/board');
+  };
+
   return (
     <div className="player-app-shell mx-auto w-full max-w-[var(--maxw)] px-4 pt-5 pb-20 md:px-8">
-      <Link
-        href="/board"
-        className="player-back-link inline-flex min-h-10 items-center gap-2 text-[length:var(--fs-sm)] text-[var(--text-2)] transition-colors duration-200 ease-[var(--ease-out)] hover:text-[var(--text)]"
+      <button
+        type="button"
+        onClick={returnToBoard}
+        className="player-back-link inline-flex min-h-10 items-center gap-2 border-0 bg-transparent p-0 text-[length:var(--fs-sm)] text-[var(--text-2)] transition-colors duration-200 ease-[var(--ease-out)] hover:text-[var(--text)]"
       >
         <ChevronLeft className="size-4" aria-hidden="true" />
         Back to board
-      </Link>
+      </button>
       {children}
     </div>
   );

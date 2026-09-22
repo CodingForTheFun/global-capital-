@@ -90,6 +90,19 @@ const MARKET_DISPLAY_LABELS: Record<string, string> = {
   player_receptions: 'Receptions',
   player_reception_tds: 'Receiving Touchdowns',
   player_rush_reception_yds: 'Rushing + Receiving Yards',
+  player_sacks: 'Sacks',
+  player_sacks_taken: 'Sacks Taken',
+  player_solo_tackles: 'Solo Tackles',
+  player_assisted_tackles: 'Assisted Tackles',
+  player_tackles: 'Tackles',
+  player_total_tackles: 'Total Tackles',
+  player_tackles_assists: 'Tackles + Assists',
+  player_tackles_for_loss: 'Tackles for Loss',
+  player_defensive_interceptions: 'Defensive Interceptions',
+  player_pass_deflections: 'Passes Defended',
+  player_qb_hits: 'QB Hits',
+  player_forced_fumbles: 'Forced Fumbles',
+  player_fumble_recoveries: 'Fumble Recoveries',
   batter_hits: 'Hits',
   batter_total_bases: 'Total Bases',
   batter_home_runs: 'Home Runs',
@@ -196,7 +209,8 @@ export function marketDisplayLabel(
   marketId?: string | null,
   sport?: string | null,
 ) {
-  const key = displayMarketKey(marketId);
+  const marketKey = displayMarketKey(market);
+  const key = displayMarketKey(marketId) || marketKey;
   if (['NFL', 'NCAAF'].includes(String(sport || '').toUpperCase()) && key === 'player_assists') {
     return 'Assisted Tackles';
   }
@@ -204,7 +218,7 @@ export function marketDisplayLabel(
 
   let label = stripPlayerFromMarket(market, playerName);
   label = label
-    .replace(/^\s*(?:player|batter|pitcher)\s+/i, '')
+    .replace(/^\s*(?:player|batter|pitcher|team)[\s_:-]+/i, '')
     .replace(/\b(?:over\s*\/\s*under|under\s*\/\s*over|higher\s*\/\s*lower|lower\s*\/\s*higher)\b/gi, ' ')
     .replace(/\b(?:alternate|alt|main line|over|under|higher|lower)\b/gi, ' ')
     .replace(/\b(?:full[- ]game|first half|1st half|second half|2nd half|1q|2q|3q|4q|1h|2h)\b/gi, ' ')
@@ -214,5 +228,10 @@ export function marketDisplayLabel(
     .replace(/\s+/g, ' ')
     .trim();
 
-  return label || displayMarketFromKey(key) || 'Prop';
+  const machineFallback = displayMarketFromKey(key || marketKey);
+  const rawMarket = String(market || '').trim();
+  if (/^[a-z0-9_:.-]+$/i.test(rawMarket) && /[_:-]/.test(rawMarket) && machineFallback) {
+    return machineFallback;
+  }
+  return label || machineFallback || 'Prop';
 }

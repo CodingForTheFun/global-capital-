@@ -230,6 +230,7 @@ function canonicalPeriod(value: unknown, market = '') {
   return named[raw] || raw;
 }
 
+// Release recovery marker for verified-history identity fix; no runtime behavior change.
 const PLAYER_SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v']);
 
 function cleanPlayerDisplay(value: unknown) {

@@ -21,6 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PlayerAvatar } from '@/components/face-card';
 import { BookPrices } from '@/components/book-prices';
 import { GameLog } from '@/components/research';
+import { expectedValueFor, expectedValueSourceLabel, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
 import { Reveal } from '@/components/motion';
@@ -28,6 +29,44 @@ import { Reveal } from '@/components/motion';
 const FAVOURITES_KEY = 'oblige-followed';
 
 type PlayerSection = 'overview' | 'props' | 'trends' | 'splits';
+
+type ModelPrediction = {
+  available?: boolean;
+  projection?: number;
+  probabilityOver?: number;
+  probabilityUnder?: number;
+  probabilityPush?: number;
+  engine?: string;
+  code?: string;
+  message?: string;
+};
+
+type MlTarget = {
+  sport: string; eventId: string; playerId: string; playerName: string; marketId: string;
+  sportsbookKey: string; gameStartTime: string; line: number; entityType: 'player'; live: boolean; isAlternate: false;
+};
+
+function mlTargetFor(group: PropGroup): MlTarget | null {
+  const quote = group.bestOver || group.bestUnder || group.quotes[0];
+  const eventId = String(quote?.eventId || '').trim();
+  const playerId = String(group.providerPlayerId || '').trim();
+  const marketId = String(group.marketId || '').trim();
+  const sportsbookKey = String(quote?.sportsbookKey || quote?.sportsbook || '').trim();
+  const gameStartTime = String(group.startsAt || '').trim();
+  if (!eventId || !playerId || !marketId || !sportsbookKey || !Number.isFinite(Date.parse(gameStartTime))) return null;
+  return { sport: group.sport, eventId, playerId, playerName: group.player, marketId, sportsbookKey,
+    gameStartTime: new Date(gameStartTime).toISOString(), line: group.line, entityType: 'player', live: group.live, isAlternate: false };
+}
+
+async function fetchPlayerPrediction(group: PropGroup, signal?: AbortSignal): Promise<ModelPrediction> {
+  const target = mlTargetFor(group);
+  if (!target) return { available: false, code: 'TARGET_UNVERIFIED', message: 'A verified model target is not available for this exact prop.' };
+  const response = await fetch('/api/props/ml', { method: 'POST', credentials: 'same-origin', signal,
+    headers: { 'content-type': 'application/json' }, body: JSON.stringify({ props: [{ ...target, key: 'player' }] }) });
+  if (!response.ok) return { available: false, code: 'MODEL_FEED_UNAVAILABLE', message: 'Model estimate is temporarily unavailable.' };
+  const body = await response.json() as { ok?: boolean; results?: Record<string, ModelPrediction> };
+  return body.ok && body.results?.player ? body.results.player : { available: false, code: 'MODEL_FEED_UNAVAILABLE' };
+}
 
 const PLAYER_SECTIONS: { id: PlayerSection; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -59,6 +98,8 @@ export function PlayerView() {
   const [checking, setChecking] = React.useState(true);
   const [markets, setMarkets] = React.useState<PropGroup[]>([]);
   const [research, setResearch] = React.useState<ResearchResponse | null>(null);
+  const [prediction, setPrediction] = React.useState<ModelPrediction | null>(null);
+  const [loadingPrediction, setLoadingPrediction] = React.useState(false);
   const [loadingBoard, setLoadingBoard] = React.useState(true);
   const [loadingResearch, setLoadingResearch] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -120,6 +161,17 @@ export function PlayerView() {
     setState({ line: group.line, side: 'OVER', book: null });
     setSection('overview');
   }, [group?.key, group?.line]);
+
+  React.useEffect(() => {
+    if (!group) { setPrediction(null); return; }
+    const controller = new AbortController();
+    setLoadingPrediction(true);
+    fetchPlayerPrediction(group, controller.signal)
+      .then(setPrediction)
+      .catch(() => setPrediction({ available: false, code: 'MODEL_FEED_UNAVAILABLE' }))
+      .finally(() => setLoadingPrediction(false));
+    return () => controller.abort();
+  }, [group?.key]);
 
   React.useEffect(() => {
     if (!group) return;
@@ -307,6 +359,7 @@ export function PlayerView() {
                 </p>
               </div>
             </div>
+            <ModelSignal group={group} prediction={prediction} loading={loadingPrediction} />
             <PropExplorer
               group={group}
               games={games}
@@ -363,6 +416,25 @@ export function PlayerView() {
       </section>
     </Shell>
   );
+}
+
+function ModelSignal({ group, prediction, loading }: { group: PropGroup; prediction: ModelPrediction | null; loading: boolean }) {
+  if (loading) return <Skeleton className="mt-3 h-[88px] rounded-[var(--radius)]" />;
+  const ev: ExpectedValueSelection | null = expectedValueFor(group, prediction || undefined);
+  const projection = prediction?.available && Number.isFinite(prediction.projection) ? Number(prediction.projection) : null;
+  const over = prediction?.available && Number.isFinite(Number(prediction.probabilityOver)) ? Number(prediction.probabilityOver) : null;
+  const under = prediction?.available && Number.isFinite(Number(prediction.probabilityUnder)) ? Number(prediction.probabilityUnder) : null;
+  const pct = (value: number | null) => value === null ? '—' : `${(value <= 1 ? value * 100 : value).toFixed(1)}%`;
+  const source = ev ? expectedValueSourceLabel(ev) : prediction?.available ? 'Verified model probability' : 'Verified model unavailable';
+  return <section className="mt-3 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--surface-2)] p-3" aria-label="Oblige model prediction">
+    <div className="flex items-center justify-between gap-3"><div><span className="text-[length:var(--fs-micro)] font-bold uppercase tracking-[.1em] text-[var(--text-3)]">Oblige model</span><div className="mt-1 text-[length:var(--fs-xs)] text-[var(--text-3)]">{source}</div></div>{prediction?.engine ? <span className="text-[length:var(--fs-micro)] text-[var(--text-3)]">{prediction.engine}</span> : null}</div>
+    <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+      <div><span className="block text-[length:var(--fs-micro)] text-[var(--text-3)]">Projection</span><strong className="num">{projection === null ? '—' : projection.toFixed(1)}</strong></div>
+      <div><span className="block text-[length:var(--fs-micro)] text-[var(--text-3)]">Over</span><strong className="num">{pct(over)}</strong></div>
+      <div><span className="block text-[length:var(--fs-micro)] text-[var(--text-3)]">Under</span><strong className="num">{pct(under)}</strong></div>
+      <div title={ev ? expectedValueSourceLabel(ev) || undefined : undefined}><span className="block text-[length:var(--fs-micro)] text-[var(--text-3)]">Best EV</span><strong className="num" data-positive={ev && ev.ev > 0 ? 'true' : 'false'}>{ev ? `${ev.side === 'OVER' ? 'O' : 'U'} ${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}%` : '—'}</strong></div>
+    </div>
+  </section>;
 }
 
 function PlayerSectionNav({

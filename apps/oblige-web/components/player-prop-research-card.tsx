@@ -685,7 +685,7 @@ export function PlayerPropResearchCard({
             <div className="h-full w-full overflow-hidden rounded-full bg-[#101927]">
               <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} size={54} className="!size-full" />
             </div>
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-md border border-[#2C638E] bg-[#0B2840] px-2 py-0.5 text-[9px] font-black tracking-[0.08em] text-[#D6EBFF]">
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-md border border-[var(--line-strong)] bg-[var(--surface-2)] px-2 py-0.5 text-[9px] font-black tracking-[0.08em] text-[var(--text)]">
               {group.sport}
             </div>
           </div>
@@ -828,7 +828,7 @@ export function PlayerPropResearchCard({
                 onClick={() => setSample(item.id as SampleId)}
                 className={cx(
                   'min-h-[94px] border-r border-[#213147] px-1 py-3 text-center last:border-r-0',
-                  active && 'bg-[#0B2B3F]',
+                  active && 'bg-[var(--accent-soft)] shadow-[inset_0_-2px_0_var(--accent)]',
                 )}
               >
                 <div className="text-[8px] font-bold tracking-[0.04em] text-[#8090A6]">{item.label}</div>

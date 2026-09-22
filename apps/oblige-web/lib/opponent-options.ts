@@ -9,6 +9,24 @@ const text = (value: unknown) =>
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
 
+const CURRENT_OPPONENT_STAR = '★';
+
+function stripCurrentOpponentMarker(label: string) {
+  return label
+    .replace(/^★\s+/, '')
+    .replace(/\s+★$/, '')
+    .trim();
+}
+
+function markCurrentOpponent(label: string) {
+  const clean = stripCurrentOpponentMarker(label);
+  return `${CURRENT_OPPONENT_STAR} ${clean} ${CURRENT_OPPONENT_STAR}`;
+}
+
+function isMarkedCurrentOpponent(label: string) {
+  return label.startsWith(`${CURRENT_OPPONENT_STAR} `) && label.endsWith(` ${CURRENT_OPPONENT_STAR}`);
+}
+
 const CITY_ALIASES: Record<string, string[]> = {
   la: ['los', 'angeles'],
   ny: ['new', 'york'],
@@ -139,13 +157,13 @@ export function buildOpponentOptions(
     const existing = entries.find(
       (entry) =>
         sameTeamLabel(entry.value, value) ||
-        sameTeamLabel(entry.label.replace(/\s+★$/, ''), label),
+        sameTeamLabel(stripCurrentOpponentMarker(entry.label), label),
     );
     if (existing) {
-      if (isCurrent(value, label) && !existing.label.endsWith(' ★')) existing.label += ' ★';
+      if (isCurrent(value, label)) existing.label = markCurrentOpponent(existing.label);
       return;
     }
-    entries.push({ value, label: isCurrent(value, label) ? `${label} ★` : label });
+    entries.push({ value, label: isCurrent(value, label) ? markCurrentOpponent(label) : label });
   };
 
   for (const team of directoryRows(leagueTeams)) {
@@ -159,8 +177,8 @@ export function buildOpponentOptions(
   for (const value of current) add(value, value);
 
   entries.sort((a, b) => {
-    const aCurrent = a.label.endsWith(' ★');
-    const bCurrent = b.label.endsWith(' ★');
+    const aCurrent = isMarkedCurrentOpponent(a.label);
+    const bCurrent = isMarkedCurrentOpponent(b.label);
     if (aCurrent !== bCurrent) return aCurrent ? -1 : 1;
     return a.label.localeCompare(b.label);
   });

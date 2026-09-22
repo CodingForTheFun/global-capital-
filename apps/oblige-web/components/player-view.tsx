@@ -24,6 +24,7 @@ import { GameLog } from '@/components/research';
 import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
 import { Reveal } from '@/components/motion';
+import { PlayerPropDeepDive } from '@/components/player-prop-deep-dive';
 
 const FAVOURITES_KEY = 'oblige-followed';
 
@@ -221,148 +222,67 @@ export function PlayerView() {
 
   return (
     <Shell>
-      <PlayerSectionNav active={section} onSelect={selectSection} />
+      <PlayerPropDeepDive
+        group={group}
+        markets={markets}
+        research={research}
+        loading={loadingResearch}
+        state={state}
+        onState={setState}
+        favourite={favourite}
+        onFavourite={() => toggleFavourite(group.key)}
+        onMarket={selectMarket}
+        fullResearch={
+          <>
+            <CardPanel className="player-explorer-panel p-3 sm:p-4">
+              <PropExplorer
+                group={group}
+                games={games}
+                loading={loadingResearch}
+                unavailableReason={
+                  research && research.available === false
+                    ? research.message || 'No verified game log is available for this player and market yet.'
+                    : null
+                }
+                leagueTeams={research?.leagueTeams || []}
+                state={state}
+                onState={setState}
+                favourite={favourite}
+                onFavourite={() => toggleFavourite(group.key)}
+              />
+            </CardPanel>
 
-      <section id="player-props" className="player-section-anchor player-section-block">
-        <div className="player-section-heading">
-          <div>
-            <span className="player-section-kicker">Prop markets</span>
-            <h2>Choose the number you want to research.</h2>
-          </div>
-          <span className="player-section-count">{markets.length} market{markets.length === 1 ? '' : 's'}</span>
-        </div>
-        <div className="rail player-market-rail" role="tablist" aria-label="Markets for this player">
-          {markets.map((candidate) => {
-            const active = candidate.key === group.key;
-            return (
-              <button
-                key={candidate.key}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => selectMarket(candidate)}
-                className={cn(
-                  'flex min-h-11 flex-none items-center gap-2 rounded-full border px-4',
-                  'text-[length:var(--fs-xs)] font-semibold whitespace-nowrap',
-                  'transition-[color,background-color,border-color,transform] duration-200 ease-[var(--ease-out)] active:scale-[.97]',
-                  active
-                    ? 'border-transparent bg-[var(--accent)] text-[var(--accent-ink)]'
-                    : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)]',
-                )}
-              >
-                {marketDisplayLabel(candidate.market, candidate.player, candidate.marketId, candidate.sport)}
-                <span className={cn('num', active ? 'opacity-80' : 'text-[var(--text-3)]')}>
-                  {candidate.line}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section id="player-trends" className="player-section-anchor player-section-block">
-        <div className="player-section-heading">
-          <div>
-            <span className="player-section-kicker">Interactive research</span>
-            <h2>Move the line. Change the side. Recalculate instantly.</h2>
-          </div>
-          <span className="player-section-count">Verified source fallback</span>
-        </div>
-        <Reveal>
-          <CardPanel className="player-explorer-panel p-4 sm:p-5">
-            <div id="player-overview" className="player-research-summary player-section-anchor">
-              <span className="player-research-avatar relative flex-none">
-                <PlayerAvatar
-                  name={group.player}
-                  sport={group.sport}
-                  team={group.team}
-                  providerPlayerId={group.providerPlayerId}
-                  size={52}
-                />
-                {group.team && (
-                  <span
-                    aria-hidden="true"
-                    className="player-research-team-mark"
-                    style={{ background: club.c1 }}
-                  >
-                    {group.team.slice(0, 3)}
-                  </span>
-                )}
-              </span>
-              <div className="min-w-0">
-                <div className="player-research-name-row">
-                  <h1>{group.player}</h1>
-                  <span>{group.sport}</span>
-                </div>
-                <p className="player-research-meta">
-                  <span>{teamLabel}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{group.matchup}</span>
-                  {kickoff && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>{kickoff}</span>
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-            <PropExplorer
+            <SplitSummary
+              games={games}
               group={group}
-              games={games}
-              loading={loadingResearch}
-              unavailableReason={
-                research && research.available === false
-                  ? research.message || 'No verified game log is available for this player and market yet.'
-                  : null
-              }
-              leagueTeams={research?.leagueTeams || []}
-              state={state}
-              onState={setState}
-              favourite={favourite}
-              onFavourite={() => toggleFavourite(group.key)}
-            />
-          </CardPanel>
-        </Reveal>
-
-      </section>
-
-      <section id="player-splits" className="player-section-anchor player-section-block">
-        <div className="player-section-heading">
-          <div>
-            <span className="player-section-kicker">Context splits</span>
-            <h2>See where the current line has actually worked.</h2>
-          </div>
-          <span className="player-section-count">{state.side} {state.line}</span>
-        </div>
-        <SplitSummary
-          games={games}
-          group={group}
-          line={state.line}
-          side={state.side}
-          loading={loadingResearch}
-        />
-      </section>
-
-      <section className="player-detail-grid mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:items-start">
-        <div className="min-w-0">
-          <Reveal>
-            <GameLog
-              games={games}
               line={state.line}
-              market={marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}
+              side={state.side}
               loading={loadingResearch}
             />
-          </Reveal>
-        </div>
-        <div className="min-w-0">
-          <Reveal>
-            <BookPrices group={group} />
-          </Reveal>
-        </div>
-      </section>
+
+            <section className="player-detail-grid grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:items-start">
+              <div className="min-w-0">
+                <Reveal>
+                  <GameLog
+                    games={games}
+                    line={state.line}
+                    market={marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}
+                    loading={loadingResearch}
+                  />
+                </Reveal>
+              </div>
+              <div className="min-w-0">
+                <Reveal>
+                  <BookPrices group={group} />
+                </Reveal>
+              </div>
+            </section>
+          </>
+        }
+      />
     </Shell>
   );
+
 }
 
 function PlayerSectionNav({

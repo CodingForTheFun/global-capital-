@@ -39,3 +39,31 @@ test('verified history model covers supported soccer and tennis research', async
   assert.match(adaptive, /values\.length<9/);
   assert.match(adaptive, /Verified game history is unavailable/);
 });
+
+test('supporting stats leave out metrics with no verified games', async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.match(card, /output\.filter\(\(metric\) => metric\.sample > 0\)/, 'a tile with no data must not render as "Unavailable"');
+  assert.match(card, /No verified stats for this player yet\./, 'an empty set says so instead of showing an empty grid');
+});
+
+test('chart labels use a numeric date and a team abbreviation so every game fits', async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.match(card, /\{numericDate\(game\.date\)\}/);
+  assert.match(card, /teamShort\(game\.opponent, leagueTeams\)/);
+  assert.match(card, /leagueTeams=\{research\?\.leagueTeams \|\| \[\]\}/, 'the chart receives the verified directory');
+  assert.doesNotMatch(card, /\? '@' : 'vs'\}\{game\.opponent/, 'the old truncating label is gone');
+});
+
+test("a pick'em line never prints 0 as a price", async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.match(card, /price !== 0\) return odds\(price\)/, 'only a real, nonzero price is formatted as odds');
+  assert.match(card, /type === 'dfs' \? "Pick'em" : '—'/, "DFS books say Pick'em; any other missing price is a dash");
+  assert.doesNotMatch(card, /odds\(heroQuote\.price\)|odds\(over\.price\)|odds\(under\.price\)/, 'no raw price reaches the header or best-price row');
+  assert.match(card, /'0 SPORTSBOOKS · ' \+ dfsSource\.toUpperCase\(\) \+ ' LINE'/);
+});
+
+test('a chart label is only abbreviated when exactly one directory team matches', async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.match(card, /matches\.length === 1 \? text\(matches\[0\]\?\.abbreviation\) \|\| value : value/);
+  assert.doesNotMatch(card, /leagueTeams\.find\(\(team\) => sameTeamLabel/, 'first-match lookup could name the wrong team');
+});

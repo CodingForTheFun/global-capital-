@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-test('actual Next mobile shell exposes Scores as the fifth bottom-nav destination', () => {
+test('actual Next mobile shell keeps Scores in the expanded bottom navigation', () => {
   const chrome = fs.readFileSync(new URL('../apps/oblige-web/components/site-chrome.tsx', import.meta.url), 'utf8');
   assert.match(chrome, /href: '\/scores', label: 'Scores'/);
   assert.match(chrome, /RadioTower/);
-  assert.match(chrome, /grid-cols-5/);
+  assert.match(chrome, /grid-cols-6/);
 });
 
 test('Scores route is a real Next page backed by the live score API', () => {

@@ -67,3 +67,14 @@ test('a chart label is only abbreviated when exactly one directory team matches'
   assert.match(card, /matches\.length === 1 \? text\(matches\[0\]\?\.abbreviation\) \|\| value : value/);
   assert.doesNotMatch(card, /leagueTeams\.find\(\(team\) => sameTeamLabel/, 'first-match lookup could name the wrong team');
 });
+
+test('an empty History model shows a dash, not a word too wide for its box', async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.doesNotMatch(card, /probabilityLabel\(prediction\?\.probability(Over|Under)\) : 'Unavailable'/, '"Unavailable" at 17px overflowed a phone viewport');
+  assert.match(card, /<span aria-hidden="true">—<\/span><span className="sr-only">Unavailable<\/span>/, 'screen readers still hear why');
+});
+
+test('surviving stat tiles share the row instead of truncating in a third of it', async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.match(card, /Math\.min\(support\.length, 3\)/);
+});

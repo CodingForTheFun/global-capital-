@@ -354,7 +354,7 @@ function HistoryChart({
   const threshold = Math.max(0, Math.min(100, (line / ceiling) * 100));
 
   return (
-    <section className="rounded-2xl border border-[#1E2D3D] bg-[#0E1823] p-3">
+    <section data-qa="history-chart" className="rounded-2xl border border-[#1E2D3D] bg-[#0E1823] p-3">
       <div className="flex items-center gap-2 text-[13px] font-black text-white">
         <Flame className="h-4 w-4 text-[#FF8B2B]" fill="currentColor" />
         Last {rows.length} Games – {market}
@@ -394,6 +394,7 @@ function HistoryChart({
                     {unavailable ? 'DNP' : value}
                   </span>
                   <span
+                    data-qa="chart-bar"
                     title={shortDate(game.date) + ' · ' + (game.opponent || 'Opponent unavailable') + ' · ' + (unavailable ? 'DNP' : value)}
                     className={cx(
                       'block w-full rounded-t-[3px] border',
@@ -482,10 +483,10 @@ function HistoryModel({
     <div className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
       <div className="text-[13px] font-black text-white">History model</div>
       <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2">
-        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : 'Unavailable'}</div></div>
-        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : 'Unavailable'}</div></div>
-        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : 'Unavailable'}</div></div>
-        <div className="min-w-0"><div className="whitespace-nowrap text-[7px] text-[#8494AA]">Selected-quote EV</div><div className={cx('mt-0.5 whitespace-nowrap font-black leading-none text-white', selectedEv ? 'text-[17px]' : 'text-[12px] tracking-[-0.02em]')}>{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : 'Unavailable'}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="whitespace-nowrap text-[7px] text-[#8494AA]">Selected-quote EV</div><div className="mt-0.5 whitespace-nowrap text-[17px] font-black leading-none text-white">{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
       </div>
       <p className="mt-2 text-[8px] leading-[1.45] text-[#7E8FA5]">
         {loading
@@ -782,7 +783,7 @@ export function PlayerPropResearchCard({
               Team: <b className="ml-1 font-semibold text-[#C6D0DE]">{teamLabel}</b>
             </span>
           </div>
-          <div className="px-0.5 pt-0.5 text-[12px] font-bold text-white">
+          <div data-qa="sample-count" className="px-0.5 pt-0.5 text-[12px] font-bold text-white">
             {loading ? 'Loading verified history…' : filteredGames.length + ' of ' + verifiedGames.length + ' verified ' + (verifiedGames.length === 1 ? 'game' : 'games')}
           </div>
           {unavailableReason ? <p className="px-0.5 text-[10px] leading-4 text-[#FF9AAF]">{unavailableReason}</p> : null}
@@ -797,7 +798,7 @@ export function PlayerPropResearchCard({
           </div>
           <div className="grid grid-cols-[44px_1fr_44px] overflow-hidden rounded-xl border border-[#2A3B51] bg-[#0A121C]">
             <button type="button" aria-label="Lower target line" onClick={() => stepLine(-1)} className="grid h-[52px] place-items-center border-r border-[#233246] text-[#95A5BB]"><Minus className="h-4 w-4" /></button>
-            <div className="grid h-[52px] place-items-center text-[25px] font-black tracking-[-0.03em] text-white">{state.line}</div>
+            <div data-qa="line-number" className="grid h-[52px] place-items-center text-[25px] font-black tracking-[-0.03em] text-white">{state.line}</div>
             <button type="button" aria-label="Raise target line" onClick={() => stepLine(1)} className="grid h-[52px] place-items-center border-l border-[#233246] text-[#95A5BB]"><Plus className="h-5 w-5" /></button>
           </div>
           <div className="mt-1.5 flex items-center justify-between rounded-xl bg-[#0C141E] px-3 py-2 text-[11px]">
@@ -849,13 +850,18 @@ export function PlayerPropResearchCard({
           <div className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
             <div className="px-1 text-[9px] font-black tracking-[0.2em] text-[#8392A8]">SUPPORTING STATS</div>
             {support.length ? (
-            <div className="mt-2 grid grid-cols-3 overflow-hidden rounded-xl border border-[#223147]">
+            <div
+              className="mt-2 grid overflow-hidden rounded-xl border border-[#223147]"
+              // One or two surviving tiles share the row instead of each
+              // squeezing into a third of it and truncating its value.
+              style={{ gridTemplateColumns: 'repeat(' + Math.min(support.length, 3) + ', minmax(0, 1fr))' }}
+            >
               {support.map((item, index) => (
                 <div
                   key={item.label}
                   className={cx(
                     'min-h-[58px] p-2',
-                    index % 3 !== 2 && 'border-r border-[#223147]',
+                    index % 3 !== 2 && index !== support.length - 1 && 'border-r border-[#223147]',
                     index < Math.floor((support.length - 1) / 3) * 3 && 'border-b border-[#223147]',
                   )}
                   title={item.sample ? item.sample + ' verified games reported' : 'Unavailable'}

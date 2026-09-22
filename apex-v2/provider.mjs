@@ -12,7 +12,7 @@ import { sportradarConfigured } from '../lib/data-sources/sportradar/client.mjs'
 import { sportradarNbaV8Health, startSportradarNbaV8Probe } from '../lib/data-sources/sportradar/nba-v8.mjs';
 import { primaryOddsProvider, providerCatalog } from '../lib/autoscout/providers/index.mjs';
 import { propProviderMode } from '../lib/autoscout/provider-mode.mjs';
-// Release recovery marker for #520 on current production head; no runtime behavior change.
+// Release recovery marker for current board dedupe + cold-tab fixes; no runtime behavior change.
 import { meshPolicy } from '../lib/autoscout/data-mesh-policy.mjs';
 import { sportradarTrialHealth, startSportradarTrialProbe } from '../lib/data-sources/sportradar/trial-products.mjs';
 import { loadPersistedDiagnostics, snapshotDiagnostics } from '../lib/autoscout/runtime-store.mjs';

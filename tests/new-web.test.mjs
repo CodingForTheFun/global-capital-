@@ -54,7 +54,7 @@ test('unreachable embedded frontend falls back to the configured external fronte
 });
 
 test('claims only the pages the new front end implements plus exact legacy customer entries', () => {
-  for (const p of ['/', '/board', '/scores', '/research', '/account', '/apex', '/apex/', '/_next/static/x.js', '/icon.svg']) {
+  for (const p of ['/', '/board', '/scores', '/news', '/research', '/account', '/api/news', '/apex', '/apex/', '/_next/static/x.js', '/icon.svg']) {
     assert.equal(ownsPath(p), true, p);
   }
   for (const p of ['/terms', '/checkout', '/login', '/api/account/me', '/api/apex/props', '/apex-v2', '/apex/diagnostics']) {

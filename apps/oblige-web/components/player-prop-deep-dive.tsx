@@ -232,9 +232,14 @@ export function PlayerPropDeepDive({
 
   const marketLabel = marketDisplayLabel(group.market, group.player, group.marketId, group.sport);
   const rawGames = research?.gameLog || [];
-  const verifiedGames = React.useMemo(() => sortRecentFirst(playable(rawGames)), [rawGames]);
+  // Missing/DNP values are not zeroes. Keep them out of hit-rate denominators
+  // while leaving them available to the chart as explicit unavailable rows.
+  const verifiedGames = React.useMemo(
+    () => sortRecentFirst(rawGames.filter((game) => finiteValue(game.value) !== null)),
+    [rawGames],
+  );
   const filteredGames = React.useMemo(
-    () => sortRecentFirst(playable(applyFilters(rawGames, filters))),
+    () => sortRecentFirst(applyFilters(rawGames, filters).filter((game) => finiteValue(game.value) !== null)),
     [rawGames, filters],
   );
   const filteredAllRows = React.useMemo(() => applyFilters(rawGames, filters), [rawGames, filters]);

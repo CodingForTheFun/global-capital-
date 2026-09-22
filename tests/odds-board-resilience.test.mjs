@@ -23,11 +23,14 @@ globalThis.fetch=async url=>{
  return Response.json({...event,bookmakers:[{key:'draftkings',title:'DraftKings',markets:[{key:'player_points',last_update:'2026-09-13T12:00:00Z',outcomes:[{name:'Over',description:'Fixture Player',point:5.5,price:-110},{name:'Under',description:'Fixture Player',point:5.5,price:-105}]}]}]});
 };
 async function settle(){while(theOddsApiProvider.health().refreshesInFlight)await new Promise(r=>setTimeout(r,10));}
+async function waitForCalls(min=1){
+ for(let attempt=0;attempt<200&&calls.length<min;attempt+=1)await new Promise(r=>setTimeout(r,5));
+}
 test('board cache and provider-failure regressions with mocked upstream only',async t=>{
  try{
   await t.test('ten cold requests including forced refresh share one refresh sequence',async()=>{
    hold=new Promise(r=>release=r);const pending=Array.from({length:10},(_,i)=>fetchBoard('NBA',{force:i%2===0}));
-   await new Promise(r=>setTimeout(r,10));assert.equal(calls.length,1);hold=null;release();
+   await waitForCalls(1);assert.equal(calls.length,1);hold=null;release();
    const boards=await Promise.all(pending);assert.equal(calls.length,3);assert.ok(boards.every(b=>b.props.length===2));
    assert.equal(boards[0].props[0].price,-110);assert.equal(boards[0].props[1].price,-105);
   });
@@ -35,7 +38,7 @@ test('board cache and provider-failure regressions with mocked upstream only',as
    const good=await readCachedBoard('NBA');await writeCachedBoard('NBA',good,30);time+=31000;calls=[];
    hold=new Promise(r=>release=r);
    const reads=await Promise.all(Array.from({length:10},()=>fetchBoard('NBA')));
-   const observed=calls.length;hold=null;release();await settle();
+   await waitForCalls(1);const observed=calls.length;hold=null;release();await settle();
    assert.ok(reads.every(b=>b.meta.stale&&b.meta.revalidating&&b.props.length===2),JSON.stringify(reads.map(b=>b.meta)));
    assert.equal(observed,1);
    assert.equal(calls.filter(p=>p.endsWith('/markets')).length,0,'discovery survives price expiry');

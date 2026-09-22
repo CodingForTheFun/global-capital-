@@ -25,6 +25,7 @@ import { GameLog } from '@/components/research';
 import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
 import { Reveal } from '@/components/motion';
+import { PlayerPropDeepDive } from '@/components/player-prop-deep-dive';
 
 const FAVOURITES_KEY = 'oblige-followed';
 
@@ -217,192 +218,74 @@ export function PlayerView() {
 
   return (
     <Shell>
-      <section id="player-overview" className="player-section-anchor">
-        <Reveal>
-          <div className="face player-cinematic-hero mt-4 p-5 md:p-6">
-            <TeamScene team={group.team} tall />
-            <div className="player-identity-row flex flex-wrap items-center gap-4">
-              <span className="relative flex-none">
-                <PlayerAvatar
-                  name={group.player}
-                  sport={group.sport}
-                  team={group.team}
-                  providerPlayerId={group.providerPlayerId}
-                  size={82}
-                />
-                <span
-                  aria-hidden="true"
-                  className="absolute -right-1 -bottom-1 grid size-7 place-items-center rounded-full border-2 border-[var(--face-1)] text-[9px] font-extrabold text-white"
-                  style={{ background: club.c1 }}
-                >
-                  {(group.team || '—').slice(0, 3)}
-                </span>
-              </span>
+      <PlayerPropDeepDive
+        group={group}
+        markets={markets}
+        research={research}
+        loading={loadingResearch}
+        state={state}
+        onState={setState}
+        favourite={favourite}
+        onFavourite={() => toggleFavourite(group.key)}
+        onMarket={selectMarket}
+        fullResearch={
+          <>
+            <CardPanel className="player-explorer-panel p-3 sm:p-4">
+              <PropExplorer
+                group={group}
+                games={games}
+                loading={loadingResearch}
+                unavailableReason={
+                  research && research.available === false
+                    ? research.message || 'No verified game log is available for this player and market yet.'
+                    : null
+                }
+                leagueTeams={research?.leagueTeams || []}
+                state={state}
+                onState={setState}
+                favourite={favourite}
+                onFavourite={() => toggleFavourite(group.key)}
+              />
+            </CardPanel>
 
-              <div className="min-w-0 flex-1">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <Badge size="md">{group.sport}</Badge>
-                  {group.live && (
-                    <Badge variant="live" size="md">
-                      <Dot pulse />
-                      Live
-                    </Badge>
-                  )}
-                </div>
-                <h1
-                  className="text-[length:var(--fs-xl)] text-balance sm:text-[length:var(--fs-2xl)]"
-                  style={{ textTransform: 'var(--display-case)' as 'none' }}
-                >
-                  {group.player}
-                </h1>
-                <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-xs)] text-[var(--face-text-2)] sm:text-[length:var(--fs-sm)]">
-                  <span className="truncate font-semibold">{club.name}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>{group.matchup}</span>
-                  {kickoff && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>{kickoff}</span>
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
+            {research?.available === false && !loadingResearch ? (
+              <p className="flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_36%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                {research.message || 'No verified history is available for this player and market yet.'}
+              </p>
+            ) : null}
 
-            <div className="player-line-glance mt-5 grid gap-3 rounded-[var(--radius)] border border-[var(--face-line)] bg-[color-mix(in_srgb,var(--face-1)_72%,transparent)] p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-              <div className="min-w-0">
-                <p className="truncate text-[length:var(--fs-sm)] font-semibold">{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</p>
-                <p className="mt-1 text-[length:var(--fs-micro)] text-[var(--face-text-3)]">
-                  Best of {new Set(group.quotes.map((q) => q.sportsbookKey || q.sportsbook)).size} books
-                </p>
-              </div>
-              <div className="flex items-center justify-between gap-5 sm:justify-end">
-                <span className="num text-[length:var(--fs-2xl)] font-bold tracking-tight">{group.line}</span>
-                <span className="grid gap-1 text-right">
-                  <span className="num text-[length:var(--fs-sm)] font-semibold text-[var(--face-pos)]">
-                    O {odds(group.bestOver?.price)}
-                  </span>
-                  <span className="num text-[length:var(--fs-sm)] font-semibold text-[var(--face-neg)]">
-                    U {odds(group.bestUnder?.price)}
-                  </span>
-                </span>
-              </div>
-            </div>
-          </div>
-        </Reveal>
-      </section>
-
-      <PlayerSectionNav active={section} onSelect={selectSection} />
-
-      <section id="player-props" className="player-section-anchor player-section-block">
-        <div className="player-section-heading">
-          <div>
-            <span className="player-section-kicker">Prop markets</span>
-            <h2>Choose the number you want to research.</h2>
-          </div>
-          <span className="player-section-count">{markets.length} market{markets.length === 1 ? '' : 's'}</span>
-        </div>
-        <div className="rail player-market-rail" role="tablist" aria-label="Markets for this player">
-          {markets.map((candidate) => {
-            const active = candidate.key === group.key;
-            return (
-              <button
-                key={candidate.key}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => selectMarket(candidate)}
-                className={cn(
-                  'flex min-h-11 flex-none items-center gap-2 rounded-full border px-4',
-                  'text-[length:var(--fs-xs)] font-semibold whitespace-nowrap',
-                  'transition-[color,background-color,border-color,transform] duration-200 ease-[var(--ease-out)] active:scale-[.97]',
-                  active
-                    ? 'border-transparent bg-[var(--accent)] text-[var(--accent-ink)]'
-                    : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)]',
-                )}
-              >
-                {marketDisplayLabel(candidate.market, candidate.player, candidate.marketId, candidate.sport)}
-                <span className={cn('num', active ? 'opacity-80' : 'text-[var(--text-3)]')}>
-                  {candidate.line}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
-      <section id="player-trends" className="player-section-anchor player-section-block">
-        <div className="player-section-heading">
-          <div>
-            <span className="player-section-kicker">Interactive research</span>
-            <h2>Move the line. Change the side. Recalculate instantly.</h2>
-          </div>
-          <span className="player-section-count">Verified source fallback</span>
-        </div>
-        <Reveal>
-          <CardPanel className="player-explorer-panel p-4 sm:p-5">
-            <PropExplorer
+            <SplitSummary
+              games={games}
               group={group}
-              games={games}
-              loading={loadingResearch}
-              unavailableReason={
-                research && research.available === false
-                  ? research.message || 'No verified game log is available for this player and market yet.'
-                  : null
-              }
-              leagueTeams={research?.leagueTeams || []}
-              state={state}
-              onState={setState}
-              favourite={favourite}
-              onFavourite={() => toggleFavourite(group.key)}
-            />
-          </CardPanel>
-        </Reveal>
-
-        {research?.available === false && !loadingResearch && (
-          <p className="mt-4 flex items-start gap-2 rounded-[var(--radius)] border border-[color-mix(in_srgb,var(--warn)_36%,transparent)] bg-[color-mix(in_srgb,var(--warn)_8%,transparent)] p-3 text-[length:var(--fs-sm)] text-[var(--warn)]">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-            {research.message || 'No verified history is available for this player and market yet.'}
-          </p>
-        )}
-      </section>
-
-      <section id="player-splits" className="player-section-anchor player-section-block">
-        <div className="player-section-heading">
-          <div>
-            <span className="player-section-kicker">Context splits</span>
-            <h2>See where the current line has actually worked.</h2>
-          </div>
-          <span className="player-section-count">{state.side} {state.line}</span>
-        </div>
-        <SplitSummary
-          games={games}
-          group={group}
-          line={state.line}
-          side={state.side}
-          loading={loadingResearch}
-        />
-      </section>
-
-      <section className="player-detail-grid mt-5 grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:items-start">
-        <div className="min-w-0">
-          <Reveal>
-            <GameLog
-              games={games}
               line={state.line}
-              market={marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}
+              side={state.side}
               loading={loadingResearch}
             />
-          </Reveal>
-        </div>
-        <div className="min-w-0">
-          <Reveal>
-            <BookPrices group={group} />
-          </Reveal>
-        </div>
-      </section>
+
+            <section className="player-detail-grid grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,.85fr)] lg:items-start">
+              <div className="min-w-0">
+                <Reveal>
+                  <GameLog
+                    games={games}
+                    line={state.line}
+                    market={marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}
+                    loading={loadingResearch}
+                  />
+                </Reveal>
+              </div>
+              <div className="min-w-0">
+                <Reveal>
+                  <BookPrices group={group} />
+                </Reveal>
+              </div>
+            </section>
+          </>
+        }
+      />
     </Shell>
   );
+
 }
 
 function PlayerSectionNav({

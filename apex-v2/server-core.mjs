@@ -14,6 +14,7 @@ import { publicStoreHealth } from '../lib/ingestion/public-persistence.mjs';
 import { webhookHealth as proplineWebhookHealth } from '../lib/data-sources/propline/webhooks.mjs';
 import { startIngestWorker, ingestHealth } from '../lib/autoscout/ingest-worker.mjs';
 import { createSessionCodec, createRateLimiter, parseCookies, clientKey, SESSION_COOKIE, OWNER } from '../lib/session.mjs';
+// Release recovery marker for duplicate-card normalization; no runtime behavior change.
 import { installProcessGuards } from '../lib/web/process-guards.mjs';
 import { mailHealth } from '../lib/auth/mailer.mjs';
 import { startStorageMonitor, storageHealth } from '../lib/storage/volume-health.mjs';

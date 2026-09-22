@@ -42,6 +42,17 @@ test('NFL tackle, kicking and extra point histories use measured values',()=>{
   {sport:'NFL',fields:['KickingPoints']}),9);
 });
 
+test('verified ESPN identity bridges a unique middle-name variant and still rejects ambiguity',()=>{
+ const shepard={sport:'basketball',defaultLeagueSlug:'wnba',displayName:'Jessica Shepard',subtitle:'Dallas Wings',
+  uid:'s:40~l:59~a:3906949',link:{web:'https://www.espn.com/wnba/player/_/id/3906949/jessica-shepard'}};
+ const search={results:[{type:'player',totalFound:1,contents:[shepard]}]};
+ assert.equal(resolvePublicAthlete(search,{sport:'WNBA',playerName:'Jessica Lynn Shepard'})?.id,'3906949');
+ const ambiguous={results:[{type:'player',totalFound:2,contents:[shepard,{...shepard,displayName:'Jessica Marie Shepard',uid:'s:40~l:59~a:9999999',link:{web:'https://www.espn.com/wnba/player/_/id/9999999/jessica-shepard'}}]}]};
+ assert.equal(resolvePublicAthlete(ambiguous,{sport:'WNBA',playerName:'Jessica Lynn Shepard'}),null);
+ const roster={athletes:[{items:[{id:'3906949',displayName:'Jessica Shepard'}]}]};
+ assert.equal(resolveRosterAthlete(roster,{sport:'WNBA',playerName:'Jessica Lynn Shepard',team:{displayName:'Dallas Wings'}})?.id,'3906949');
+});
+
 test('MLB outs are base-three baseball notation, not decimal innings or half an out',()=>{
  assert.equal(inningsToOuts('5.2'),17);assert.equal(inningsToOuts('6.0'),18);
  assert.equal(inningsToOuts('5.1'),16);assert.equal(inningsToOuts('0.0'),0);

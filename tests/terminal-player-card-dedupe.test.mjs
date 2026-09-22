@@ -79,3 +79,72 @@ test('different events and periods remain distinct research contexts', () => {
 
   assert.equal(cards.length, 3);
 });
+
+
+test('provider start-time drift does not recreate Aaron Philo across full-game markets', () => {
+  const cards = uniqueTerminalPlayerCards([
+    group({
+      key: 'aaron-pass-rush',
+      player: 'Aaron Philo',
+      sport: 'NCAAF',
+      team: 'FLA',
+      matchup: 'FLA',
+      startsAt: '2026-09-22T01:30:00Z',
+      market: 'Pass+Rush Yds',
+      line: 253.5,
+    }),
+    group({
+      key: 'aaron-fantasy',
+      player: 'Aaron Philo',
+      sport: 'NCAAF',
+      team: 'FLA',
+      matchup: 'FLA',
+      startsAt: '2026-09-22T01:33:00Z',
+      market: 'Fantasy Score',
+      line: 19.5,
+    }),
+  ]);
+
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].key, 'aaron-pass-rush');
+});
+
+test('sparse event metadata does not recreate Adam Mohammed as a second card', () => {
+  const cards = uniqueTerminalPlayerCards([
+    group({
+      key: 'adam-verified',
+      player: 'Adam Mohammed',
+      sport: 'NCAAF',
+      team: 'CAL',
+      matchup: 'CAL',
+      startsAt: '2026-09-22T04:30:00Z',
+      market: 'Rushing Yards',
+      line: 75.5,
+    }),
+    group({
+      key: 'adam-sparse',
+      player: 'Adam Mohammed',
+      sport: 'NCAAF',
+      team: null,
+      homeTeam: null,
+      awayTeam: null,
+      matchup: 'Matchup unavailable',
+      startsAt: null,
+      quotes: [],
+      market: 'Rush Yards',
+      line: 16.5,
+    }),
+  ]);
+
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].key, 'adam-verified');
+});
+
+test('distinct known event times still render as separate cards', () => {
+  const cards = uniqueTerminalPlayerCards([
+    group({ key: 'event-one', startsAt: '2026-09-21T20:00:00Z' }),
+    group({ key: 'event-two', startsAt: '2026-09-21T22:00:00Z' }),
+  ]);
+
+  assert.equal(cards.length, 2);
+});

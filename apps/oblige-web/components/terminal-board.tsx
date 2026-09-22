@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Activity,
   BarChart3,
@@ -30,7 +31,6 @@ import { marketDisplayLabel, pctValue } from '@/lib/utils';
 import {
   marketArbitrage,
   marketArbitrageLabel,
-  type MarketArbitrageCandidate,
 } from '@/lib/arbitrage.mjs';
 import {
   expectedValueFor,
@@ -341,6 +341,17 @@ function selectionId(groupKey: string, side: Side) {
   return `${groupKey}|${side}`;
 }
 
+function researchHref(group: PropGroup) {
+  const params = new URLSearchParams({
+    sport: group.sport,
+    player: group.player,
+    market: group.market,
+    line: String(group.line),
+    period: group.period || 'game',
+  });
+  return `/research?${params.toString()}`;
+}
+
 function readTerminalBoardState(): TerminalBoardState | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -370,6 +381,7 @@ function readTerminalBoardState(): TerminalBoardState | null {
 }
 
 export function TerminalBoard() {
+  const router = useRouter();
   const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
   const [checking, setChecking] = React.useState(true);
   const [sport, setSport] = React.useState('NFL');
@@ -391,10 +403,14 @@ export function TerminalBoard() {
   const [predictions, setPredictions] = React.useState<Record<string, ModelPrediction>>({});
   const [research, setResearch] = React.useState<Record<string, ResearchSummary | null>>({});
   const [feedMode, setFeedMode] = React.useState<FeedMode>('connecting');
-  const [inspector, setInspector] = React.useState<PropGroup | null>(null);
   const [slip, setSlip] = React.useState<SlipSelection[]>([]);
   const [slipOpen, setSlipOpen] = React.useState(false);
   const [viewRestored, setViewRestored] = React.useState(false);
+
+  const openResearch = React.useCallback((group: PropGroup) => {
+    setSlipOpen(false);
+    router.push(researchHref(group));
+  }, [router]);
 
   React.useEffect(() => {
     const saved = readTerminalBoardState();
@@ -482,7 +498,6 @@ export function TerminalBoard() {
           setShown(INITIAL_ROWS);
           setPredictions({});
           setResearch({});
-          setInspector(null);
         }
       } catch (cause) {
         if (cancelled) return;
@@ -694,15 +709,6 @@ export function TerminalBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, researchTargetKey]);
 
-  const visibleBooks = React.useMemo(() => {
-    if (!inspector) return [];
-    return [...inspector.quotes].sort((a, b) => {
-      const bookOrder = quoteBook(a).localeCompare(quoteBook(b));
-      if (bookOrder) return bookOrder;
-      return text(a.side).localeCompare(text(b.side));
-    });
-  }, [inspector]);
-
   const feedLabel = meta.stale
     ? 'cached'
     : feedMode === 'live'
@@ -840,10 +846,7 @@ export function TerminalBoard() {
             <button
               type="button"
               className={styles.slipButton}
-              onClick={() => {
-                setInspector(null);
-                setSlipOpen(true);
-              }}
+              onClick={() => setSlipOpen(true)}
             >
               <Layers3 size={15} aria-hidden="true" />
               Slip
@@ -956,10 +959,7 @@ export function TerminalBoard() {
               predictions={predictions}
               research={research}
               slip={slip}
-              onInspect={(group) => {
-                setSlipOpen(false);
-                setInspector(group);
-              }}
+              onInspect={openResearch}
               onSelect={selectSide}
             />
             <MobileMatrix
@@ -967,10 +967,7 @@ export function TerminalBoard() {
               predictions={predictions}
               research={research}
               slip={slip}
-              onInspect={(group) => {
-                setSlipOpen(false);
-                setInspector(group);
-              }}
+              onInspect={openResearch}
               onSelect={selectSide}
             />
 
@@ -984,18 +981,6 @@ export function TerminalBoard() {
           </>
         )}
       </section>
-
-      {inspector ? (
-        <Inspector
-          group={inspector}
-          prediction={predictions[inspector.key]}
-          research={research[inspector.key]}
-          quotes={visibleBooks}
-          slip={slip}
-          onClose={() => setInspector(null)}
-          onSelect={selectSide}
-        />
-      ) : null}
 
       {slipOpen ? (
         <SlipDrawer
@@ -1237,173 +1222,6 @@ function RateCell({ window }: { window: RateWindow | null | undefined }) {
       <b>{rateLabel(window)}</b>
       {sample ? <small>{sample}</small> : null}
     </td>
-  );
-}
-
-function Inspector({
-  group,
-  prediction,
-  research,
-  quotes,
-  slip,
-  onClose,
-  onSelect,
-}: {
-  group: PropGroup;
-  prediction?: ModelPrediction;
-  research?: ResearchSummary | null;
-  quotes: PropRow[];
-  slip: SlipSelection[];
-  onClose: () => void;
-  onSelect: (group: PropGroup, side: Side) => void;
-}) {
-  const ev = expectedValueFor(group, prediction);
-  const arb = marketArbitrage(group);
-  const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
-
-  return (
-    <div className={styles.drawerBackdrop} onMouseDown={(event) => {
-      if (event.currentTarget === event.target) onClose();
-    }}>
-      <aside className={styles.inspector} aria-label="Player inspector">
-        <div className={styles.drawerHeader}>
-          <span>Player inspector</span>
-          <button type="button" aria-label="Close inspector" onClick={onClose}><X size={18} /></button>
-        </div>
-
-        <div className={styles.inspectorHero}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
-            alt=""
-            onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-          />
-          <div>
-            <span>{group.sport} · {group.team || 'Team unavailable'}</span>
-            <h2>{group.player}</h2>
-            <p>{group.matchup} · {timeLabel(group.startsAt)}</p>
-          </div>
-        </div>
-
-        <div className={styles.inspectorLine}>
-          <div><span>Market</span><b>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</b></div>
-          <div><span>Line</span><b>{group.line}</b></div>
-          <div><span>Model</span><b>{projection !== null ? projection.toFixed(1) : '—'}</b></div>
-          <div title={ev ? expectedValueSourceLabel(ev) || undefined : 'Verified EV unavailable'}><span>Best EV</span><b data-positive={ev && ev.ev > 0 ? 'true' : 'false'}>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}% ${ev.side === 'OVER' ? 'O' : 'U'}` : '—'}</b></div>
-          <div><span>Arb</span><b data-positive={arb ? 'true' : 'false'}>{arb ? `+${arb.decidedReturnPct.toFixed(2)}%` : '—'}</b></div>
-        </div>
-
-        <section className={styles.drawerSection}>
-          <div className={styles.sectionHeading}>
-            <span>Hit-rate windows</span>
-            <small>OVER · verified game log</small>
-          </div>
-          <div className={styles.hitStrip}>
-            {[
-              { label: 'L5', window: research === undefined ? undefined : research?.l5 ?? null },
-              { label: 'L10', window: research === undefined ? undefined : research?.l10 ?? null },
-              { label: 'L15', window: research === undefined ? undefined : research?.l15 ?? null },
-            ].map(({ label, window }) => (
-              <div key={label}>
-                <span>{label}</span>
-                <b>{rateLabel(window)}</b>
-                <small>{hitSample(window) || 'sample unavailable'}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {arb ? <ArbitragePanel candidate={arb} /> : null}
-
-        <section className={styles.drawerSection}>
-          <div className={styles.sectionHeading}>
-            <span>Multi-book matrix</span>
-            <small>{new Set(quotes.map((quote) => quoteBook(quote))).size} books</small>
-          </div>
-
-          <div className={styles.bookMatrix}>
-            <div className={styles.bookMatrixHead}>
-              <span>Book</span><span>Side</span><span>Line</span><span>Price</span>
-            </div>
-            {quotes.length ? quotes.map((quote, index) => (
-              <div key={`${quoteBook(quote)}-${quote.side}-${quote.line}-${index}`} className={styles.bookMatrixRow}>
-                <span>{quoteBook(quote)}</span>
-                <span>{text(quote.side).toUpperCase() || '—'}</span>
-                <span>{numberOf(quote.line) ?? group.line}</span>
-                <span>{priceLabel(quote.price)}</span>
-              </div>
-            )) : <p className={styles.drawerEmpty}>No verified book matrix is available for this line.</p>}
-          </div>
-        </section>
-
-        <div className={styles.inspectorActions}>
-          <button
-            type="button"
-            data-selected={slip.some((item) => item.id === selectionId(group.key, 'OVER')) ? 'true' : 'false'}
-            onClick={() => onSelect(group, 'OVER')}
-          >
-            <span>Best over</span>
-            <b>{priceLabel(group.bestOver?.price)}</b>
-            <small>{quoteBook(group.bestOver)}</small>
-          </button>
-          <button
-            type="button"
-            data-selected={slip.some((item) => item.id === selectionId(group.key, 'UNDER')) ? 'true' : 'false'}
-            onClick={() => onSelect(group, 'UNDER')}
-          >
-            <span>Best under</span>
-            <b>{priceLabel(group.bestUnder?.price)}</b>
-            <small>{quoteBook(group.bestUnder)}</small>
-          </button>
-        </div>
-
-        <a
-          className={styles.fullResearch}
-          href={`/research?${new URLSearchParams({
-            sport: group.sport,
-            player: group.player,
-            market: group.market,
-            line: String(group.line),
-            period: group.period || 'game',
-          })}`}
-        >
-          Open full player research
-          <ChevronRight size={16} />
-        </a>
-      </aside>
-    </div>
-  );
-}
-
-function ArbitragePanel({ candidate }: { candidate: MarketArbitrageCandidate }) {
-  const decided = candidate.decidedReturnPct.toFixed(2);
-  return (
-    <section className={styles.drawerSection}>
-      <div className={styles.sectionHeading}>
-        <span>Cross-book arbitrage candidate</span>
-        <small>{candidate.possiblePush ? 'integer line · push breaks even' : 'exact line · no integer push'}</small>
-      </div>
-      <div className={styles.arbPanel}>
-        <div>
-          <span>{candidate.possiblePush ? 'Decided return' : 'Minimum return'}</span>
-          <b>+{decided}%</b>
-          <small>{candidate.possiblePush ? '0% on an exact push' : 'if both quotes settle normally'}</small>
-        </div>
-        <div>
-          <span>Over</span>
-          <b>{candidate.over.bookName}</b>
-          <small>O {candidate.line} · {priceLabel(candidate.over.price)}</small>
-        </div>
-        <div>
-          <span>Under</span>
-          <b>{candidate.under.bookName}</b>
-          <small>U {candidate.line} · {priceLabel(candidate.under.price)}</small>
-        </div>
-      </div>
-      <p className={styles.arbNote}>
-        {candidate.note} This is read-only market math; Oblige does not place bets or assume the quotes will still be available.
-      </p>
-    </section>
   );
 }
 

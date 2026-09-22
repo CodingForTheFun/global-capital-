@@ -90,6 +90,7 @@ function straightQuote(row, group, now) {
   return {
     row,
     bookKey: book,
+    sportsbookKey: text(row?.sportsbookKey || row?.sportsbook) || book,
     bookName: text(row?.sportsbook || row?.sportsbookKey) || book,
     side,
     price,
@@ -183,7 +184,7 @@ function resultFor(quote, side, probability, pushProbability, source) {
     pushProbability: push,
     price: quote.price,
     sportsbook: quote.bookName,
-    sportsbookKey: quote.bookKey,
+    sportsbookKey: quote.sportsbookKey,
     source,
   };
 }

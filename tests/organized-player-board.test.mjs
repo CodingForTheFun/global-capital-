@@ -46,7 +46,7 @@ test('provider team aliases and raw market keys collapse to one exact player pro
  const cards=uniquePlayerCards(groups);
  assert.equal(cards.length,1);
  assert.equal(cards[0].playerChoices.length,1);
- assert.equal(propType(cards[0]),'Solo tackles');
+ assert.equal(propType(cards[0]),'Solo Tackles');
  assert.deepEqual(cards[0].rows.map(quote=>quote.sportsbookKey).sort(),['fliff','underdog']);
 });
 test('a row that cannot be attributed to either namesake gets its own card',()=>{

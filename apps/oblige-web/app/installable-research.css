@@ -312,20 +312,30 @@
   }
 
   .op-research-filters {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    gap: 5px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 4px !important;
   }
 
   .op-applied-filter summary {
-    min-height: 44px !important;
-    padding: 5px 6px !important;
+    min-height: 40px !important;
+    padding: 4px 7px !important;
+  }
+
+  .op-applied-filter:nth-child(odd) .op-filter-editor {
+    left: 0 !important;
+    right: auto !important;
+  }
+
+  .op-applied-filter:nth-child(even) .op-filter-editor {
+    right: 0 !important;
+    left: auto !important;
   }
 
   .research-reference .op-sample {
-    flex-basis: 104px !important;
-    width: 104px !important;
-    min-width: 104px !important;
-    min-height: 66px !important;
+    flex-basis: 96px !important;
+    width: 96px !important;
+    min-width: 96px !important;
+    min-height: 62px !important;
   }
 
   .op-chart-plot {

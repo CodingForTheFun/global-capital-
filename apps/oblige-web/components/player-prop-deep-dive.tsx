@@ -460,7 +460,7 @@ export function PlayerPropDeepDive({
     <section
       className="deep-dive-card mx-auto w-full max-w-[1180px] overflow-hidden rounded-2xl border border-slate-800/90 bg-[#0b101a] text-slate-100 shadow-[0_18px_70px_rgba(0,0,0,.32)]"
       data-design="player-prop-deep-dive-restored"
-      data-release="history-model-inline-20260921b"
+      data-release="history-model-inline-20260921c"
     >
       <div className="border-b border-slate-800/90 bg-[radial-gradient(580px_180px_at_85%_-25%,rgba(59,130,246,.16),transparent_62%),linear-gradient(180deg,rgba(19,27,46,.94),rgba(10,15,24,.98))] p-3 sm:p-4">
         <div className="flex items-start justify-between gap-3">

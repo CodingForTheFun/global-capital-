@@ -76,6 +76,7 @@ function diagnosticsPage() {
 }
 
 async function propsResponse(req, url, res) {
+  const requestStartedAt = Date.now();
   if (!rateAllowed(req, 'autoscout-props-minute', 180, 60_000) || !rateAllowed(req, 'autoscout-props-5m', 600, 300_000)) {
     return json(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many prop requests. Try again shortly.' }, { 'retry-after': '60' });
   }
@@ -84,12 +85,31 @@ async function propsResponse(req, url, res) {
   const includeAlternates = ['1','true','yes'].includes(String(url.searchParams.get('alternates') || '').toLowerCase());
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
+  let providerMs = 0;
+  let decorateMs = 0;
   try {
+    const providerStartedAt = Date.now();
     const rawBoard = await fetchUnifiedBoard(sport, { signal: controller.signal, includeAlternates });
+    providerMs = Math.max(0, Date.now() - providerStartedAt);
+
+    const decorateStartedAt = Date.now();
     const board = decorateBoardWithScoutAudit(rawBoard);
+    decorateMs = Math.max(0, Date.now() - decorateStartedAt);
     if (!board?.meta?.cacheHit) void persistNormalizedBoard(board).catch(()=>{});
-    return await writePublicBoard(res, { ...board, supportedSports: BOARD_SPORTS, persistence: persistenceHealth() });
+
+    const serializeStartedAt = Date.now();
+    await writePublicBoard(res, { ...board, supportedSports: BOARD_SPORTS, persistence: persistenceHealth() });
+    const serializeMs = Math.max(0, Date.now() - serializeStartedAt);
+    const pathTiming = board?.meta?.requestTimingMs || {};
+    const source = ['memory','persisted','live','empty'].includes(pathTiming.source) ? pathTiming.source : 'unknown';
+    console.log(
+      `[AutoScout props timing] sport=${sport} source=${source} memory=${Number(pathTiming.memoryCache || 0)}ms persisted=${Number(pathTiming.persistedRead || 0)}ms live=${Number(pathTiming.liveFetch || 0)}ms freshness=${Number(pathTiming.freshness || 0)}ms provider=${providerMs}ms decorate=${decorateMs}ms serialize=${serializeMs}ms total=${Math.max(0, Date.now() - requestStartedAt)}ms bgRefresh=${pathTiming.backgroundRefreshScheduled === true ? 'yes' : 'no'}`,
+    );
+    return;
   } catch (error) {
+    console.warn(
+      `[AutoScout props timing] sport=${sport} source=error provider=${providerMs}ms decorate=${decorateMs}ms total=${Math.max(0, Date.now() - requestStartedAt)}ms code=${String(error?.code || error?.name || 'PROVIDER_ERROR').slice(0, 64)}`,
+    );
     if(res.headersSent){res.destroy();return;}
     return json(res, 503, { ok: false, code: String(error?.code || 'PROVIDER_ERROR'), message: 'Live prop data is temporarily unavailable for this sport.', sport }, {'retry-after':'30'});
   } finally {

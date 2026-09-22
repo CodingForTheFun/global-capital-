@@ -211,6 +211,12 @@ export function PlayerView() {
   }
 
   const club = teamFor(group.team);
+  const rawTeam = String(group.team || '').trim();
+  const fallbackClubKey = rawTeam.toUpperCase().replace(/[^A-Z]/g, '');
+  const teamLabel = rawTeam
+    ? (club.name === fallbackClubKey ? rawTeam : club.name)
+    : (group.position ? `${group.sport} · ${group.position}` : group.sport);
+  const bookCount = new Set(group.quotes.map((q) => q.sportsbookKey || q.sportsbook).filter(Boolean)).size;
   const kickoff = shortTime(group.startsAt);
   const games = playedGames(research);
   const favourite = favourites.includes(group.key);
@@ -230,13 +236,15 @@ export function PlayerView() {
                   providerPlayerId={group.providerPlayerId}
                   size={82}
                 />
-                <span
-                  aria-hidden="true"
-                  className="absolute -right-1 -bottom-1 grid size-7 place-items-center rounded-full border-2 border-[var(--face-1)] text-[9px] font-extrabold text-white"
-                  style={{ background: club.c1 }}
-                >
-                  {(group.team || '—').slice(0, 3)}
-                </span>
+                {group.team && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -right-1 -bottom-1 grid size-7 place-items-center rounded-full border-2 border-[var(--face-1)] text-[9px] font-extrabold text-white"
+                    style={{ background: club.c1 }}
+                  >
+                    {group.team.slice(0, 3)}
+                  </span>
+                )}
               </span>
 
               <div className="min-w-0 flex-1">
@@ -256,7 +264,7 @@ export function PlayerView() {
                   {group.player}
                 </h1>
                 <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[length:var(--fs-xs)] text-[var(--face-text-2)] sm:text-[length:var(--fs-sm)]">
-                  <span className="truncate font-semibold">{club.name}</span>
+                  <span className="truncate font-semibold">{teamLabel}</span>
                   <span aria-hidden="true">·</span>
                   <span>{group.matchup}</span>
                   {kickoff && (
@@ -273,7 +281,7 @@ export function PlayerView() {
               <div className="min-w-0">
                 <p className="truncate text-[length:var(--fs-sm)] font-semibold">{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</p>
                 <p className="mt-1 text-[length:var(--fs-micro)] text-[var(--face-text-3)]">
-                  Best of {new Set(group.quotes.map((q) => q.sportsbookKey || q.sportsbook)).size} books
+                  Best of {bookCount} {bookCount === 1 ? 'book' : 'books'}
                 </p>
               </div>
               <div className="flex items-center justify-between gap-5 sm:justify-end">
@@ -475,15 +483,25 @@ function SplitSummary({
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const returnToBoard = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+      return;
+    }
+    router.push('/board');
+  };
+
   return (
     <div className="player-app-shell mx-auto w-full max-w-[var(--maxw)] px-4 pt-5 pb-20 md:px-8">
-      <Link
-        href="/board"
-        className="player-back-link inline-flex min-h-10 items-center gap-2 text-[length:var(--fs-sm)] text-[var(--text-2)] transition-colors duration-200 ease-[var(--ease-out)] hover:text-[var(--text)]"
+      <button
+        type="button"
+        onClick={returnToBoard}
+        className="player-back-link inline-flex min-h-10 items-center gap-2 border-0 bg-transparent p-0 text-[length:var(--fs-sm)] text-[var(--text-2)] transition-colors duration-200 ease-[var(--ease-out)] hover:text-[var(--text)]"
       >
         <ChevronLeft className="size-4" aria-hidden="true" />
         Back to board
-      </Link>
+      </button>
       {children}
     </div>
   );

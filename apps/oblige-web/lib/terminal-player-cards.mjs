@@ -141,30 +141,69 @@ function playerTeamIndex(groups = []) {
   return out;
 }
 
-function eventIdentity(group) {
-  const startsAt = Date.parse(group?.startsAt || '');
-  if (Number.isFinite(startsAt)) return `t:${Math.floor(startsAt / 60000)}`;
+const EVENT_TIME_TOLERANCE_MS = 10 * 60_000;
 
-  const matchup = norm(group?.matchup);
-  if (matchup) return `m:${matchup}`;
+function canonicalPeriod(value) {
+  const raw = norm(value || 'game').replace(/\s+/g, '');
+  return !raw || ['game', 'full', 'fullgame', 'match', 'singlestat'].includes(raw)
+    ? 'game'
+    : raw;
+}
 
+function meaningfulMatchup(value) {
+  const raw = norm(value);
+  if (!raw) return '';
+  return new Set([
+    'matchup unavailable',
+    'unavailable',
+    'unknown',
+    'not available',
+    'na',
+    'none',
+    'null',
+  ]).has(raw) ? '' : raw;
+}
+
+function eventProfile(group) {
+  const parsedStart = Date.parse(group?.startsAt || '');
+  const startsAt = Number.isFinite(parsedStart) ? parsedStart : null;
+  const matchup = meaningfulMatchup(group?.matchup);
   const away = norm(group?.awayTeam);
   const home = norm(group?.homeTeam);
-  if (away || home) return `teams:${away}:${home}`;
-
-  const eventIds = [...new Set(
+  const teams = away || home ? `${away}:${home}` : '';
+  const eventIds = new Set(
     (group?.quotes || [])
       .map((quote) => norm(quote?.eventId))
       .filter(Boolean),
-  )].sort();
+  );
 
-  return eventIds.length ? `event:${eventIds[0]}` : 'event:unknown';
+  return {
+    startsAt,
+    matchup,
+    teams,
+    eventIds,
+    hasEventEvidence: startsAt !== null || Boolean(matchup) || Boolean(teams) || eventIds.size > 0,
+  };
 }
 
-function terminalPlayerCardKey(group, teamIndex = null) {
+function sameTerminalEvent(left, right) {
+  if (intersects(left.eventIds, right.eventIds)) return true;
+
+  if (left.startsAt !== null && right.startsAt !== null) {
+    return Math.abs(left.startsAt - right.startsAt) <= EVENT_TIME_TOLERANCE_MS;
+  }
+
+  if (left.matchup && right.matchup && left.matchup === right.matchup) return true;
+  if (left.teams && right.teams && left.teams === right.teams) return true;
+
+  // Sparse provider rows must not recreate a second customer-facing card for
+  // a player whose verified event metadata is already present elsewhere.
+  return !left.hasEventEvidence || !right.hasEventEvidence;
+}
+
+function terminalPlayerScopeKey(group, teamIndex = null) {
   const sport = String(group?.sport || '').trim().toUpperCase();
-  const period = norm(group?.period || 'game') || 'game';
-  const event = eventIdentity(group);
+  const period = canonicalPeriod(group?.period);
   const name = norm(group?.player);
 
   if (name) {
@@ -176,7 +215,6 @@ function terminalPlayerCardKey(group, teamIndex = null) {
     return [
       sport,
       period,
-      event,
       `name:${name}`,
       contested && teamKey ? `team:${teamKey}` : '',
     ].join('|');
@@ -186,7 +224,6 @@ function terminalPlayerCardKey(group, teamIndex = null) {
   return [
     sport,
     period,
-    event,
     `id:${playerId || norm(group?.key) || 'unknown'}`,
   ].join('|');
 }
@@ -200,12 +237,17 @@ function terminalPlayerCardKey(group, teamIndex = null) {
  */
 export function uniqueTerminalPlayerCards(groups = []) {
   const teamIndex = playerTeamIndex(groups);
-  const seen = new Set();
+  const seenByPlayer = new Map();
 
   return groups.filter((group) => {
-    const key = terminalPlayerCardKey(group, teamIndex);
-    if (seen.has(key)) return false;
-    seen.add(key);
+    const scope = terminalPlayerScopeKey(group, teamIndex);
+    const event = eventProfile(group);
+    const seenEvents = seenByPlayer.get(scope) || [];
+
+    if (seenEvents.some((previous) => sameTerminalEvent(previous, event))) return false;
+
+    seenEvents.push(event);
+    seenByPlayer.set(scope, seenEvents);
     return true;
   });
 }

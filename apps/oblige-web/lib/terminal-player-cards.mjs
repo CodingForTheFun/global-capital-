@@ -161,7 +161,7 @@ function eventIdentity(group) {
   return eventIds.length ? `event:${eventIds[0]}` : 'event:unknown';
 }
 
-export function terminalPlayerCardKey(group, teamIndex = null) {
+function terminalPlayerCardKey(group, teamIndex = null) {
   const sport = String(group?.sport || '').trim().toUpperCase();
   const period = norm(group?.period || 'game') || 'game';
   const event = eventIdentity(group);

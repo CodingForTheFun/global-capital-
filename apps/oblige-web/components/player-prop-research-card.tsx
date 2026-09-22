@@ -444,7 +444,7 @@ function HistoryModel({
         <div><div className="text-[8px] text-[#8494AA]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : 'Unavailable'}</div></div>
         <div><div className="text-[8px] text-[#8494AA]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : 'Unavailable'}</div></div>
         <div><div className="text-[8px] text-[#8494AA]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : 'Unavailable'}</div></div>
-        <div><div className="text-[8px] text-[#8494AA]">Selected-quote EV</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : 'Unavailable'}</div></div>
+        <div className="min-w-0"><div className="whitespace-nowrap text-[7px] text-[#8494AA]">Selected-quote EV</div><div className={cx('mt-0.5 whitespace-nowrap font-black leading-none text-white', selectedEv ? 'text-[17px]' : 'text-[12px] tracking-[-0.02em]')}>{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : 'Unavailable'}</div></div>
       </div>
       <p className="mt-2 text-[8px] leading-[1.45] text-[#7E8FA5]">
         {loading

@@ -154,6 +154,7 @@ try {
     await page.goto(base + '/research?' + new URLSearchParams({ sport: 'NFL', player, market: '1H Receiving Yards', line: '94.5', period: '1h' }), { waitUntil: 'domcontentloaded' });
     const exactPanel = page.locator('[data-design="player-prop-deep-dive-restored"]');
     await exactPanel.locator('.deep-dive-chart-section').waitFor();
+    await exactPanel.locator('.deep-dive-chart-bar').first().waitFor();
     assert.ok(await exactPanel.locator('.deep-dive-chart-bar').count() > 0, 'Exact half-game fixture history should render');
     assert.equal(researchRequests, initialResearchRequests + 1, 'Opening an exact-period player page makes one detail research request');
     const periodRequest = researchRequestUrls.at(-1);

@@ -8,6 +8,7 @@ import type {
   ResearchResponse,
   Side,
 } from './types';
+import { marketDisplayLabel } from './utils';
 
 /**
  * Every call goes through this app's own /api/* proxy, which forwards to the
@@ -229,6 +230,60 @@ function canonicalPeriod(value: unknown, market = '') {
   return named[raw] || raw;
 }
 
+const PLAYER_SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v']);
+
+function cleanPlayerDisplay(value: unknown) {
+  return String(value || '')
+    .trim()
+    .replace(/^@+\s*/, '')
+    .replace(/\s+\([A-Z0-9 .'-]{2,8}\)\s*$/i, '')
+    .trim();
+}
+
+function playerIdentityKey(value: unknown) {
+  const cleaned = cleanPlayerDisplay(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[.'’_-]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  while (parts.length > 2 && PLAYER_SUFFIXES.has(parts.at(-1) || '')) parts.pop();
+  return parts.length >= 2 ? `${parts[0]}|${parts.at(-1)}` : cleaned;
+}
+
+function preferredPlayerDisplay(current: string, candidate: string) {
+  const score = (value: string) => {
+    const cleaned = cleanPlayerDisplay(value);
+    const parts = cleaned.split(/\s+/).filter(Boolean);
+    const hasSuffix = parts.length > 2 && PLAYER_SUFFIXES.has(String(parts.at(-1) || '').replace(/\./g, '').toLowerCase());
+    const middleCount = Math.max(0, parts.length - 2 - (hasSuffix ? 1 : 0));
+    const decoration = value !== cleaned ? 10 : 0;
+    return decoration + middleCount * 2 - (hasSuffix ? 0.25 : 0);
+  };
+  const a = cleanPlayerDisplay(current), b = cleanPlayerDisplay(candidate);
+  return score(b) < score(a) ? b : a;
+}
+
+function eventIdentityKey(row: PropRow) {
+  const at = Date.parse(String(row.gameStartTime || ''));
+  // Providers regularly disagree by a minute or two on the same scheduled
+  // event. A ten-minute bucket is tight enough to keep real separate games
+  // apart while collapsing those provider-specific event IDs.
+  if (Number.isFinite(at)) return `t:${Math.round(at / (10 * 60_000))}`;
+  return `e:${String(row.eventId || matchupLabel(row)).trim().toLowerCase()}`;
+}
+
+function marketIdentityKey(row: PropRow, player: string, sport: string) {
+  return marketDisplayLabel(row.market, player, row.marketId, sport)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
 function bestQuote(rows: PropRow[], side: Side): PropRow | null {
   // Only actual books/DFS platforms may win "best price". Aggregators and
   // statistics providers can carry sportsbook-shaped fields in fallback rows;
@@ -253,7 +308,7 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
     const period = canonicalPeriod(row.period, market);
     if (!player || !market || line === null) continue;
 
-    const key = [row.eventId || matchupLabel(row), player, market, period, line].join('|');
+    const key = [sport, eventIdentityKey(row), playerIdentityKey(player), marketIdentityKey(row, player, sport), period, line].join('|');
     let group = groups.get(key);
     if (!group) {
       group = {
@@ -281,6 +336,9 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
       groups.set(key, group);
     }
     group.quotes.push(row);
+    if (playerIdentityKey(group.player) === playerIdentityKey(player)) {
+      group.player = preferredPlayerDisplay(group.player, player);
+    }
 
     // A provider/book can omit identity fields that another quote for the exact
     // same prop supplies. Fill only missing metadata so the first sparse quote

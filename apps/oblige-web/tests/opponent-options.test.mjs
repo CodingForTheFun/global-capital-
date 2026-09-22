@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(source, {
 }).outputText;
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled)(require, module, module.exports);
-const { buildOpponentOptions, sameTeamLabel } = module.exports;
+const { buildOpponentOptions, currentOpponentLabels, sameTeamLabel } = module.exports;
 
 test('Opponent picker lists the entire verified league directory, not only historical opponents', () => {
   const options = buildOpponentOptions(
@@ -147,4 +147,84 @@ test('common city aliases do not create duplicate pro teams', () => {
   assert.ok(options.some(option => option.label === 'New York Yankees'));
   assert.ok(options.some(option => option.label === 'St. Louis Cardinals'));
   assert.equal(options.length, 5, 'All opponents plus every directory team exactly once');
+});
+
+test('a city-truncated abbreviation resolves to its full team name', () => {
+  // The shape that broke the NFL star: the board posts team "JAC" while the
+  // league directory and the matchup both say "Jacksonville Jaguars".
+  assert.equal(sameTeamLabel('JAC', 'Jacksonville Jaguars'), true);
+  assert.equal(sameTeamLabel('Jacksonville Jaguars', 'JAC'), true);
+  assert.equal(sameTeamLabel('SEA', 'Seattle Seahawks'), true);
+  assert.equal(sameTeamLabel('SAC', 'Sacramento Kings'), true);
+  assert.equal(sameTeamLabel('CAR', 'Carolina Panthers'), true);
+});
+
+test('city truncation does not conflate teams that merely share opening letters', () => {
+  assert.equal(sameTeamLabel('MIN', 'Miami Heat'), false);
+  assert.equal(sameTeamLabel('CAR', 'Calgary Flames'), false);
+  assert.equal(sameTeamLabel('SA', 'Sacramento Kings'), false, 'two letters is below the floor');
+  assert.equal(sameTeamLabel('Kansas', 'Kansas State Wildcats'), false);
+  assert.equal(sameTeamLabel('JAC', 'Jacksonville Jaguars X'), true);
+});
+
+test('the current opponent is starred when the board posts abbreviations and full names', () => {
+  const options = buildOpponentOptions(
+    [],
+    { team: 'JAC', opponent: '', homeTeam: 'Jacksonville Jaguars', awayTeam: 'Houston Texans' },
+    [
+      { id: '30', abbreviation: 'JAX', name: 'Jacksonville Jaguars' },
+      { id: '34', abbreviation: 'HOU', name: 'Houston Texans' },
+      { id: '10', abbreviation: 'TEN', name: 'Tennessee Titans' },
+    ],
+  );
+
+  assert.equal(options[1].label, '★ Houston Texans ★', 'the opponent sorts straight after All opponents');
+  assert.deepEqual(
+    options.filter((option) => option.label.includes('★')).map((option) => option.label),
+    ['★ Houston Texans ★'],
+    'exactly one team is marked, and it is not the player own team',
+  );
+});
+
+test('the opponent is derived from the matchup when the row carries no opponent field', () => {
+  assert.deepEqual(
+    currentOpponentLabels({ team: 'JAC', opponent: '', homeTeam: 'Jacksonville Jaguars', awayTeam: 'Houston Texans' }),
+    ['Houston Texans'],
+  );
+  assert.deepEqual(
+    currentOpponentLabels({ team: 'JAC', opponent: '', homeTeam: 'Houston Texans', awayTeam: 'Jacksonville Jaguars' }),
+    ['Houston Texans'],
+    'works from either side of the matchup',
+  );
+  assert.deepEqual(
+    currentOpponentLabels({ team: 'JAC', opponent: '', homeTeam: '', awayTeam: '' }),
+    [],
+    'nothing is invented when the matchup itself is unknown',
+  );
+});
+
+test('directory names keep their accents in the label', () => {
+  const options = buildOpponentOptions([], { team: 'Fresno St.', opponent: '', homeTeam: '', awayTeam: '' }, [
+    { id: '2', abbreviation: 'SJSU', name: 'San José State Spartans' },
+  ]);
+  assert.equal(options[1].label, 'San José State Spartans');
+});
+
+test('a consonant-skeleton abbreviation still resolves through the directory abbreviation', () => {
+  // WSH/PHX/CGY are not truncations of their city, so name matching alone
+  // cannot reach them. The directory carries the same abbreviation, which is
+  // the path that identifies them.
+  assert.equal(sameTeamLabel('WSH', 'Washington Commanders'), false, 'documents the boundary');
+  assert.equal(sameTeamLabel('WSH', 'WSH'), true);
+
+  const options = buildOpponentOptions(
+    [],
+    { team: 'DAL', opponent: 'WSH', homeTeam: '', awayTeam: '' },
+    [
+      { id: '28', abbreviation: 'WSH', name: 'Washington Commanders' },
+      { id: '6', abbreviation: 'DAL', name: 'Dallas Cowboys' },
+    ],
+  );
+  assert.equal(options[1].label, '★ Washington Commanders ★');
+  assert.equal(options.filter((option) => option.label.includes('★')).length, 1);
 });

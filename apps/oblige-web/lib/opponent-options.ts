@@ -3,11 +3,18 @@ import type { PropGroup, ResearchResponse } from './types';
 export type OpponentFilterOption = { value: string; label: string };
 type LeagueTeam = NonNullable<ResearchResponse['leagueTeams']>[number];
 
+/** Accent-folded form, for comparing two spellings of the same team. */
 const text = (value: unknown) =>
   String(value ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .trim();
+
+/**
+ * Display form. Folding accents is a matching concern only -- a team is called
+ * "San Jos\u00e9 State Spartans", and the picker should say so.
+ */
+const display = (value: unknown) => String(value ?? '').trim();
 
 const CURRENT_OPPONENT_STAR = '★';
 
@@ -90,6 +97,22 @@ export function sameTeamLabel(left: unknown, right: unknown): boolean {
 
   if (abbreviationMatch(a, rightWords, bi) || abbreviationMatch(b, leftWords, ai)) return true;
 
+  // Several feeds abbreviate by truncating the city rather than by taking
+  // initials: JAC for Jacksonville Jaguars, WSH for Washington Commanders,
+  // SEA for Seattle Seahawks. Three characters is the floor so two-letter
+  // forms (SA, LA) cannot collide with an unrelated city that happens to
+  // share their opening letters, and five is the ceiling so a real team
+  // name ("Kansas") is never read as an abbreviation of a longer one
+  // ("Kansas State").
+  const truncationMatch = (short: string, longWords: string[]) =>
+    short.length >= 3 &&
+    short.length <= 5 &&
+    longWords.length > 0 &&
+    longWords[0].length > short.length &&
+    longWords[0].startsWith(short);
+
+  if (truncationMatch(a, rightWords) || truncationMatch(b, leftWords)) return true;
+
   const prefixWords = (shorter: string[], longer: string[]) =>
     shorter.length >= 2 &&
     shorter.length < longer.length &&
@@ -103,7 +126,7 @@ export function currentOpponentLabels(
 ): string[] {
   const labels: string[] = [];
   const add = (value: unknown) => {
-    const label = text(value);
+    const label = display(value);
     if (label && !labels.some((existing) => sameTeamLabel(existing, label))) labels.push(label);
   };
 
@@ -124,8 +147,8 @@ export function currentOpponentLabels(
 function directoryRows(leagueTeams: LeagueTeam[]) {
   const rows: Array<{ abbreviation: string; name: string }> = [];
   for (const team of leagueTeams || []) {
-    const abbreviation = text(team?.abbreviation);
-    const name = text(team?.name);
+    const abbreviation = display(team?.abbreviation);
+    const name = display(team?.name);
     if (!abbreviation || !name) continue;
     if (rows.some((row) => sameTeamLabel(row.abbreviation, abbreviation) || sameTeamLabel(row.name, name))) continue;
     rows.push({ abbreviation, name });
@@ -145,7 +168,7 @@ export function buildOpponentOptions(
   group: Pick<PropGroup, 'team' | 'opponent' | 'homeTeam' | 'awayTeam'>,
   leagueTeams: LeagueTeam[] = [],
 ): OpponentFilterOption[] {
-  const observed = [...new Set(opponents.map(text).filter(Boolean))];
+  const observed = [...new Set(opponents.map(display).filter(Boolean))];
   const current = currentOpponentLabels(group);
   const entries: OpponentFilterOption[] = [];
 

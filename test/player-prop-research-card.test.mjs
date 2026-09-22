@@ -18,9 +18,9 @@ test('research card does not ship screenshot sample data', async () => {
     'Adam Mohammed',
     "const targetLine = 14.5",
     "value: '75%'",
-    "value="65.9%"",
-    "value="34.1%"",
-    "value="+7.1%"",
+    'value="65.9%"',
+    'value="34.1%"',
+    'value="+7.1%"',
     '11 BOOKS',
   ]) {
     assert.equal(card.includes(forbidden), false, 'forbidden sample leaked: ' + forbidden);

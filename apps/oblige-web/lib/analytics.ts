@@ -1,4 +1,5 @@
 import type { GameLogRow } from './types';
+import { sameTeamLabel } from './opponent-options';
 
 /**
  * Client-side windows over a game log.
@@ -92,7 +93,10 @@ export function applyFilters(games: GameLogRow[], filters: SampleFilters) {
   return games.filter((game) => {
     if (filters.venue === 'home' && game.isHome !== true) return false;
     if (filters.venue === 'away' && game.isHome !== false) return false;
-    if (filters.opponent !== 'all' && String(game.opponent || '') !== filters.opponent) return false;
+    // Matched on team identity, not on the exact string: the picker offers the
+    // league directory's names while a game log may hold abbreviations, and an
+    // exact comparison silently emptied the sample for every such pair.
+    if (filters.opponent !== 'all' && !sameTeamLabel(game.opponent, filters.opponent)) return false;
     if (filters.season !== 'all' && String(game.season ?? '') !== filters.season) return false;
     return true;
   });
@@ -116,10 +120,17 @@ export function buildWindows(games: GameLogRow[], line: number, side: Side) {
   return SAMPLE_WINDOWS.map((w) => computeWindow(sorted, line, side, w.id, w.label, w.take));
 }
 
+/**
+ * The current matchup and the game log do not always name a team the same way:
+ * the matchup can say "Jacksonville Jaguars" while the log says "JAC". Exact
+ * string equality dropped every such game and reported H2H as empty, so match
+ * on team identity instead. This only decides which already-verified rows the
+ * window covers; no row is created or altered.
+ */
 export function headToHead(games: GameLogRow[], opponent: string | null, line: number, side: Side) {
   if (!opponent) return null;
-  const rows = sortRecentFirst(playable(games)).filter(
-    (game) => String(game.opponent || '') === opponent,
+  const rows = sortRecentFirst(playable(games)).filter((game) =>
+    sameTeamLabel(game.opponent, opponent),
   );
   return computeWindow(rows, line, side, 'h2h', 'H2H', undefined);
 }

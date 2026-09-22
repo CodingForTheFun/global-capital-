@@ -10,7 +10,7 @@ import {
   sortRecentFirst,
   type SampleFilters,
 } from '@/lib/analytics';
-import { buildOpponentOptions } from '@/lib/opponent-options';
+import { buildOpponentOptions, currentOpponentLabels, sameTeamLabel } from '@/lib/opponent-options';
 import { catalogBookRows, type CatalogBookRow } from '@/lib/book-catalog';
 import { expectedValueFor, expectedValueSourceLabel, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 import { PlayerAvatar } from '@/components/face-card';
@@ -441,9 +441,9 @@ function HistoryModel({
     <div className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
       <div className="text-[13px] font-black text-white">History model</div>
       <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2">
-        <div><div className="text-[8px] text-[#8494AA]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : 'Unavailable'}</div></div>
-        <div><div className="text-[8px] text-[#8494AA]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : 'Unavailable'}</div></div>
-        <div><div className="text-[8px] text-[#8494AA]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : 'Unavailable'}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : 'Unavailable'}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : 'Unavailable'}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : 'Unavailable'}</div></div>
         <div className="min-w-0"><div className="whitespace-nowrap text-[7px] text-[#8494AA]">Selected-quote EV</div><div className={cx('mt-0.5 whitespace-nowrap font-black leading-none text-white', selectedEv ? 'text-[17px]' : 'text-[12px] tracking-[-0.02em]')}>{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : 'Unavailable'}</div></div>
       </div>
       <p className="mt-2 text-[8px] leading-[1.45] text-[#7E8FA5]">
@@ -498,7 +498,14 @@ export function PlayerPropResearchCard({
     () => sortRecentFirst(filteredAll.filter((game) => numberOf(game.value) !== null)),
     [filteredAll],
   );
-  const currentOpponent = text(research?.matchup?.opponent || group.opponent) || null;
+  // Several boards post a prop with the two teams in the event but no explicit
+  // opponent field. The opponent is still known in that case -- it is whichever
+  // side of the matchup is not this player's team -- so derive it rather than
+  // reporting "No opponent" and emptying the H2H split.
+  const currentOpponent = React.useMemo(
+    () => text(research?.matchup?.opponent || group.opponent) || currentOpponentLabels(group)[0] || null,
+    [research?.matchup?.opponent, group],
+  );
   const opponentOptions = React.useMemo(
     () => buildOpponentOptions(verifiedGames.map((game) => game.opponent), group, research?.leagueTeams || []),
     [verifiedGames, group, research?.leagueTeams],
@@ -565,7 +572,7 @@ export function PlayerPropResearchCard({
   const chartGames = React.useMemo(() => {
     if (sample === 'h2h') {
       return currentOpponent
-        ? filteredAll.filter((game) => text(game.opponent) === currentOpponent).slice(0, 15)
+        ? filteredAll.filter((game) => sameTeamLabel(game.opponent, currentOpponent)).slice(0, 15)
         : [];
     }
     if (sample === 'season') return filteredAll.slice(0, 20);

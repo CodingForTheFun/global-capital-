@@ -4,11 +4,17 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const testsDir = path.join(root, 'tests');
-const testFiles = readdirSync(testsDir)
-  .filter((name) => name.endsWith('.test.mjs'))
-  .sort()
-  .map((name) => path.join('tests', name));
+
+// Both suite directories are collected. `test/` used to be left out, so a file
+// there could sit broken indefinitely without anything reporting it -- which is
+// exactly what happened to test/player-prop-research-card.test.mjs.
+const testFiles = ['tests', 'test']
+  .flatMap((dir) =>
+    readdirSync(path.join(root, dir))
+      .filter((name) => name.endsWith('.test.mjs'))
+      .sort()
+      .map((name) => path.join(dir, name)),
+  );
 
 if (!testFiles.length) {
   console.error('[predeploy] refusing to pass with zero test files');

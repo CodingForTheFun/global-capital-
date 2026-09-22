@@ -32,6 +32,7 @@ import {
   marketArbitrageLabel,
   type MarketArbitrageCandidate,
 } from '@/lib/arbitrage.mjs';
+import { expectedValueFor, expectedValueSourceLabel } from '@/lib/expected-value.mjs';
 import { SignInPanel } from '@/components/sign-in';
 import styles from './terminal-board.module.css';
 
@@ -105,14 +106,6 @@ type MlTarget = {
   entityType: 'player';
   live: boolean;
   isAlternate: false;
-};
-
-type EvSelection = {
-  side: Side;
-  ev: number;
-  probability: number;
-  price: number;
-  sportsbook: string;
 };
 
 type SlipSelection = {
@@ -207,44 +200,6 @@ function boardDateLabel(key: string) {
   const date = new Date(year, Math.max(0, month - 1), day);
   if (!Number.isFinite(date.getTime())) return key;
   return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-}
-
-function probability01(value: unknown) {
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < 0) return null;
-  if (number <= 1) return number;
-  if (number <= 100) return number / 100;
-  return null;
-}
-
-function americanDecimal(value: unknown) {
-  const odds = Number(value);
-  if (!Number.isFinite(odds) || odds === 0) return null;
-  return odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
-}
-
-function evFor(group: PropGroup, prediction?: ModelPrediction): EvSelection | null {
-  if (!prediction?.available) return null;
-
-  const candidates: EvSelection[] = [];
-  const add = (side: Side, probabilityRaw: unknown, quote: PropRow | null) => {
-    const probability = probability01(probabilityRaw);
-    const price = numberOf(quote?.price);
-    const decimal = americanDecimal(price);
-    if (probability === null || price === null || decimal === null) return;
-    candidates.push({
-      side,
-      probability,
-      price,
-      sportsbook: quoteBook(quote),
-      ev: (probability * decimal - 1) * 100,
-    });
-  };
-
-  add('OVER', prediction.probabilityOver, group.bestOver);
-  add('UNDER', prediction.probabilityUnder, group.bestUnder);
-  if (!candidates.length) return null;
-  return candidates.sort((a, b) => b.ev - a.ev)[0];
 }
 
 function targetFor(group: PropGroup): MlTarget | null {
@@ -352,7 +307,7 @@ function performanceValue(
   research: Record<string, ResearchSummary | null>,
 ) {
   const summary = research[group.key];
-  if (metric === 'ev') return evFor(group, predictions[group.key])?.ev ?? null;
+  if (metric === 'ev') return expectedValueFor(group, predictions[group.key])?.ev ?? null;
   if (!summary) return null;
   if (metric === 'avgL10') return summary.l10?.average ?? null;
   if (metric === 'diff') return summary.diff;
@@ -642,7 +597,7 @@ export function TerminalBoard() {
     return scopedGroups
       .filter((group) => {
         if (evFloor === null) return true;
-        const best = evFor(group, predictions[group.key]);
+        const best = expectedValueFor(group, predictions[group.key]);
         return Boolean(best && best.ev >= evFloor);
       })
       .sort((a, b) => {
@@ -1079,7 +1034,7 @@ function DesktopMatrix({
           {rows.map((group) => {
             const prediction = predictions[group.key];
             const summary = research[group.key];
-            const bestEv = evFor(group, prediction);
+            const bestEv = expectedValueFor(group, prediction);
             const arb = marketArbitrage(group);
             const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
             const overSelected = slip.some((item) => item.id === selectionId(group.key, 'OVER'));
@@ -1149,7 +1104,11 @@ function DesktopMatrix({
                     <span className={styles.unavailable}>—</span>
                   )}
                 </td>
-                <td className={styles.evCell} data-positive={bestEv && bestEv.ev > 0 ? 'true' : 'false'}>
+                <td
+                  className={styles.evCell}
+                  data-positive={bestEv && bestEv.ev > 0 ? 'true' : 'false'}
+                  title={bestEv ? expectedValueSourceLabel(bestEv) || undefined : 'Verified EV unavailable'}
+                >
                   {bestEv ? (
                     <>
                       <b>{bestEv.ev >= 0 ? '+' : ''}{bestEv.ev.toFixed(1)}%</b>
@@ -1189,7 +1148,7 @@ function MobileMatrix({
       {rows.map((group) => {
         const prediction = predictions[group.key];
         const summary = research[group.key];
-        const bestEv = evFor(group, prediction);
+        const bestEv = expectedValueFor(group, prediction);
         const arb = marketArbitrage(group);
         const overSelected = slip.some((item) => item.id === selectionId(group.key, 'OVER'));
         const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
@@ -1208,8 +1167,8 @@ function MobileMatrix({
                 <small>{group.matchup}</small>
               </span>
               <span className={styles.mobileSignals}>
-                <span className={styles.mobileEv}>
-                  {bestEv ? `${bestEv.ev >= 0 ? '+' : ''}${bestEv.ev.toFixed(1)}% EV` : 'EV —'}
+                <span className={styles.mobileEv} title={bestEv ? expectedValueSourceLabel(bestEv) || undefined : 'Verified EV unavailable'}>
+                  {bestEv ? `${bestEv.side === 'OVER' ? 'O' : 'U'} ${bestEv.ev >= 0 ? '+' : ''}${bestEv.ev.toFixed(1)}% EV` : 'EV —'}
                 </span>
                 {arb ? (
                   <span className={styles.mobileArb} data-push={arb.possiblePush ? 'true' : 'false'}>
@@ -1286,7 +1245,7 @@ function Inspector({
   onClose: () => void;
   onSelect: (group: PropGroup, side: Side) => void;
 }) {
-  const ev = evFor(group, prediction);
+  const ev = expectedValueFor(group, prediction);
   const arb = marketArbitrage(group);
   const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
 
@@ -1318,7 +1277,7 @@ function Inspector({
           <div><span>Market</span><b>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</b></div>
           <div><span>Line</span><b>{group.line}</b></div>
           <div><span>Model</span><b>{projection !== null ? projection.toFixed(1) : '—'}</b></div>
-          <div><span>Best EV</span><b data-positive={ev && ev.ev > 0 ? 'true' : 'false'}>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}%` : '—'}</b></div>
+          <div title={ev ? expectedValueSourceLabel(ev) || undefined : 'Verified EV unavailable'}><span>Best EV</span><b data-positive={ev && ev.ev > 0 ? 'true' : 'false'}>{ev ? `${ev.ev >= 0 ? '+' : ''}${ev.ev.toFixed(1)}% ${ev.side === 'OVER' ? 'O' : 'U'}` : '—'}</b></div>
           <div><span>Arb</span><b data-positive={arb ? 'true' : 'false'}>{arb ? `+${arb.decidedReturnPct.toFixed(2)}%` : '—'}</b></div>
         </div>
 

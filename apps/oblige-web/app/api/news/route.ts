@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { relayedNewsImage } from '@/lib/news-image';
 
 type NewsCategory = 'injuries' | 'roster' | 'analysis';
 
@@ -87,7 +88,8 @@ function normalizeArticle(item: unknown, source: NewsSource, index: number) {
     category: categoryFor(headline, description),
     byline: text(row.byline) || null,
     published,
-    imageUrl: imageFrom(row),
+    // Served from this origin: the CSP blocks ESPN's image hosts directly.
+    imageUrl: relayedNewsImage(imageFrom(row)),
     sourceUrl,
     source: 'ESPN',
   };

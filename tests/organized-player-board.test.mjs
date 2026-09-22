@@ -37,6 +37,18 @@ test('one athlete quoted by several books is one card, not one card per book',()
   {...p,key:'q4',playerId:'pn'}];
  assert.equal(uniquePlayerCards(books).length,1);
 });
+test('provider team aliases and raw market keys collapse to one exact player prop',()=>{
+ const base={sport:'NFL',entityType:'player',eventId:'e-alias',playerId:'p-arvell',playerName:'Arvell Reese',gameStartTime:'2026-09-21T20:00:00Z',homeTeam:'Los Angeles Rams',awayTeam:'New York Giants'};
+ const groups=[
+  {...base,key:'book-a',team:'NYG',market:'Solo Tackles',rows:[{sportsbookKey:'fliff',side:'OVER',line:3.5,price:-145}]},
+  {...base,key:'book-b',team:'New York Giants',market:'player_solo_tackles',rows:[{sportsbookKey:'underdog',side:'OVER',line:3.5,price:-141}]},
+ ];
+ const cards=uniquePlayerCards(groups);
+ assert.equal(cards.length,1);
+ assert.equal(cards[0].playerChoices.length,1);
+ assert.equal(propType(cards[0]),'Solo tackles');
+ assert.deepEqual(cards[0].rows.map(quote=>quote.sportsbookKey).sort(),['fliff','underdog']);
+});
 test('a row that cannot be attributed to either namesake gets its own card',()=>{
  // Two athletes share the name and a third row arrives with no team. Which of
  // them it belongs to is unknowable, so it stays separate rather than having a

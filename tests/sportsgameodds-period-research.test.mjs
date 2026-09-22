@@ -311,6 +311,7 @@ test('SportsGameOdds fills source-qualified fantasy charts from exact graded mar
   });
 
   assert.equal(result?.available, true);
+  assert.equal(result?.source, 'SportsGameOdds results');
   assert.equal(result?.gameLog?.length, 1);
   assert.equal(result?.gameLog?.[0]?.value, 44.75);
   assert.equal(result?.coverage?.gradedMarketOnly, true);

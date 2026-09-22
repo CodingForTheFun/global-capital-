@@ -1,0 +1,56 @@
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [
+    './app/**/*.{js,ts,jsx,tsx}',
+    './components/**/*.{js,ts,jsx,tsx}',
+    './hooks/**/*.{js,ts,jsx,tsx}',
+    './lib/**/*.{js,ts,jsx,tsx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        bg: 'var(--bg)',
+        'bg-deep': 'var(--bg-deep)',
+        surface: 'var(--surface)',
+        'surface-2': 'var(--surface-2)',
+        'surface-3': 'var(--surface-3)',
+        line: 'var(--line)',
+        'line-strong': 'var(--line-strong)',
+        ink: 'var(--text)',
+        'ink-2': 'var(--text-2)',
+        'ink-3': 'var(--text-3)',
+        accent: 'var(--accent)',
+        'accent-ink': 'var(--accent-ink)',
+        'accent-soft': 'var(--accent-soft)',
+        pos: 'var(--pos)',
+        neg: 'var(--neg)',
+        warn: 'var(--warn)',
+        info: 'var(--info)',
+        'face-1': 'var(--face-1)',
+        'face-2': 'var(--face-2)',
+        'face-surface': 'var(--face-surface)',
+        'face-line': 'var(--face-line)',
+        'face-ink': 'var(--face-text)',
+        'face-ink-2': 'var(--face-text-2)',
+        'face-ink-3': 'var(--face-text-3)',
+        'face-pos': 'var(--face-pos)',
+        'face-neg': 'var(--face-neg)',
+      },
+      borderRadius: {
+        card: 'var(--radius)',
+        'card-sm': 'var(--radius-sm)',
+        'card-lg': 'var(--radius-lg)',
+      },
+      fontFamily: {
+        display: 'var(--font-display)',
+        body: 'var(--font-body)',
+        num: 'var(--font-num)',
+      },
+      transitionTimingFunction: {
+        'op-out': 'var(--ease-out)',
+        'op-spring': 'var(--ease-spring)',
+      },
+    },
+  },
+  plugins: [],
+};

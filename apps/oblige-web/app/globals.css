@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* ============================================================================
    TOKENS
@@ -112,49 +114,6 @@
     radial-gradient(640px 420px at 4% 2%, rgb(180 83 9 / .07), transparent 60%);
   --grain: 0;
   color-scheme: light;
-}
-
-/* Expose the tokens to Tailwind so utilities such as bg-surface, text-muted
-   and rounded-card resolve through the same variables the components read. */
-@theme inline {
-  --color-bg: var(--bg);
-  --color-bg-deep: var(--bg-deep);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-surface-3: var(--surface-3);
-  --color-line: var(--line);
-  --color-line-strong: var(--line-strong);
-  --color-ink: var(--text);
-  --color-ink-2: var(--text-2);
-  --color-ink-3: var(--text-3);
-  --color-accent: var(--accent);
-  --color-accent-ink: var(--accent-ink);
-  --color-accent-soft: var(--accent-soft);
-  --color-pos: var(--pos);
-  --color-neg: var(--neg);
-  --color-warn: var(--warn);
-  --color-info: var(--info);
-
-  --color-face-1: var(--face-1);
-  --color-face-2: var(--face-2);
-  --color-face-surface: var(--face-surface);
-  --color-face-line: var(--face-line);
-  --color-face-ink: var(--face-text);
-  --color-face-ink-2: var(--face-text-2);
-  --color-face-ink-3: var(--face-text-3);
-  --color-face-pos: var(--face-pos);
-  --color-face-neg: var(--face-neg);
-
-  --radius-card: var(--radius);
-  --radius-card-sm: var(--radius-sm);
-  --radius-card-lg: var(--radius-lg);
-
-  --font-display: var(--font-display);
-  --font-body: var(--font-body);
-  --font-num: var(--font-num);
-
-  --ease-out: var(--ease-out);
-  --ease-spring: var(--ease-spring);
 }
 
 /* ============================================================================

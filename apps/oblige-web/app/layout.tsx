@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://www.obligeprops.com'),
   manifest: '/app.webmanifest',
   appleWebApp: { capable: true, title: 'Oblige Props', statusBarStyle: 'black-translucent' },
-  icons: { apple: [{ url: '/app-icons/180.png', sizes: '180x180', type: 'image/png' }] },
+  icons: { icon: [{ url: '/icon.svg', type: 'image/svg+xml' }], apple: [{ url: '/icon.svg', type: 'image/svg+xml' }] },
 };
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', themeColor: '#050b13' };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

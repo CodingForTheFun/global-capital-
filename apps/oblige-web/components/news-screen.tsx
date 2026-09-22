@@ -1,6 +1,6 @@
 'use client';
 
-// Release recovery marker: deploy the reviewed mobile chrome/news fix through the verified production gate.
+// Release recovery marker: deploy the reviewed mobile chrome/news and compact research fixes through the verified production gate.
 
 import * as React from 'react';
 import { AlertTriangle, Clock3, ExternalLink, Newspaper, RefreshCw, Search, X } from 'lucide-react';

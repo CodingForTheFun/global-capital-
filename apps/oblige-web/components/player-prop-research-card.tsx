@@ -10,7 +10,8 @@ import {
   sortRecentFirst,
   type SampleFilters,
 } from '@/lib/analytics';
-import { buildOpponentOptions } from '@/lib/opponent-options';
+import { buildOpponentOptions, currentOpponentLabels, sameTeamLabel } from '@/lib/opponent-options';
+import { bookInfo } from '../../../lib/constants/books.mjs';
 import { catalogBookRows, type CatalogBookRow } from '@/lib/book-catalog';
 import { expectedValueFor, expectedValueSourceLabel, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 import { PlayerAvatar } from '@/components/face-card';
@@ -126,6 +127,41 @@ function bookInitials(name: string) {
   return clean.slice(0, 4) || 'BOOK';
 }
 
+/**
+ * A quote's price as the card should print it. DFS pick'em lines (PrizePicks,
+ * Underdog...) carry no American odds and arrive with price 0; printing that as
+ * "0" reads like a real price. The book catalog already refuses 0 as a price, so
+ * this keeps the header and price rows consistent with it.
+ */
+function quotePrice(row: PropRow | null | undefined) {
+  if (!row) return 'Unavailable';
+  const price = Number(row.price);
+  if (Number.isFinite(price) && price !== 0) return odds(price);
+  return bookInfo(row.sportsbookKey || row.sportsbook).type === 'dfs' ? "Pick'em" : '—';
+}
+
+/** "9/14": short enough to fit under every bar of a 15-game chart. */
+function numericDate(value?: string | null) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '—';
+  return date.getMonth() + 1 + '/' + date.getDate();
+}
+
+/**
+ * The opponent as a team abbreviation, resolved through the verified league
+ * directory when the game log carries a full name. Never invents one: a label
+ * with no single directory match is returned as-is and the cell truncates it.
+ */
+function teamShort(label: unknown, leagueTeams: NonNullable<ResearchResponse['leagueTeams']>) {
+  const value = text(label);
+  if (!value || value.length <= 4) return value.toUpperCase();
+  // Only an unambiguous match is shortened: "Los Angeles" fits both LAL and
+  // LAC, and picking either would put a wrong team under the bar.
+  const matches = leagueTeams.filter((team) => sameTeamLabel(team?.name, value) || sameTeamLabel(team?.abbreviation, value));
+  return matches.length === 1 ? text(matches[0]?.abbreviation) || value : value;
+}
+
 function quoteModifier(row: PropRow | null | undefined) {
   if (!row) return null;
   const special = text(row.specialType || row.dfsOddsType || row.payoutType);
@@ -224,7 +260,10 @@ function supportingMetrics(group: PropGroup, games: GameLogRow[]): SupportMetric
     value: values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : 'Unavailable',
     sample: values.length,
   });
-  return output.slice(0, 6);
+  // The per-sport list is position-blind, so a running back is offered passing
+  // stats his game log never reports. A tile with no verified games says
+  // nothing, so it is left out rather than shown as "Unavailable".
+  return output.filter((metric) => metric.sample > 0).slice(0, 6);
 }
 
 function MarketPill({
@@ -286,11 +325,13 @@ function HistoryChart({
   line,
   market,
   period,
+  leagueTeams = [],
 }: {
   games: GameLogRow[];
   line: number;
   market: string;
   period: string;
+  leagueTeams?: NonNullable<ResearchResponse['leagueTeams']>;
 }) {
   if (!games.length) {
     return (
@@ -313,7 +354,7 @@ function HistoryChart({
   const threshold = Math.max(0, Math.min(100, (line / ceiling) * 100));
 
   return (
-    <section className="rounded-2xl border border-[#1E2D3D] bg-[#0E1823] p-3">
+    <section data-qa="history-chart" className="rounded-2xl border border-[#1E2D3D] bg-[#0E1823] p-3">
       <div className="flex items-center gap-2 text-[13px] font-black text-white">
         <Flame className="h-4 w-4 text-[#FF8B2B]" fill="currentColor" />
         Last {rows.length} Games – {market}
@@ -353,6 +394,7 @@ function HistoryChart({
                     {unavailable ? 'DNP' : value}
                   </span>
                   <span
+                    data-qa="chart-bar"
                     title={shortDate(game.date) + ' · ' + (game.opponent || 'Opponent unavailable') + ' · ' + (unavailable ? 'DNP' : value)}
                     className={cx(
                       'block w-full rounded-t-[3px] border',
@@ -374,8 +416,8 @@ function HistoryChart({
         >
           {rows.map((game, index) => (
             <span key={'label-' + (game.gameId || game.date || index)} className="min-w-0 overflow-hidden text-[7px] text-[#718198]">
-              <b className="block truncate font-semibold text-[#93A2B8]">{shortDate(game.date)}</b>
-              <span className="block truncate">{game.isHome === false ? '@' : 'vs'}{game.opponent || '—'}</span>
+              <b className="block truncate font-semibold text-[#93A2B8]">{numericDate(game.date)}</b>
+              <span className="block truncate">{game.isHome === false ? '@' : ''}{teamShort(game.opponent, leagueTeams) || '—'}</span>
             </span>
           ))}
         </div>
@@ -441,10 +483,10 @@ function HistoryModel({
     <div className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
       <div className="text-[13px] font-black text-white">History model</div>
       <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2">
-        <div><div className="text-[8px] text-[#8494AA]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : 'Unavailable'}</div></div>
-        <div><div className="text-[8px] text-[#8494AA]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : 'Unavailable'}</div></div>
-        <div><div className="text-[8px] text-[#8494AA]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : 'Unavailable'}</div></div>
-        <div className="min-w-0"><div className="whitespace-nowrap text-[7px] text-[#8494AA]">Selected-quote EV</div><div className={cx('mt-0.5 whitespace-nowrap font-black leading-none text-white', selectedEv ? 'text-[17px]' : 'text-[12px] tracking-[-0.02em]')}>{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : 'Unavailable'}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="whitespace-nowrap text-[7px] text-[#8494AA]">Selected-quote EV</div><div className="mt-0.5 whitespace-nowrap text-[17px] font-black leading-none text-white">{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
       </div>
       <p className="mt-2 text-[8px] leading-[1.45] text-[#7E8FA5]">
         {loading
@@ -498,7 +540,14 @@ export function PlayerPropResearchCard({
     () => sortRecentFirst(filteredAll.filter((game) => numberOf(game.value) !== null)),
     [filteredAll],
   );
-  const currentOpponent = text(research?.matchup?.opponent || group.opponent) || null;
+  // Several boards post a prop with the two teams in the event but no explicit
+  // opponent field. The opponent is still known in that case -- it is whichever
+  // side of the matchup is not this player's team -- so derive it rather than
+  // reporting "No opponent" and emptying the H2H split.
+  const currentOpponent = React.useMemo(
+    () => text(research?.matchup?.opponent || group.opponent) || currentOpponentLabels(group)[0] || null,
+    [research?.matchup?.opponent, group],
+  );
   const opponentOptions = React.useMemo(
     () => buildOpponentOptions(verifiedGames.map((game) => game.opponent), group, research?.leagueTeams || []),
     [verifiedGames, group, research?.leagueTeams],
@@ -548,6 +597,12 @@ export function PlayerPropResearchCard({
   const over = selectedBook?.over || group.bestOver;
   const under = selectedBook?.under || group.bestUnder;
   const quoteAtResearchLine = Math.abs(state.line - group.line) < 0.0001;
+  // A pick'em line has no price on either side, so the price row says so once.
+  const pickemLine = quoteAtResearchLine && [over, under].some(Boolean)
+    && [over, under].every((quote) => !quote || quotePrice(quote) === "Pick'em");
+  const dfsSource = group.quotes
+    .map((quote) => bookInfo(quote.sportsbookKey || quote.sportsbook))
+    .find((info) => info.type === 'dfs')?.name || null;
   const modifier = quoteModifier(heroQuote);
 
   const h2h = React.useMemo(
@@ -565,7 +620,7 @@ export function PlayerPropResearchCard({
   const chartGames = React.useMemo(() => {
     if (sample === 'h2h') {
       return currentOpponent
-        ? filteredAll.filter((game) => text(game.opponent) === currentOpponent).slice(0, 15)
+        ? filteredAll.filter((game) => sameTeamLabel(game.opponent, currentOpponent)).slice(0, 15)
         : [];
     }
     if (sample === 'season') return filteredAll.slice(0, 20);
@@ -683,7 +738,7 @@ export function PlayerPropResearchCard({
           <div className="text-right">
             <div className="text-[9px] font-semibold uppercase tracking-[.04em] text-[#7E8FA5]">Posted</div>
             <div className="text-[16px] font-black leading-none text-[#35EF86]">{group.line}</div>
-            <div className="mt-1 text-[9px] font-bold text-[#929CB0]">{heroQuote ? state.side + ' ' + odds(heroQuote.price) : 'Price unavailable'}</div>
+            <div className="mt-1 text-[9px] font-bold text-[#929CB0]">{heroQuote ? (quotePrice(heroQuote) === "Pick'em" ? "PICK'EM" : state.side + ' ' + quotePrice(heroQuote)) : 'Price unavailable'}</div>
           </div>
         </div>
       </div>
@@ -728,7 +783,7 @@ export function PlayerPropResearchCard({
               Team: <b className="ml-1 font-semibold text-[#C6D0DE]">{teamLabel}</b>
             </span>
           </div>
-          <div className="px-0.5 pt-0.5 text-[12px] font-bold text-white">
+          <div data-qa="sample-count" className="px-0.5 pt-0.5 text-[12px] font-bold text-white">
             {loading ? 'Loading verified history…' : filteredGames.length + ' of ' + verifiedGames.length + ' verified ' + (verifiedGames.length === 1 ? 'game' : 'games')}
           </div>
           {unavailableReason ? <p className="px-0.5 text-[10px] leading-4 text-[#FF9AAF]">{unavailableReason}</p> : null}
@@ -743,15 +798,19 @@ export function PlayerPropResearchCard({
           </div>
           <div className="grid grid-cols-[44px_1fr_44px] overflow-hidden rounded-xl border border-[#2A3B51] bg-[#0A121C]">
             <button type="button" aria-label="Lower target line" onClick={() => stepLine(-1)} className="grid h-[52px] place-items-center border-r border-[#233246] text-[#95A5BB]"><Minus className="h-4 w-4" /></button>
-            <div className="grid h-[52px] place-items-center text-[25px] font-black tracking-[-0.03em] text-white">{state.line}</div>
+            <div data-qa="line-number" className="grid h-[52px] place-items-center text-[25px] font-black tracking-[-0.03em] text-white">{state.line}</div>
             <button type="button" aria-label="Raise target line" onClick={() => stepLine(1)} className="grid h-[52px] place-items-center border-l border-[#233246] text-[#95A5BB]"><Plus className="h-5 w-5" /></button>
           </div>
           <div className="mt-1.5 flex items-center justify-between rounded-xl bg-[#0C141E] px-3 py-2 text-[11px]">
             <span className="max-w-[190px] truncate font-bold text-[#E1E7EF]">{selectedBook ? selectedBook.name : 'Best available prices'}</span>
+            {pickemLine ? (
+              <span className="font-black text-[#C6D0DE]">Pick'em</span>
+            ) : (
             <div className="flex items-center gap-4 font-black">
-              <button type="button" aria-pressed={state.side === 'OVER'} onClick={() => onState({ ...state, side: 'OVER' })} className={state.side === 'OVER' ? 'text-[#23E787]' : 'text-[#7E8FA5]'}>O {quoteAtResearchLine && over ? odds(over.price) : 'Unavailable'}</button>
-              <button type="button" aria-pressed={state.side === 'UNDER'} onClick={() => onState({ ...state, side: 'UNDER' })} className={state.side === 'UNDER' ? 'text-[#FF5C88]' : 'text-[#7E8FA5]'}>U {quoteAtResearchLine && under ? odds(under.price) : 'Unavailable'}</button>
+              <button type="button" aria-pressed={state.side === 'OVER'} onClick={() => onState({ ...state, side: 'OVER' })} className={state.side === 'OVER' ? 'text-[#23E787]' : 'text-[#7E8FA5]'}>O {quoteAtResearchLine && over ? quotePrice(over) : 'Unavailable'}</button>
+              <button type="button" aria-pressed={state.side === 'UNDER'} onClick={() => onState({ ...state, side: 'UNDER' })} className={state.side === 'UNDER' ? 'text-[#FF5C88]' : 'text-[#7E8FA5]'}>U {quoteAtResearchLine && under ? quotePrice(under) : 'Unavailable'}</button>
             </div>
+            )}
           </div>
         </section>
 
@@ -784,20 +843,26 @@ export function PlayerPropResearchCard({
         {loading ? (
           <div className="h-[250px] animate-pulse rounded-2xl border border-[#1E2D3D] bg-[#0E1823]" />
         ) : (
-          <HistoryChart games={chartGames} line={state.line} market={marketLabel} period={periodLabel(group.period)} />
+          <HistoryChart games={chartGames} line={state.line} market={marketLabel} period={periodLabel(group.period)} leagueTeams={research?.leagueTeams || []} />
         )}
 
         <section className="grid grid-cols-[1.08fr_.92fr] gap-2.5">
           <div className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
             <div className="px-1 text-[9px] font-black tracking-[0.2em] text-[#8392A8]">SUPPORTING STATS</div>
-            <div className="mt-2 grid grid-cols-3 overflow-hidden rounded-xl border border-[#223147]">
+            {support.length ? (
+            <div
+              className="mt-2 grid overflow-hidden rounded-xl border border-[#223147]"
+              // One or two surviving tiles share the row instead of each
+              // squeezing into a third of it and truncating its value.
+              style={{ gridTemplateColumns: 'repeat(' + Math.min(support.length, 3) + ', minmax(0, 1fr))' }}
+            >
               {support.map((item, index) => (
                 <div
                   key={item.label}
                   className={cx(
                     'min-h-[58px] p-2',
-                    index % 3 !== 2 && 'border-r border-[#223147]',
-                    index < 3 && 'border-b border-[#223147]',
+                    index % 3 !== 2 && index !== support.length - 1 && 'border-r border-[#223147]',
+                    index < Math.floor((support.length - 1) / 3) * 3 && 'border-b border-[#223147]',
                   )}
                   title={item.sample ? item.sample + ' verified games reported' : 'Unavailable'}
                 >
@@ -806,6 +871,9 @@ export function PlayerPropResearchCard({
                 </div>
               ))}
             </div>
+            ) : (
+              <p className="mt-2 px-1 text-[10px] leading-4 text-[#8797AD]">No verified stats for this player yet.</p>
+            )}
           </div>
           <HistoryModel group={group} selectedBook={selectedBook} line={state.line} />
         </section>
@@ -813,8 +881,10 @@ export function PlayerPropResearchCard({
         <details className="group rounded-2xl border border-[#1E2D3D] bg-[#101925]">
           <summary className="flex cursor-pointer list-none items-center justify-between px-3.5 py-3 text-[13px] font-black text-white [&::-webkit-details-marker]:hidden">
             <span>Sportsbook Prices</span>
-            <span className="rounded-full border border-[#0F5B44] bg-[#08271F] px-3 py-1 text-[9px] font-black text-[#23E787]">
-              {availableBooks.length} {availableBooks.length === 1 ? 'BOOK' : 'BOOKS'}
+            <span className="whitespace-nowrap rounded-full border border-[#0F5B44] bg-[#08271F] px-3 py-1 text-[9px] font-black text-[#23E787]">
+              {!availableBooks.length && dfsSource
+                ? '0 SPORTSBOOKS · ' + dfsSource.toUpperCase() + ' LINE'
+                : availableBooks.length + ' ' + (availableBooks.length === 1 ? 'BOOK' : 'BOOKS')}
             </span>
           </summary>
           <div className="border-t border-[#1E2D3D] px-3 pb-3 pt-2">

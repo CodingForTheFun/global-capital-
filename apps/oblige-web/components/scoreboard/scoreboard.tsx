@@ -74,26 +74,28 @@ export function Scoreboard({
                   aria-hidden="true"
                   className={[
                     'size-1.5 rounded-full',
-                    liveCount > 0 ? 'bg-red-500 shadow-[0_0_0_3px_rgba(239,68,68,.08)]' : 'bg-[var(--text-3)]',
+                    liveCount > 0
+                      ? 'animate-pulse bg-[var(--accent)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_18%,transparent)]'
+                      : 'bg-[var(--text-3)]',
                   ].join(' ')}
                 />
               )}
               <span>{filter}</span>
               {filter === 'live' && liveCount > 0 && (
-                <span className="font-mono text-[10px] font-bold text-red-400">{liveCount}</span>
+                <span className="font-mono text-[10px] font-bold text-[var(--accent)]">{liveCount}</span>
               )}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="divide-y divide-[color-mix(in_srgb,var(--line)_72%,transparent)]">
+      <div className="flex flex-col gap-2.5 p-2.5 sm:p-3">
         {isLoading ? (
-          <div className="py-14 text-center font-mono text-[11px] tracking-[.08em] text-[var(--text-3)]">
+          <div className="py-12 text-center font-mono text-[11px] tracking-[.08em] text-[var(--text-3)]">
             UPDATING FEED...
           </div>
         ) : displayedEvents.length === 0 ? (
-          <div className="py-14 text-center text-[12px] text-[var(--text-3)]">
+          <div className="py-12 text-center text-[12px] text-[var(--text-3)]">
             {activeFilter === 'live'
               ? 'No games currently in play.'
               : activeFilter === 'finished'
@@ -102,7 +104,7 @@ export function Scoreboard({
           </div>
         ) : (
           displayedEvents.map((event) => (
-            <MatchRow key={event.id} event={event} onSelect={onSelectMatch} />
+            <MatchCard key={event.id} event={event} onSelect={onSelectMatch} />
           ))
         )}
       </div>
@@ -110,18 +112,18 @@ export function Scoreboard({
   );
 }
 
-function TeamMark({
-  logoUrl,
-  name,
-}: {
-  logoUrl?: string;
-  name: string;
-}) {
+/**
+ * A team's mark at a size a thumb can resolve.
+ *
+ * The fallback tint is derived from the abbreviation rather than a brand
+ * palette: the feed carries no team colours, and inventing one per club would
+ * put a wrong colour next to a real logo. A stable hue per abbreviation keeps
+ * two teams in the same card distinguishable without claiming to be official.
+ */
+function TeamMark({ logoUrl, label }: { logoUrl?: string; label: string }) {
   const [failed, setFailed] = React.useState(false);
 
-  React.useEffect(() => {
-    setFailed(false);
-  }, [logoUrl]);
+  React.useEffect(() => { setFailed(false); }, [logoUrl]);
 
   if (logoUrl && !failed) {
     return (
@@ -131,99 +133,162 @@ function TeamMark({
         loading="lazy"
         referrerPolicy="no-referrer"
         onError={() => setFailed(true)}
-        className="size-[18px] shrink-0 object-contain opacity-90"
+        className="size-6 shrink-0 object-contain"
       />
     );
   }
 
+  let hue = 0;
+  for (const character of label) hue = (hue * 31 + character.charCodeAt(0)) % 360;
+
   return (
     <span
       aria-hidden="true"
-      className="grid size-[18px] shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--text)_7%,transparent)] text-[6px] font-black text-[var(--text-3)]"
+      style={{
+        backgroundColor: `color-mix(in srgb, hsl(${hue} 58% 52%) 20%, transparent)`,
+        color: `hsl(${hue} 58% 68%)`,
+      }}
+      className="grid size-6 shrink-0 place-items-center rounded-full text-[9px] font-black tracking-tight"
     >
-      {name.slice(0, 2).toUpperCase()}
+      {label.slice(0, 3).toUpperCase()}
     </span>
   );
 }
 
-function MatchRow({
+/**
+ * Split a pre-game status into the day and the time.
+ *
+ * The card shows a status on the header and a value on the away row, and a
+ * scheduled game would otherwise put the same "Today · 7:15 PM" in both, a few
+ * pixels apart. The day goes in the header and the clock beside the team, so
+ * each slot carries something the other does not.
+ */
+function splitStart(statusDetail: string) {
+  const parts = statusDetail.split('·').map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) return { day: parts[0], time: parts.slice(1).join(' · ') };
+  // `formatStart` omits the day for a game later today.
+  return { day: 'Today', time: statusDetail };
+}
+
+/** "Sep 21" for the card header, omitted when the feed gave no kick-off. */
+function shortDate(startsAt?: string) {
+  if (!startsAt) return '';
+  const date = new Date(startsAt);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+/**
+ * One team's line in a card.
+ *
+ * The name is allowed to wrap to a second line rather than truncate. Fitting
+ * both clubs and a score across one row is what forced the truncation this
+ * replaces, and a shortened name is only used where the feed supplies a real
+ * abbreviation.
+ */
+function TeamLine({
+  team,
+  trailing,
+  emphasis,
+}: {
+  team: { name: string; shortName: string; logoUrl?: string };
+  trailing: React.ReactNode;
+  emphasis: 'win' | 'loss' | 'neutral';
+}) {
+  const nameTone =
+    emphasis === 'win'
+      ? 'text-[var(--text)] font-semibold'
+      : emphasis === 'loss'
+        ? 'text-[var(--text-3)] font-normal'
+        : 'text-[var(--text-2)] font-medium';
+
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <TeamMark logoUrl={team.logoUrl} label={team.shortName || team.name} />
+        <span className={`text-sm leading-tight ${nameTone}`}>{team.name}</span>
+      </div>
+      {trailing}
+    </div>
+  );
+}
+
+function MatchCard({
   event,
   onSelect,
 }: {
   event: ScoreboardEvent;
   onSelect?: (id: string) => void;
 }) {
-  const { status, statusDetail, homeTeam, awayTeam, venue, broadcast } = event;
+  const { status, statusDetail, homeTeam, awayTeam, startsAt, venue, broadcast } = event;
   const isLive = status === 'live';
   const isFinished = status === 'finished';
   const hasScore = awayTeam.score !== undefined && homeTeam.score !== undefined;
+  const date = shortDate(startsAt);
+  const upcoming = !isLive && !isFinished;
+  const start = upcoming ? splitStart(statusDetail) : null;
+
+  // Before kick-off there is no winner to emphasise and no score to show, so
+  // both teams read level and the score column carries the start time instead.
+  const emphasisFor = (isWinner?: boolean) =>
+    !isFinished ? 'neutral' : isWinner ? 'win' : 'loss';
+
+  const scoreFor = (value: number | string | undefined, isWinner?: boolean) => {
+    if (!hasScore) return null;
+    const tone = isLive
+      ? 'text-[var(--accent)] font-bold'
+      : isFinished && isWinner
+        ? 'text-[var(--text)] font-bold'
+        : isFinished
+          ? 'text-[var(--text-3)] font-normal'
+          : 'text-[var(--text-2)] font-semibold';
+    return <span className={`shrink-0 text-base tabular-nums ${tone}`}>{value}</span>;
+  };
+
+  const Wrapper = onSelect ? 'button' : 'div';
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect?.(event.id)}
-      disabled={!onSelect}
+    <Wrapper
+      {...(onSelect ? { type: 'button' as const, onClick: () => onSelect(event.id) } : {})}
       className={[
-        'group grid w-full grid-cols-[64px_minmax(0,1fr)_54px_minmax(0,1fr)] items-center px-2.5 py-2.5 text-left transition-colors',
-        'sm:grid-cols-[80px_minmax(0,1fr)_64px_minmax(0,1fr)_100px] sm:px-4',
-        onSelect ? 'cursor-pointer hover:bg-[color-mix(in_srgb,var(--text)_4%,transparent)]' : 'cursor-default',
+        'flex w-full flex-col gap-2 rounded-xl border p-3.5 text-left transition-colors',
+        'border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_70%,transparent)]',
+        onSelect ? 'cursor-pointer hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)]' : '',
       ].join(' ')}
     >
-      <div className="min-w-0">
+      <div className="flex items-center justify-between gap-3 border-b border-[color-mix(in_srgb,var(--line)_60%,transparent)] pb-1.5">
         {isLive ? (
-          <span className="flex items-center gap-1 truncate font-mono text-[10px] font-bold text-red-400">
-            <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-red-500" />
+          <span className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-[var(--accent)]">
+            <span aria-hidden="true" className="size-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent)]" />
             {statusDetail || 'LIVE'}
           </span>
-        ) : isFinished ? (
-          <span className="text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--text-3)]">FT</span>
         ) : (
-          <span className="truncate font-mono text-[10px] text-[var(--text-3)]">{statusDetail}</span>
+          <span className="truncate text-xs font-medium tracking-wide text-[var(--text-3)]">
+            {isFinished ? 'FINAL' : start?.day}
+          </span>
         )}
+        {date && <span className="shrink-0 text-[11px] text-[var(--text-3)]">{date}</span>}
       </div>
 
-      <div className="flex min-w-0 items-center justify-end gap-1.5 pr-2 text-right sm:gap-2 sm:pr-3">
-        <span
-          className={[
-            'truncate text-[11px]',
-            awayTeam.isWinner ? 'font-bold text-[var(--text)]' : 'text-[var(--text-2)]',
-          ].join(' ')}
-        >
-          {awayTeam.name}
-        </span>
-        <TeamMark logoUrl={awayTeam.logoUrl} name={awayTeam.shortName || awayTeam.name} />
+      <div className="flex flex-col gap-2">
+        <TeamLine
+          team={awayTeam}
+          emphasis={emphasisFor(awayTeam.isWinner)}
+          trailing={
+            scoreFor(awayTeam.score, awayTeam.isWinner)
+            ?? <span className="shrink-0 text-xs font-medium text-[var(--text-2)]">{start?.time}</span>
+          }
+        />
+        <TeamLine
+          team={homeTeam}
+          emphasis={emphasisFor(homeTeam.isWinner)}
+          trailing={scoreFor(homeTeam.score, homeTeam.isWinner) ?? <span aria-hidden="true" className="shrink-0" />}
+        />
       </div>
 
-      <div className="flex items-center justify-center">
-        <div
-          className={[
-            'w-[50px] rounded-[7px] border border-[var(--line)] bg-[var(--bg-deep)] px-1 py-1 text-center font-mono text-[10px] font-bold tracking-tight sm:w-[58px]',
-            isLive ? 'text-emerald-400' : hasScore ? 'text-[var(--text)]' : 'text-[var(--text-3)]',
-          ].join(' ')}
-        >
-          {hasScore ? (
-            <span>{awayTeam.score} - {homeTeam.score}</span>
-          ) : (
-            <span className="text-[9px]">VS</span>
-          )}
-        </div>
-      </div>
-
-      <div className="flex min-w-0 items-center justify-start gap-1.5 pl-2 sm:gap-2 sm:pl-3">
-        <TeamMark logoUrl={homeTeam.logoUrl} name={homeTeam.shortName || homeTeam.name} />
-        <span
-          className={[
-            'truncate text-[11px]',
-            homeTeam.isWinner ? 'font-bold text-[var(--text)]' : 'text-[var(--text-2)]',
-          ].join(' ')}
-        >
-          {homeTeam.name}
-        </span>
-      </div>
-
-      <div className="hidden min-w-0 text-right sm:block">
-        <span className="block truncate text-[9px] text-[var(--text-3)]">{venue || broadcast || ''}</span>
-      </div>
-    </button>
+      {(venue || broadcast) && (
+        <div className="truncate text-[11px] text-[var(--text-3)]">{venue || broadcast}</div>
+      )}
+    </Wrapper>
   );
 }

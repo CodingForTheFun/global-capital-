@@ -18,9 +18,9 @@ test('research card does not ship screenshot sample data', async () => {
     'Adam Mohammed',
     "const targetLine = 14.5",
     "value: '75%'",
-    "value="65.9%"",
-    "value="34.1%"",
-    "value="+7.1%"",
+    'value="65.9%"',
+    'value="34.1%"',
+    'value="+7.1%"',
     '11 BOOKS',
   ]) {
     assert.equal(card.includes(forbidden), false, 'forbidden sample leaked: ' + forbidden);
@@ -38,4 +38,43 @@ test('verified history model covers supported soccer and tennis research', async
   assert.match(adaptive, /'TENNIS'/);
   assert.match(adaptive, /values\.length<9/);
   assert.match(adaptive, /Verified game history is unavailable/);
+});
+
+test('supporting stats leave out metrics with no verified games', async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.match(card, /output\.filter\(\(metric\) => metric\.sample > 0\)/, 'a tile with no data must not render as "Unavailable"');
+  assert.match(card, /No verified stats for this player yet\./, 'an empty set says so instead of showing an empty grid');
+});
+
+test('chart labels use a numeric date and a team abbreviation so every game fits', async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.match(card, /\{numericDate\(game\.date\)\}/);
+  assert.match(card, /teamShort\(game\.opponent, leagueTeams\)/);
+  assert.match(card, /leagueTeams=\{research\?\.leagueTeams \|\| \[\]\}/, 'the chart receives the verified directory');
+  assert.doesNotMatch(card, /\? '@' : 'vs'\}\{game\.opponent/, 'the old truncating label is gone');
+});
+
+test("a pick'em line never prints 0 as a price", async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.match(card, /price !== 0\) return odds\(price\)/, 'only a real, nonzero price is formatted as odds');
+  assert.match(card, /type === 'dfs' \? "Pick'em" : '—'/, "DFS books say Pick'em; any other missing price is a dash");
+  assert.doesNotMatch(card, /odds\(heroQuote\.price\)|odds\(over\.price\)|odds\(under\.price\)/, 'no raw price reaches the header or best-price row');
+  assert.match(card, /'0 SPORTSBOOKS · ' \+ dfsSource\.toUpperCase\(\) \+ ' LINE'/);
+});
+
+test('a chart label is only abbreviated when exactly one directory team matches', async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.match(card, /matches\.length === 1 \? text\(matches\[0\]\?\.abbreviation\) \|\| value : value/);
+  assert.doesNotMatch(card, /leagueTeams\.find\(\(team\) => sameTeamLabel/, 'first-match lookup could name the wrong team');
+});
+
+test('an empty History model shows a dash, not a word too wide for its box', async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.doesNotMatch(card, /probabilityLabel\(prediction\?\.probability(Over|Under)\) : 'Unavailable'/, '"Unavailable" at 17px overflowed a phone viewport');
+  assert.match(card, /<span aria-hidden="true">—<\/span><span className="sr-only">Unavailable<\/span>/, 'screen readers still hear why');
+});
+
+test('surviving stat tiles share the row instead of truncating in a third of it', async () => {
+  const card = await readFile(cardPath, 'utf8');
+  assert.match(card, /Math\.min\(support\.length, 3\)/);
 });

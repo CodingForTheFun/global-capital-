@@ -17,6 +17,8 @@ export interface ScoreboardEvent {
   statusDetail: string;
   homeTeam: Competitor;
   awayTeam: Competitor;
+  /** Scheduled kick-off, ISO. Drives the card's date and its pre-game time. */
+  startsAt?: string;
   venue?: string;
   broadcast?: string;
 }

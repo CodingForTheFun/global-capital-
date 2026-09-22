@@ -37,3 +37,23 @@ test('Sportradar trial registry covers the account products without odds-player-
   ]) assert.ok(ids.includes(required), required);
   assert.ok(!ids.some((id) => id.includes('playerProps')));
 });
+
+// The mesh policy is published in the health payload beside `configured`, which
+// is read from the environment and true. Every other field is a hand-written
+// description, and five of them have no consumer anywhere in the tree —
+// `quoteOverwrite: { sportsgameodds: true }` was read as an active merge rule
+// and reasoned about as a risk to customer-facing lines before anyone checked.
+// `advisory` says which half is which so the next reader does not repeat that.
+test('the policy declares which of its fields nothing enforces', () => {
+  const policy = meshPolicy({});
+  assert.ok(Array.isArray(policy.advisory) && policy.advisory.length > 0);
+  for (const field of policy.advisory) {
+    assert.ok(field in policy, `advisory names "${field}", which the policy does not publish`);
+  }
+  // These are read, so claiming they are advisory would be its own false note.
+  for (const enforced of ['configured', 'quotePrimary', 'quoteFallbacks', 'mode', 'advisory']) {
+    assert.equal(policy.advisory.includes(enforced), false, `${enforced} is read and must not be listed as advisory`);
+  }
+  assert.equal(policy.advisory.includes('quoteOverwrite'), true);
+  assert.equal(policy.advisory.includes('capabilities'), true);
+});

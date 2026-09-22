@@ -86,35 +86,41 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(base + researchURL, { waitUntil: 'domcontentloaded' });
-    const panel = page.locator('[data-design="player-prop-deep-dive-restored"]');
-    await panel.locator('.deep-dive-sample-count').filter({ hasText: '20 of 20 verified games' }).waitFor();
+    // /research renders PlayerPropResearchCard (see player-view.tsx); the older
+    // compact card this check used to target is no longer routed.
+    const panel = page.locator('[data-design="player-prop-research-card"]');
+    const sampleCount = panel.locator('[data-qa="sample-count"]');
+    await sampleCount.filter({ hasText: '20 of 20 verified games' }).waitFor();
     const initialResearchRequests = researchRequests;
     const opponent = panel.getByLabel('Opponent');
     const season = panel.getByLabel('Season');
-    const book = panel.getByLabel('Book', { exact: true });
+    const book = panel.getByLabel('Sportsbook', { exact: true });
 
     await opponent.selectOption('DAL');
-    assert.match(await panel.locator('.deep-dive-sample-count').innerText(), /^10 of 20/);
+    assert.match(await sampleCount.innerText(), /^10 of 20/);
     await season.selectOption('2025');
-    assert.match(await panel.locator('.deep-dive-sample-count').innerText(), /^5 of 20/);
+    assert.match(await sampleCount.innerText(), /^5 of 20/);
     await book.selectOption('draftkings');
     assert.equal(await book.inputValue(), 'draftkings');
-    assert.match(await panel.locator('.deep-dive-sample-count').innerText(), /^5 of 20/);
+    assert.match(await sampleCount.innerText(), /^5 of 20/);
 
     await opponent.selectOption('all');
-    assert.match(await panel.locator('.deep-dive-sample-count').innerText(), /^10 of 20/);
+    assert.match(await sampleCount.innerText(), /^10 of 20/);
     assert.equal(await season.inputValue(), '2025');
 
-    await panel.getByRole('button', { name: 'Raise research line' }).click();
-    assert.equal(await panel.locator('.deep-dive-line-number').innerText(), '95');
-    assert.match(await panel.locator('.deep-dive-price-note').innerText(), /posted line 94\.5/i);
-    const under = panel.locator('button[data-side="UNDER"]');
+    // The stepper moves to the next posted line when one exists, otherwise by
+    // half a point. The fixture posts only 94.5, so the line becomes 95 and the
+    // card marks it as a research line rather than a posted one.
+    await panel.getByRole('button', { name: 'Raise target line' }).click();
+    assert.equal(await panel.locator('[data-qa="line-number"]').innerText(), '95');
+    await panel.getByText('Research line', { exact: true }).waitFor();
+    const under = panel.getByRole('button', { name: /^U / });
     await under.click();
     assert.equal(await under.getAttribute('aria-pressed'), 'true');
     assert.equal(researchRequests, initialResearchRequests, 'Filters, book, line and side must not fetch research');
 
     await opponent.selectOption('NYG');
-    assert.match(await panel.locator('.deep-dive-sample-count').innerText(), /^5 of 20/);
+    assert.match(await sampleCount.innerText(), /^5 of 20/);
     await opponent.selectOption('all');
     await page.getByRole('button', { name: 'Install Oblige Props', exact: true }).click();
     await page.locator('dialog[open]').waitFor();
@@ -125,8 +131,8 @@ try {
       return registration?.active?.scriptURL.endsWith('/app-worker.js');
     });
     const dimensions = await page.evaluate(() => {
-      const panel = document.querySelector('[data-design="player-prop-deep-dive-restored"]').getBoundingClientRect();
-      const chart = document.querySelector('.deep-dive-chart-section').getBoundingClientRect();
+      const panel = document.querySelector('[data-design="player-prop-research-card"]').getBoundingClientRect();
+      const chart = document.querySelector('[data-qa="history-chart"]').getBoundingClientRect();
       return { viewport: innerWidth, document: document.documentElement.scrollWidth, panel: panel.width, chart: chart.width };
     });
     if (dimensions.document > dimensions.viewport + 1) {
@@ -152,10 +158,10 @@ try {
     await panel.scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${output}/research-${viewport.width}-CI-fixture.png`, fullPage: true });
     await page.goto(base + '/research?' + new URLSearchParams({ sport: 'NFL', player, market: '1H Receiving Yards', line: '94.5', period: '1h' }), { waitUntil: 'domcontentloaded' });
-    const exactPanel = page.locator('[data-design="player-prop-deep-dive-restored"]');
-    await exactPanel.locator('.deep-dive-chart-section').waitFor();
-    await exactPanel.locator('.deep-dive-chart-bar').first().waitFor();
-    assert.ok(await exactPanel.locator('.deep-dive-chart-bar').count() > 0, 'Exact half-game fixture history should render');
+    const exactPanel = page.locator('[data-design="player-prop-research-card"]');
+    await exactPanel.locator('[data-qa="history-chart"]').waitFor();
+    await exactPanel.locator('[data-qa="chart-bar"]').first().waitFor();
+    assert.ok(await exactPanel.locator('[data-qa="chart-bar"]').count() > 0, 'Exact half-game fixture history should render');
     assert.equal(researchRequests, initialResearchRequests + 1, 'Opening an exact-period player page makes one detail research request');
     const periodRequest = researchRequestUrls.at(-1);
     assert.equal(periodRequest?.searchParams.get('period'), '1h', 'Player detail must request the selected period');

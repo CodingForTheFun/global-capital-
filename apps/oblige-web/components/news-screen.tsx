@@ -147,7 +147,7 @@ export function NewsScreen() {
         </div>
       </header>
 
-      <section className="sticky top-14 z-20 mb-4 grid gap-2 border-y border-[var(--line)] bg-[color-mix(in_srgb,var(--bg)_95%,transparent)] py-2 backdrop-blur-xl md:top-16 md:rounded-[14px] md:border md:p-2.5" aria-label="News filters">
+      <section className="sticky top-[58px] z-20 mb-4 grid gap-2 border-y border-[var(--line)] bg-[color-mix(in_srgb,var(--bg)_95%,transparent)] py-2 backdrop-blur-xl md:top-16 md:rounded-[14px] md:border md:p-2.5" aria-label="News filters">
         <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {SPORTS.map(([id, label]) => (
             <button
@@ -253,39 +253,64 @@ export function NewsScreen() {
   );
 }
 
+function ArticleArtwork({ article }: { article: NewsArticle }) {
+  const [failed, setFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    setFailed(false);
+  }, [article.imageUrl]);
+
+  const showImage = Boolean(article.imageUrl && !failed);
+
+  return (
+    <div className="relative h-24 min-h-24 overflow-hidden rounded-[9px] border border-[var(--line)] bg-[var(--surface-2)] sm:h-28">
+      {showImage ? (
+        <img
+          src={article.imageUrl || ''}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="grid h-full place-items-center bg-[linear-gradient(145deg,var(--surface-2),color-mix(in_srgb,var(--surface-3)_72%,var(--surface-2)))]">
+          <Newspaper className="size-5 text-[var(--text-3)]" aria-hidden="true" />
+        </div>
+      )}
+      <span className="absolute bottom-1.5 left-1.5 rounded-[6px] border border-white/10 bg-black/75 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase text-white">{article.sportLabel}</span>
+    </div>
+  );
+}
+
 function ArticleCard({ article }: { article: NewsArticle }) {
   const body = (
     <>
-      <div className="relative h-36 overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] sm:h-28">
-        {article.imageUrl ? (
-          <img src={article.imageUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
-        ) : (
-          <div className="grid h-full place-items-center"><Newspaper className="size-6 text-[var(--text-3)]" aria-hidden="true" /></div>
-        )}
-        <span className="absolute bottom-2 left-2 rounded-[6px] border border-white/10 bg-black/70 px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase text-white">{article.sportLabel}</span>
-      </div>
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+      <ArticleArtwork article={article} />
+      <div className="min-w-0 self-stretch">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[9px] sm:text-[10px]">
           <span className="rounded-[6px] border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-0.5 font-semibold text-[var(--text-2)]">{CATEGORY_LABEL[article.category]}</span>
           <span className="inline-flex items-center gap-1 font-mono text-[var(--text-3)]"><Clock3 className="size-3" aria-hidden="true" />{timeAgo(article.published)}</span>
-          {article.byline && <span className="truncate text-[var(--text-3)]">· {article.byline}</span>}
+          {article.byline && <span className="max-w-full truncate text-[var(--text-3)]">· {article.byline}</span>}
         </div>
-        <h2 className="mt-2 line-clamp-2 text-sm font-bold leading-snug tracking-[-.015em] text-[var(--text)] sm:text-[15px]">{article.headline}</h2>
-        {article.description && <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-[var(--text-3)] sm:text-xs">{article.description}</p>}
-        <div className="mt-3 flex items-center justify-between border-t border-[var(--line)] pt-2 text-[10px]">
-          <span className="font-mono uppercase text-[var(--text-3)]">{article.source}</span>
-          <span className="inline-flex items-center gap-1 font-semibold text-[var(--text-2)]">Open source <ExternalLink className="size-3" aria-hidden="true" /></span>
+        <h2 className="mt-1.5 line-clamp-3 text-[13px] font-bold leading-snug tracking-[-.015em] text-[var(--text)] sm:mt-2 sm:line-clamp-2 sm:text-[15px]">{article.headline}</h2>
+        {article.description && <p className="mt-1 line-clamp-1 text-[10px] leading-relaxed text-[var(--text-3)] sm:mt-1.5 sm:line-clamp-2 sm:text-xs">{article.description}</p>}
+        <div className="mt-2 flex items-center justify-between gap-2 border-t border-[var(--line)] pt-1.5 text-[9px] sm:mt-3 sm:pt-2 sm:text-[10px]">
+          <span className="min-w-0 truncate font-mono uppercase text-[var(--text-3)]">{article.source}</span>
+          {article.sourceUrl && (
+            <span className="inline-flex flex-none items-center gap-1 font-semibold text-[var(--text-2)]">Open source <ExternalLink className="size-3" aria-hidden="true" /></span>
+          )}
         </div>
       </div>
     </>
   );
 
   return (
-    <article className="overflow-hidden rounded-[14px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)] transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)]">
+    <article className="overflow-hidden rounded-[13px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)] transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] sm:rounded-[14px]">
       {article.sourceUrl ? (
-        <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer" className="grid min-w-0 gap-3 p-3 text-left sm:grid-cols-[156px_minmax(0,1fr)] sm:p-4">{body}</a>
+        <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer" className="grid min-w-0 grid-cols-[96px_minmax(0,1fr)] gap-2.5 p-2.5 text-left sm:grid-cols-[156px_minmax(0,1fr)] sm:gap-3 sm:p-4">{body}</a>
       ) : (
-        <div className="grid min-w-0 gap-3 p-3 text-left sm:grid-cols-[156px_minmax(0,1fr)] sm:p-4">{body}</div>
+        <div className="grid min-w-0 grid-cols-[96px_minmax(0,1fr)] gap-2.5 p-2.5 text-left sm:grid-cols-[156px_minmax(0,1fr)] sm:gap-3 sm:p-4">{body}</div>
       )}
     </article>
   );
@@ -303,8 +328,8 @@ function NewsSkeleton() {
   return (
     <div className="grid gap-2.5">
       {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="grid animate-pulse gap-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3 sm:grid-cols-[156px_minmax(0,1fr)] sm:p-4">
-          <div className="h-28 rounded-[10px] bg-[var(--surface-2)]" />
+        <div key={index} className="grid animate-pulse grid-cols-[96px_minmax(0,1fr)] gap-2.5 rounded-[13px] border border-[var(--line)] bg-[var(--surface)] p-2.5 sm:grid-cols-[156px_minmax(0,1fr)] sm:gap-3 sm:rounded-[14px] sm:p-4">
+          <div className="h-24 rounded-[9px] bg-[var(--surface-2)] sm:h-28 sm:rounded-[10px]" />
           <div className="grid content-start gap-2 py-1">
             <div className="h-3 w-24 rounded bg-[var(--surface-2)]" />
             <div className="h-4 w-4/5 rounded bg-[var(--surface-2)]" />

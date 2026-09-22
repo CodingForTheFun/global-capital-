@@ -18,10 +18,14 @@ const numberOrNull = (value: unknown): number | null => {
 };
 
 function SampleTile({ window: item, selected, onSelect }: { window: ResearchWindow; selected: boolean; onSelect(): void }) {
+  const target = /^l(\d+)$/.test(item.id) ? Number(item.id.slice(1)) : null;
+  const sampleLabel = target
+    ? `${item.games}/${target} games`
+    : `${item.games} ${item.games === 1 ? 'game' : 'games'}`;
   return <button type="button" className="op-sample" aria-pressed={selected} onClick={onSelect}>
     <span>{item.label === 'All' ? 'Available' : item.label}</span>
     <strong data-tone={item.hitRate === null ? 'none' : item.hitRate >= 60 ? 'positive' : item.hitRate < 45 ? 'negative' : 'neutral'}>{item.hitRate === null ? '—' : `${item.hitRate}%`}</strong>
-    <span>Avg {item.average ?? '—'}</span><small>{item.games} games</small>
+    <span>Avg {item.average ?? '—'}</span><small>{sampleLabel}</small>
   </button>;
 }
 
@@ -99,9 +103,12 @@ export function PropExplorer({ group, games, loading, unavailableReason, leagueT
   const over = activeBook ? activeBook.over : group.bestOver;
   const under = activeBook ? activeBook.under : group.bestUnder;
   const moved = Math.abs(state.line - group.line) > .001;
+  const quarterLine = Math.abs(group.line * 4 - Math.round(group.line * 4)) < .001 &&
+    Math.abs(group.line * 2 - Math.round(group.line * 2)) > .001;
+  const lineStep = quarterLine ? .25 : .5;
   const quoteOdds = (quote: PropRow | null | undefined) => numberOrNull(quote?.price) === null || Number(quote?.price) === 0 ? '—' : odds(quote?.price);
   const seasonOptions = [{ value: 'all', label: 'All years' }, ...seasons.map(value => ({ value, label: value }))];
-  function step(amount: number) { onState({ ...state, line: Math.max(0, Math.round((state.line + amount) * 100) / 100) }); }
+  function step(direction: number) { onState({ ...state, line: Math.max(0, Math.round((state.line + direction * lineStep) * 100) / 100) }); }
 
   return <div className="research-reference" data-release="oblige-installable-20260918">
     <div className="op-research-title"><div><span>PLAYER RESEARCH</span><h3>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</h3></div><button type="button" className="op-follow" aria-label={favourite ? `Unfollow ${group.player}` : `Follow ${group.player}`} aria-pressed={favourite} onClick={onFavourite} title="Follow on this device"><Star size={19} fill={favourite ? 'currentColor' : 'none'} /></button></div>
@@ -111,9 +118,9 @@ export function PropExplorer({ group, games, loading, unavailableReason, leagueT
       <AppliedFilter key={`${group.key}-venue`} label="Home / Away" value={filters.venue} options={[{ value: 'all', label: 'All' }, { value: 'home', label: 'Home' }, { value: 'away', label: 'Away' }]} onApply={venue => setFilters(previous => ({ ...previous, venue: venue as SampleFilters['venue'] }))} />
       <AppliedFilter key={`${group.key}-book`} label="Book" value={state.book || 'all'} options={[{ value: 'all', label: 'Best prices · all books' }, ...books.map(book => ({ value: book.key, label: book.available ? `${book.name} · Line ${group.line}` : `${book.name} · No line` }))]} onApply={book => onState({ ...state, book: book === 'all' ? null : book })} />
     </div>
-    <div className="op-sample-caption"><span className="op-sample-count">{filtered.length} of {played.length} verified games</span>{filtersActive(filters) && <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}><RotateCcw size={12} /> Clear all history filters</button>}</div>
+    <div className="op-sample-caption"><span className="op-sample-count">{filtered.length} of {played.length} verified {played.length === 1 ? 'game' : 'games'}</span>{filtersActive(filters) && <button type="button" onClick={() => setFilters(EMPTY_FILTERS)}><RotateCcw size={12} /> Clear all history filters</button>}</div>
     <div className="op-line-controls">
-      <div className="op-line-stepper"><button type="button" aria-label="Lower research line" onClick={() => step(-.5)}><Minus size={18} /></button><output className="op-line-number" aria-live="polite">{state.line}</output><button type="button" aria-label="Raise research line" onClick={() => step(.5)}><Plus size={18} /></button></div>
+      <div className="op-line-stepper"><button type="button" aria-label="Lower research line" onClick={() => step(-1)}><Minus size={18} /></button><output className="op-line-number" aria-live="polite">{state.line}</output><button type="button" aria-label="Raise research line" onClick={() => step(1)}><Plus size={18} /></button></div>
       <div className="op-side-picker" role="group" aria-label="Research side">{(['OVER', 'UNDER'] as const).map(side => <button key={side} type="button" aria-pressed={state.side === side} data-side={side} onClick={() => onState({ ...state, side })}><strong>{side === 'OVER' ? 'O' : 'U'} {quoteOdds(side === 'OVER' ? over : under)}</strong><span>{side === 'OVER' ? 'Over' : 'Under'}</span></button>)}</div>
     </div>
     <p className="op-price-note">{activeBook ? (activeBook.available ? `${activeBook.name} · Prices shown at posted line ${group.line}.` : `${activeBook.name} · No line posted for this exact prop.`) : `Best available book prices · Posted line ${group.line}.`}{moved && <> Research line adjusted to {state.line}. <button type="button" onClick={() => onState({ ...state, line: group.line })}>Reset line</button></>}</p>

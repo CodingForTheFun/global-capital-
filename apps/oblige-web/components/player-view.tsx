@@ -25,7 +25,7 @@ import { GameLog } from '@/components/research';
 import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
 import { Reveal } from '@/components/motion';
-import { PlayerPropDeepDive } from '@/components/player-prop-deep-dive';
+import { PlayerPropResearchCard } from '@/components/player-prop-research-card';
 
 const FAVOURITES_KEY = 'oblige-followed';
 
@@ -218,7 +218,7 @@ export function PlayerView() {
 
   return (
     <Shell>
-      <PlayerPropDeepDive
+      <PlayerPropResearchCard
         group={group}
         markets={markets}
         research={research}

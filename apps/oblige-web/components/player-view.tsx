@@ -21,6 +21,7 @@ import { CardPanel } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PlayerAvatar, TeamScene } from '@/components/face-card';
 import { BookPrices } from '@/components/book-prices';
+import { catalogBookRows } from '@/lib/book-catalog';
 import { GameLog } from '@/components/research';
 import { PropExplorer, type ExplorerState } from '@/components/prop-explorer';
 import { SignInPanel } from '@/components/sign-in';
@@ -216,7 +217,7 @@ export function PlayerView() {
   const teamLabel = rawTeam
     ? (club.name === fallbackClubKey ? rawTeam : club.name)
     : (group.position ? `${group.sport} · ${group.position}` : group.sport);
-  const bookCount = new Set(group.quotes.map((q) => q.sportsbookKey || q.sportsbook).filter(Boolean)).size;
+  const bookCount = catalogBookRows(group.quotes).filter((book) => book.available).length;
   const kickoff = shortTime(group.startsAt);
   const games = playedGames(research);
   const favourite = favourites.includes(group.key);

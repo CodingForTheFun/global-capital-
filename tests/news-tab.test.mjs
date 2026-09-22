@@ -32,3 +32,10 @@ test('ESPN requests are server-side and source URLs remain fixed allowlisted end
   assert.match(route, /AbortSignal\.timeout/);
   assert.match(screen, /\/api\/news\?sport=/);
 });
+
+test('a news photo the CSP blocks shows the placeholder, not a broken image', () => {
+  // img-src 'self' blocks ESPN's CDN, and Chromium fires no error event for a
+  // CSP-blocked image, so the photo is revealed only after it has loaded.
+  assert.match(screen, /onLoad=\{\(event\) => setLoaded\(event\.currentTarget\.naturalWidth > 0\)\}/);
+  assert.match(screen, /loaded \? 'opacity-100' : 'opacity-0'/);
+});

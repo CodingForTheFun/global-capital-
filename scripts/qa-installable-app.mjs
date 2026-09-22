@@ -91,7 +91,7 @@ try {
     const initialResearchRequests = researchRequests;
     const opponent = panel.getByLabel('Opponent');
     const season = panel.getByLabel('Season');
-    const book = panel.getByLabel('Book');
+    const book = panel.getByLabel('Book', { exact: true });
 
     await opponent.selectOption('DAL');
     assert.match(await panel.locator('.deep-dive-sample-count').innerText(), /^10 of 20/);

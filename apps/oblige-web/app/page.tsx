@@ -231,7 +231,7 @@ export default function LandingPage() {
                   <ul className="grid list-none gap-3 p-0">
                     {plan.features.map((feature) => (
                       <li key={feature} className="flex gap-3 text-sm leading-snug text-[var(--text-2)]">
-                        <Check className="mt-0.5 size-4 shrink-0 text-[var(--pos)]" strokeWidth={2.4} aria-hidden="true" />
+                        <Check className="mt-0.5 size-4 shrink-0 text-[var(--accent)]" strokeWidth={2.4} aria-hidden="true" />
                         <span>{feature}</span>
                       </li>
                     ))}

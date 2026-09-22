@@ -75,14 +75,14 @@ export function Scoreboard({
                   className={[
                     'size-1.5 rounded-full',
                     liveCount > 0
-                      ? 'animate-pulse bg-[var(--accent)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_18%,transparent)]'
+                      ? 'animate-pulse bg-[var(--pos)] shadow-[0_0_0_3px_color-mix(in_srgb,var(--pos)_18%,transparent)]'
                       : 'bg-[var(--text-3)]',
                   ].join(' ')}
                 />
               )}
               <span>{filter}</span>
               {filter === 'live' && liveCount > 0 && (
-                <span className="font-mono text-[10px] font-bold text-[var(--accent)]">{liveCount}</span>
+                <span className="font-mono text-[10px] font-bold text-[var(--pos)]">{liveCount}</span>
               )}
             </button>
           ))}
@@ -236,7 +236,7 @@ function MatchCard({
   const scoreFor = (value: number | string | undefined, isWinner?: boolean) => {
     if (!hasScore) return null;
     const tone = isLive
-      ? 'text-[var(--accent)] font-bold'
+      ? 'text-[var(--pos)] font-bold'
       : isFinished && isWinner
         ? 'text-[var(--text)] font-bold'
         : isFinished
@@ -258,8 +258,8 @@ function MatchCard({
     >
       <div className="flex items-center justify-between gap-3 border-b border-[color-mix(in_srgb,var(--line)_60%,transparent)] pb-1.5">
         {isLive ? (
-          <span className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-[var(--accent)]">
-            <span aria-hidden="true" className="size-1.5 shrink-0 animate-pulse rounded-full bg-[var(--accent)]" />
+          <span className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-[var(--pos)]">
+            <span aria-hidden="true" className="size-1.5 shrink-0 animate-pulse rounded-full bg-[var(--pos)]" />
             {statusDetail || 'LIVE'}
           </span>
         ) : (

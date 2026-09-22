@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, Home, LayoutGrid, Menu, Newspaper, RadioTower, User, X } from 'lucide-react';
+import { BarChart3, LayoutGrid, Menu, Newspaper, RadioTower, User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
@@ -14,11 +14,10 @@ const NAV = [
   { href: '/news', label: 'News' },
   { href: '/research', label: 'Research' },
   { href: '/#pricing', label: 'Pricing' },
-  { href: '/account', label: 'Account' },
 ];
 
+/** Five items so every label fits one row on a 320px phone. Home is the logo. */
 const MOBILE_NAV = [
-  { href: '/', label: 'Home', icon: Home },
   { href: '/board', label: 'Props', icon: LayoutGrid },
   { href: '/scores', label: 'Scores', icon: RadioTower },
   { href: '/news', label: 'News', icon: Newspaper },
@@ -82,25 +81,22 @@ export function SiteHeader() {
       data-stuck={stuck}
       data-board={board ? 'true' : 'false'}
       className={cn(
-        'sticky top-0 z-30 border-b border-transparent',
-        'bg-[color-mix(in_srgb,var(--bg)_82%,transparent)] backdrop-blur-xl',
-        'transition-[border-color,background-color] duration-300 ease-[var(--ease-out)]',
-        'data-[stuck=true]:border-[var(--line)] data-[stuck=true]:bg-[color-mix(in_srgb,var(--bg)_94%,transparent)]',
+        'sticky top-0 z-30 border-b border-[var(--line)]',
+        'bg-[color-mix(in_srgb,var(--bg)_86%,transparent)] backdrop-blur-xl',
+        'transition-[background-color,box-shadow] duration-300 ease-[var(--ease-out)]',
+        'data-[stuck=true]:bg-[color-mix(in_srgb,var(--bg)_96%,transparent)] data-[stuck=true]:shadow-[0_10px_30px_-18px_rgb(0_0_0/.8)]',
       )}
     >
-      <div
-        className={cn(
-          'mx-auto flex w-full max-w-[var(--maxw)] items-center gap-6 px-4 md:px-8',
-          'h-16 transition-[height] duration-300 ease-[var(--ease-out)]',
-          stuck && 'h-14',
-        )}
-      >
-        <Link href="/" className="flex flex-none items-center gap-3" aria-label="Oblige Props home">
+      <div className="mx-auto flex h-[var(--header-h)] w-full max-w-[var(--maxw)] items-center gap-6 px-4 md:px-8">
+        <Link href="/" className="flex flex-none items-center gap-2.5" aria-label="Oblige Props home">
           <span aria-hidden="true" className="op-mark">OP</span>
           <Wordmark />
         </Link>
 
-        <nav aria-label="Primary" className="ml-4 !hidden gap-5 lg:!flex">
+        <nav
+          aria-label="Primary"
+          className="ml-2 hidden items-center gap-0.5 rounded-[11px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_70%,transparent)] p-[3px] lg:flex"
+        >
           {NAV.map((item) => {
             const active = pathname === item.href;
             return (
@@ -109,20 +105,14 @@ export function SiteHeader() {
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'group relative py-2 text-[length:var(--fs-sm)] font-medium',
+                  'rounded-[8px] px-3 py-1.5 text-[length:var(--fs-xs)] font-semibold',
                   'transition-colors duration-200 ease-[var(--ease-out)]',
-                  active ? 'text-[var(--text)]' : 'text-[var(--text-2)] hover:text-[var(--text)]',
+                  active
+                    ? 'bg-[var(--accent-soft)] text-[var(--text)]'
+                    : 'text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]',
                 )}
               >
                 {item.label}
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'absolute inset-x-0 bottom-0 h-0.5 origin-left rounded-sm bg-[var(--accent)]',
-                    'transition-transform duration-300 ease-[var(--ease-out)]',
-                    active ? 'scale-x-100' : 'scale-x-0 group-hover:scale-x-100',
-                  )}
-                />
               </Link>
             );
           })}
@@ -159,7 +149,10 @@ export function SiteHeader() {
           )}
 
           <Button asChild size="sm" variant="ghost" className="hidden lg:inline-flex">
-            <Link href="/account">Account</Link>
+            <Link href="/account" aria-current={pathname.startsWith('/account') ? 'page' : undefined}>
+              <User className="size-4" aria-hidden="true" />
+              Account
+            </Link>
           </Button>
           <Button asChild size="sm" className="hidden lg:inline-flex">
             <Link href="/board">Open Props</Link>
@@ -249,13 +242,13 @@ export function MobileNav() {
       data-board={board ? 'true' : 'false'}
       data-scroll-hidden={board && hidden ? 'true' : 'false'}
       className={cn(
-        'fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 overflow-x-hidden lg:hidden',
+        'fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 gap-1 overflow-x-hidden px-2 pt-1.5 lg:hidden',
         'border-t border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_94%,transparent)] backdrop-blur-xl',
-        'pb-[env(safe-area-inset-bottom)]',
+        'pb-[max(6px,env(safe-area-inset-bottom))]',
         'transition-[transform,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
       )}
       style={{
-        gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+        gridTemplateColumns: `repeat(${MOBILE_NAV.length}, minmax(0, 1fr))`,
         gridTemplateRows: '1fr',
         transform:
           board && hidden
@@ -266,20 +259,20 @@ export function MobileNav() {
       }}
     >
       {MOBILE_NAV.map((item) => {
-        const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+        const active = pathname.startsWith(item.href);
         return (
           <Link
             key={item.href}
             href={item.href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'grid min-h-14 min-w-0 content-center justify-items-center gap-[3px] overflow-hidden',
-              'text-[10px] font-semibold tracking-wide max-[420px]:text-[9px]',
+              'grid min-h-[50px] min-w-0 content-center justify-items-center gap-1 overflow-hidden rounded-[12px]',
+              'text-[10px] font-semibold tracking-wide touch-manipulation',
               'transition-colors duration-200 ease-[var(--ease-out)]',
-              active ? 'text-[var(--accent)]' : 'text-[var(--text-3)]',
+              active ? 'bg-[var(--accent-soft)] text-[var(--accent)]' : 'text-[var(--text-3)] hover:text-[var(--text-2)]',
             )}
           >
-            <item.icon className="size-5 shrink-0" aria-hidden="true" />
+            <item.icon className="size-[19px] shrink-0" aria-hidden="true" />
             <span className="max-w-full truncate px-0.5">{item.label}</span>
           </Link>
         );
@@ -290,9 +283,11 @@ export function MobileNav() {
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-[var(--line)] bg-[var(--bg-deep)] py-12">
+    // On phones the dock is the navigation, so only the legal line and links
+    // stay: the responsible-play notice appears nowhere else.
+    <footer className="border-t border-[var(--line)] bg-[var(--bg-deep)] py-6 md:py-12">
       <div className="mx-auto w-full max-w-[var(--maxw)] px-4 md:px-8">
-        <div className="grid gap-8 [&>*]:min-w-0 md:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
+        <div className="hidden gap-8 [&>*]:min-w-0 md:grid md:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
           <div>
             <Wordmark footer />
             <p className="mt-4 max-w-[36ch] text-[length:var(--fs-sm)] leading-relaxed text-[var(--text-3)]">
@@ -316,16 +311,16 @@ export function SiteFooter() {
               { href: '/account', label: 'Account' },
             ]}
           />
-          <FooterColumn
-            title="Legal"
-            links={[
-              { href: '/terms', label: 'Terms' },
-              { href: '/privacy', label: 'Privacy' },
-              { href: '/responsible-play', label: 'Responsible play' },
-            ]}
-          />
+          <FooterColumn title="Legal" links={LEGAL_LINKS} />
         </div>
-        <div className="mt-10 flex flex-wrap justify-between gap-4 border-t border-[var(--line)] pt-6 text-[length:var(--fs-xs)] text-[var(--text-3)]">
+        <nav aria-label="Legal" className="flex flex-wrap gap-x-4 gap-y-2 text-[length:var(--fs-xs)] md:hidden">
+          {LEGAL_LINKS.map((link) => (
+            <a key={link.href} href={link.href} className="text-[var(--text-2)] hover:text-[var(--text)]">
+              {link.label}
+            </a>
+          ))}
+        </nav>
+        <div className="mt-4 flex flex-wrap justify-between gap-2 border-t border-[var(--line)] pt-4 text-[length:var(--fs-xs)] text-[var(--text-3)] md:mt-10 md:gap-4 md:pt-6">
           <span>© {new Date().getFullYear()} Oblige Props. Research only — not betting advice.</span>
           <span>21+ · If gambling stops being fun, call 1-800-GAMBLER.</span>
         </div>
@@ -334,7 +329,13 @@ export function SiteFooter() {
   );
 }
 
-const NOT_MIGRATED = new Set(['/terms', '/privacy', '/responsible-play']);
+const LEGAL_LINKS = [
+  { href: '/terms', label: 'Terms' },
+  { href: '/privacy', label: 'Privacy' },
+  { href: '/responsible-play', label: 'Responsible play' },
+];
+
+const NOT_MIGRATED = new Set(LEGAL_LINKS.map((link) => link.href));
 
 function FooterColumn({
   title,

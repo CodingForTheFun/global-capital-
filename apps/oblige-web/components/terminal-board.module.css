@@ -2228,8 +2228,8 @@
 }
 
 .bookPair button[data-selected="true"] {
-  border-color: #8e94ff;
-  box-shadow: inset 0 0 0 1px rgb(142 148 255 / .25);
+  border-color: var(--terminal-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--terminal-accent) 25%, transparent);
 }
 
 .bookPair b,
@@ -2265,14 +2265,14 @@
 
 .metricCell[data-tone="elite"],
 .heatCell[data-tone="elite"] {
-  background: linear-gradient(90deg, rgb(19 100 67 / .86), rgb(26 126 79 / .72)) !important;
-  color: #d9ffed !important;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--pos) 42%, #0b131d), color-mix(in srgb, var(--pos) 54%, #0b131d)) !important;
+  color: color-mix(in srgb, var(--pos) 72%, white) !important;
 }
 
 .metricCell[data-tone="good"],
 .heatCell[data-tone="good"] {
-  background: rgb(29 103 72 / .52) !important;
-  color: #9cf1c6 !important;
+  background: color-mix(in srgb, var(--pos) 28%, transparent) !important;
+  color: color-mix(in srgb, var(--pos) 72%, white) !important;
 }
 
 .metricCell[data-tone="mid"],
@@ -2283,8 +2283,8 @@
 
 .metricCell[data-tone="low"],
 .heatCell[data-tone="low"] {
-  background: rgb(114 34 48 / .45) !important;
-  color: #ff9baa !important;
+  background: color-mix(in srgb, var(--neg) 28%, transparent) !important;
+  color: color-mix(in srgb, var(--neg) 72%, white) !important;
 }
 
 .metricCell[data-tone="none"],
@@ -2513,8 +2513,8 @@
   }
 
   .mobileBookPair button[data-selected="true"] {
-    border-color: #8e94ff;
-    box-shadow: inset 0 0 0 1px rgb(142 148 255 / .24);
+    border-color: var(--terminal-accent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--terminal-accent) 24%, transparent);
   }
 
   .mobileBookPair b,
@@ -2550,14 +2550,14 @@
 
   .mobileMetricCell[data-tone="elite"],
   .mobileHeatCell[data-tone="elite"] {
-    background: linear-gradient(90deg, rgb(18 105 68 / .82), rgb(27 127 80 / .70));
-    color: #d7ffeb;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--pos) 42%, #0b131d), color-mix(in srgb, var(--pos) 54%, #0b131d));
+    color: color-mix(in srgb, var(--pos) 72%, white);
   }
 
   .mobileMetricCell[data-tone="good"],
   .mobileHeatCell[data-tone="good"] {
-    background: rgb(28 103 70 / .48);
-    color: #9cefc5;
+    background: color-mix(in srgb, var(--pos) 28%, transparent);
+    color: color-mix(in srgb, var(--pos) 72%, white);
   }
 
   .mobileMetricCell[data-tone="mid"],
@@ -2568,8 +2568,8 @@
 
   .mobileMetricCell[data-tone="low"],
   .mobileHeatCell[data-tone="low"] {
-    background: rgb(117 33 49 / .48);
-    color: #ff9bab;
+    background: color-mix(in srgb, var(--neg) 28%, transparent);
+    color: color-mix(in srgb, var(--neg) 72%, white);
   }
 
   .mobileMetricCell[data-tone="none"],

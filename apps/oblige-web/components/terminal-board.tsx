@@ -7,7 +7,6 @@ import {
   BarChart3,
   BookOpen,
   CalendarDays,
-  ChevronRight,
   CircleDollarSign,
   Layers3,
   Search,
@@ -28,10 +27,7 @@ import {
   windowOf,
 } from '@/lib/api';
 import { marketDisplayLabel, pctValue } from '@/lib/utils';
-import {
-  marketArbitrage,
-  marketArbitrageLabel,
-} from '@/lib/arbitrage.mjs';
+import { marketArbitrage } from '@/lib/arbitrage.mjs';
 import {
   expectedValueFor,
   expectedValueSourceLabel,

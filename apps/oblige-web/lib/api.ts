@@ -317,6 +317,10 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
         propId: row.propId || row.id || null,
         player,
         providerPlayerId: row.providerPlayerId || null,
+        sportsGameOddsPlayerId: row.sportsGameOddsPlayerId || null,
+        sportsGameOddsEventId: row.sportsGameOddsEventId || null,
+        sportsGameOddsLeagueId: row.sportsGameOddsLeagueId || null,
+        sportsGameOddsStatId: row.statId || null,
         market,
         marketId: row.marketId || null,
         line,
@@ -346,6 +350,10 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
     // cannot leave the research header with a fake/generic team identity.
     group.propId ||= row.propId || row.id || null;
     group.providerPlayerId ||= row.providerPlayerId || null;
+    group.sportsGameOddsPlayerId ||= row.sportsGameOddsPlayerId || null;
+    group.sportsGameOddsEventId ||= row.sportsGameOddsEventId || null;
+    group.sportsGameOddsLeagueId ||= row.sportsGameOddsLeagueId || null;
+    group.sportsGameOddsStatId ||= row.statId || null;
     group.marketId ||= row.marketId || null;
     group.team ||= row.team || null;
     group.position ||= cleanPosition(row.position);
@@ -429,6 +437,10 @@ export async function fetchResearch(
     historyYears: '5',
   });
   if (group.providerPlayerId) params.set('providerPlayerId', group.providerPlayerId);
+  if (group.sportsGameOddsPlayerId) params.set('sportsGameOddsPlayerId', group.sportsGameOddsPlayerId);
+  if (group.sportsGameOddsEventId) params.set('sportsGameOddsEventId', group.sportsGameOddsEventId);
+  if (group.sportsGameOddsLeagueId) params.set('sportsGameOddsLeagueId', group.sportsGameOddsLeagueId);
+  if (group.sportsGameOddsStatId) params.set('sportsGameOddsStatId', group.sportsGameOddsStatId);
   if (group.marketId) params.set('marketId', group.marketId);
   if (group.position) params.set('position', group.position);
   if (group.team) params.set('team', group.team);
@@ -482,6 +494,10 @@ export async function fetchResearchBatch(
       line: group.line,
       side,
       providerPlayerId: group.providerPlayerId,
+      sportsGameOddsPlayerId: group.sportsGameOddsPlayerId,
+      sportsGameOddsEventId: group.sportsGameOddsEventId,
+      sportsGameOddsLeagueId: group.sportsGameOddsLeagueId,
+      sportsGameOddsStatId: group.sportsGameOddsStatId,
       position: group.position,
       team: group.team,
       opponent: group.opponent,

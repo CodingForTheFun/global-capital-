@@ -34,6 +34,7 @@ import {
   type ExpectedValueSelection,
 } from '@/lib/expected-value.mjs';
 import { uniqueTerminalPlayerCards } from '@/lib/terminal-player-cards.mjs';
+import { createResearchQueue, reasonText, type ResearchQueue } from '@/lib/research-queue.mjs';
 import { SignInPanel } from '@/components/sign-in';
 import styles from './terminal-board.module.css';
 
@@ -409,6 +410,11 @@ export function TerminalBoard() {
   const [shown, setShown] = React.useState(INITIAL_ROWS);
   const [predictions, setPredictions] = React.useState<Record<string, ModelPrediction>>({});
   const [research, setResearch] = React.useState<Record<string, ResearchSummary | null>>({});
+  // Why a row has no research (server code mapped to one sentence), shown when a blank cell is tapped.
+  const [researchReasons, setResearchReasons] = React.useState<Record<string, string>>({});
+  const [researchEpoch, setResearchEpoch] = React.useState(0);
+  const [reasonNote, setReasonNote] = React.useState<{ title: string; text: string } | null>(null);
+  const researchQueue = React.useRef<ResearchQueue<PropGroup> | null>(null);
   const [feedMode, setFeedMode] = React.useState<FeedMode>('connecting');
   const [slip, setSlip] = React.useState<SlipSelection[]>([]);
   const [slipOpen, setSlipOpen] = React.useState(false);
@@ -505,6 +511,8 @@ export function TerminalBoard() {
           setShown(INITIAL_ROWS);
           setPredictions({});
           setResearch({});
+          setResearchReasons({});
+          setResearchEpoch((epoch) => epoch + 1);
         }
       } catch (cause) {
         if (cancelled) return;
@@ -659,7 +667,12 @@ export function TerminalBoard() {
 
   const page = React.useMemo(() => filtered.slice(0, shown), [filtered, shown]);
   const pageKey = page.map((group) => group.key).join('|');
-  const researchTargets = performanceSort === 'ev' ? page : scopedGroups;
+  // Visible rows first, then the next page, so scrolling finds data waiting.
+  // Sorting by a research metric needs every row, so those follow behind.
+  const researchTargets = React.useMemo(() => {
+    const nextPage = filtered.slice(shown, shown + LOAD_MORE_ROWS);
+    return performanceSort === 'ev' ? [...page, ...nextPage] : [...page, ...nextPage, ...scopedGroups];
+  }, [filtered, page, performanceSort, scopedGroups, shown]);
   const researchTargetKey = researchTargets.map((group) => group.key).join('|');
 
   React.useEffect(() => {
@@ -682,44 +695,51 @@ export function TerminalBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, pageKey]);
 
+  // One queue per signed-in board load. It is never torn down because the row
+  // list changed (live refreshes and EV re-sorts change it constantly); it only
+  // skips props it already has and puts the visible ones first.
+  const accountId = account?.id ?? null;
   React.useEffect(() => {
-    if (!account || !researchTargets.length) return;
-    const controller = new AbortController();
-    const missing = researchTargets.filter((group) => research[group.key] === undefined);
-    if (!missing.length) return () => controller.abort();
-
-    const batches: PropGroup[][] = [];
-    for (let index = 0; index < missing.length; index += RESEARCH_BATCH_SIZE) {
-      batches.push(missing.slice(index, index + RESEARCH_BATCH_SIZE));
-    }
-
-    const hydrate = async () => {
-      for (const batch of batches) {
-        if (controller.signal.aborted) return;
-        try {
-          const rows = await fetchResearchBatch(batch, 'OVER', controller.signal);
-          if (controller.signal.aborted) return;
-          const next: Record<string, ResearchSummary | null> = {};
-          batch.forEach((group) => {
-            next[group.key] = summarizeResearch(rows[group.key], group.line);
-          });
-          setResearch((current) => ({ ...current, ...next }));
-        } catch (cause) {
-          if (controller.signal.aborted) return;
-          if (cause instanceof ApiError && cause.status === 401) {
-            setAccount(null);
-            return;
-          }
-          const unavailable = Object.fromEntries(batch.map((group) => [group.key, null])) as Record<string, null>;
-          setResearch((current) => ({ ...current, ...unavailable }));
+    if (!accountId) return;
+    const queue = createResearchQueue<PropGroup, ResearchResponse>({
+      batchSize: RESEARCH_BATCH_SIZE,
+      fetchBatch: (groups, signal) => fetchResearchBatch(groups, 'OVER', signal),
+      onAuthLost: () => setAccount(null),
+      onSettled: (entries) => {
+        const summaries: Record<string, ResearchSummary | null> = {};
+        const reasons: Record<string, string> = {};
+        for (const { group, row, code, message } of entries) {
+          const summary = row && row.available !== false ? summarizeResearch(row, group.line) : null;
+          summaries[group.key] = summary;
+          if (!summary || code) reasons[group.key] = reasonText(code, message);
         }
-      }
+        setResearch((current) => ({ ...current, ...summaries }));
+        setResearchReasons((current) => ({ ...current, ...reasons }));
+      },
+    });
+    researchQueue.current = queue;
+    return () => {
+      queue.cancel();
+      if (researchQueue.current === queue) researchQueue.current = null;
     };
+  }, [accountId, sport, researchEpoch]);
 
-    void hydrate();
-    return () => controller.abort();
+  React.useEffect(() => {
+    if (!accountId || !researchTargets.length) return;
+    researchQueue.current?.want(researchTargets.filter((group) => research[group.key] === undefined));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, researchTargetKey]);
+  }, [accountId, researchTargetKey, researchEpoch]);
+
+  React.useEffect(() => {
+    if (!reasonNote) return;
+    const timer = window.setTimeout(() => setReasonNote(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [reasonNote]);
+
+  const explainBlank = React.useCallback((group: PropGroup, column: string) => {
+    const text = researchReasons[group.key] || reasonText('NO_WINDOW');
+    setReasonNote({ title: `${group.player} · ${column}`, text });
+  }, [researchReasons]);
 
   const feedLabel = meta.stale
     ? 'cached'
@@ -973,6 +993,7 @@ export function TerminalBoard() {
               slip={slip}
               onInspect={openResearch}
               onSelect={selectSide}
+              onExplain={explainBlank}
             />
             <MobileMatrix
               rows={page}
@@ -981,7 +1002,20 @@ export function TerminalBoard() {
               slip={slip}
               onInspect={openResearch}
               onSelect={selectSide}
+              onExplain={explainBlank}
             />
+
+            {reasonNote ? (
+              <div className={styles.reasonNote} role="status" aria-live="polite">
+                <div>
+                  <b>{reasonNote.title}</b>
+                  <span>{reasonNote.text}</span>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={() => setReasonNote(null)}>
+                  <X size={14} />
+                </button>
+              </div>
+            ) : null}
 
             {shown < filtered.length ? (
               <div className={styles.loadMoreWrap}>
@@ -1041,6 +1075,7 @@ function DesktopMatrix({
   slip,
   onInspect,
   onSelect,
+  onExplain,
 }: {
   rows: PropGroup[];
   predictions: Record<string, ModelPrediction>;
@@ -1048,6 +1083,7 @@ function DesktopMatrix({
   slip: SlipSelection[];
   onInspect: (group: PropGroup) => void;
   onSelect: (group: PropGroup, side: Side) => void;
+  onExplain: (group: PropGroup, column: string) => void;
 }) {
   return (
     <div className={styles.matrixWrap}>
@@ -1077,6 +1113,8 @@ function DesktopMatrix({
             const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
             const avgL10 = summary?.l10?.average ?? null;
             const diff = summary?.diff ?? null;
+            const loaded = summary !== undefined;
+            const explain = (column: string) => () => onExplain(group, column);
 
             return (
               <tr key={group.key} onClick={() => onInspect(group)}>
@@ -1129,13 +1167,15 @@ function DesktopMatrix({
                   </div>
                 </td>
                 <td className={styles.metricCell} data-tone={avgL10 !== null && avgL10 >= group.line ? 'good' : 'none'}>
-                  {avgL10 === null ? '—' : avgL10.toFixed(1)}
+                  {avgL10 !== null ? avgL10.toFixed(1) : loaded ? <BlankReason onExplain={explain('Avg L10')} /> : '…'}
                 </td>
-                <td className={styles.metricCell} data-tone={diffTone(diff)}>{signedMetric(diff)}</td>
-                <MatrixRateCell window={summary === undefined ? undefined : summary?.l5 ?? null} />
-                <MatrixRateCell window={summary === undefined ? undefined : summary?.l10 ?? null} />
-                <MatrixRateCell window={summary === undefined ? undefined : summary?.l15 ?? null} />
-                <MatrixRateCell window={summary === undefined ? undefined : summary?.h2h ?? null} />
+                <td className={styles.metricCell} data-tone={diffTone(diff)}>
+                  {diff !== null ? signedMetric(diff) : loaded ? <BlankReason onExplain={explain('Diff')} /> : '…'}
+                </td>
+                <MatrixRateCell window={summary === undefined ? undefined : summary?.l5 ?? null} onExplain={explain('L5')} />
+                <MatrixRateCell window={summary === undefined ? undefined : summary?.l10 ?? null} onExplain={explain('L10')} />
+                <MatrixRateCell window={summary === undefined ? undefined : summary?.l15 ?? null} onExplain={explain('L15')} />
+                <MatrixRateCell window={summary === undefined ? undefined : summary?.h2h ?? null} onExplain={explain('H2H')} />
                 <td
                   className={styles.metricCell}
                   data-tone={summary?.streak ? (summary.streak.over ? 'good' : 'low') : 'none'}
@@ -1174,6 +1214,7 @@ function MobileMatrix({
   slip,
   onInspect,
   onSelect,
+  onExplain,
 }: {
   rows: PropGroup[];
   predictions: Record<string, ModelPrediction>;
@@ -1181,6 +1222,7 @@ function MobileMatrix({
   slip: SlipSelection[];
   onInspect: (group: PropGroup) => void;
   onSelect: (group: PropGroup, side: Side) => void;
+  onExplain: (group: PropGroup, column: string) => void;
 }) {
   return (
     <div className={styles.mobileMatrixWrap} aria-label="Player prop research matrix">
@@ -1207,6 +1249,8 @@ function MobileMatrix({
           const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
           const avgL10 = summary?.l10?.average ?? null;
           const diff = summary?.diff ?? null;
+          const loaded = summary !== undefined;
+          const explain = (column: string) => () => onExplain(group, column);
 
           return (
             <div key={group.key} className={styles.mobileMatrixRow} role="row">
@@ -1253,13 +1297,15 @@ function MobileMatrix({
               </div>
 
               <span className={styles.mobileMetricCell} data-tone={avgL10 !== null && avgL10 >= group.line ? 'good' : 'none'}>
-                {avgL10 === null ? '—' : avgL10.toFixed(1)}
+                {avgL10 !== null ? avgL10.toFixed(1) : loaded ? <BlankReason onExplain={explain('Avg L10')} /> : '…'}
               </span>
-              <span className={styles.mobileMetricCell} data-tone={diffTone(diff)}>{signedMetric(diff)}</span>
-              <MobileRateCell window={summary === undefined ? undefined : summary?.l5 ?? null} />
-              <MobileRateCell window={summary === undefined ? undefined : summary?.l10 ?? null} />
-              <MobileRateCell window={summary === undefined ? undefined : summary?.l15 ?? null} />
-              <MobileRateCell window={summary === undefined ? undefined : summary?.h2h ?? null} />
+              <span className={styles.mobileMetricCell} data-tone={diffTone(diff)}>
+                {diff !== null ? signedMetric(diff) : loaded ? <BlankReason onExplain={explain('Diff')} /> : '…'}
+              </span>
+              <MobileRateCell window={summary === undefined ? undefined : summary?.l5 ?? null} onExplain={explain('L5')} />
+              <MobileRateCell window={summary === undefined ? undefined : summary?.l10 ?? null} onExplain={explain('L10')} />
+              <MobileRateCell window={summary === undefined ? undefined : summary?.l15 ?? null} onExplain={explain('L15')} />
+              <MobileRateCell window={summary === undefined ? undefined : summary?.h2h ?? null} onExplain={explain('H2H')} />
               <span
                 className={styles.mobileMetricCell}
                 data-tone={summary?.streak ? (summary.streak.over ? 'good' : 'low') : 'none'}
@@ -1281,20 +1327,39 @@ function MobileMatrix({
   );
 }
 
-function MatrixRateCell({ window }: { window: RateWindow | null | undefined }) {
+const isBlankWindow = (window: RateWindow | null | undefined) => window !== undefined && (!window || window.rate === null);
+
+/** A '—' that says why when tapped. Looks identical to the plain dash. */
+function BlankReason({ onExplain }: { onExplain: () => void }) {
+  return (
+    <button
+      type="button"
+      className={styles.blankReason}
+      aria-label="Why is this empty?"
+      onClick={(event) => {
+        event.stopPropagation();
+        onExplain();
+      }}
+    >
+      —
+    </button>
+  );
+}
+
+function MatrixRateCell({ window, onExplain }: { window: RateWindow | null | undefined; onExplain?: () => void }) {
   const sample = hitSample(window);
   return (
     <td className={styles.heatCell} data-tone={rateTone(window)} title={sample ? `${sample} hits` : undefined}>
-      {rateLabel(window)}
+      {isBlankWindow(window) && onExplain ? <BlankReason onExplain={onExplain} /> : rateLabel(window)}
     </td>
   );
 }
 
-function MobileRateCell({ window }: { window: RateWindow | null | undefined }) {
+function MobileRateCell({ window, onExplain }: { window: RateWindow | null | undefined; onExplain?: () => void }) {
   const sample = hitSample(window);
   return (
     <span className={styles.mobileHeatCell} data-tone={rateTone(window)} title={sample ? `${sample} hits` : undefined}>
-      {rateLabel(window)}
+      {isBlankWindow(window) && onExplain ? <BlankReason onExplain={onExplain} /> : rateLabel(window)}
     </span>
   );
 }

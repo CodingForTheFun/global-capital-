@@ -20,6 +20,8 @@ import { marketDisplayLabel } from './utils';
 export class ApiError extends Error {
   status: number;
   code: string;
+  /** Server-requested wait before retrying (from Retry-After), when given. */
+  retryAfterMs?: number;
   constructor(message: string, status: number, code = 'REQUEST_FAILED') {
     super(message);
     this.name = 'ApiError';
@@ -529,11 +531,14 @@ export async function fetchResearchBatch(
     throw new ApiError('Sign in to view verified research.', 401, 'AUTH_REQUIRED');
   }
   if (!response.ok || body.ok === false || !body.results) {
-    throw new ApiError(
+    const error = new ApiError(
       body.message || 'Verified research is temporarily unavailable.',
       response.status,
       body.code || 'RESEARCH_BATCH_UNAVAILABLE',
     );
+    const retryAfter = Number(response.headers.get('retry-after'));
+    if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfterMs = Math.min(retryAfter, 120) * 1000;
+    throw error;
   }
 
   return body.results;

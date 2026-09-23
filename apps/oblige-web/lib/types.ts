@@ -15,6 +15,10 @@ export type PropRow = {
   propId?: string;
   playerName?: string;
   providerPlayerId?: string;
+  sportsGameOddsPlayerId?: string;
+  sportsGameOddsEventId?: string;
+  sportsGameOddsLeagueId?: string;
+  statId?: string;
   market?: string;
   marketId?: string;
   line?: number | string;
@@ -82,6 +86,10 @@ export type PropGroup = {
   propId: string | null;
   player: string;
   providerPlayerId: string | null;
+  sportsGameOddsPlayerId: string | null;
+  sportsGameOddsEventId: string | null;
+  sportsGameOddsLeagueId: string | null;
+  sportsGameOddsStatId: string | null;
   market: string;
   marketId: string | null;
   line: number;

@@ -9,7 +9,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { persistNormalizedBoard } from '../lib/autoscout/supabase-persistence.mjs';
-import { __testNextSports } from '../lib/autoscout/persistence-scheduler.mjs';
+import { __testNextSports, fairSportPersistenceBudget } from '../lib/autoscout/persistence-scheduler.mjs';
+import { readFileSync } from 'node:fs';
 
 const SPORTS = ['NFL','NBA','WNBA','MLB','NHL','NCAAF','NCAAB','SOCCER','MLS','EPL','UCL','TENNIS'];
 
@@ -58,4 +59,17 @@ test('the cursor wraps instead of running off the end', () => {
 test('asking for more sports than exist still returns each one once', () => {
   const picked = __testNextSports(SPORTS, 99, 0);
   assert.deepEqual(picked, SPORTS);
+});
+
+
+test('all-sport persistence shares the remaining cycle budget instead of letting early sports starve later ones', () => {
+  assert.equal(fairSportPersistenceBudget({ cycleMs: 270_000, elapsedMs: 25_000, sportsRemaining: 12, maxSportMs: 60_000, safetyMs: 10_000 }), 19_583);
+  assert.equal(fairSportPersistenceBudget({ cycleMs: 270_000, elapsedMs: 150_000, sportsRemaining: 6, maxSportMs: 60_000, safetyMs: 10_000 }), 18_333);
+  assert.equal(fairSportPersistenceBudget({ cycleMs: 270_000, elapsedMs: 0, sportsRemaining: 2, maxSportMs: 60_000, safetyMs: 10_000 }), 60_000);
+});
+
+test('canonical RPC board chunks are moderately larger but still bounded', () => {
+  const source = readFileSync(new URL('../lib/autoscout/supabase-persistence.mjs', import.meta.url), 'utf8');
+  assert.match(source, /RPC_BOARD_BATCH_SIZE = 250/);
+  assert.doesNotMatch(source, /RPC_BOARD_BATCH_SIZE = (?:500|1000|[2-9][0-9]{3,})/);
 });

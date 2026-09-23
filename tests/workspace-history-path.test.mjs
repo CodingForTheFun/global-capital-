@@ -159,3 +159,111 @@ test('canonical workspace tries nflverse after PropLine and ESPN miss', async()=
   assert.deepEqual(body.attemptedSources,['PropLine','ESPN','nflverse']);
   assert.equal(espnCalls,1);assert.equal(nflCalls,1);
 });
+
+
+test('canonical workspace uses SportsGameOdds before ESPN when PropLine history is missing', async () => {
+ const sport='basketball_nba',marketKey='player_points';
+ const event={id:'nba-current-sgo',sport,startsAt:'2026-09-20T20:00:00Z',homeTeam:'ATL',awayTeam:'BOS',aliases:[]};
+ const odds={id:event.id,sport_key:sport,commence_time:event.startsAt,home_team:'ATL',away_team:'BOS',bookmakers:[{key:'fanduel',markets:[{key:marketKey,outcomes:[{name:'Over',description:'SGO Player',player_id:'nba:123',point:21.5,price:-110}]}]}]};
+ const normalized=normalizeOffers(odds,event),p=normalized.players[0],m=p.markets[0];
+ let sgoCalls=0,espnCalls=0;
+ const handler=createWorkspaceHandler({
+  authenticate:async()=>({id:'fixture-user'}),
+  now:()=>NOW,
+  sportsGameOddsHistoryFallback:async params=>{
+   sgoCalls++;
+   assert.equal(params.sport,'NBA');
+   assert.equal(params.providerMarketKey,marketKey);
+   assert.equal(params.period,'game');
+   return {available:true,source:'SportsGameOdds results',gameLog:[{gameId:'sgo-final',date:'2026-09-17T00:00:00.000Z',value:24}]};
+  },
+  historyFallback:async()=>{espnCalls++;return{available:true,source:'ESPN',gameLog:[{gameId:'espn-final',date:'2026-09-16T00:00:00.000Z',value:23}]};},
+  read:async path=>{
+   if(path==='/v1/sports')return[{key:sport,title:'NBA'}];
+   if(path.endsWith('/events'))return[{id:event.id,sport_key:sport,commence_time:event.startsAt,home_team:'ATL',away_team:'BOS'}];
+   if(path.endsWith('/markets'))return[{key:marketKey}];
+   if(path.endsWith('/odds'))return odds;
+   if(path.includes('/players/')&&path.endsWith('/games'))return{sport_key:sport,player_name:p.name,player_id:p.playerId,games:[]};
+   throw Error('unexpected path '+path);
+  },
+ });
+ const query=new URLSearchParams({action:'history',sport,event:event.id,player:p.key,market:m.key});
+ let status,body;
+ assert.equal(await handler({url:'/api/oblige-workspace?'+query,method:'GET'},{writeHead(v){status=v;},end(v){body=JSON.parse(v);}}),true);
+ assert.equal(status,200);
+ assert.equal(body.available,true);
+ assert.equal(body.sourceProvider,'SportsGameOdds results');
+ assert.equal(body.gameLog[0].value,24);
+ assert.deepEqual(body.attemptedSources,['PropLine','SportsGameOdds']);
+ assert.equal(sgoCalls,1);
+ assert.equal(espnCalls,0);
+});
+
+test('canonical workspace allows exact SportsGameOdds period history before returning line-only', async () => {
+ const sport='basketball_nba',marketKey='player_points';
+ const event={id:'nba-period-sgo',sport,startsAt:'2026-09-20T20:00:00Z',homeTeam:'ATL',awayTeam:'BOS',aliases:[]};
+ const odds={id:event.id,sport_key:sport,commence_time:event.startsAt,home_team:'ATL',away_team:'BOS',bookmakers:[{key:'fanduel',markets:[{key:marketKey,period:'1q',outcomes:[{name:'Over',description:'Period Player',player_id:'nba:456',point:7.5,price:-105}]}]}]};
+ const normalized=normalizeOffers(odds,event),p=normalized.players[0],m=p.markets[0];
+ let espnCalls=0;
+ const handler=createWorkspaceHandler({
+  authenticate:async()=>({id:'fixture-user'}),
+  now:()=>NOW,
+  sportsGameOddsHistoryFallback:async params=>{
+   assert.equal(params.period,'1q');
+   return {available:true,source:'SportsGameOdds period results',gameLog:[{gameId:'sgo-q1-final',date:'2026-09-17T00:00:00.000Z',value:8}]};
+  },
+  historyFallback:async()=>{espnCalls++;return{available:false,gameLog:[]};},
+  read:async path=>{
+   if(path==='/v1/sports')return[{key:sport,title:'NBA'}];
+   if(path.endsWith('/events'))return[{id:event.id,sport_key:sport,commence_time:event.startsAt,home_team:'ATL',away_team:'BOS'}];
+   if(path.endsWith('/markets'))return[{key:marketKey,period:'1q'}];
+   if(path.endsWith('/odds'))return odds;
+   if(path.includes('/players/')&&path.endsWith('/games'))return{sport_key:sport,player_name:p.name,player_id:p.playerId,games:[]};
+   throw Error('unexpected path '+path);
+  },
+ });
+ const query=new URLSearchParams({action:'history',sport,event:event.id,player:p.key,market:m.key});
+ let status,body;
+ assert.equal(await handler({url:'/api/oblige-workspace?'+query,method:'GET'},{writeHead(v){status=v;},end(v){body=JSON.parse(v);}}),true);
+ assert.equal(status,200);
+ assert.equal(body.available,true);
+ assert.equal(body.sourceProvider,'SportsGameOdds period results');
+ assert.equal(body.gameLog[0].value,8);
+ assert.deepEqual(body.attemptedSources,['PropLine','SportsGameOdds']);
+ assert.equal(espnCalls,0);
+});
+
+test('canonical workspace allows exact graded SportsGameOdds fantasy history without ESPN substitution', async () => {
+ const sport='basketball_nba',marketKey='player_fantasy_score';
+ const event={id:'nba-fantasy-sgo',sport,startsAt:'2026-09-20T20:00:00Z',homeTeam:'ATL',awayTeam:'BOS',aliases:[]};
+ const odds={id:event.id,sport_key:sport,commence_time:event.startsAt,home_team:'ATL',away_team:'BOS',bookmakers:[{key:'underdog',markets:[{key:marketKey,outcomes:[{name:'Over',description:'Fantasy Player',player_id:'nba:789',point:39.5,price:-110,payout_multiplier:1}]}]}]};
+ const normalized=normalizeOffers(odds,event),p=normalized.players[0],m=p.markets[0];
+ let espnCalls=0;
+ const handler=createWorkspaceHandler({
+  authenticate:async()=>({id:'fixture-user'}),
+  now:()=>NOW,
+  sportsGameOddsHistoryFallback:async params=>{
+   assert.match(params.providerMarketKey,/fantasy/);
+   return {available:true,source:'SportsGameOdds results',coverage:{gradedMarketOnly:true},gameLog:[{gameId:'sgo-fantasy-final',date:'2026-09-17T00:00:00.000Z',value:41.25}]};
+  },
+  historyFallback:async()=>{espnCalls++;return{available:false,gameLog:[]};},
+  read:async path=>{
+   if(path==='/v1/sports')return[{key:sport,title:'NBA'}];
+   if(path.endsWith('/events'))return[{id:event.id,sport_key:sport,commence_time:event.startsAt,home_team:'ATL',away_team:'BOS'}];
+   if(path.endsWith('/markets'))return[{key:marketKey}];
+   if(path.endsWith('/odds'))return odds;
+   if(path.includes('/players/')&&path.endsWith('/games'))return{sport_key:sport,player_name:p.name,player_id:p.playerId,games:[]};
+   throw Error('unexpected path '+path);
+  },
+ });
+ const query=new URLSearchParams({action:'history',sport,event:event.id,player:p.key,market:m.key});
+ let status,body;
+ assert.equal(await handler({url:'/api/oblige-workspace?'+query,method:'GET'},{writeHead(v){status=v;},end(v){body=JSON.parse(v);}}),true);
+ assert.equal(status,200);
+ assert.equal(body.available,true);
+ assert.equal(body.sourceProvider,'SportsGameOdds results');
+ assert.equal(body.gameLog[0].value,41.25);
+ assert.equal(body.coverage.gradedMarketOnly,true);
+ assert.deepEqual(body.attemptedSources,['PropLine','SportsGameOdds']);
+ assert.equal(espnCalls,0);
+});

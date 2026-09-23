@@ -128,3 +128,16 @@ test('overall deadline releases sync guard without authorizing late provider fan
   await __testPersistBoards('test-lease-retry',schedulerDeps(async sport=>({sport}),async board=>{writes.push(board.sport);return {persisted:true};}),{cycle:5000,sport:100});
   assert.ok(writes.length>0);
 });
+
+
+test('a bounded public snapshot timeout does not suppress canonical cached-board persistence',async()=>{
+  const writes=[];
+  const timeout=Object.assign(new Error('public snapshot deadline'),{code:'INGESTION_DEADLINE'});
+  const deps={...schedulerDeps(async sport=>({sport}),async board=>{writes.push(board.sport);return {persisted:true};}),
+    publicWorkerConfigured:()=>true,
+    runPublicIngestionCycle:async()=>{throw timeout;},
+    readPublicSchedulerState:async()=>null,
+  };
+  await __testPersistBoards('test-public-timeout',deps,{cycle:5000,group:100,sport:100});
+  assert.ok(writes.length>0,'cancelled public work is fenced; cached canonical writes should still get a turn');
+});

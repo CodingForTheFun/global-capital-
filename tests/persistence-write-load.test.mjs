@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { persistNormalizedBoard } from '../lib/autoscout/supabase-persistence.mjs';
-import { __testNextSports, fairSportPersistenceBudget } from '../lib/autoscout/persistence-scheduler.mjs';
+import { __testNextSports, fairSportPersistenceBudget, effectivePersistenceSportsPerCycle } from '../lib/autoscout/persistence-scheduler.mjs';
 import { readFileSync } from 'node:fs';
 
 const SPORTS = ['NFL','NBA','WNBA','MLB','NHL','NCAAF','NCAAB','SOCCER','MLS','EPL','UCL','TENNIS'];
@@ -72,4 +72,17 @@ test('canonical RPC board chunks are moderately larger but still bounded', () =>
   const source = readFileSync(new URL('../lib/autoscout/supabase-persistence.mjs', import.meta.url), 'utf8');
   assert.match(source, /RPC_BOARD_BATCH_SIZE = 250/);
   assert.doesNotMatch(source, /RPC_BOARD_BATCH_SIZE = (?:500|1000|[2-9][0-9]{3,})/);
+});
+
+
+test('adaptive persistence picks only as many sports as can receive a meaningful write budget', () => {
+  assert.equal(effectivePersistenceSportsPerCycle({
+    configured: 12, totalSports: 12, remainingCycleMs: 228_000, minimumSportBudgetMs: 35_000,
+  }), 6);
+  assert.equal(effectivePersistenceSportsPerCycle({
+    configured: 12, totalSports: 12, remainingCycleMs: 80_000, minimumSportBudgetMs: 35_000,
+  }), 2);
+  assert.equal(effectivePersistenceSportsPerCycle({
+    configured: 4, totalSports: 12, remainingCycleMs: 228_000, minimumSportBudgetMs: 35_000,
+  }), 4);
 });

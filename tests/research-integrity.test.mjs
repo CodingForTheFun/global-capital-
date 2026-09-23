@@ -4,6 +4,7 @@ import { analyzeResearch, researchSections, researchTeamMatches } from '../lib/a
 import { evaluatePropAgainstFilters } from '../lib/filters/index.mjs';
 import { createClearSportsClient } from '../lib/data-sources/clearsports/client.mjs';
 import { detailedGameLog } from '../lib/autoscout/research-service.mjs';
+import { fieldsFor } from '../lib/data-sources/sportsdataio/markets.mjs';
 
 const base = { season: 2026, matchup: { opponent: 'BOS' }, gameLog: [
   {season:2026,seasonType:2,gameId:'3',date:'2026-09-03',value:'25',opponent:'BOS',isHome:true},
@@ -31,6 +32,15 @@ test('fallback game logs exclude future, unfinished and did-not-play records', (
     { ...row, GameID: 6, Points: null }, { ...row, GameID: 7, DateTime: null }]);
   assert.equal(result.length, 1);
   assert.equal(result[0].value, 0);
+});
+test('source-qualified fantasy markets map to verified FantasyPoints history', () => {
+  assert.deepEqual(fieldsFor('MLB', 'Fantasy Points', 'underdog:player_fantasy_points'), ['FantasyPoints']);
+  assert.deepEqual(fieldsFor('NBA', 'Fantasy Points', 'prizepicks:player_fantasy_score'), ['FantasyPoints']);
+  const rows = detailedGameLog('MLB', 'Fantasy Points', [
+    { GameID: 9, DateTime: '2026-09-01T00:00:00Z', Status: 'Final', FantasyPoints: 18.75 },
+  ], 'underdog:player_fantasy_points');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].value, 18.75);
 });
 test('partial logs never masquerade as a full season; zero is a real result', () => {
   const r=analyzeResearch(base,25,'OVER');

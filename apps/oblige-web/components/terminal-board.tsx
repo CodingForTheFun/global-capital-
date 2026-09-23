@@ -154,6 +154,12 @@ function priceLabel(value: unknown) {
   return number > 0 ? `+${number}` : String(number);
 }
 
+function sideQuoteLabel(side: Side, row: PropRow | null | undefined) {
+  const price = numberOf(row?.price);
+  const prefix = side === 'OVER' ? 'O' : 'U';
+  return price === null || price === 0 ? prefix : `${prefix} ${priceLabel(price)}`;
+}
+
 function timeLabel(value: string | null) {
   if (!value) return 'Time unavailable';
   const date = new Date(value);
@@ -1104,7 +1110,7 @@ function DesktopMatrix({
                       }}
                       title={`Over · ${quoteBook(group.bestOver)}`}
                     >
-                      <b>O {priceLabel(group.bestOver?.price)}</b>
+                      <b>{sideQuoteLabel('OVER', group.bestOver)}</b>
                       <small>{quoteBook(group.bestOver)}</small>
                     </button>
                     <button
@@ -1117,7 +1123,7 @@ function DesktopMatrix({
                       }}
                       title={`Under · ${quoteBook(group.bestUnder)}`}
                     >
-                      <b>U {priceLabel(group.bestUnder?.price)}</b>
+                      <b>{sideQuoteLabel('UNDER', group.bestUnder)}</b>
                       <small>{quoteBook(group.bestUnder)}</small>
                     </button>
                   </div>
@@ -1232,7 +1238,7 @@ function MobileMatrix({
                   data-selected={overSelected ? 'true' : 'false'}
                   onClick={() => onSelect(group, 'OVER')}
                 >
-                  <b>O {priceLabel(group.bestOver?.price)}</b>
+                  <b>{sideQuoteLabel('OVER', group.bestOver)}</b>
                   <small>{quoteBook(group.bestOver)}</small>
                 </button>
                 <button
@@ -1241,7 +1247,7 @@ function MobileMatrix({
                   data-selected={underSelected ? 'true' : 'false'}
                   onClick={() => onSelect(group, 'UNDER')}
                 >
-                  <b>U {priceLabel(group.bestUnder?.price)}</b>
+                  <b>{sideQuoteLabel('UNDER', group.bestUnder)}</b>
                   <small>{quoteBook(group.bestUnder)}</small>
                 </button>
               </div>

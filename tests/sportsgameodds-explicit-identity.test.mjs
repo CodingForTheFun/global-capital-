@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fetchSportsGameOddsResearch } from '../lib/data-sources/sportsgameodds/research.mjs';
 import { __resetSportsGameOddsClient } from '../lib/data-sources/sportsgameodds/client.mjs';
+import { readFileSync } from 'node:fs';
 
 test('research uses exact SportsGameOdds IDs from the live prop without a warm identity cache', async (t) => {
   const previousKey = process.env.SPORTS_ODDS_API_KEY_HEADER;
@@ -86,4 +87,17 @@ test('research uses exact SportsGameOdds IDs from the live prop without a warm i
   assert.equal(parsed.searchParams.get('playerID'), 'SGO_PLAYER_123');
   assert.equal(parsed.searchParams.get('leagueID'), 'NBA');
   assert.equal(parsed.searchParams.get('oddID'), 'points-SGO_PLAYER_123-game-ou-over');
+});
+
+
+test('research batch preserves exact SportsGameOdds identity fields for fallback', () => {
+  const frontdoor = readFileSync(new URL('../frontdoor-prod.mjs', import.meta.url), 'utf8');
+  for (const field of [
+    'sportsGameOddsPlayerId',
+    'sportsGameOddsEventId',
+    'sportsGameOddsLeagueId',
+    'sportsGameOddsStatId',
+  ]) {
+    assert.match(frontdoor, new RegExp(field + ': text\\(raw\\?\\.' + field));
+  }
 });

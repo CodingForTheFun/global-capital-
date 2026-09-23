@@ -675,11 +675,11 @@ export function PlayerPropResearchCard({
 
   return (
     <section
-      className="mx-auto w-full max-w-[430px] text-white [font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]"
+      className="mx-auto w-full max-w-[440px] md:max-w-[500px] text-white [font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]"
       data-design="player-prop-research-card"
-      data-release="verified-live-card-20260922-selected-ev-fix"
+      data-release="pickfinder-inspired-v3-20260923"
     >
-      <div className="rounded-2xl border border-[#1E2D3D] bg-[#121C26] p-3.5 shadow-[0_12px_38px_rgba(0,0,0,0.22)]">
+      <div className="rounded-[22px] border border-[#20344A] bg-[linear-gradient(180deg,#111C28_0%,#0C151F_100%)] p-3.5 shadow-[0_18px_50px_rgba(0,0,0,0.30)]">
         <div className="flex items-start gap-3">
           <div className="relative h-[58px] w-[58px] shrink-0 rounded-full border-2 border-[var(--accent)] bg-[#101927] p-[2px] shadow-[0_0_18px_rgb(88_80_236/.55)]">
             <div className="h-full w-full overflow-hidden rounded-full bg-[#101927]">

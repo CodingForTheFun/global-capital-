@@ -286,6 +286,10 @@ function batchEntry(raw) {
     params: {
       sport, playerName, market, line, side,
       providerPlayerId: text(raw?.providerPlayerId, 48) || null,
+      sportsGameOddsPlayerId: text(raw?.sportsGameOddsPlayerId, 96) || null,
+      sportsGameOddsEventId: text(raw?.sportsGameOddsEventId, 160) || null,
+      sportsGameOddsLeagueId: text(raw?.sportsGameOddsLeagueId, 96) || null,
+      sportsGameOddsStatId: text(raw?.sportsGameOddsStatId, 96) || null,
       position: text(raw?.position, 16) || null,
       team: text(raw?.team, 40) || null,
       homeTeam: text(raw?.homeTeam, 60) || null,

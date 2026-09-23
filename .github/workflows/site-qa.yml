@@ -1,0 +1,86 @@
+name: Site QA
+
+# Hourly health check of obligeprops.com (scripts/site-qa/run.mjs on
+# production-stable). This file lives on main only because GitHub runs
+# scheduled workflows from the default branch; the checks themselves always
+# come from production-stable, the branch that deploys.
+#
+# No model calls, no Claude credits. A run fails, and GitHub notifies the
+# owner, only for a problem that is new or was last reported over 6 hours ago.
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-qa
+  cancel-in-progress: false
+
+jobs:
+  site-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout production-stable
+        uses: actions/checkout@v5
+        with:
+          ref: production-stable
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Read the deployed branch head
+        id: head
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "at=$(git log -1 --format=%cI)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore alert history
+        uses: actions/cache/restore@v4
+        with:
+          path: site-qa-state
+          key: site-qa-state-${{ github.run_id }}
+          restore-keys: site-qa-state-
+
+      - name: Check obligeprops.com
+        env:
+          SITE_QA_BASE: https://www.obligeprops.com
+          SITE_QA_EXPECTED_SHA: ${{ steps.head.outputs.sha }}
+          SITE_QA_EXPECTED_SHA_AT: ${{ steps.head.outputs.at }}
+          SITE_QA_STATE_IN: site-qa-state/state.json
+          SITE_QA_STATE_OUT: site-qa-state/state.json
+          SITE_QA_OUT: site-qa-report
+          AUTOSCOUT_SMOKE_EMAIL: ${{ secrets.AUTOSCOUT_SMOKE_EMAIL }}
+          AUTOSCOUT_SMOKE_PASSWORD: ${{ secrets.AUTOSCOUT_SMOKE_PASSWORD }}
+        run: |
+          mkdir -p site-qa-state
+          node scripts/site-qa/run.mjs
+
+      - name: Save alert history
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: site-qa-state
+          key: site-qa-state-${{ github.run_id }}
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-qa-report
+          path: site-qa-report
+          retention-days: 7
+          if-no-files-found: ignore

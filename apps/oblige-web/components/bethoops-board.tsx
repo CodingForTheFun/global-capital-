@@ -149,29 +149,35 @@ async function fetchPredictions(groups: PropGroup[], signal?: AbortSignal) {
 
   if (!jobs.length) return output;
 
-  const response = await fetch('/api/props/ml', {
-    method: 'POST',
-    credentials: 'same-origin',
-    signal,
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      props: jobs.map((job, index) => ({ ...job.target, key: String(index) })),
-    }),
-  });
+  const batchSize = 24; // Must stay aligned with ML_BATCH_MAX in lib/ml/routes.mjs.
+  for (let offset = 0; offset < jobs.length; offset += batchSize) {
+    const batch = jobs.slice(offset, offset + batchSize);
+    const response = await fetch('/api/props/ml', {
+      method: 'POST',
+      credentials: 'same-origin',
+      signal,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        props: batch.map((job, index) => ({ ...job.target, key: String(index) })),
+      }),
+    });
 
-  if (response.status === 401) throw new ApiError('Sign in to view model estimates.', 401, 'AUTH_REQUIRED');
-  if (!response.ok) throw new ApiError('Model estimates are temporarily unavailable.', response.status, 'MODEL_FEED_UNAVAILABLE');
+    if (response.status === 401) throw new ApiError('Sign in to view model estimates.', 401, 'AUTH_REQUIRED');
+    if (!response.ok) throw new ApiError('Model estimates are temporarily unavailable.', response.status, 'MODEL_FEED_UNAVAILABLE');
 
-  const body = (await response.json()) as { ok?: boolean; results?: Record<string, ModelPrediction> };
-  if (!body.ok || !body.results) throw new ApiError('Model estimates are temporarily unavailable.', 502, 'MODEL_FEED_UNAVAILABLE');
+    const body = (await response.json()) as { ok?: boolean; results?: Record<string, ModelPrediction> };
+    if (!body.ok || !body.results) {
+      throw new ApiError('Model estimates are temporarily unavailable.', 502, 'MODEL_FEED_UNAVAILABLE');
+    }
 
-  jobs.forEach((job, index) => {
-    output[job.group.key] = body.results?.[String(index)] || {
-      available: false,
-      code: 'MODEL_FEED_UNAVAILABLE',
-      message: 'No verified model estimate is available for this prop.',
-    };
-  });
+    batch.forEach((job, index) => {
+      output[job.group.key] = body.results?.[String(index)] || {
+        available: false,
+        code: 'MODEL_FEED_UNAVAILABLE',
+        message: 'No verified model estimate is available for this prop.',
+      };
+    });
+  }
 
   return output;
 }

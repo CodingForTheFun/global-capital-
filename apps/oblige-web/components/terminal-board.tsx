@@ -893,7 +893,7 @@ export function TerminalBoard() {
             </label>
           </div>
 
-          <div className={styles.evRail} role="group" aria-label="Performance sorting">
+          <div className={`${styles.evRail} ${styles.performanceRail}`} role="group" aria-label="Performance sorting">
             <span><BarChart3 size={13} /> Sort</span>
             {PERFORMANCE_SORTS.map((option) => (
               <button
@@ -916,7 +916,7 @@ export function TerminalBoard() {
             </button>
           </div>
 
-          <div className={styles.evRail} role="group" aria-label="Expected value and arbitrage filters">
+          <div className={`${styles.evRail} ${styles.edgeRail}`} role="group" aria-label="Expected value and arbitrage filters">
             <span><SlidersHorizontal size={13} /> Edge</span>
             {[
               { label: 'All', value: null },
@@ -1004,6 +1004,34 @@ export function TerminalBoard() {
   );
 }
 
+function rateTone(window: RateWindow | null | undefined) {
+  if (!window || window.rate === null) return 'none';
+  if (window.rate >= 80) return 'elite';
+  if (window.rate >= 60) return 'good';
+  if (window.rate >= 50) return 'mid';
+  return 'low';
+}
+
+function diffTone(value: number | null | undefined) {
+  if (value === null || value === undefined) return 'none';
+  if (value >= 1) return 'elite';
+  if (value > 0) return 'good';
+  if (value <= -1) return 'low';
+  return 'mid';
+}
+
+function signedMetric(value: number | null | undefined, digits = 1) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+  return `${value > 0 ? '+' : ''}${value.toFixed(digits)}`;
+}
+
+function streakLabel(summary: ResearchSummary | null | undefined) {
+  if (!summary?.streak) return '—';
+  const count = summary.streak.count;
+  if (!count) return '0';
+  return `${summary.streak.over ? '+' : '-'}${count}`;
+}
+
 function DesktopMatrix({
   rows,
   predictions,
@@ -1021,20 +1049,20 @@ function DesktopMatrix({
 }) {
   return (
     <div className={styles.matrixWrap}>
-      <table className={styles.matrix}>
+      <table className={`${styles.matrix} ${styles.researchMatrix}`}>
         <thead>
           <tr>
             <th className={styles.playerColumn}>Player</th>
-            <th>Prop</th>
             <th>Line</th>
-            <th>Over</th>
-            <th>Under</th>
+            <th>App(s)</th>
+            <th>Avg L10</th>
+            <th>Diff</th>
             <th>L5</th>
             <th>L10</th>
             <th>L15</th>
-            <th>Proj</th>
+            <th>H2H</th>
+            <th>Streak</th>
             <th>EV</th>
-            <th aria-label="Open" />
           </tr>
         </thead>
         <tbody>
@@ -1043,9 +1071,10 @@ function DesktopMatrix({
             const summary = research[group.key];
             const bestEv = expectedValueFor(group, prediction);
             const arb = marketArbitrage(group);
-            const projection = prediction?.available && finite(prediction.projection) ? prediction.projection : null;
             const overSelected = slip.some((item) => item.id === selectionId(group.key, 'OVER'));
             const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
+            const avgL10 = summary?.l10?.average ?? null;
+            const diff = summary?.diff ?? null;
 
             return (
               <tr key={group.key} onClick={() => onInspect(group)}>
@@ -1058,65 +1087,67 @@ function DesktopMatrix({
                   />
                   <span>
                     <b>{group.player}</b>
-                    <small>{group.matchup} · {timeLabel(group.startsAt)}</small>
+                    <small>
+                      {marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}
+                      {' · '}
+                      {group.matchup}
+                      {arb ? ' · ARB' : ''}
+                    </small>
                   </span>
                 </td>
-                <td className={styles.marketCell}>
-                  <span className={styles.marketText}>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</span>
-                  {arb ? (
-                    <span className={styles.arbBadge} data-push={arb.possiblePush ? 'true' : 'false'}>
-                      {marketArbitrageLabel(arb)}
-                    </span>
-                  ) : null}
-                </td>
                 <td className={styles.numCell}>{group.line}</td>
-                <td>
-                  <button
-                    type="button"
-                    className={overSelected ? styles.selectedQuote : styles.quoteButton}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelect(group, 'OVER');
-                    }}
-                  >
-                    <span>O {priceLabel(group.bestOver?.price)}</span>
-                    <small>{quoteBook(group.bestOver)}</small>
-                  </button>
+                <td className={styles.bookCell}>
+                  <div className={styles.bookPair}>
+                    <button
+                      type="button"
+                      data-side="over"
+                      data-selected={overSelected ? 'true' : 'false'}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelect(group, 'OVER');
+                      }}
+                      title={`Over · ${quoteBook(group.bestOver)}`}
+                    >
+                      <b>O {priceLabel(group.bestOver?.price)}</b>
+                      <small>{quoteBook(group.bestOver)}</small>
+                    </button>
+                    <button
+                      type="button"
+                      data-side="under"
+                      data-selected={underSelected ? 'true' : 'false'}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onSelect(group, 'UNDER');
+                      }}
+                      title={`Under · ${quoteBook(group.bestUnder)}`}
+                    >
+                      <b>U {priceLabel(group.bestUnder?.price)}</b>
+                      <small>{quoteBook(group.bestUnder)}</small>
+                    </button>
+                  </div>
                 </td>
-                <td>
-                  <button
-                    type="button"
-                    className={underSelected ? styles.selectedQuote : styles.quoteButton}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelect(group, 'UNDER');
-                    }}
-                  >
-                    <span>U {priceLabel(group.bestUnder?.price)}</span>
-                    <small>{quoteBook(group.bestUnder)}</small>
-                  </button>
+                <td className={styles.metricCell} data-tone={avgL10 !== null && avgL10 >= group.line ? 'good' : 'none'}>
+                  {avgL10 === null ? '—' : avgL10.toFixed(1)}
                 </td>
-                <RateCell window={summary === undefined ? undefined : summary?.l5 ?? null} />
-                <RateCell window={summary === undefined ? undefined : summary?.l10 ?? null} />
-                <RateCell window={summary === undefined ? undefined : summary?.l15 ?? null} />
-                <td className={styles.modelCell}>
-                  {prediction === undefined ? (
-                    <span className={styles.loadingDot}>…</span>
-                  ) : projection !== null ? (
-                    <>
-                      <b>{projection.toFixed(1)}</b>
-                      <small>{projection > group.line ? 'OVER lean' : projection < group.line ? 'UNDER lean' : 'at line'}</small>
-                    </>
-                  ) : (
-                    <span className={styles.unavailable}>—</span>
-                  )}
+                <td className={styles.metricCell} data-tone={diffTone(diff)}>{signedMetric(diff)}</td>
+                <MatrixRateCell window={summary === undefined ? undefined : summary?.l5 ?? null} />
+                <MatrixRateCell window={summary === undefined ? undefined : summary?.l10 ?? null} />
+                <MatrixRateCell window={summary === undefined ? undefined : summary?.l15 ?? null} />
+                <MatrixRateCell window={summary === undefined ? undefined : summary?.h2h ?? null} />
+                <td
+                  className={styles.metricCell}
+                  data-tone={summary?.streak ? (summary.streak.over ? 'good' : 'low') : 'none'}
+                >
+                  {streakLabel(summary)}
                 </td>
                 <td
                   className={styles.evCell}
                   data-positive={bestEv && bestEv.ev > 0 ? 'true' : 'false'}
                   title={bestEv ? expectedValueSourceLabel(bestEv) || undefined : 'Verified EV unavailable'}
                 >
-                  {bestEv ? (
+                  {prediction === undefined ? (
+                    <span className={styles.loadingDot}>…</span>
+                  ) : bestEv ? (
                     <>
                       <b>{bestEv.ev >= 0 ? '+' : ''}{bestEv.ev.toFixed(1)}%</b>
                       <small>{bestEv.side}</small>
@@ -1125,7 +1156,6 @@ function DesktopMatrix({
                     <span className={styles.unavailable}>—</span>
                   )}
                 </td>
-                <td><ChevronRight size={16} className={styles.rowChevron} /></td>
               </tr>
             );
           })}
@@ -1151,87 +1181,119 @@ function MobileMatrix({
   onSelect: (group: PropGroup, side: Side) => void;
 }) {
   return (
-    <div className={styles.mobileRows}>
-      {rows.map((group) => {
-        const prediction = predictions[group.key];
-        const summary = research[group.key];
-        const bestEv = expectedValueFor(group, prediction);
-        const arb = marketArbitrage(group);
-        const overSelected = slip.some((item) => item.id === selectionId(group.key, 'OVER'));
-        const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
+    <div className={styles.mobileMatrixWrap} aria-label="Player prop research matrix">
+      <div className={styles.mobileMatrix} role="table">
+        <div className={`${styles.mobileMatrixRow} ${styles.mobileMatrixHead}`} role="row">
+          <span className={styles.mobileSticky}>Player</span>
+          <span>Line</span>
+          <span>App(s)</span>
+          <span>Avg L10</span>
+          <span>Diff</span>
+          <span>L5</span>
+          <span>L10</span>
+          <span>L15</span>
+          <span>H2H</span>
+          <span>Streak</span>
+          <span>EV</span>
+        </div>
 
-        return (
-          <article key={group.key} className={styles.mobileRow}>
-            <button type="button" className={styles.mobileIdentity} onClick={() => onInspect(group)}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
-                alt=""
-                onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-              />
-              <span>
-                <b>{group.player}</b>
-                <small>{group.matchup}</small>
-              </span>
-              <span className={styles.mobileSignals}>
-                <span className={styles.mobileEv} data-positive={bestEv && bestEv.ev > 0 ? 'true' : 'false'} title={bestEv ? expectedValueSourceLabel(bestEv) || undefined : 'Verified EV unavailable'}>
-                  {bestEv ? `${bestEv.side === 'OVER' ? 'O' : 'U'} ${bestEv.ev >= 0 ? '+' : ''}${bestEv.ev.toFixed(1)}% EV` : 'EV —'}
+        {rows.map((group) => {
+          const prediction = predictions[group.key];
+          const summary = research[group.key];
+          const bestEv = expectedValueFor(group, prediction);
+          const overSelected = slip.some((item) => item.id === selectionId(group.key, 'OVER'));
+          const underSelected = slip.some((item) => item.id === selectionId(group.key, 'UNDER'));
+          const avgL10 = summary?.l10?.average ?? null;
+          const diff = summary?.diff ?? null;
+
+          return (
+            <div key={group.key} className={styles.mobileMatrixRow} role="row">
+              <button
+                type="button"
+                className={`${styles.mobilePlayerMatrixCell} ${styles.mobileSticky}`}
+                onClick={() => onInspect(group)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
+                  alt=""
+                  onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
+                />
+                <span>
+                  <b>{group.player}</b>
+                  <small>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</small>
                 </span>
-                {arb ? (
-                  <span className={styles.mobileArb} data-push={arb.possiblePush ? 'true' : 'false'}>
-                    {arb.possiblePush
-                      ? `ARB +${arb.decidedReturnPct.toFixed(1)}%*`
-                      : `ARB +${arb.minimumReturnPct.toFixed(1)}%`}
-                  </span>
-                ) : null}
+              </button>
+
+              <button type="button" className={styles.mobileLineCell} onClick={() => onInspect(group)}>
+                {group.line}
+              </button>
+
+              <div className={styles.mobileBookPair}>
+                <button
+                  type="button"
+                  data-side="over"
+                  data-selected={overSelected ? 'true' : 'false'}
+                  onClick={() => onSelect(group, 'OVER')}
+                >
+                  <b>O {priceLabel(group.bestOver?.price)}</b>
+                  <small>{quoteBook(group.bestOver)}</small>
+                </button>
+                <button
+                  type="button"
+                  data-side="under"
+                  data-selected={underSelected ? 'true' : 'false'}
+                  onClick={() => onSelect(group, 'UNDER')}
+                >
+                  <b>U {priceLabel(group.bestUnder?.price)}</b>
+                  <small>{quoteBook(group.bestUnder)}</small>
+                </button>
+              </div>
+
+              <span className={styles.mobileMetricCell} data-tone={avgL10 !== null && avgL10 >= group.line ? 'good' : 'none'}>
+                {avgL10 === null ? '—' : avgL10.toFixed(1)}
               </span>
-            </button>
-
-            <div className={styles.mobileMeta}>
-              <span><b>{group.line}</b> {marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</span>
-              <span>O L5 <b>{rateLabel(summary === undefined ? undefined : summary?.l5 ?? null)}</b></span>
-              <span>O L10 <b>{rateLabel(summary === undefined ? undefined : summary?.l10 ?? null)}</b></span>
-              <span>O L15 <b>{rateLabel(summary === undefined ? undefined : summary?.l15 ?? null)}</b></span>
-            </div>
-
-            <div className={styles.mobileQuotes}>
-              <button
-                type="button"
-                data-selected={overSelected ? 'true' : 'false'}
-                onClick={() => onSelect(group, 'OVER')}
+              <span className={styles.mobileMetricCell} data-tone={diffTone(diff)}>{signedMetric(diff)}</span>
+              <MobileRateCell window={summary === undefined ? undefined : summary?.l5 ?? null} />
+              <MobileRateCell window={summary === undefined ? undefined : summary?.l10 ?? null} />
+              <MobileRateCell window={summary === undefined ? undefined : summary?.l15 ?? null} />
+              <MobileRateCell window={summary === undefined ? undefined : summary?.h2h ?? null} />
+              <span
+                className={styles.mobileMetricCell}
+                data-tone={summary?.streak ? (summary.streak.over ? 'good' : 'low') : 'none'}
               >
-                <span>OVER</span>
-                <b>{priceLabel(group.bestOver?.price)}</b>
-                <small>{quoteBook(group.bestOver)}</small>
-              </button>
-              <button
-                type="button"
-                data-selected={underSelected ? 'true' : 'false'}
-                onClick={() => onSelect(group, 'UNDER')}
+                {streakLabel(summary)}
+              </span>
+              <span
+                className={styles.mobileMetricCell}
+                data-tone={bestEv ? (bestEv.ev >= 5 ? 'elite' : bestEv.ev > 0 ? 'good' : 'low') : 'none'}
+                title={bestEv ? expectedValueSourceLabel(bestEv) || undefined : 'Verified EV unavailable'}
               >
-                <span>UNDER</span>
-                <b>{priceLabel(group.bestUnder?.price)}</b>
-                <small>{quoteBook(group.bestUnder)}</small>
-              </button>
-              <button type="button" className={styles.inspectButton} onClick={() => onInspect(group)}>
-                <BarChart3 size={15} />
-                Inspect
-              </button>
+                {prediction === undefined ? '…' : bestEv ? `${bestEv.ev >= 0 ? '+' : ''}${bestEv.ev.toFixed(1)}%` : '—'}
+              </span>
             </div>
-          </article>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function RateCell({ window }: { window: RateWindow | null | undefined }) {
+function MatrixRateCell({ window }: { window: RateWindow | null | undefined }) {
   const sample = hitSample(window);
   return (
-    <td className={styles.rateCell} data-high={window?.rate !== null && window?.rate !== undefined && window.rate >= 60 ? 'true' : 'false'}>
-      <b>{rateLabel(window)}</b>
-      {sample ? <small>{sample}</small> : null}
+    <td className={styles.heatCell} data-tone={rateTone(window)} title={sample ? `${sample} hits` : undefined}>
+      {rateLabel(window)}
     </td>
+  );
+}
+
+function MobileRateCell({ window }: { window: RateWindow | null | undefined }) {
+  const sample = hitSample(window);
+  return (
+    <span className={styles.mobileHeatCell} data-tone={rateTone(window)} title={sample ? `${sample} hits` : undefined}>
+      {rateLabel(window)}
+    </span>
   );
 }
 

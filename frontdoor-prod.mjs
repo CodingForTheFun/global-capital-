@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
 import { fetchMatchupResearch, fetchDefensePosition } from './lib/data-sources/espn/research.mjs';
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
+import { researchBatchLogLine } from './lib/autoscout/research-batch-log.mjs';
 import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
 import { projectPlayerProp, projectionsConfigured } from './lib/projections/service.mjs';
 import { askAboutProp, askConfigured } from './lib/projections/ask.mjs';
@@ -409,6 +410,7 @@ async function maybeServeResearchBatch(req, res) {
     return true;
   }
   const results = Object.create(null);
+  const startedAt = Date.now();
   let cursor = 0;
   async function worker() {
     while (cursor < entries.length) {
@@ -423,6 +425,7 @@ async function maybeServeResearchBatch(req, res) {
     }
   }
   await Promise.all(Array.from({ length: Math.min(BATCH_CONCURRENCY, entries.length) }, worker));
+  console.log(researchBatchLogLine(entries, results, Date.now() - startedAt));
   directJson(res, 200, { ok: true, requested: entries.length, results });
   return true;
 }

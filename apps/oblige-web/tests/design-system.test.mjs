@@ -75,11 +75,15 @@ test('solid controls use the fill accent so their white label stays readable', (
   }
 });
 
-test('the board keeps green for data and uses the accent for interaction', () => {
+test('the board keeps green and red for research data and the accent for interaction', () => {
   const board = read('../components/terminal-board.module.css');
-  assert.doesNotMatch(board, /#61e8ad|97, 232, 173/, 'no hard-coded green is left');
-  assert.match(board, /\.mobileEv\[data-positive="true"\] \{ color: var\(--pos\); \}/, 'only positive EV is green');
-  assert.match(read('../components/terminal-board.tsx'), /className=\{styles\.mobileEv\} data-positive=/);
+  const terminal = read('../components/terminal-board.tsx');
+  assert.doesNotMatch(board, /#61e8ad|97, 232, 173/, 'no legacy hard-coded green is left');
+  assert.match(board, /\.mobileMetricCell\[data-tone="good"\][\s\S]*var\(--pos\)/, 'positive matrix data uses the positive token');
+  assert.match(board, /\.mobileMetricCell\[data-tone="low"\][\s\S]*var\(--neg\)/, 'negative matrix data uses the negative token');
+  assert.match(board, /data-selected="true"[\s\S]*var\(--terminal-accent\)/, 'selection stays on the interaction accent');
+  assert.match(terminal, /className=\{styles\.mobileMetricCell\} data-tone=/);
+  assert.match(terminal, /className=\{styles\.mobileHeatCell\} data-tone=/);
 });
 
 test('the responsible-play line is on every page, phones included', () => {

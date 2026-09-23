@@ -1,0 +1,2 @@
+Deploy trigger for Claude redesign release recovery on 2026-09-22.
+This file is intentionally runtime-neutral and exists only to touch the watched oblige-web path.

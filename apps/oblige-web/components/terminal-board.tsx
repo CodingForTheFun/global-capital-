@@ -780,10 +780,10 @@ export function TerminalBoard() {
           <div>
             <div className={styles.terminalEyebrow}>
               <Sparkles size={13} aria-hidden="true" />
-              Oblige Props v2
+              ObligeProps
             </div>
-            <h1>Research Terminal</h1>
-            <p>Streaming prop research, multi-book prices, verified history and model context.</p>
+            <h1>Player Props</h1>
+            <p>Compare live lines, hit rates, model edges and sportsbook prices in one research board.</p>
           </div>
 
           <div className={styles.headerMetrics}>
@@ -894,7 +894,7 @@ export function TerminalBoard() {
           </div>
 
           <div className={styles.evRail} role="group" aria-label="Performance sorting">
-            <span><BarChart3 size={13} /> Performance</span>
+            <span><BarChart3 size={13} /> Sort</span>
             {PERFORMANCE_SORTS.map((option) => (
               <button
                 key={option.id}
@@ -917,7 +917,7 @@ export function TerminalBoard() {
           </div>
 
           <div className={styles.evRail} role="group" aria-label="Expected value and arbitrage filters">
-            <span><SlidersHorizontal size={13} /> Edge filters</span>
+            <span><SlidersHorizontal size={13} /> Edge</span>
             {[
               { label: 'All', value: null },
               { label: '0%+', value: 0 },
@@ -1024,15 +1024,15 @@ function DesktopMatrix({
       <table className={styles.matrix}>
         <thead>
           <tr>
-            <th className={styles.playerColumn}>Player / game</th>
-            <th>Market</th>
+            <th className={styles.playerColumn}>Player</th>
+            <th>Prop</th>
             <th>Line</th>
-            <th>Best over</th>
-            <th>Best under</th>
+            <th>Over</th>
+            <th>Under</th>
             <th>L5</th>
             <th>L10</th>
             <th>L15</th>
-            <th>Model</th>
+            <th>Proj</th>
             <th>EV</th>
             <th aria-label="Open" />
           </tr>

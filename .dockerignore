@@ -27,6 +27,11 @@ test-results
 # real suite before runtime assets are mutated.
 .claude
 .github
+!.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/release-candidate-check.yml
 docs
 coverage
 playwright-report

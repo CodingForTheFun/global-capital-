@@ -175,3 +175,54 @@ test('tennis uses documented ATP, WTA and ITF league queries instead of generic 
     else process.env.OBLIGE_PROP_PROVIDER_MODE = previousMode;
   }
 });
+
+
+test('tennis retries entitled tours with minimal documented params after HTTP 400', async () => {
+  const previousKey = process.env.SPORTS_ODDS_API_KEY_HEADER;
+  const previousMode = process.env.OBLIGE_PROP_PROVIDER_MODE;
+  const previousFetch = globalThis.fetch;
+  const eventUrls = [];
+  try {
+    process.env.SPORTS_ODDS_API_KEY_HEADER = 'test-key';
+    process.env.OBLIGE_PROP_PROVIDER_MODE = 'sportsgameodds';
+    __resetSportsGameOddsClient();
+    __resetSportsGameOddsProvider();
+
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/account/usage')) {
+        return new Response(JSON.stringify({ success:true, data:{ tier:'test', rateLimits:{'per-month':{'max-entities':100000,'current-entities':0}} } }), { status:200, headers:{'content-type':'application/json'} });
+      }
+      if (url.pathname.endsWith('/sports')) {
+        return new Response(JSON.stringify({ success:true, data:[{sportID:'TENNIS',name:'Tennis'}] }), { status:200, headers:{'content-type':'application/json'} });
+      }
+      if (url.pathname.endsWith('/leagues')) {
+        return new Response(JSON.stringify({ success:true, data:[{leagueID:'ATP',sportID:'TENNIS'},{leagueID:'WTA',sportID:'TENNIS'}] }), { status:200, headers:{'content-type':'application/json'} });
+      }
+      if (url.pathname.endsWith('/events')) {
+        eventUrls.push(url);
+        if (url.searchParams.has('startsAfter')) {
+          return new Response(JSON.stringify({ success:false, error:'bad filter combination' }), { status:400, headers:{'content-type':'application/json'} });
+        }
+        const leagueID = url.searchParams.get('leagueID');
+        return new Response(JSON.stringify({ success:true, data:[{ eventID:'event-'+leagueID, sportID:'TENNIS', leagueID, odds:{} }] }), { status:200, headers:{'content-type':'application/json'} });
+      }
+      throw new Error('Unexpected URL '+url.href);
+    };
+
+    const result = await fetchSportsGameOddsBoard('TENNIS', { force:true, eventLimit:8 });
+    assert.equal(result.meta.tennisLeagueFallback, true);
+    assert.deepEqual(result.meta.leaguesRequested, ['ATP','WTA']);
+    const fallback = eventUrls.filter((url) => !url.searchParams.has('startsAfter'));
+    assert.equal(fallback.length, 2);
+    assert.deepEqual(fallback.map((url) => url.searchParams.get('leagueID')).sort(), ['ATP','WTA']);
+    assert.equal(fallback.every((url) => url.searchParams.get('oddsAvailable') === 'true'), true);
+    assert.equal(fallback.every((url) => !url.searchParams.has('sportID')), true);
+  } finally {
+    globalThis.fetch = previousFetch;
+    __resetSportsGameOddsClient();
+    __resetSportsGameOddsProvider();
+    if (previousKey === undefined) delete process.env.SPORTS_ODDS_API_KEY_HEADER; else process.env.SPORTS_ODDS_API_KEY_HEADER = previousKey;
+    if (previousMode === undefined) delete process.env.OBLIGE_PROP_PROVIDER_MODE; else process.env.OBLIGE_PROP_PROVIDER_MODE = previousMode;
+  }
+});

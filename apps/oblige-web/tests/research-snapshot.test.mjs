@@ -26,3 +26,14 @@ test('history model is surfaced once, above the fold', () => {
   assert.equal(modelRenders.length, 1);
   assert.ok(card.indexOf('<HistoryModel group={group}') < card.indexOf('{categoryLabels.map((entry) => {'));
 });
+
+
+test('paid-ready research adds L20 and exposes model validation instead of hiding it in fine print', () => {
+  assert.match(card, /'l20', 'L20', 20/);
+  assert.match(card, /item\.id === 'l20'/);
+  assert.match(card, /data-qa="model-line-delta"/);
+  assert.match(card, /data-qa="model-validation"/);
+  assert.match(card, /validationRmse/);
+  assert.match(card, /baselineRmse/);
+  assert.match(card, /EV source:/);
+});

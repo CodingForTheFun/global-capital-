@@ -43,7 +43,7 @@ type Props = {
   onMarket(group: PropGroup): void;
 };
 
-type SampleId = 'l5' | 'l10' | 'l15' | 'season' | 'h2h';
+type SampleId = 'l5' | 'l10' | 'l15' | 'l20' | 'season' | 'h2h';
 
 type ModelPrediction = {
   available?: boolean;
@@ -542,24 +542,48 @@ function HistoryModel({
   );
   const selectedEvSource = expectedValueSourceLabel(selectedEv);
   const available = prediction?.available === true;
+  const projection = available ? numberOf(prediction?.projection) : null;
+  const projectionDelta = projection === null ? null : projection - line;
+  const validationChecks = numberOf(prediction?.validation?.observations);
+  const validationRmse = numberOf(prediction?.validation?.rmse);
+  const baselineRmse = numberOf(prediction?.validation?.baselineRmse);
+  const validationStrategy = text(prediction?.validation?.selectedStrategy);
 
   return (
-    <div className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
-      <div className="text-[13px] font-black text-white">History model</div>
-      <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2">
-        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
-        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
-        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
-        <div className="min-w-0"><div className="whitespace-nowrap text-[7px] text-[#8494AA]">Selected-quote EV</div><div className="mt-0.5 whitespace-nowrap text-[17px] font-black leading-none text-white">{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+    <div data-qa="history-model" className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-[13px] font-black text-white">History model</div>
+        {validationChecks !== null ? (
+          <span className="rounded-full border border-[#244868] bg-[#0A1825] px-2 py-1 text-[7px] font-black text-[#8FC8F2]">
+            {validationChecks} CHECKS
+          </span>
+        ) : null}
       </div>
+      <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Vs posted line</div><div data-qa="model-line-delta" className={cx('mt-0.5 text-[17px] font-black leading-none', projectionDelta === null ? 'text-[#91A0B5]' : projectionDelta > 0 ? 'text-[#23E787]' : projectionDelta < 0 ? 'text-[#FF6B7D]' : 'text-white')}>{projectionDelta === null ? <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></> : (projectionDelta > 0 ? '+' : '') + projectionDelta.toFixed(1)}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Selected-quote EV</div><div className="mt-0.5 whitespace-nowrap text-[17px] font-black leading-none text-white">{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Over model</div><div className="mt-0.5 text-[15px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Under model</div><div className="mt-0.5 text-[15px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Model sample</div><div className="mt-0.5 text-[15px] font-black leading-none text-white">{numberOf(prediction?.sampleSize) ?? '—'}</div></div>
+      </div>
+      {(validationRmse !== null || baselineRmse !== null || validationStrategy) ? (
+        <div data-qa="model-validation" className="mt-2 rounded-lg border border-[#1B354C] bg-[#0B1621] px-2.5 py-2 text-[8px] leading-4 text-[#93A8BC]">
+          <b className="text-[#C6D6E5]">Validation:</b>
+          {validationRmse !== null ? ' RMSE ' + validationRmse.toFixed(2) : ''}
+          {baselineRmse !== null ? ' vs baseline ' + baselineRmse.toFixed(2) : ''}
+          {validationStrategy ? ' · ' + validationStrategy : ''}
+          {prediction?.validation?.events ? ' · ' + prediction.validation.events + ' events' : ''}
+        </div>
+      ) : null}
       <p className="mt-2 text-[8px] leading-[1.45] text-[#7E8FA5]">
         {loading
           ? 'Checking the verified history model…'
           : available
             ? 'Adaptive estimate from verified completed-game history' +
-              (prediction?.validation?.observations ? ' · ' + prediction.validation.observations + ' rolling checks' : '') +
+              (validationChecks !== null ? ' · ' + validationChecks + ' rolling checks' : '') +
               (prediction?.modelVersion ? ' · ' + prediction.modelVersion : '') +
-              (selectedEvSource ? ' · EV: ' + selectedEvSource : '') + '.'
+              (selectedEvSource ? ' · EV source: ' + selectedEvSource : '') + '.'
             : (prediction?.message || 'History model is unavailable for this exact prop.')}
       </p>
       <button
@@ -838,6 +862,7 @@ export function PlayerPropResearchCard({
     computeWindow(filteredGames, state.line, state.side, 'l5', 'L5', 5),
     computeWindow(filteredGames, state.line, state.side, 'l10', 'L10', 10),
     computeWindow(filteredGames, state.line, state.side, 'l15', 'L15', 15),
+    computeWindow(filteredGames, state.line, state.side, 'l20', 'L20', 20),
     computeWindow(filteredGames, state.line, state.side, 'season', 'SEASON'),
     h2h || computeWindow([], state.line, state.side, 'h2h', 'H2H'),
   ], [filteredGames, h2h, state.line, state.side]);
@@ -849,13 +874,13 @@ export function PlayerPropResearchCard({
         : [];
     }
     if (sample === 'season') return filteredAll.slice(0, 20);
-    const count = sample === 'l5' ? 5 : sample === 'l10' ? 10 : 15;
+    const count = sample === 'l5' ? 5 : sample === 'l10' ? 10 : sample === 'l20' ? 20 : 15;
     return filteredAll.slice(0, count);
   }, [filteredAll, currentOpponent, sample]);
 
   const support = React.useMemo(() => supportingMetrics(group, filteredGames), [group, filteredGames]);
   const quickWindows = React.useMemo(
-    () => windows.filter((item) => item.id === 'l5' || item.id === 'l10' || item.id === 'l15' || item.id === 'h2h'),
+    () => windows.filter((item) => item.id === 'l5' || item.id === 'l10' || item.id === 'l20' || item.id === 'h2h'),
     [windows],
   );
   const movementRows = React.useMemo(

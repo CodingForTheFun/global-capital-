@@ -272,7 +272,26 @@ export type LineHistoryResponse = {
   points?: LineHistoryPoint[];
 };
 
-export type Account = { id: string; email?: string } | null;
+export type BoardSavedFilters = {
+  sort?: 'hit' | 'line' | 'name';
+  hitWindow?: 'l5' | 'l10' | 'l15' | 'h2h' | 'streak';
+  market?: string;
+  team?: string;
+  opponent?: string;
+  book?: string;
+  game?: string;
+  date?: string;
+  modifier?: string;
+};
+
+export type AccountPreferences = {
+  boardFilters?: {
+    activeSport?: string;
+    bySport?: Record<string, BoardSavedFilters>;
+  };
+};
+
+export type Account = { id: string; email?: string; csrfToken?: string } | null;
 
 /** One player row in a published injury report or lineup. */
 export type MatchupPlayer = {

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, TriangleAlert } from 'lucide-react';
 import type { PropGroup, ResearchResponse } from '@/lib/types';
-import { ApiError, fetchAccount, fetchBoard, fetchResearch, playedGames } from '@/lib/api';
+import { ApiError, fetchAccount, fetchBoard, fetchResearch, fetchWatchlist, updateWatchlist, playedGames, type WatchlistItem } from '@/lib/api';
 import {
   computeWindow,
   headToHead,
@@ -47,6 +47,29 @@ function readFavourites(): string[] {
   }
 }
 
+function watchlistItemFor(group: PropGroup): WatchlistItem {
+  return {
+    key: group.key,
+    sport: group.sport,
+    player: group.player,
+    market: group.market,
+    line: group.line,
+    period: group.period || 'game',
+    team: group.team,
+    opponent: group.opponent,
+    propId: group.propId,
+    startsAt: group.startsAt,
+  };
+}
+
+function writeFavouriteFallback(keys: string[]) {
+  try {
+    localStorage.setItem(FAVOURITES_KEY, JSON.stringify(keys));
+  } catch {
+    /* Account persistence is primary; local storage is only a resilience fallback. */
+  }
+}
+
 export function PlayerView() {
   const router = useRouter();
   const params = useSearchParams();
@@ -65,6 +88,7 @@ export function PlayerView() {
   const [loadingResearch, setLoadingResearch] = React.useState(true);
   const [error, setError] = React.useState('');
   const [favourites, setFavourites] = React.useState<string[]>([]);
+  const [watchlistCsrf, setWatchlistCsrf] = React.useState('');
   const [section, setSection] = React.useState<PlayerSection>('overview');
 
   React.useEffect(() => {
@@ -75,6 +99,29 @@ export function PlayerView() {
     setFavourites(readFavourites());
     return () => controller.abort();
   }, []);
+
+  React.useEffect(() => {
+    if (!account) {
+      setWatchlistCsrf('');
+      return;
+    }
+    const controller = new AbortController();
+    fetchWatchlist(controller.signal)
+      .then(({ items, csrfToken }) => {
+        if (controller.signal.aborted) return;
+        setWatchlistCsrf(csrfToken);
+        const remoteKeys = items.map((item) => item.key);
+        setFavourites((previous) => {
+          const merged = [...new Set([...previous, ...remoteKeys])];
+          writeFavouriteFallback(merged);
+          return merged;
+        });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setWatchlistCsrf('');
+      });
+    return () => controller.abort();
+  }, [account?.id]);
 
   React.useEffect(() => {
     if (checking || !account || !player) {
@@ -155,16 +202,32 @@ export function PlayerView() {
     });
   }
 
-  function toggleFavourite(key: string) {
-    setFavourites((prev) => {
-      const next = prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key];
-      try {
-        localStorage.setItem(FAVOURITES_KEY, JSON.stringify(next));
-      } catch {
-        /* a followed prop is a per-device convenience, never required */
-      }
-      return next;
-    });
+  function toggleFavourite(target: PropGroup) {
+    const key = target.key;
+    const saving = !favourites.includes(key);
+    const optimistic = saving
+      ? [...new Set([...favourites, key])]
+      : favourites.filter((item) => item !== key);
+    setFavourites(optimistic);
+    writeFavouriteFallback(optimistic);
+
+    if (!watchlistCsrf) return;
+    updateWatchlist(
+      saving ? 'upsert' : 'remove',
+      saving ? { item: watchlistItemFor(target) } : { key },
+      watchlistCsrf,
+    )
+      .then((items) => {
+        const remoteKeys = items.map((item) => item.key);
+        const fallbackKeys = readFavourites();
+        const merged = [...new Set([...fallbackKeys, ...remoteKeys])];
+        setFavourites(merged);
+        writeFavouriteFallback(merged);
+      })
+      .catch(() => {
+        // Keep the optimistic local copy. A later signed-in view rehydrates the
+        // server watchlist and the star remains useful even during storage faults.
+      });
   }
 
   if (checking) {
@@ -226,7 +289,7 @@ export function PlayerView() {
         state={state}
         onState={setState}
         favourite={favourite}
-        onFavourite={() => toggleFavourite(group.key)}
+        onFavourite={() => toggleFavourite(group)}
         onMarket={selectMarket}
       />
     </Shell>

@@ -1,3 +1,4 @@
+// Release marker: verified PrizePicks NFL fantasy reconstruction + player registry rollout 2026-09-23.
 // Release recovery marker for verified EV + cold-board + duplicate-card fixes; no runtime behavior change.
 import http from 'node:http';
 import { BOARD_SPORTS } from './lib/autoscout/models.mjs';

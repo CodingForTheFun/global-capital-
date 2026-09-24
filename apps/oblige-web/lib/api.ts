@@ -211,6 +211,8 @@ export type WatchlistItem = {
   team?: string | null;
   opponent?: string | null;
   propId?: string | null;
+  eventId?: string | null;
+  marketId?: string | null;
   startsAt?: string | null;
   savedAt?: string | null;
 };

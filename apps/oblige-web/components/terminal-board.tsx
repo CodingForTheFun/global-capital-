@@ -38,7 +38,7 @@ import { createResearchQueue, reasonText, type ResearchQueue } from '@/lib/resea
 import { SignInPanel } from '@/components/sign-in';
 import styles from './terminal-board.module.css';
 
-const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'WNBA', 'SOCCER'];
+const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'WNBA', 'TENNIS', 'SOCCER'];
 const INITIAL_ROWS = 40;
 const LOAD_MORE_ROWS = 40;
 const FALLBACK_REFRESH_MS = 60_000;

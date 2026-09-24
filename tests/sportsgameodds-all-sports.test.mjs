@@ -179,3 +179,44 @@ test('tennis fetches ATP WTA and ITF as separate SportsGameOdds event requests',
     else process.env.SPORTS_ODDS_API_KEY_HEADER = previousKey;
   }
 });
+
+
+test('tennis event requests use the provider-documented minimal query parameters', async () => {
+  const previousKey = process.env.SPORTS_ODDS_API_KEY_HEADER;
+  const previousFetch = globalThis.fetch;
+  const eventUrls = [];
+  try {
+    process.env.SPORTS_ODDS_API_KEY_HEADER = 'test-key';
+    __resetSportsGameOddsClient();
+    __resetSportsGameOddsProvider();
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/account/usage')) return new Response(JSON.stringify({success:true,data:{tier:'test',rateLimits:{'per-month':{'max-entities':100000,'current-entities':0}}}}),{status:200,headers:{'content-type':'application/json'}});
+      if (url.pathname.endsWith('/sports')) return new Response(JSON.stringify({success:true,data:[{sportID:'TENNIS'}]}),{status:200,headers:{'content-type':'application/json'}});
+      if (url.pathname.endsWith('/leagues')) return new Response(JSON.stringify({success:true,data:[{leagueID:'ATP',sportID:'TENNIS'},{leagueID:'WTA',sportID:'TENNIS'}]}),{status:200,headers:{'content-type':'application/json'}});
+      if (url.pathname.endsWith('/events')) {
+        eventUrls.push(url);
+        return new Response(JSON.stringify({success:true,data:[]}),{status:200,headers:{'content-type':'application/json'}});
+      }
+      throw new Error('Unexpected URL '+url.href);
+    };
+    await fetchSportsGameOddsBoard('TENNIS',{force:true,eventLimit:8});
+    assert.equal(eventUrls.length,2);
+    for (const url of eventUrls) {
+      assert.equal(['ATP','WTA'].includes(url.searchParams.get('leagueID')),true);
+      assert.equal(url.searchParams.get('oddsAvailable'),'true');
+      assert.equal(url.searchParams.get('limit'),'8');
+      assert.equal(url.searchParams.has('sportID'),false);
+      assert.equal(url.searchParams.has('ended'),false);
+      assert.equal(url.searchParams.has('cancelled'),false);
+      assert.equal(url.searchParams.has('startsAfter'),false);
+      assert.equal(url.searchParams.has('startsBefore'),false);
+      assert.equal(url.searchParams.has('includeOpenCloseOdds'),false);
+    }
+  } finally {
+    globalThis.fetch=previousFetch;
+    __resetSportsGameOddsClient();
+    __resetSportsGameOddsProvider();
+    if(previousKey===undefined) delete process.env.SPORTS_ODDS_API_KEY_HEADER; else process.env.SPORTS_ODDS_API_KEY_HEADER=previousKey;
+  }
+});

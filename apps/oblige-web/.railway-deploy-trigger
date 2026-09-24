@@ -1,2 +1,3 @@
 Deploy trigger for Claude redesign release recovery on 2026-09-22.
 Runtime-neutral marker updated after including the release-gate fixture in Railway's Docker validation context.
+Player research neon reference release marker 2026-09-23; deploys the merged verified player-card UI without changing runtime behavior.

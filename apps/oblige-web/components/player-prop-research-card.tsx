@@ -808,7 +808,7 @@ export function PlayerPropResearchCard({
         <div className="p-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="truncate text-[18px] font-black tracking-[-.02em] text-white">{marketLabel}</h2>
-            <div className="text-[8px] font-bold text-[#66809B]">{loading ? 'Loading verified history…' : filteredGames.length + ' / ' + verifiedGames.length + ' verified'}</div>
+            <div data-qa="sample-count" className="text-[8px] font-bold text-[#66809B]">{loading ? 'Loading verified history…' : filteredGames.length + ' / ' + verifiedGames.length + ' verified'}</div>
           </div>
 
           <div className="mt-2 flex flex-wrap items-end gap-2">

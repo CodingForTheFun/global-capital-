@@ -954,7 +954,7 @@ export function PlayerPropResearchCard({
     <section
       className="mx-auto w-full max-w-[900px] text-white [font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]"
       data-design="player-prop-research-card"
-      data-release="oblige-reference-neon-v4-20260923"
+      data-release="oblige-paid-ready-research-v5-20260924"
     >
       <div className="overflow-hidden rounded-[18px] border border-[#0879E8] bg-[radial-gradient(circle_at_28%_0%,rgba(18,71,181,.42),transparent_42%),linear-gradient(180deg,#071428_0%,#07111F_100%)] shadow-[0_0_26px_rgba(0,126,255,.23),0_18px_55px_rgba(0,0,0,.35)]">
         <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_210px]">

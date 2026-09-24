@@ -28,7 +28,7 @@ function fakeRes() {
 }
 
 function request({ method = 'GET', token = '', csrf = '', body = null } = {}) {
-  const req = Readable.from(body === null ? [] : [JSON.stringify(body)]);
+  const req = Readable.from(body === null ? [] : [Buffer.from(JSON.stringify(body), 'utf8')]);
   req.method = method;
   req.headers = {
     ...(token ? { cookie: `${ACCOUNT_COOKIE}=${encodeURIComponent(token)}` } : {}),

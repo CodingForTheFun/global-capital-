@@ -542,6 +542,12 @@ function HistoryModel({
   );
   const selectedEvSource = expectedValueSourceLabel(selectedEv);
   const available = prediction?.available === true;
+  const projectionValue = available ? numberOf(prediction?.projection) : null;
+  const projectionDelta = projectionValue === null ? null : projectionValue - line;
+  const validationRmse = numberOf(prediction?.validation?.rmse);
+  const baselineRmse = numberOf(prediction?.validation?.baselineRmse);
+  const validationChecks = numberOf(prediction?.validation?.observations);
+  const modelSample = numberOf(prediction?.sampleSize);
 
   return (
     <div className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
@@ -551,6 +557,31 @@ function HistoryModel({
         <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
         <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
         <div className="min-w-0"><div className="whitespace-nowrap text-[7px] text-[#8494AA]">Selected-quote EV</div><div className="mt-0.5 whitespace-nowrap text-[17px] font-black leading-none text-white">{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+      </div>
+      <div data-qa="history-model-evidence" className="mt-2 grid grid-cols-3 overflow-hidden rounded-lg border border-[#223247] bg-[#0B1420]">
+        <div className="min-w-0 px-2 py-2">
+          <div className="text-[7px] font-bold uppercase tracking-[.03em] text-[#71849B]">Proj vs line</div>
+          <div className="mt-0.5 truncate text-[11px] font-black text-white">
+            {projectionDelta === null ? '—' : (projectionDelta > 0 ? '+' : '') + projectionDelta.toFixed(1)}
+          </div>
+        </div>
+        <div className="min-w-0 border-l border-[#223247] px-2 py-2">
+          <div className="text-[7px] font-bold uppercase tracking-[.03em] text-[#71849B]">Model sample</div>
+          <div className="mt-0.5 truncate text-[11px] font-black text-white">
+            {modelSample === null ? '—' : Math.round(modelSample) + ' games'}
+          </div>
+        </div>
+        <div className="min-w-0 border-l border-[#223247] px-2 py-2">
+          <div className="text-[7px] font-bold uppercase tracking-[.03em] text-[#71849B]">Validation</div>
+          <div className="mt-0.5 truncate text-[11px] font-black text-white">
+            {validationRmse === null ? '—' : 'RMSE ' + validationRmse.toFixed(2)}
+          </div>
+        </div>
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[7px] leading-3 text-[#657A91]">
+        <span>{validationChecks === null ? 'Rolling checks unavailable' : Math.round(validationChecks) + ' rolling checks'}</span>
+        <span>{baselineRmse === null ? 'Baseline error unavailable' : 'Baseline RMSE ' + baselineRmse.toFixed(2)}</span>
+        <span>{prediction?.modelVersion ? 'Version ' + prediction.modelVersion : 'Version unavailable'}</span>
       </div>
       <p className="mt-2 text-[8px] leading-[1.45] text-[#7E8FA5]">
         {loading

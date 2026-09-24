@@ -152,6 +152,13 @@ function quotePrice(row: PropRow | null | undefined) {
   return bookInfo(row.sportsbookKey || row.sportsbook).type === 'dfs' ? "Pick'em" : '—';
 }
 
+function americanImpliedProbability(value: unknown) {
+  const price = numberOf(value);
+  if (price === null || price === 0) return null;
+  const probability = price > 0 ? 100 / (price + 100) : Math.abs(price) / (Math.abs(price) + 100);
+  return probability * 100;
+}
+
 /** "9/14": short enough to fit under every bar of a 15-game chart. */
 function numericDate(value?: string | null) {
   if (!value) return '—';
@@ -846,6 +853,16 @@ export function PlayerPropResearchCard({
 
   const books = React.useMemo(() => catalogBookRows(group.quotes), [group.quotes]);
   const availableBooks = React.useMemo(() => books.filter((book) => book.available), [books]);
+  const bestOverPrice = React.useMemo(() => {
+    const values = availableBooks.map((book) => numberOf(book.over?.price)).filter((value): value is number => value !== null && value !== 0);
+    return values.length ? Math.max(...values) : null;
+  }, [availableBooks]);
+  const bestUnderPrice = React.useMemo(() => {
+    const values = availableBooks.map((book) => numberOf(book.under?.price)).filter((value): value is number => value !== null && value !== 0);
+    return values.length ? Math.max(...values) : null;
+  }, [availableBooks]);
+  const bestOverBook = bestOverPrice === null ? null : availableBooks.find((book) => numberOf(book.over?.price) === bestOverPrice) || null;
+  const bestUnderBook = bestUnderPrice === null ? null : availableBooks.find((book) => numberOf(book.under?.price) === bestUnderPrice) || null;
   const selectedBook = state.book ? books.find((book) => book.key === state.book) || null : null;
   const heroQuote = (state.side === 'UNDER'
     ? selectedBook?.under || group.bestUnder
@@ -1656,9 +1673,9 @@ export function PlayerPropResearchCard({
       </div>
 
       <div className="mt-2">
-        <details className="group overflow-hidden rounded-2xl border border-[#153D5F] bg-[#071321]">
+        <details data-qa="market-comparison" className="group overflow-hidden rounded-2xl border border-[#153D5F] bg-[#071321]" open>
           <summary className="flex cursor-pointer list-none items-center justify-between px-3.5 py-3 text-[11px] font-black text-white [&::-webkit-details-marker]:hidden">
-            <span>Sportsbook Prices</span>
+            <span>Market Comparison</span>
             <span className="whitespace-nowrap rounded-full border border-[#0F5B44] bg-[#08271F] px-2.5 py-1 text-[8px] font-black text-[#23E787]">
               {!availableBooks.length && dfsSource
                 ? '0 SPORTSBOOKS · ' + dfsSource.toUpperCase() + ' LINE'
@@ -1667,20 +1684,67 @@ export function PlayerPropResearchCard({
           </summary>
           <div className="border-t border-[#153D5F] px-3 pb-3 pt-2">
             {availableBooks.length ? (
-              <div className="grid gap-1.5">
-                {availableBooks.map((book) => (
-                  <button
-                    key={book.key}
-                    type="button"
-                    onClick={() => onState({ ...state, book: book.key })}
-                    className="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded-lg border border-[#183750] bg-[#081421] px-2.5 py-2 text-left text-[9px]"
-                  >
-                    <span className="truncate font-bold text-[#DCE5EF]">{book.name}</span>
-                    <span className="font-black text-[#23E787]">O {book.over ? odds(book.over.price) : 'Unavailable'}</span>
-                    <span className="font-black text-[#FF5C88]">U {book.under ? odds(book.under.price) : 'Unavailable'}</span>
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="mb-2 grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-[#164832] bg-[#08251C] px-3 py-2.5">
+                    <div className="text-[7px] font-bold uppercase tracking-[.05em] text-[#6F9E86]">Best Over</div>
+                    <div className="mt-1 flex items-end justify-between gap-2">
+                      <div className="text-[18px] font-black leading-none text-[#23E787]">{bestOverPrice === null ? '—' : odds(bestOverPrice)}</div>
+                      <div className="truncate text-right text-[8px] font-bold text-[#DCE5EF]">{bestOverBook?.name || 'Unavailable'}</div>
+                    </div>
+                    <div className="mt-1 text-[7px] text-[#79A28D]">
+                      {bestOverPrice === null ? 'No verified Over price' : 'Implied ' + (americanImpliedProbability(bestOverPrice) ?? 0).toFixed(1) + '%'}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-[#5A2032] bg-[#29101A] px-3 py-2.5">
+                    <div className="text-[7px] font-bold uppercase tracking-[.05em] text-[#B48693]">Best Under</div>
+                    <div className="mt-1 flex items-end justify-between gap-2">
+                      <div className="text-[18px] font-black leading-none text-[#FF5C88]">{bestUnderPrice === null ? '—' : odds(bestUnderPrice)}</div>
+                      <div className="truncate text-right text-[8px] font-bold text-[#DCE5EF]">{bestUnderBook?.name || 'Unavailable'}</div>
+                    </div>
+                    <div className="mt-1 text-[7px] text-[#B48A97]">
+                      {bestUnderPrice === null ? 'No verified Under price' : 'Implied ' + (americanImpliedProbability(bestUnderPrice) ?? 0).toFixed(1) + '%'}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-1.5">
+                  {availableBooks.map((book) => {
+                    const overPrice = numberOf(book.over?.price);
+                    const underPrice = numberOf(book.under?.price);
+                    const bestOver = overPrice !== null && bestOverPrice !== null && overPrice === bestOverPrice;
+                    const bestUnder = underPrice !== null && bestUnderPrice !== null && underPrice === bestUnderPrice;
+                    const selected = selectedBook?.key === book.key;
+                    return (
+                      <button
+                        key={book.key}
+                        type="button"
+                        onClick={() => onState({ ...state, book: book.key })}
+                        aria-pressed={selected}
+                        className={cx(
+                          'grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[9px] transition',
+                          selected ? 'border-[#0A8EE8] bg-[#0A2136] shadow-[0_0_12px_rgba(0,142,232,.16)]' : 'border-[#183750] bg-[#081421]',
+                        )}
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-bold text-[#DCE5EF]">{book.name}</span>
+                          <span className="mt-0.5 block text-[7px] text-[#607891]">{book.type === 'sportsbook' ? 'Sportsbook' : book.type}</span>
+                        </span>
+                        <span className="min-w-[72px] text-right">
+                          <span className="block font-black text-[#23E787]">O {book.over ? odds(book.over.price) : '—'}</span>
+                          <span className="mt-0.5 block text-[6px] font-bold text-[#7FA990]">{bestOver ? 'BEST OVER' : overPrice === null ? 'NO PRICE' : (americanImpliedProbability(overPrice) ?? 0).toFixed(1) + '%'}</span>
+                        </span>
+                        <span className="min-w-[72px] text-right">
+                          <span className="block font-black text-[#FF5C88]">U {book.under ? odds(book.under.price) : '—'}</span>
+                          <span className="mt-0.5 block text-[6px] font-bold text-[#B98695]">{bestUnder ? 'BEST UNDER' : underPrice === null ? 'NO PRICE' : (americanImpliedProbability(underPrice) ?? 0).toFixed(1) + '%'}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-[7px] leading-3 text-[#607891]">
+                  Best price means the highest verified American price currently posted for this exact player, market, period and line. Implied probability includes each book's pricing margin; it is not a no-vig model probability.
+                </p>
+              </>
             ) : (
               <p className="text-[9px] leading-4 text-[#7E8FA5]">No verified sportsbook price is available for this exact line.</p>
             )}

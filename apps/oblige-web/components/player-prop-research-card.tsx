@@ -135,6 +135,10 @@ function bookInitials(name: string) {
   return clean.slice(0, 4) || 'BOOK';
 }
 
+function normalizeBookKey(value: unknown) {
+  return text(value).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 /**
  * A quote's price as the card should print it. DFS pick'em lines (PrizePicks,
  * Underdog...) carry no American odds and arrive with price 0; printing that as
@@ -916,6 +920,35 @@ export function PlayerPropResearchCard({
   const unavailableReason = !loading && research?.available === false
     ? research.message || 'Verified history is unavailable for this exact prop.'
     : null;
+  const recentWindow = windows.find((item) => item.id === 'l10') || null;
+  const researchBookKey = normalizeBookKey(selectedBook?.key || heroQuote?.sportsbookKey || heroQuote?.sportsbook);
+  const researchLineMove = React.useMemo(() => {
+    if (!researchBookKey) return null;
+    const rows = lineHistory
+      .filter((point) => {
+        const line = numberOf(point.line);
+        const side = text(point.side).toUpperCase();
+        return line !== null && side === state.side && normalizeBookKey(point.bookmakerKey) === researchBookKey;
+      })
+      .sort((a, b) => {
+        const aTime = Date.parse(text(a.recordedAt || a.capturedAt)) || 0;
+        const bTime = Date.parse(text(b.recordedAt || b.capturedAt)) || 0;
+        return aTime - bTime;
+      });
+    if (rows.length < 2) return null;
+    const first = rows[0];
+    const latest = rows[rows.length - 1];
+    const from = numberOf(first.line);
+    const to = numberOf(latest.line);
+    if (from === null || to === null) return null;
+    const bookmakerKey = text(latest.bookmakerKey);
+    return {
+      from,
+      to,
+      book: bookInfo(bookmakerKey).name || bookmakerKey || 'Selected book',
+      capturedAt: text(latest.recordedAt || latest.capturedAt),
+    };
+  }, [lineHistory, researchBookKey, state.side]);
 
   return (
     <section
@@ -985,6 +1018,63 @@ export function PlayerPropResearchCard({
             </select>
           </label>
         </div>
+      </div>
+
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1.25fr_.75fr]">
+        <section
+          data-qa="research-snapshot"
+          className="overflow-hidden rounded-2xl border border-[#153D5F] bg-[linear-gradient(180deg,#081827_0%,#07111D_100%)]"
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-[#153D5F] px-3 py-2.5">
+            <div>
+              <div className="text-[12px] font-black text-white">Research Snapshot</div>
+              <div className="mt-0.5 text-[8px] text-[#718AA3]">Built only from verified rows available for this exact prop.</div>
+            </div>
+            <span className="shrink-0 rounded-full border border-[#0F5B44] bg-[#08271F] px-2 py-1 text-[7px] font-black tracking-[.04em] text-[#23E787]">
+              VERIFIED INPUTS
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4">
+            <div className="min-w-0 border-b border-r border-[#102C44] px-2.5 py-2.5 sm:border-b-0">
+              <div className="text-[7px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">Recent · L10</div>
+              <div className="mt-1 text-[17px] font-black leading-none text-white">{recentWindow?.hitRate === null || recentWindow?.hitRate === undefined ? '—' : recentWindow.hitRate + '%'}</div>
+              <div className="mt-1 truncate text-[7px] text-[#8FA4BA]">
+                {recentWindow?.games ? recentWindow.hits + '/' + recentWindow.games + ' hits' : 'No verified sample'}
+                {recentWindow?.average === null || recentWindow?.average === undefined ? '' : ' · Avg ' + recentWindow.average}
+              </div>
+            </div>
+            <div className="min-w-0 border-b border-[#102C44] px-2.5 py-2.5 sm:border-b-0 sm:border-r">
+              <div className="text-[7px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">Vs opponent</div>
+              <div className="mt-1 text-[17px] font-black leading-none text-white">{h2h?.hitRate === null || h2h?.hitRate === undefined ? '—' : h2h.hitRate + '%'}</div>
+              <div className="mt-1 truncate text-[7px] text-[#8FA4BA]">
+                {h2h?.games ? h2h.hits + '/' + h2h.games + ' H2H hits' : 'No verified H2H sample'}
+              </div>
+            </div>
+            <div className="min-w-0 border-r border-[#102C44] px-2.5 py-2.5">
+              <div className="text-[7px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">Same-book line</div>
+              <div className="mt-1 truncate text-[15px] font-black leading-none text-white">
+                {researchLineMove ? researchLineMove.from + ' → ' + researchLineMove.to : state.line}
+              </div>
+              <div className="mt-1 truncate text-[7px] text-[#8FA4BA]">
+                {researchLineMove ? researchLineMove.book + (researchLineMove.capturedAt ? ' · ' + shortTime(researchLineMove.capturedAt) : '') : 'No comparable movement yet'}
+              </div>
+            </div>
+            <div className="min-w-0 px-2.5 py-2.5">
+              <div className="text-[7px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">Matchup</div>
+              <div className="mt-1 truncate text-[15px] font-black leading-none text-white">{currentDefense ? DEFENSE_TIER_LABEL[currentDefense.tier] : '—'}</div>
+              <div className="mt-1 truncate text-[7px] text-[#8FA4BA]">
+                {currentDefense && defensePosition && defenseMetric
+                  ? ordinal(currentDefense.allowedRank) + '-most allowed vs ' + defensePosition + ' · ' + metricLabel(defenseMetric)
+                  : 'Verified DvP unavailable'}
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-[#153D5F] px-3 py-2 text-[7px] font-medium text-[#66809B]">
+            Evidence: {verifiedGames.length} verified {verifiedGames.length === 1 ? 'game' : 'games'} · {availableBooks.length} priced {availableBooks.length === 1 ? 'book' : 'books'} · {lineHistory.length} line {lineHistory.length === 1 ? 'snapshot' : 'snapshots'}
+          </div>
+        </section>
+
+        <HistoryModel group={group} selectedBook={selectedBook} line={state.line} />
       </div>
 
       <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1534,9 +1624,7 @@ export function PlayerPropResearchCard({
         </section>
       </div>
 
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <HistoryModel group={group} selectedBook={selectedBook} line={state.line} />
-
+      <div className="mt-2">
         <details className="group overflow-hidden rounded-2xl border border-[#153D5F] bg-[#071321]">
           <summary className="flex cursor-pointer list-none items-center justify-between px-3.5 py-3 text-[11px] font-black text-white [&::-webkit-details-marker]:hidden">
             <span>Sportsbook Prices</span>

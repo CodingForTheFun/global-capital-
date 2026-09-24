@@ -1,8 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { ChevronDown, Flame, Minus, Plus, Star } from 'lucide-react';
-import type { GameLogRow, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
+import { BarChart3, BookOpen, CalendarDays, ChevronDown, ChevronRight, Flame, History, Minus, Plus, SlidersHorizontal, Star, Target, TrendingUp, Users } from 'lucide-react';
+import type { GameLogRow, LineHistoryPoint, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
 import {
   applyFilters,
   computeWindow,
@@ -15,6 +15,7 @@ import { bookInfo } from '../../../lib/constants/books.mjs';
 import { catalogBookRows, type CatalogBookRow } from '@/lib/book-catalog';
 import { expectedValueFor, expectedValueSourceLabel, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 import { PlayerAvatar } from '@/components/face-card';
+import { fetchLineHistory } from '@/lib/api';
 import { marketDisplayLabel, odds, shortDate, shortTime } from '@/lib/utils';
 
 export type PlayerPropResearchState = {
@@ -522,12 +523,27 @@ export function PlayerPropResearchCard({
   onMarket,
 }: Props) {
   const [filters, setFilters] = React.useState<SampleFilters>(EMPTY_FILTERS);
-  const [sample, setSample] = React.useState<SampleId>('l15');
+  const [sample, setSample] = React.useState<SampleId>('l10');
+  const [lineHistory, setLineHistory] = React.useState<LineHistoryPoint[]>([]);
 
   React.useEffect(() => {
     setFilters(EMPTY_FILTERS);
-    setSample('l15');
+    setSample('l10');
   }, [group.key]);
+
+  React.useEffect(() => {
+    if (!group.propId) {
+      setLineHistory([]);
+      return;
+    }
+    const controller = new AbortController();
+    fetchLineHistory(group.propId, controller.signal)
+      .then(setLineHistory)
+      .catch(() => {
+        if (!controller.signal.aborted) setLineHistory([]);
+      });
+    return () => controller.abort();
+  }, [group.propId]);
 
   const marketLabel = marketDisplayLabel(group.market, group.player, group.marketId, group.sport);
   const rawGames = research?.gameLog || [];
@@ -629,6 +645,29 @@ export function PlayerPropResearchCard({
   }, [filteredAll, currentOpponent, sample]);
 
   const support = React.useMemo(() => supportingMetrics(group, filteredGames), [group, filteredGames]);
+  const quickWindows = React.useMemo(
+    () => windows.filter((item) => item.id === 'l5' || item.id === 'l10' || item.id === 'l15' || item.id === 'h2h'),
+    [windows],
+  );
+  const movementRows = React.useMemo(
+    () => lineHistory
+      .slice()
+      .sort((a, b) => {
+        const aTime = Date.parse(text(a.recordedAt || a.capturedAt)) || 0;
+        const bTime = Date.parse(text(b.recordedAt || b.capturedAt)) || 0;
+        return bTime - aTime;
+      })
+      .slice(0, 4),
+    [lineHistory],
+  );
+  const recentHistory = filteredGames.slice(0, 4);
+  const advancedRows = React.useMemo(() => {
+    const all = computeWindow(filteredGames, state.line, state.side, 'advanced-all', 'All');
+    const home = computeWindow(filteredGames.filter((game) => game.isHome === true), state.line, state.side, 'advanced-home', 'Home');
+    const away = computeWindow(filteredGames.filter((game) => game.isHome === false), state.line, state.side, 'advanced-away', 'Away');
+    const versus = h2h || computeWindow([], state.line, state.side, 'advanced-h2h', 'H2H');
+    return [all, home, away, versus];
+  }, [filteredGames, h2h, state.line, state.side]);
 
   function chooseCategory(label: string) {
     const rows = categoryLabels.find((entry) => entry.label === label)?.rows || [];
@@ -675,102 +714,148 @@ export function PlayerPropResearchCard({
 
   return (
     <section
-      className="mx-auto w-full max-w-[440px] md:max-w-[500px] text-white [font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]"
+      className="mx-auto w-full max-w-[900px] text-white [font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]"
       data-design="player-prop-research-card"
-      data-release="pickfinder-inspired-v3-20260923"
+      data-release="oblige-reference-neon-v4-20260923"
     >
-      <div className="rounded-[22px] border border-[#20344A] bg-[linear-gradient(180deg,#111C28_0%,#0C151F_100%)] p-3.5 shadow-[0_18px_50px_rgba(0,0,0,0.30)]">
-        <div className="flex items-start gap-3">
-          <div className="relative h-[58px] w-[58px] shrink-0 rounded-full border-2 border-[var(--accent)] bg-[#101927] p-[2px] shadow-[0_0_18px_rgb(88_80_236/.55)]">
-            <div className="h-full w-full overflow-hidden rounded-full bg-[#101927]">
-              <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} size={54} className="!size-full" />
+      <div className="overflow-hidden rounded-[18px] border border-[#0879E8] bg-[radial-gradient(circle_at_28%_0%,rgba(18,71,181,.42),transparent_42%),linear-gradient(180deg,#071428_0%,#07111F_100%)] shadow-[0_0_26px_rgba(0,126,255,.23),0_18px_55px_rgba(0,0,0,.35)]">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_210px]">
+          <div className="relative h-[72px] w-[72px] shrink-0 rounded-full border-2 border-[#0EA5FF] bg-[#0B1B2E] p-[2px] shadow-[0_0_22px_rgba(0,153,255,.55)]">
+            <div className="h-full w-full overflow-hidden rounded-full">
+              <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} size={68} className="!size-full" />
             </div>
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 rounded-md border border-[var(--line-strong)] bg-[var(--surface-2)] px-2 py-0.5 text-[9px] font-black tracking-[0.08em] text-[var(--text)]">
+            <span className="absolute -bottom-1 -right-1 rounded-md border border-[#19639E] bg-[#07111F] px-1.5 py-0.5 text-[7px] font-black tracking-[.08em] text-[#7DD3FC]">
               {group.sport}
+            </span>
+          </div>
+
+          <div className="min-w-0 pt-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <h1 className="truncate text-[20px] font-black leading-none tracking-[-.025em] text-white sm:text-[24px]">{group.player}</h1>
+              {group.position ? <span className="rounded-md border border-[#254867] bg-[#0A1A2B] px-2 py-1 text-[9px] font-extrabold text-[#A9C2DE]">{group.position}</span> : null}
+            </div>
+            <div className="mt-2 truncate text-[11px] font-semibold text-[#A7B9CF]">
+              {teamLabel}{currentOpponent ? ' · vs ' + currentOpponent : ''}{kickoff ? ' · ' + kickoff : ''}{group.live ? ' · LIVE' : ''}
+            </div>
+            <div className="mt-1 truncate text-[9px] text-[#6F8AA7]">
+              {group.matchup || 'Matchup unavailable'}
             </div>
           </div>
-          <div className="min-w-0 flex-1 pt-1">
-            <div className="flex min-w-0 items-center gap-2">
-              <h1 className="truncate text-[20px] font-black leading-none tracking-[-0.03em] text-white">{group.player}</h1>
-              {group.position ? <span className="rounded-lg border border-[#25364A] bg-[#101827] px-2 py-1 text-[10px] font-bold text-[#B8C2D1]">{group.position}</span> : null}
-            </div>
-            <div className="mt-2 truncate text-[13px] font-medium tracking-[0.01em] text-[#A2B0C1]">
-              {teamLabel}{kickoff ? ' · ' + kickoff : ''}{group.live ? ' · LIVE' : ''}
+
+          <div className="col-span-2 rounded-xl border border-[#164B78] bg-[#06101D]/90 px-3 py-2.5 sm:col-span-1">
+            <div className="text-[11px] font-black tracking-[.02em] text-[#42B8FF]">{group.sport}</div>
+            <div className="mt-1 truncate text-[10px] font-semibold text-[#B7C8DB]">{group.matchup || 'Event details unavailable'}</div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <span className="rounded-md border border-[#2B4563] bg-[#102039] px-2 py-1 text-[8px] font-black text-[#C7D6E7]">{periodLabel(group.period)}</span>
+              <span className={cx('rounded-md border px-2 py-1 text-[8px] font-black', group.live ? 'border-[#0E6045] bg-[#082A21] text-[#31E59A]' : 'border-[#2B4563] bg-[#102039] text-[#8FA7C0]')}>
+                {group.live ? 'LIVE' : 'PRE-GAME'}
+              </span>
             </div>
           </div>
-          <button
-            type="button"
-            aria-label={favourite ? 'Remove from favorites' : 'Add to favorites'}
-            aria-pressed={favourite}
-            onClick={onFavourite}
-            className={cx(
-              'grid h-11 w-11 shrink-0 place-items-center rounded-full border bg-[#0F1722]',
-              favourite ? 'border-[#1A7656] text-[#34E89B]' : 'border-[#2A3A50] text-[#91A0B5]',
-            )}
-          >
-            <Star className="h-5 w-5" strokeWidth={1.8} fill={favourite ? 'currentColor' : 'none'} />
-          </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-[#174B67] bg-[linear-gradient(110deg,#0C2534_0%,#0D1E29_55%,#0D2025_100%)] px-3 py-3">
-          <div className="flex items-center gap-2">
-            <div className="rounded-md bg-[var(--accent-fill)] px-2.5 py-2 text-[10px] font-black text-[var(--accent-ink)] shadow-[0_0_18px_rgb(88_80_236/.3)]">
-              {bookInitials(quoteBook(heroQuote))}
+        <div className="mx-3 mb-3 grid min-h-[58px] grid-cols-[minmax(0,1fr)_auto] items-center overflow-hidden rounded-xl border border-[#0D5E9E] bg-[linear-gradient(100deg,#071A2F_0%,#061425_60%,#06101B_100%)] shadow-[inset_0_0_20px_rgba(0,115,255,.08)]">
+          <div className="flex min-w-0 items-center gap-3 px-3 py-2.5">
+            <Target className="h-5 w-5 shrink-0 text-[#1AA7FF]" aria-hidden="true" />
+            <div className="min-w-0">
+              <div className="truncate text-[11px] font-black text-[#EDF6FF]">{marketLabel} O/U {group.line}</div>
+              <div className="mt-1 flex items-center gap-3 text-[10px] font-black">
+                <span className="rounded-md border border-[#6A5A16] bg-[#241E08] px-1.5 py-0.5 text-[#FACC15]">{bookInitials(selectedBook ? selectedBook.name : quoteBook(heroQuote))}</span>
+                <span className="text-[#23E787]">O {over ? quotePrice(over) : 'Unavailable'}</span>
+                <span className="text-[#FF6B7D]">U {under ? quotePrice(under) : 'Unavailable'}</span>
+              </div>
             </div>
-            <div className="max-w-[76px] text-[10px] font-black leading-4 text-white">{marketLabel}</div>
           </div>
-          <div className="flex min-w-0 items-center gap-2 overflow-hidden">
-            {modifier ? <span className="shrink-0 rounded-full border border-[#0D6045] bg-[#0A2C24] px-2 py-1 text-[9px] font-black tracking-[0.04em] text-[#40E5A1]">{modifier}</span> : null}
-            <label className="relative flex min-w-0 items-center gap-1 rounded-full border border-[#243448] bg-[#0C1521] px-3 py-2 text-[10px] font-semibold text-white">
-              <span className="truncate">{selectedBook ? selectedBook.name : 'Best prices · all books'}</span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#7D8EA5]" />
+          <label className="relative mr-2 flex h-10 max-w-[150px] items-center gap-1 rounded-lg border border-[#0B6FC5] bg-[#0B2B4A] px-3 text-[9px] font-black text-white shadow-[0_0_18px_rgba(0,122,255,.16)]">
+            <span className="truncate">{selectedBook ? selectedBook.name : 'Best prices'}</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#72C7FF]" />
+            <select
+              aria-label="Sportsbook"
+              value={state.book || 'all'}
+              onChange={(event) => onState({ ...state, book: event.target.value === 'all' ? null : event.target.value })}
+              className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+            >
+              <option value="all">Best prices</option>
+              {availableBooks.map((book) => <option key={book.key} value={book.key}>{book.name}</option>)}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {categoryLabels.map((entry) => {
+          const active = entry.label === marketLabel;
+          return (
+            <button
+              key={entry.label}
+              type="button"
+              aria-pressed={active}
+              onClick={() => chooseCategory(entry.label)}
+              className={cx(
+                'h-10 min-w-[118px] shrink-0 rounded-lg border px-3 text-[10px] font-black transition',
+                active
+                  ? 'border-[#03A9FF] bg-[linear-gradient(180deg,#0B4C88_0%,#062E57_100%)] text-white shadow-[0_0_15px_rgba(0,164,255,.48),inset_0_0_16px_rgba(0,164,255,.16)]'
+                  : 'border-[#183750] bg-[#081423] text-[#A7B6C8]',
+              )}
+            >
+              {entry.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <section className="mt-1.5 overflow-hidden rounded-[16px] border border-[#153D5F] bg-[linear-gradient(180deg,#071323_0%,#06101C_100%)] shadow-[0_12px_34px_rgba(0,0,0,.24)]">
+        <div className="p-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="truncate text-[18px] font-black tracking-[-.02em] text-white">{marketLabel}</h2>
+            <div className="text-[8px] font-bold text-[#66809B]">{loading ? 'Loading verified history…' : filteredGames.length + ' / ' + verifiedGames.length + ' verified'}</div>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-end gap-2">
+            <div className="grid h-10 grid-cols-[36px_58px_36px] overflow-hidden rounded-lg border border-[#244868] bg-[#081523]">
+              <button type="button" aria-label="Lower target line" onClick={() => stepLine(-1)} className="grid place-items-center border-r border-[#244868] text-[#55B8FF]"><Minus className="h-4 w-4" /></button>
+              <div data-qa="line-number" className="grid place-items-center text-[16px] font-black text-white">{state.line}</div>
+              <button type="button" aria-label="Raise target line" onClick={() => stepLine(1)} className="grid place-items-center border-l border-[#244868] text-[#55B8FF]"><Plus className="h-4 w-4" /></button>
+            </div>
+
+            <label className="relative flex h-10 min-w-[130px] items-center gap-2 rounded-lg border border-[#244868] bg-[#081523] px-3 text-[9px] font-bold">
+              <span className="rounded-md border border-[#67540A] bg-[#241E07] px-1.5 py-0.5 text-[#FACC15]">{bookInitials(selectedBook ? selectedBook.name : quoteBook(heroQuote))}</span>
+              <span className="min-w-0 truncate">
+                <b className="text-[#23E787]">O {quoteAtResearchLine && over ? quotePrice(over) : '—'}</b>
+                <span className="mx-1 text-[#46627E]">·</span>
+                <b className="text-[#FF6B7D]">U {quoteAtResearchLine && under ? quotePrice(under) : '—'}</b>
+              </span>
               <select
-                aria-label="Sportsbook"
+                aria-label="Sportsbook price source"
                 value={state.book || 'all'}
                 onChange={(event) => onState({ ...state, book: event.target.value === 'all' ? null : event.target.value })}
                 className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
               >
-                <option value="all">Best prices · all books</option>
+                <option value="all">Best prices</option>
                 {availableBooks.map((book) => <option key={book.key} value={book.key}>{book.name}</option>)}
               </select>
             </label>
-          </div>
-          <div className="text-right">
-            <div className="text-[9px] font-semibold uppercase tracking-[.04em] text-[#7E8FA5]">Posted</div>
-            <div className="text-[16px] font-black leading-none text-[#35EF86]">{group.line}</div>
-            <div className="mt-1 text-[9px] font-bold text-[#929CB0]">{heroQuote ? (quotePrice(heroQuote) === "Pick'em" ? "PICK'EM" : state.side + ' ' + quotePrice(heroQuote)) : 'Price unavailable'}</div>
-          </div>
-        </div>
-      </div>
 
-      <div className="mt-2.5 space-y-2.5">
-        <section className="space-y-2.5">
-          <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {categoryLabels.map((entry) => (
-              <MarketPill key={entry.label} active={entry.label === marketLabel} onClick={() => chooseCategory(entry.label)}>
-                {entry.label.toUpperCase()}
-              </MarketPill>
-            ))}
+            <button
+              type="button"
+              aria-label={favourite ? 'Remove from favorites' : 'Add to favorites'}
+              aria-pressed={favourite}
+              onClick={onFavourite}
+              className={cx(
+                'grid h-10 w-10 place-items-center rounded-lg border bg-[#081523]',
+                favourite ? 'border-[#0A8EE8] text-[#2FAEFF] shadow-[0_0_14px_rgba(0,153,255,.3)]' : 'border-[#244868] text-[#7F98B2]',
+              )}
+            >
+              <Star className="h-5 w-5" fill={favourite ? 'currentColor' : 'none'} />
+            </button>
+
+            <div className="ml-auto hidden h-10 items-center gap-2 rounded-lg border border-[#244868] bg-[#081523] px-3 text-[9px] text-[#7790AA] sm:flex">
+              <SlidersHorizontal className="h-4 w-4 text-[#2FAEFF]" />
+              Verified filters
+            </div>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {periods.map((entry) => (
-              <button
-                key={entry.period}
-                type="button"
-                aria-pressed={(group.period || 'game') === entry.period}
-                onClick={() => choosePeriod(entry.period)}
-                className={cx(
-                  'h-10 shrink-0 rounded-full border px-5 text-[11px] font-extrabold',
-                  (group.period || 'game') === entry.period
-                    ? 'border-[var(--accent-fill)] bg-[var(--accent-fill)] text-[var(--accent-ink)] shadow-[0_0_20px_rgb(88_80_236/.25)]'
-                    : 'border-[#263548] bg-[#0F1722] text-[#73829A]',
-                )}
-              >
-                {periodLabel(entry.period)}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+
+          <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <SelectPill label="Opponent" value={filters.opponent} options={opponentOptions} onChange={(opponent) => setFilters((previous) => ({ ...previous, opponent }))} />
             <SelectPill label="Season" value={filters.season} options={seasonOptions} onChange={(season) => setFilters((previous) => ({ ...previous, season }))} />
             <SelectPill
@@ -779,115 +864,239 @@ export function PlayerPropResearchCard({
               options={[{ value: 'all', label: 'All' }, { value: 'home', label: 'Home' }, { value: 'away', label: 'Away' }]}
               onChange={(venue) => setFilters((previous) => ({ ...previous, venue: venue as SampleFilters['venue'] }))}
             />
-            <span className="flex h-10 shrink-0 items-center rounded-full border border-[#2B3A50] bg-[#111927] px-4 text-[11px] font-medium text-[#93A2B8]">
-              Team: <b className="ml-1 font-semibold text-[#C6D0DE]">{teamLabel}</b>
-            </span>
+            {periods.length > 1 ? (
+              <label className="relative flex h-10 shrink-0 items-center gap-2 rounded-lg border border-[#244868] bg-[#081523] px-3 pr-7 text-[9px] font-semibold text-[#91A7BE]">
+                <span>Period: <b className="text-white">{periodLabel(group.period)}</b></span>
+                <ChevronDown className="absolute right-2 h-3 w-3" />
+                <select
+                  aria-label="Period"
+                  value={group.period || 'game'}
+                  onChange={(event) => choosePeriod(event.target.value)}
+                  className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+                >
+                  {periods.map((entry) => <option key={entry.period} value={entry.period}>{periodLabel(entry.period)}</option>)}
+                </select>
+              </label>
+            ) : null}
           </div>
-          <div data-qa="sample-count" className="px-0.5 pt-0.5 text-[12px] font-bold text-white">
-            {loading ? 'Loading verified history…' : filteredGames.length + ' of ' + verifiedGames.length + ' verified ' + (verifiedGames.length === 1 ? 'game' : 'games')}
-          </div>
-          {unavailableReason ? <p className="px-0.5 text-[10px] leading-4 text-[#FF9AAF]">{unavailableReason}</p> : null}
-        </section>
 
-        <section className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
-          <div className="flex items-center justify-between px-1.5 pb-2">
-            <div className="text-[10px] font-black tracking-[0.18em] text-[#91A0B5]">TARGET LINE</div>
-            <span className="rounded-full border border-[#27364A] bg-[#0D1621] px-3 py-1.5 text-[9px] font-semibold text-[#A9B5C5]">
-              {quoteAtResearchLine ? 'Outcome as posted' : 'Research line'}
-            </span>
+          {unavailableReason ? <p className="mt-1 text-[9px] leading-4 text-[#FF9AAF]">{unavailableReason}</p> : null}
+
+          <div className="mt-2 grid grid-cols-4 gap-1.5">
+            {quickWindows.map((item) => {
+              const active = sample === item.id;
+              return (
+                <button
+                  type="button"
+                  key={item.id}
+                  aria-pressed={active}
+                  onClick={() => setSample(item.id as SampleId)}
+                  className={cx(
+                    'min-h-[64px] rounded-lg border px-2 py-2 text-left transition',
+                    active
+                      ? 'border-[#008DFF] bg-[linear-gradient(180deg,#0B2F58_0%,#081C34_100%)] shadow-[0_0_14px_rgba(0,140,255,.3)]'
+                      : 'border-[#1C3B58] bg-[#081421]',
+                  )}
+                >
+                  <div className="text-[9px] font-black text-[#C1D1E2]">{item.label}</div>
+                  <div className={cx('mt-1 text-[11px] font-black', item.hitRate === null ? 'text-[#91A0B5]' : 'text-[#22E78A]')}>HR {rateLabel(item.hitRate)}</div>
+                  <div className="mt-0.5 text-[9px] font-semibold text-[#8CA0B6]">{item.average === null ? 'Avg —' : 'Avg ' + item.average}</div>
+                </button>
+              );
+            })}
           </div>
-          <div className="grid grid-cols-[44px_1fr_44px] overflow-hidden rounded-xl border border-[#2A3B51] bg-[#0A121C]">
-            <button type="button" aria-label="Lower target line" onClick={() => stepLine(-1)} className="grid h-[52px] place-items-center border-r border-[#233246] text-[#95A5BB]"><Minus className="h-4 w-4" /></button>
-            <div data-qa="line-number" className="grid h-[52px] place-items-center text-[25px] font-black tracking-[-0.03em] text-white">{state.line}</div>
-            <button type="button" aria-label="Raise target line" onClick={() => stepLine(1)} className="grid h-[52px] place-items-center border-l border-[#233246] text-[#95A5BB]"><Plus className="h-5 w-5" /></button>
-          </div>
-          <div className="mt-1.5 flex items-center justify-between rounded-xl bg-[#0C141E] px-3 py-2 text-[11px]">
-            <span className="max-w-[190px] truncate font-bold text-[#E1E7EF]">{selectedBook ? selectedBook.name : 'Best available prices'}</span>
-            {pickemLine ? (
-              <span className="font-black text-[#C6D0DE]">Pick'em</span>
+
+          <div className="mt-2">
+            {loading ? (
+              <div className="h-[250px] animate-pulse rounded-xl border border-[#173C59] bg-[#07131F]" />
             ) : (
-            <div className="flex items-center gap-4 font-black">
-              <button type="button" aria-pressed={state.side === 'OVER'} onClick={() => onState({ ...state, side: 'OVER' })} className={state.side === 'OVER' ? 'text-[#23E787]' : 'text-[#7E8FA5]'}>O {quoteAtResearchLine && over ? quotePrice(over) : 'Unavailable'}</button>
-              <button type="button" aria-pressed={state.side === 'UNDER'} onClick={() => onState({ ...state, side: 'UNDER' })} className={state.side === 'UNDER' ? 'text-[#FF5C88]' : 'text-[#7E8FA5]'}>U {quoteAtResearchLine && under ? quotePrice(under) : 'Unavailable'}</button>
-            </div>
+              <HistoryChart games={chartGames} line={state.line} market={marketLabel} period={periodLabel(group.period)} leagueTeams={research?.leagueTeams || []} />
             )}
           </div>
+        </div>
+      </section>
+
+      <section className="mt-2 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
+        <div className="border-b border-[#153D5F] px-3 py-2 text-[12px] font-black text-white">Supporting Stats</div>
+        {support.length ? (
+          <div className="grid grid-cols-6" data-mobile-columns={Math.min(support.length, 3)}>
+            {support.map((item, index) => (
+              <div key={item.label} className={cx('min-w-0 px-1.5 py-2.5 text-center', index > 0 && 'border-l border-[#153D5F]')}>
+                <div className="truncate text-[7px] font-black uppercase tracking-[.03em] text-[#7E97B0]">{item.label}</div>
+                <div className="mt-1 truncate text-[11px] font-black text-white">{item.value}</div>
+                <div className="mt-0.5 text-[6px] text-[#55718E]">{item.sample} gm</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="px-3 py-4 text-[9px] text-[#7E97B0]">No verified stats for this player yet.</p>
+        )}
+      </section>
+
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
+          <div className="flex items-center justify-between border-b border-[#153D5F] px-2.5 py-2">
+            <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-black text-white">
+              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-[#25AFFF]" />
+              <span className="truncate">Line Movement</span>
+            </div>
+            <ChevronRight className="h-3.5 w-3.5 text-[#6F8BA6]" />
+          </div>
+          <div className="grid grid-cols-[.6fr_.8fr_1fr] gap-1 border-b border-[#102C44] px-2 py-1 text-[6px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">
+            <span>Line</span><span>Odds</span><span>Book / Time</span>
+          </div>
+          {movementRows.length ? movementRows.map((point, index) => {
+            const price = numberOf(point.price);
+            const when = text(point.recordedAt || point.capturedAt);
+            const info = bookInfo(point.bookmakerKey);
+            return (
+              <div key={(when || 'movement') + '-' + index} className="grid grid-cols-[.6fr_.8fr_1fr] gap-1 border-b border-[#102C44] px-2 py-1.5 text-[7px] last:border-b-0">
+                <span className="font-black text-white">{numberOf(point.line) ?? '—'}</span>
+                <span className={point.side?.toUpperCase() === 'UNDER' ? 'font-black text-[#FF6B7D]' : 'font-black text-[#23E787]'}>
+                  {point.side ? point.side.slice(0, 1).toUpperCase() + ' ' : ''}{price !== null && price !== 0 ? odds(price) : '—'}
+                </span>
+                <span className="min-w-0 truncate text-[#91A7BE]">{info?.name || point.bookmakerKey || 'Book unavailable'}{when ? ' · ' + shortTime(when) : ''}</span>
+              </div>
+            );
+          }) : <p className="px-2.5 py-4 text-[8px] leading-3 text-[#6F8BA6]">No verified line movement yet.</p>}
         </section>
 
-        <section className="grid grid-cols-5 overflow-hidden rounded-2xl border border-[#213147] bg-[#101925]">
-          {windows.map((item) => {
-            const active = sample === item.id;
-            const helper = item.id === 'h2h'
-              ? currentOpponent ? 'vs ' + currentOpponent : 'No opponent'
-              : item.games ? item.games + ' games' : 'Unavailable';
+        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
+          <div className="flex items-center justify-between border-b border-[#153D5F] px-2.5 py-2">
+            <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-black text-white">
+              <History className="h-3.5 w-3.5 shrink-0 text-[#25AFFF]" />
+              <span className="truncate">Prop History</span>
+            </div>
+            <ChevronRight className="h-3.5 w-3.5 text-[#6F8BA6]" />
+          </div>
+          <div className="grid grid-cols-[.55fr_1fr_1fr] gap-1 border-b border-[#102C44] px-2 py-1 text-[6px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">
+            <span>Line</span><span>Result</span><span>Date</span>
+          </div>
+          {recentHistory.length ? recentHistory.map((game, index) => {
+            const value = numberOf(game.value);
+            const result = value === null ? 'Unavailable' : value > state.line ? 'Over (' + value + ')' : value < state.line ? 'Under (' + value + ')' : 'Push (' + value + ')';
+            const tone = value === null || value === state.line ? 'text-[#A9B6C6]' : value > state.line ? 'text-[#23E787]' : 'text-[#FF6B7D]';
             return (
-              <button
-                type="button"
-                key={item.id}
-                aria-pressed={active}
-                onClick={() => setSample(item.id as SampleId)}
-                className={cx(
-                  'min-h-[94px] border-r border-[#213147] px-1 py-3 text-center last:border-r-0',
-                  active && 'bg-[var(--accent-soft)] shadow-[inset_0_-2px_0_var(--accent)]',
-                )}
-              >
-                <div className="text-[8px] font-bold tracking-[0.04em] text-[#8090A6]">{item.label}</div>
-                <div className="mt-1 min-h-[12px] truncate text-[7px] text-[#6D7E94]">{helper}</div>
-                <div className={cx('mt-2 text-[17px] font-black', item.hitRate === null ? 'text-white' : 'text-[#20E787]')}>{rateLabel(item.hitRate)}</div>
-                <div className="mt-1 text-[8px] text-[#7D8EA5]">{item.average === null ? 'Avg unavailable' : 'Avg ' + item.average}</div>
-              </button>
+              <div key={(game.gameId || game.date || 'history') + '-' + index} className="grid grid-cols-[.55fr_1fr_1fr] gap-1 border-b border-[#102C44] px-2 py-1.5 text-[7px] last:border-b-0">
+                <span className="font-black text-white">{state.line}</span>
+                <span className={cx('truncate font-black', tone)}>{result}</span>
+                <span className="truncate text-[#91A7BE]">{numericDate(game.date)}{game.opponent ? ' vs ' + teamShort(game.opponent, research?.leagueTeams || []) : ''}</span>
+              </div>
+            );
+          }) : <p className="px-2.5 py-4 text-[8px] leading-3 text-[#6F8BA6]">Verified prop history is unavailable.</p>}
+        </section>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
+          <div className="flex items-center gap-1.5 border-b border-[#153D5F] px-2.5 py-2 text-[10px] font-black text-white">
+            <Users className="h-3.5 w-3.5 text-[#25AFFF]" />
+            Matchup
+          </div>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 px-2 py-2.5">
+            <div className="min-w-0 text-center">
+              <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[#1C6DA6]">
+                <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} size={40} className="!size-full" />
+              </div>
+              <div className="mt-1 truncate text-[8px] font-black text-white">{group.player}</div>
+              <div className="truncate text-[7px] text-[#718AA3]">{teamLabel}</div>
+            </div>
+            <div className="text-[9px] font-black text-[#7C91A8]">VS</div>
+            <div className="min-w-0 text-center">
+              <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[#1C6DA6]">
+                <PlayerAvatar name={currentOpponent || 'Opponent'} sport={group.sport} team={currentOpponent} size={40} className="!size-full" />
+              </div>
+              <div className="mt-1 truncate text-[8px] font-black text-white">{currentOpponent || 'Opponent unavailable'}</div>
+              <div className="truncate text-[7px] text-[#718AA3]">{group.matchup || 'Matchup unavailable'}</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 border-t border-[#153D5F]">
+            <div className="px-2 py-2 text-center">
+              <div className="text-[7px] font-bold uppercase text-[#6F8BA6]">H2H prop hit rate</div>
+              <div className="mt-1 text-[16px] font-black text-[#23E787]">{h2h?.hitRate === null || h2h?.hitRate === undefined ? '—' : h2h.hitRate + '%'}</div>
+            </div>
+            <div className="border-l border-[#153D5F] px-2 py-2 text-center">
+              <div className="text-[7px] font-bold uppercase text-[#6F8BA6]">H2H average</div>
+              <div className="mt-1 text-[16px] font-black text-[#26AEFF]">{h2h?.average === null || h2h?.average === undefined ? '—' : h2h.average}</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
+          <div className="flex items-center gap-1.5 border-b border-[#153D5F] px-2.5 py-2 text-[10px] font-black text-white">
+            <BarChart3 className="h-3.5 w-3.5 text-[#25AFFF]" />
+            Advanced Averages
+          </div>
+          <div className="grid grid-cols-[1fr_.8fr_.7fr_.7fr] gap-1 border-b border-[#102C44] px-2 py-1 text-[6px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">
+            <span>Split</span><span>W-L</span><span>HR</span><span>Avg</span>
+          </div>
+          {advancedRows.map((row) => (
+            <div key={row.id} className="grid grid-cols-[1fr_.8fr_.7fr_.7fr] gap-1 border-b border-[#102C44] px-2 py-1.5 text-[7px] last:border-b-0">
+              <span className="truncate font-bold text-white">{row.label}</span>
+              <span className="text-[#A9B8C9]">{row.games ? row.hits + '-' + row.misses : '0-0'}</span>
+              <span className={row.hitRate === null ? 'text-[#7C91A8]' : 'font-black text-[#23E787]'}>{rateLabel(row.hitRate)}</span>
+              <span className="font-black text-[#72C7FF]">{row.average === null ? '—' : row.average}</span>
+            </div>
+          ))}
+        </section>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
+          <div className="flex items-center justify-between border-b border-[#153D5F] px-2.5 py-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-black text-white"><BookOpen className="h-3.5 w-3.5 text-[#25AFFF]" />Stat Glossary</div>
+            <span className="text-[7px] font-bold text-[#35B6FF]">VERIFIED</span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 px-2 py-2 text-[6.5px] leading-3 text-[#8FA4BA]">
+            <span><b className="text-[#DCE7F3]">HR:</b> Hit rate</span>
+            <span><b className="text-[#DCE7F3]">Avg:</b> Average result</span>
+            <span><b className="text-[#DCE7F3]">L5:</b> Last 5 games</span>
+            <span><b className="text-[#DCE7F3]">L10:</b> Last 10 games</span>
+            <span><b className="text-[#DCE7F3]">L15:</b> Last 15 games</span>
+            <span><b className="text-[#DCE7F3]">H2H:</b> vs current opponent</span>
+            <span><b className="text-[#DCE7F3]">O/U:</b> Over / Under</span>
+            <span><b className="text-[#DCE7F3]">EV:</b> Expected value</span>
+          </div>
+        </section>
+
+        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
+          <div className="flex items-center justify-between border-b border-[#153D5F] px-2.5 py-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-black text-white"><CalendarDays className="h-3.5 w-3.5 text-[#25AFFF]" />Gamelog – Last 15</div>
+            <span className="text-[7px] font-bold text-[#35B6FF]">{filteredGames.length} GAMES</span>
+          </div>
+          <div className="grid grid-cols-[.7fr_1fr_.7fr_.8fr] gap-1 border-b border-[#102C44] px-2 py-1 text-[6px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">
+            <span>Date</span><span>Opponent</span><span>Value</span><span>Result</span>
+          </div>
+          {filteredGames.slice(0, 5).map((game, index) => {
+            const value = numberOf(game.value);
+            const result = value === null ? '—' : value > state.line ? 'Over' : value < state.line ? 'Under' : 'Push';
+            const tone = result === 'Over' ? 'text-[#23E787]' : result === 'Under' ? 'text-[#FF6B7D]' : 'text-[#A9B8C9]';
+            return (
+              <div key={(game.gameId || game.date || 'gamelog') + '-' + index} className="grid grid-cols-[.7fr_1fr_.7fr_.8fr] gap-1 border-b border-[#102C44] px-2 py-1.5 text-[7px] last:border-b-0">
+                <span className="text-[#9EB0C2]">{numericDate(game.date)}</span>
+                <span className="truncate text-[#D9E5F1]">{teamShort(game.opponent, research?.leagueTeams || []) || '—'}</span>
+                <span className="font-black text-white">{value ?? '—'}</span>
+                <span className={cx('font-black', tone)}>{result}</span>
+              </div>
             );
           })}
+          {!filteredGames.length ? <p className="px-2.5 py-4 text-[8px] text-[#6F8BA6]">Verified game log is unavailable.</p> : null}
         </section>
+      </div>
 
-        {loading ? (
-          <div className="h-[250px] animate-pulse rounded-2xl border border-[#1E2D3D] bg-[#0E1823]" />
-        ) : (
-          <HistoryChart games={chartGames} line={state.line} market={marketLabel} period={periodLabel(group.period)} leagueTeams={research?.leagueTeams || []} />
-        )}
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <HistoryModel group={group} selectedBook={selectedBook} line={state.line} />
 
-        <section className="grid grid-cols-[1.08fr_.92fr] gap-2.5">
-          <div className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
-            <div className="px-1 text-[9px] font-black tracking-[0.2em] text-[#8392A8]">SUPPORTING STATS</div>
-            {support.length ? (
-            <div
-              className="mt-2 grid overflow-hidden rounded-xl border border-[#223147]"
-              // One or two surviving tiles share the row instead of each
-              // squeezing into a third of it and truncating its value.
-              style={{ gridTemplateColumns: 'repeat(' + Math.min(support.length, 3) + ', minmax(0, 1fr))' }}
-            >
-              {support.map((item, index) => (
-                <div
-                  key={item.label}
-                  className={cx(
-                    'min-h-[58px] p-2',
-                    index % 3 !== 2 && index !== support.length - 1 && 'border-r border-[#223147]',
-                    index < Math.floor((support.length - 1) / 3) * 3 && 'border-b border-[#223147]',
-                  )}
-                  title={item.sample ? item.sample + ' verified games reported' : 'Unavailable'}
-                >
-                  <div className="truncate text-[7px] font-black tracking-[0.02em] text-[#8797AD]">{item.label}</div>
-                  <div className="mt-2 truncate text-[14px] font-black leading-none text-white">{item.value}</div>
-                </div>
-              ))}
-            </div>
-            ) : (
-              <p className="mt-2 px-1 text-[10px] leading-4 text-[#8797AD]">No verified stats for this player yet.</p>
-            )}
-          </div>
-          <HistoryModel group={group} selectedBook={selectedBook} line={state.line} />
-        </section>
-
-        <details className="group rounded-2xl border border-[#1E2D3D] bg-[#101925]">
-          <summary className="flex cursor-pointer list-none items-center justify-between px-3.5 py-3 text-[13px] font-black text-white [&::-webkit-details-marker]:hidden">
+        <details className="group overflow-hidden rounded-2xl border border-[#153D5F] bg-[#071321]">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-3.5 py-3 text-[11px] font-black text-white [&::-webkit-details-marker]:hidden">
             <span>Sportsbook Prices</span>
-            <span className="whitespace-nowrap rounded-full border border-[#0F5B44] bg-[#08271F] px-3 py-1 text-[9px] font-black text-[#23E787]">
+            <span className="whitespace-nowrap rounded-full border border-[#0F5B44] bg-[#08271F] px-2.5 py-1 text-[8px] font-black text-[#23E787]">
               {!availableBooks.length && dfsSource
                 ? '0 SPORTSBOOKS · ' + dfsSource.toUpperCase() + ' LINE'
                 : availableBooks.length + ' ' + (availableBooks.length === 1 ? 'BOOK' : 'BOOKS')}
             </span>
           </summary>
-          <div className="border-t border-[#1E2D3D] px-3 pb-3 pt-2">
+          <div className="border-t border-[#153D5F] px-3 pb-3 pt-2">
             {availableBooks.length ? (
               <div className="grid gap-1.5">
                 {availableBooks.map((book) => (
@@ -895,7 +1104,7 @@ export function PlayerPropResearchCard({
                     key={book.key}
                     type="button"
                     onClick={() => onState({ ...state, book: book.key })}
-                    className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-lg border border-[#223147] bg-[#0C141E] px-2.5 py-2 text-left text-[10px]"
+                    className="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded-lg border border-[#183750] bg-[#081421] px-2.5 py-2 text-left text-[9px]"
                   >
                     <span className="truncate font-bold text-[#DCE5EF]">{book.name}</span>
                     <span className="font-black text-[#23E787]">O {book.over ? odds(book.over.price) : 'Unavailable'}</span>
@@ -904,7 +1113,7 @@ export function PlayerPropResearchCard({
                 ))}
               </div>
             ) : (
-              <p className="text-[10px] leading-4 text-[#7E8FA5]">No verified sportsbook price is available for this exact line.</p>
+              <p className="text-[9px] leading-4 text-[#7E8FA5]">No verified sportsbook price is available for this exact line.</p>
             )}
           </div>
         </details>

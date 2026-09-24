@@ -90,3 +90,9 @@ test('the responsible-play line is on every page, phones included', () => {
   assert.match(chrome, /1-800-GAMBLER/);
   assert.doesNotMatch(chrome, /<footer className="hidden/);
 });
+
+
+test('the production prop board exposes Tennis as a first-class sport tab', () => {
+  const board = read('../components/terminal-board.tsx');
+  assert.match(board, /const SPORTS = \[[^\]]*'TENNIS'[^\]]*\]/);
+});

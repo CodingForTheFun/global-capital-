@@ -2,9 +2,9 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart3, Bookmark, CalendarDays, ChevronDown, Search, Settings2, SlidersHorizontal, Swords, TriangleAlert, User, Users } from 'lucide-react';
-import type { BoardMeta, PropGroup, ResearchWindow } from '@/lib/types';
-import { ApiError, fetchAccount, fetchBoard, fetchResearch, windowOf } from '@/lib/api';
+import { BarChart3, Bookmark, CalendarDays, Check, ChevronDown, Save, Search, Settings2, SlidersHorizontal, Swords, TriangleAlert, User, Users } from 'lucide-react';
+import type { Account, BoardMeta, BoardSavedFilters, PropGroup, ResearchWindow } from '@/lib/types';
+import { ApiError, fetchAccount, fetchAccountPreferences, fetchBoard, fetchResearch, saveBoardPreferences, windowOf } from '@/lib/api';
 import { cn, marketDisplayLabel, pctValue } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,7 +95,7 @@ const statCategory = (group: PropGroup) =>
 
 export function BoardView() {
   const router = useRouter();
-  const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
+  const [account, setAccount] = React.useState<Account>(null);
   const [checking, setChecking] = React.useState(true);
 
   const [sport, setSport] = React.useState('NFL');
@@ -122,6 +122,8 @@ export function BoardView() {
   const [picksOnly, setPicksOnly] = React.useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = React.useState(false);
   const [sportMenuOpen, setSportMenuOpen] = React.useState(false);
+  const [savedBySport, setSavedBySport] = React.useState<Record<string, BoardSavedFilters>>({});
+  const [saveState, setSaveState] = React.useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   /** Hit rates arrive per card from the research route, so the board renders
    * immediately and each card fills in as its history lands. */
@@ -130,9 +132,29 @@ export function BoardView() {
 
   React.useEffect(() => {
     const controller = new AbortController();
-    fetchAccount(controller.signal)
-      .then(setAccount)
-      .finally(() => setChecking(false));
+    void (async () => {
+      const nextAccount = await fetchAccount(controller.signal);
+      if (controller.signal.aborted) return;
+      setAccount(nextAccount);
+
+      if (nextAccount) {
+        try {
+          const preferences = await fetchAccountPreferences(controller.signal);
+          if (controller.signal.aborted) return;
+          const board = preferences.boardFilters;
+          const bySport = board?.bySport || {};
+          const preferredSport = SPORTS.includes(board?.activeSport || '') ? board!.activeSport! : 'NFL';
+          setSavedBySport(bySport);
+          applySavedFilterState(bySport[preferredSport]);
+          setSport(preferredSport);
+        } catch {
+          // Preferences are a convenience. A temporary read failure must not
+          // block the live board or turn missing settings into fake defaults.
+        }
+      }
+
+      if (!controller.signal.aborted) setChecking(false);
+    })();
     return () => controller.abort();
   }, []);
 
@@ -168,13 +190,6 @@ export function BoardView() {
 
         if (initial) {
           setShown(PAGE_SIZE);
-          setMarketFilter(ALL);
-          setTeamFilter(ALL);
-          setOpponentFilter(ALL);
-          setBookFilter(ALL);
-          setGameFilter(ALL);
-          setDateFilter(ALL);
-          setModifierFilter(ALL);
           setPicksOnly(false);
           setSportMenuOpen(false);
         }
@@ -352,6 +367,54 @@ export function BoardView() {
     router.push(`/research?${params}`);
   }
 
+  function applySavedFilterState(saved?: BoardSavedFilters) {
+    setSort(saved?.sort || 'line');
+    setHitWindow(saved?.hitWindow || 'l10');
+    setMarketFilter(saved?.market || ALL);
+    setTeamFilter(saved?.team || ALL);
+    setOpponentFilter(saved?.opponent || ALL);
+    setBookFilter(saved?.book || ALL);
+    setGameFilter(saved?.game || ALL);
+    setDateFilter(saved?.date || ALL);
+    setModifierFilter(saved?.modifier || ALL);
+  }
+
+  function selectSport(nextSport: string) {
+    if (nextSport === sport) return;
+    applySavedFilterState(savedBySport[nextSport]);
+    setGroups([]);
+    setStats({});
+    setMetricStats({});
+    setSaveState('idle');
+    setSport(nextSport);
+  }
+
+  const currentSavedView: BoardSavedFilters = {
+    sort,
+    hitWindow,
+    market: marketFilter,
+    team: teamFilter,
+    opponent: opponentFilter,
+    book: bookFilter,
+    game: gameFilter,
+    date: dateFilter,
+    modifier: modifierFilter,
+  };
+  const savedView = savedBySport[sport];
+  const viewIsSaved = Boolean(savedView) && JSON.stringify(savedView) === JSON.stringify(currentSavedView);
+
+  async function saveCurrentView() {
+    if (!account?.csrfToken || saveState === 'saving') return;
+    setSaveState('saving');
+    try {
+      const preferences = await saveBoardPreferences(sport, currentSavedView, account.csrfToken);
+      setSavedBySport(preferences.boardFilters?.bySport || {});
+      setSaveState('saved');
+    } catch {
+      setSaveState('error');
+    }
+  }
+
   function resetFilters() {
     setMarketFilter(ALL);
     setTeamFilter(ALL);
@@ -441,7 +504,7 @@ export function BoardView() {
                   type="button"
                   aria-pressed={option === sport}
                   onClick={() => {
-                    setSport(option);
+                    selectSport(option);
                     setSportMenuOpen(false);
                   }}
                 >
@@ -493,6 +556,17 @@ export function BoardView() {
               onClick={() => setPicksOnly((value) => !value)}
             >
               <Bookmark className="size-5" aria-hidden="true" />
+            </button>
+
+            <button
+              type="button"
+              className="board-mobile-square-button"
+              aria-label={viewIsSaved ? 'Filters saved to your account' : 'Save filters to your account'}
+              aria-pressed={viewIsSaved}
+              disabled={saveState === 'saving'}
+              onClick={() => void saveCurrentView()}
+            >
+              {viewIsSaved ? <Check className="size-5" aria-hidden="true" /> : <Save className="size-5" aria-hidden="true" />}
             </button>
           </div>
 
@@ -602,7 +676,7 @@ export function BoardView() {
               key={option}
               type="button"
               aria-pressed={option === sport}
-              onClick={() => setSport(option)}
+              onClick={() => selectSport(option)}
               className={cn(
                 'flex-none min-h-8 rounded-[8px] border px-2.5 text-[11px] font-semibold md:min-h-9 md:rounded-[9px] md:px-3 md:text-[length:var(--fs-xs)]',
                 'transition-[color,background-color,border-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[.97]',
@@ -646,6 +720,24 @@ export function BoardView() {
           >
             <SlidersHorizontal className="size-3.5 md:size-4" aria-hidden="true" />
             <span>Filters{activeFilterCount ? ` ${activeFilterCount}` : ''}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void saveCurrentView()}
+            disabled={saveState === 'saving'}
+            aria-pressed={viewIsSaved}
+            className={cn(
+              'inline-flex h-9 min-h-9 flex-none items-center gap-1.5 rounded-[9px] border px-2.5 text-[11px] font-semibold md:h-10 md:min-h-10 md:px-3 md:text-[length:var(--fs-xs)]',
+              viewIsSaved
+                ? 'border-[color-mix(in_srgb,var(--pos)_42%,transparent)] text-[var(--pos)]'
+                : saveState === 'error'
+                  ? 'border-[color-mix(in_srgb,var(--neg)_42%,transparent)] text-[var(--neg)]'
+                  : 'border-[var(--line)] text-[var(--text-2)]',
+            )}
+          >
+            {viewIsSaved ? <Check className="size-3.5 md:size-4" aria-hidden="true" /> : <Save className="size-3.5 md:size-4" aria-hidden="true" />}
+            <span>{saveState === 'saving' ? 'Saving…' : viewIsSaved ? 'Saved' : saveState === 'error' ? 'Save failed' : 'Save view'}</span>
           </button>
 
           <div className="board-sort-pills hidden items-center gap-1.5 md:flex" aria-label="Sort props">

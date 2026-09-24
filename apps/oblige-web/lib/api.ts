@@ -1,5 +1,7 @@
 import type {
   Account,
+  AccountPreferences,
+  BoardSavedFilters,
   BoardResponse,
   DefensePositionResponse,
   GameLogRow,
@@ -128,14 +130,54 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
 
 export async function fetchAccount(signal?: AbortSignal): Promise<Account> {
   try {
-    const body = await getJson<{ authenticated?: boolean; user?: { id: string; email?: string } }>(
+    const body = await getJson<{ authenticated?: boolean; user?: { id: string; email?: string }; csrfToken?: string }>(
       '/api/account/me',
       signal,
     );
-    return body?.authenticated && body?.user?.id ? body.user : null;
+    return body?.authenticated && body?.user?.id
+      ? { ...body.user, csrfToken: body.csrfToken }
+      : null;
   } catch {
     return null;
   }
+}
+
+export async function fetchAccountPreferences(signal?: AbortSignal): Promise<AccountPreferences> {
+  const body = await getJson<{ ok?: boolean; preferences?: AccountPreferences }>(
+    '/api/account/preferences',
+    signal,
+  );
+  return body?.preferences || {};
+}
+
+export async function saveBoardPreferences(
+  sport: string,
+  filters: BoardSavedFilters,
+  csrfToken: string,
+): Promise<AccountPreferences> {
+  const response = await fetch('/api/account/preferences', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'content-type': 'application/json',
+      'x-csrf-token': csrfToken,
+    },
+    body: JSON.stringify({ sport, filters }),
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    ok?: boolean;
+    message?: string;
+    code?: string;
+    preferences?: AccountPreferences;
+  };
+  if (!response.ok || body?.ok === false) {
+    throw new ApiError(
+      body?.message || 'Your saved filters could not be updated.',
+      response.status,
+      body?.code || 'PREFERENCES_SAVE_FAILED',
+    );
+  }
+  return body.preferences || {};
 }
 
 export async function postAccount(

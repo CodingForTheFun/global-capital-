@@ -1,7 +1,6 @@
 -- Root persistence bottleneck repair for #615 / #614.
--- 1) Stop periodic no-change prop_lines rewrites that amplify WAL/checkpoints.
--- 2) Add a sport-first fallback read that never ranks the whole line table.
--- 3) Tighten table-local autovacuum thresholds for the write-heavy canonical tables.
+-- Preserve the public-store wire contract; optimize behind it.
+-- No provider cadence, scheduler lease, freshness TTL, or customer-data change.
 
 CREATE OR REPLACE FUNCTION public.autoscout_ingest_board(p_token text, p_payload jsonb)
  RETURNS jsonb
@@ -88,7 +87,7 @@ $function$
 
 
 
-create or replace function public.autoscout_read_props_fast(p_token text, p_sport text)
+create or replace function private.autoscout_read_props_fast(p_token text, p_sport text)
 returns jsonb
 language plpgsql
 security definer
@@ -179,6 +178,7 @@ begin
           where l.prop_id=pr.id
             and l.side in ('OVER','UNDER')
             and l.line is not null
+            and coalesce(l.provider_updated_at,l.ingested_at,l.updated_at)>now()-interval '2 hours'
           order by l.bookmaker_key,l.side,
             coalesce(l.provider_updated_at,l.ingested_at,l.updated_at) desc,
             l.updated_at desc
@@ -202,14 +202,140 @@ begin
 end;
 $function$;
 
-revoke all on function public.autoscout_read_props_fast(text,text) from public;
-grant execute on function public.autoscout_read_props_fast(text,text) to anon, authenticated, service_role;
+revoke all on function private.autoscout_read_props_fast(text,text) from public, anon, authenticated;
+
+
+CREATE OR REPLACE FUNCTION public.autoscout_public_store(p_token text, p_action text, p_payload jsonb DEFAULT '{}'::jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+ SET statement_timeout TO '30s'
+AS $function$
+declare n integer; v_owner text; v_source text; v_observed timestamptz;
+begin
+ if p_token is null or not exists(select 1 from private.autoscout_backend_tokens
+  where enabled=true and token_hash=encode(extensions.digest(p_token,'sha256'),'hex')) then
+  raise exception 'Unauthorized ingestion' using errcode='42501';
+ end if;
+ if octet_length(p_payload::text)>64000000 then raise exception 'Payload too large';end if;
+ if p_action='claim' then
+  perform pg_catalog.set_config('lock_timeout','2s',true);
+  insert into private.autoscout_public_state(id) values('scheduler') on conflict do nothing;
+  v_owner=gen_random_uuid()::text;
+  update private.autoscout_public_state set owner=v_owner,lease_until=now()+interval '10 minutes',next_at=now()+pg_catalog.make_interval(secs=>greatest(30,least(300,coalesce(nullif(p_payload->>'interval_seconds','')::integer,45))))
+   where id='scheduler' and next_at<=now() and lease_until<=now();
+  get diagnostics n=row_count;
+  return jsonb_build_object('claimed',n=1,'owner',case when n=1 then v_owner else null end);
+ elsif p_action='release' then
+  update private.autoscout_public_state set lease_until='-infinity' where id='scheduler' and owner=p_payload->>'owner';
+ elsif p_action='status' then
+  v_source=p_payload->>'source';
+  if v_source is null or not (
+    v_source in ('prizepicks','underdog')
+    or (split_part(v_source,':',1) in ('draftkings','fanduel','pinnacle','betrivers','bvda','betmgm') and split_part(v_source,':',2) in ('NFL','NBA','WNBA','MLB','NHL','NCAAF','NCAAB','TENNIS','SOCCER'))
+    
+    
+    
+  ) then raise exception 'Invalid source';end if;
+  insert into private.autoscout_public_state(id,state) values(v_source,p_payload->'state') on conflict(id) do update set state=excluded.state;
+ elsif p_action='props' then
+  v_source=p_payload->>'source';v_observed=(p_payload->>'observed_at')::timestamptz;
+  if v_source is null or not (
+    v_source in ('prizepicks','underdog')
+    or (split_part(v_source,':',1) in ('draftkings','fanduel','pinnacle','betrivers','bvda','betmgm') and split_part(v_source,':',2) in ('NFL','NBA','WNBA','MLB','NHL','NCAAF','NCAAB','TENNIS','SOCCER'))
+    
+    
+    
+  ) or v_observed is null
+   or v_observed>now()+interval '1 minute' or v_observed<now()-interval '15 minutes' then raise exception 'Invalid snapshot';end if;
+  if jsonb_typeof(p_payload->'rows')<>'array' then raise exception 'Invalid rows';end if;
+  perform pg_advisory_xact_lock(hashtext('public-ingestion:'||v_source));
+  if exists(select 1 from public.active_props where source=v_source and observed_at>v_observed) then return jsonb_build_object('ignored',true);end if;
+  -- Keep current rows in place; stale rows are pruned after the upsert. This
+  -- avoids deleting and reinserting the full board on every refresh.
+  perform 1;
+  insert into public.active_props(id,source,bookmaker,sport,player_id,event_id,market,side,line,game_start_time,observed_at,expires_at,payload)
+   select r->>'id',v_source,r->>'sportsbookKey',r->>'sport',r->>'playerId',r->>'eventId',r->>'marketId',r->>'side',(r->>'line')::numeric,
+    (r->>'gameStartTime')::timestamptz,v_observed,least(v_observed+interval '15 minutes',(r->>'gameStartTime')::timestamptz),r
+   from jsonb_array_elements(p_payload->'rows') r
+   where (r->>'gameStartTime')::timestamptz>now() and r->>'isAlternate'='false'
+    and r->>'sportsbookKey'=split_part(v_source,':',1)
+   on conflict(id) do update set
+    bookmaker=excluded.bookmaker,
+    sport=excluded.sport,
+    player_id=excluded.player_id,
+    event_id=excluded.event_id,
+    market=excluded.market,
+    side=excluded.side,
+    line=excluded.line,
+    game_start_time=excluded.game_start_time,
+    observed_at=excluded.observed_at,
+    expires_at=excluded.expires_at,
+    payload=excluded.payload
+   where row(public.active_props.bookmaker,public.active_props.sport,public.active_props.player_id,public.active_props.event_id,public.active_props.market,public.active_props.side,public.active_props.line,public.active_props.game_start_time)
+      is distinct from row(excluded.bookmaker,excluded.sport,excluded.player_id,excluded.event_id,excluded.market,excluded.side,excluded.line,excluded.game_start_time)
+      or (public.active_props.payload - 'observedAt' - 'ingestedAt' - 'updatedAt' - 'providerUpdatedAt')
+         is distinct from (excluded.payload - 'observedAt' - 'ingestedAt' - 'updatedAt' - 'providerUpdatedAt')
+      or public.active_props.observed_at < now()-interval '8 minutes';
+  get diagnostics n=row_count;
+  -- Chunked snapshots keep last-good rows until every batch succeeds. The
+  -- final empty call prunes rows that were not touched by this observation.
+  if coalesce((p_payload->>'chunked')::boolean,false) then
+    if coalesce((p_payload->>'finalize')::boolean,false) then
+      -- Rows that were present but materially unchanged may intentionally keep
+      -- their prior observed_at for one cycle to avoid write amplification.
+      -- Preserve those recent rows here; omitted rows naturally expire after
+      -- their 15-minute TTL and are pruned once they age beyond this window.
+      delete from public.active_props a
+       where a.source=v_source
+         and a.observed_at < v_observed - interval '8 minutes';
+    end if;
+  else
+    -- Backward-compatible atomic replacement for older callers.
+    delete from public.active_props a
+     where a.source=v_source
+       and a.id not in (
+         select r->>'id' from jsonb_array_elements(p_payload->'rows') r
+         where r->>'id' is not null
+       );
+  end if;
+  -- A chunked board may contain thousands of rows. Running the global expiry
+  -- cleanup after every tiny batch multiplies index/delete work and can turn a
+  -- healthy refresh into a timeout storm. Clean once when the snapshot is
+  -- finalized; keep the old behavior for non-chunked callers.
+  if not coalesce((p_payload->>'chunked')::boolean,false)
+     or coalesce((p_payload->>'finalize')::boolean,false) then
+    delete from public.active_props where expires_at<now()-interval '1 day';
+  end if;
+  return jsonb_build_object('written',n);
+ elsif p_action='history' then
+  if jsonb_array_length(p_payload->'rows')>1000 then raise exception 'History batch too large';end if;
+  insert into public.player_game_logs(player_id,game_id,sport,player_name,game_date,season,category,season_type,stats)
+   select r.player_id,r.game_id,r.sport,r.player_name,r.game_date,r.season,r.category,r.season_type,r.stats
+   from jsonb_to_recordset(p_payload->'rows') r(player_id text,game_id text,sport text,player_name text,game_date timestamptz,season text,category text,season_type integer,stats jsonb)
+   where r.sport in ('NBA','NFL','MLB') and r.player_id ~ ('^history:'||r.sport||':[0-9]+$') and r.game_date<now() and r.season_type in (2,3)
+   on conflict(player_id,game_id,category) do update set stats=public.player_game_logs.stats||excluded.stats,updated_at=now()
+    where public.player_game_logs.stats is distinct from public.player_game_logs.stats||excluded.stats;
+  get diagnostics n=row_count;return jsonb_build_object('written',n);
+ elsif p_action='history_candidates' then
+  return jsonb_build_object('rows',coalesce((select jsonb_agg(x) from (
+   select distinct pl.id as "playerId",pl.name as "playerName",pl.team,pl.sport_key as sport,pr.market_key as "marketId",pr.market_name as market
+   from public.players pl join public.props pr on pr.player_id=pl.id join public.events e on e.id=pr.event_id
+   where pl.sport_key in ('MLB','NFL','NBA') and e.commence_time>now()-interval '7 days'
+   order by pl.id,pr.market_key limit 5000) x),'[]'::jsonb));
+ elsif p_action='read_props' then
+  return private.autoscout_read_props_fast(p_token,p_payload->>'sport');
+ elsif p_action='read_history' then
+  return jsonb_build_object('rows',coalesce((select jsonb_agg(x) from (select * from public.player_game_logs where player_id=p_payload->>'player_id' order by game_date desc limit 500) x),'[]'::jsonb));
+ else raise exception 'Invalid operation';
+ end if;
+ return jsonb_build_object('ok',true);
+end;
+$function$
 
 
 
--- Keep vacuum/analyze ahead of high-churn canonical tables instead of waiting
--- for the cluster-wide 20%/10% defaults. These settings are table-local and
--- reversible; they do not change provider cadence, TTLs, or customer data.
 alter table public.prop_lines set (
   autovacuum_vacuum_scale_factor = 0.02,
   autovacuum_vacuum_threshold = 5000,

@@ -1,8 +1,9 @@
 'use client';
 
 import * as React from 'react';
-import { Minus, Plus } from 'lucide-react';
-import { ApiError, fetchAccount, postAccount } from '@/lib/api';
+import Link from 'next/link';
+import { Bookmark, Minus, Plus, Trash2 } from 'lucide-react';
+import { ApiError, fetchAccount, fetchWatchlist, postAccount, updateWatchlist, type WatchlistItem } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { CardHeader, CardPanel, CardTitle } from '@/components/ui/card';
@@ -12,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { SignInPanel } from '@/components/sign-in';
 
 const SECTIONS = [
+  { id: 'saved', label: 'Saved props' },
   { id: 'support', label: 'Support' },
   { id: 'profile', label: 'Profile' },
 ] as const;
@@ -44,7 +46,7 @@ const FAQ: [string, string][] = [
 export function AccountView() {
   const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
   const [checking, setChecking] = React.useState(true);
-  const [section, setSection] = React.useState<SectionId>('support');
+  const [section, setSection] = React.useState<SectionId>('saved');
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -102,10 +104,139 @@ export function AccountView() {
         </nav>
 
         <div className="min-w-0">
-          {section === 'support' ? <Support /> : <Profile account={account} onSignedOut={() => setAccount(null)} />}
+          {section === 'saved'
+            ? <SavedProps />
+            : section === 'support'
+              ? <Support />
+              : <Profile account={account} onSignedOut={() => setAccount(null)} />}
         </div>
       </div>
     </Shell>
+  );
+}
+
+function watchlistHref(item: WatchlistItem) {
+  const params = new URLSearchParams({
+    sport: item.sport,
+    player: item.player,
+    market: item.market,
+    line: String(item.line),
+    period: item.period || 'game',
+  });
+  return `/research?${params.toString()}`;
+}
+
+function SavedProps() {
+  const [items, setItems] = React.useState<WatchlistItem[]>([]);
+  const [csrfToken, setCsrfToken] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+  const [busyKey, setBusyKey] = React.useState('');
+  const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError('');
+    fetchWatchlist(controller.signal)
+      .then(({ items: nextItems, csrfToken: nextCsrf }) => {
+        if (controller.signal.aborted) return;
+        setItems(nextItems);
+        setCsrfToken(nextCsrf);
+      })
+      .catch((cause) => {
+        if (!controller.signal.aborted) {
+          setError(cause instanceof Error ? cause.message : 'Saved props could not be loaded.');
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  async function removeSaved(item: WatchlistItem) {
+    if (!csrfToken || busyKey) return;
+    setBusyKey(item.key);
+    setError('');
+    try {
+      const next = await updateWatchlist('remove', { key: item.key }, csrfToken);
+      setItems(next);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'That saved prop could not be removed.');
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  return (
+    <CardPanel data-qa="saved-props-account">
+      <CardHeader>
+        <div>
+          <CardTitle>Saved props</CardTitle>
+          <p className="mt-1 text-[length:var(--fs-xs)] text-[var(--text-3)]">
+            Synced to your ObligeProps account across signed-in devices.
+          </p>
+        </div>
+        <span className="text-[length:var(--fs-xs)] font-semibold text-[var(--text-3)]">
+          {items.length}/100
+        </span>
+      </CardHeader>
+
+      {loading ? (
+        <div className="grid gap-2">
+          {Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-20 rounded-[var(--radius)]" />)}
+        </div>
+      ) : error && !items.length ? (
+        <div className="rounded-[var(--radius)] border border-[var(--line)] bg-[var(--surface-2)] p-5">
+          <p role="alert" className="text-[length:var(--fs-sm)] text-[var(--neg)]">{error}</p>
+        </div>
+      ) : !items.length ? (
+        <div className="grid justify-items-center gap-3 rounded-[var(--radius)] border border-dashed border-[var(--line-strong)] px-5 py-10 text-center">
+          <Bookmark className="size-6 text-[var(--text-3)]" aria-hidden />
+          <div>
+            <p className="text-[length:var(--fs-sm)] font-semibold">No saved props yet</p>
+            <p className="mt-1 max-w-[42ch] text-[length:var(--fs-xs)] text-[var(--text-3)]">
+              Open a research card and tap the star. It will show up here on your signed-in devices.
+            </p>
+          </div>
+          <Button asChild size="sm"><Link href="/board">Browse props</Link></Button>
+        </div>
+      ) : (
+        <>
+          {error ? <p role="alert" className="mb-3 text-[length:var(--fs-xs)] text-[var(--neg)]">{error}</p> : null}
+          <div className="grid gap-2">
+            {items.map((item) => (
+              <article
+                key={item.key}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--surface-2)] p-3"
+              >
+                <Link href={watchlistHref(item)} className="min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="shrink-0 rounded-md border border-[var(--line-strong)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--accent)]">{item.sport}</span>
+                    <strong className="truncate text-[length:var(--fs-sm)]">{item.player}</strong>
+                  </div>
+                  <div className="mt-1 truncate text-[length:var(--fs-xs)] font-semibold text-[var(--text-2)]">
+                    {item.market} · {item.line} · {item.period || 'game'}
+                  </div>
+                  <div className="mt-1 truncate text-[length:var(--fs-micro)] text-[var(--text-3)]">
+                    {item.team || 'Team unavailable'}{item.opponent ? ' · vs ' + item.opponent : ''}
+                  </div>
+                </Link>
+                <button
+                  type="button"
+                  aria-label={`Remove ${item.player} ${item.market} from saved props`}
+                  onClick={() => removeSaved(item)}
+                  disabled={busyKey === item.key}
+                  className="grid size-10 place-items-center rounded-[var(--radius-sm)] border border-[var(--line)] text-[var(--text-3)] transition hover:border-[color-mix(in_srgb,var(--neg)_50%,var(--line))] hover:text-[var(--neg)] disabled:opacity-50"
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                </button>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
+    </CardPanel>
   );
 }
 

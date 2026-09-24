@@ -22,7 +22,7 @@ test('board hydrates account-saved views and restores them when switching sports
 test('saving is explicit account sync rather than a write on every filter change', () => {
   assert.match(board, /async function saveCurrentView\(\)/);
   assert.match(board, /saveBoardPreferences\(sport, currentSavedView, account\.csrfToken\)/);
-  assert.match(board, />Save view</);
+  assert.match(board, /'Save view'/);
   assert.match(board, /Save filters to your account/);
   assert.doesNotMatch(board, /React\.useEffect\([\s\S]{0,500}saveBoardPreferences\(/);
 });

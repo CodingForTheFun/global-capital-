@@ -159,6 +159,57 @@ export async function postAccount(
   return body;
 }
 
+export type WatchlistItem = {
+  key: string;
+  sport: string;
+  player: string;
+  market: string;
+  line: number;
+  period: string;
+  team?: string | null;
+  opponent?: string | null;
+  propId?: string | null;
+  startsAt?: string | null;
+  savedAt?: string | null;
+};
+
+export async function fetchWatchlist(signal?: AbortSignal) {
+  const body = await getJson<{ ok?: boolean; items?: WatchlistItem[]; csrfToken?: string }>(
+    '/api/account/watchlist',
+    signal,
+  );
+  return {
+    items: Array.isArray(body.items) ? body.items : [],
+    csrfToken: String(body.csrfToken || ''),
+  };
+}
+
+export async function updateWatchlist(
+  action: 'upsert' | 'remove',
+  payload: { item?: WatchlistItem; key?: string },
+  csrfToken: string,
+) {
+  const response = await fetch('/api/account/watchlist', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'content-type': 'application/json',
+      'x-csrf-token': csrfToken,
+    },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  const body = (await response.json().catch(() => ({}))) as {
+    ok?: boolean;
+    items?: WatchlistItem[];
+    message?: string;
+    code?: string;
+  };
+  if (!response.ok || body.ok === false) {
+    throw new ApiError(body.message || 'The watchlist could not be updated.', response.status, body.code);
+  }
+  return Array.isArray(body.items) ? body.items : [];
+}
+
 /* ------------------------------------------------------------------ board */
 
 const num = (value: unknown): number | null => {

@@ -12,7 +12,7 @@ import { PropCard, PropCardSkeleton, type PropCardStats } from '@/components/fac
 import { Reveal } from '@/components/motion';
 import { SignInPanel } from '@/components/sign-in';
 
-const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'WNBA', 'SOCCER'];
+const SPORTS = ['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'WNBA', 'SOCCER', 'TENNIS'];
 const SORTS = [
   { id: 'hit', label: 'Hit rate' },
   { id: 'line', label: 'Line' },

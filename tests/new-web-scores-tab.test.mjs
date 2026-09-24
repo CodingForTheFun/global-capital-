@@ -6,8 +6,9 @@ test('actual Next mobile shell keeps Scores in the expanded bottom navigation', 
   const chrome = fs.readFileSync(new URL('../apps/oblige-web/components/site-chrome.tsx', import.meta.url), 'utf8');
   assert.match(chrome, /href: '\/scores', label: 'Scores'/);
   assert.match(chrome, /RadioTower/);
-  // Five items since Home moved to the logo; Scores and News keep their slots.
-  assert.match(chrome, /grid-cols-5/);
+  // Six items since Live Moves is a first-class phone destination; Home stays on the logo.
+  assert.match(chrome, /href: '\/moves', label: 'Moves'/);
+  assert.match(chrome, /grid-cols-6/);
 });
 
 test('Scores route is a real Next page backed by the live score API', () => {

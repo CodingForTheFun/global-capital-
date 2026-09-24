@@ -8,8 +8,9 @@ const route = readFileSync(new URL('../apps/oblige-web/app/api/news/route.ts', i
 
 test('News is a first-class Oblige Props navigation destination', () => {
   assert.match(chrome, /href: '\/news', label: 'News'/);
-  // Five items since Home moved to the logo; Scores and News keep their slots.
-  assert.match(chrome, /grid-cols-5/);
+  // Six items since Live Moves is a first-class phone destination; Home stays on the logo.
+  assert.match(chrome, /href: '\/moves', label: 'Moves'/);
+  assert.match(chrome, /grid-cols-6/);
   assert.match(chrome, /Newspaper/);
 });
 

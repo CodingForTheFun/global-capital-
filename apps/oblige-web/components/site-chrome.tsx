@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, LayoutGrid, Menu, Newspaper, RadioTower, User, X } from 'lucide-react';
+import { Activity, BarChart3, LayoutGrid, Menu, Newspaper, RadioTower, User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
@@ -17,9 +17,10 @@ const NAV = [
   { href: '/#pricing', label: 'Pricing' },
 ];
 
-/** Five items so every label fits one row on a 320px phone. Home is the logo. */
+/** Keep core live research destinations directly reachable from the phone dock. Home is the logo. */
 const MOBILE_NAV = [
   { href: '/board', label: 'Props', icon: LayoutGrid },
+  { href: '/moves', label: 'Moves', icon: Activity },
   { href: '/scores', label: 'Scores', icon: RadioTower },
   { href: '/news', label: 'News', icon: Newspaper },
   { href: '/research', label: 'Research', icon: BarChart3 },
@@ -244,7 +245,7 @@ export function MobileNav() {
       data-board={board ? 'true' : 'false'}
       data-scroll-hidden={board && hidden ? 'true' : 'false'}
       className={cn(
-        'fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 gap-1 overflow-x-hidden px-2 pt-1.5 lg:hidden',
+        'fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 gap-0.5 overflow-x-hidden px-1.5 pt-1.5 lg:hidden',
         'border-t border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_94%,transparent)] backdrop-blur-xl',
         'pb-[max(6px,env(safe-area-inset-bottom))]',
         'transition-[transform,opacity] duration-200 ease-[var(--ease-out)] motion-reduce:transition-none',
@@ -269,7 +270,7 @@ export function MobileNav() {
             aria-current={active ? 'page' : undefined}
             className={cn(
               'grid min-h-[50px] min-w-0 content-center justify-items-center gap-1 overflow-hidden rounded-[12px]',
-              'text-[10px] font-semibold tracking-wide touch-manipulation',
+              'text-[9px] min-[390px]:text-[10px] font-semibold tracking-wide touch-manipulation',
               'transition-colors duration-200 ease-[var(--ease-out)]',
               active ? 'bg-[var(--accent-soft)] text-[var(--accent)]' : 'text-[var(--text-3)] hover:text-[var(--text-2)]',
             )}

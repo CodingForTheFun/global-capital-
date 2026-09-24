@@ -101,6 +101,23 @@ test('paid providers refresh when no public worker holds the lease',async()=>{
   await __testPersistBoards('test-lease-retry',schedulerDeps(async sport=>({sport}),async()=>({persisted:true})),{cycle:5000,sport:100});
   assert.ok(proplineRefreshes>0,'PropLine must refresh when nothing else owns ingestion');
 });
+
+
+test('PropLine refresh is independent of an unclaimed public scraped-feed lease',async()=>{
+  proplineRefreshes=0;
+  let freeBookPolls=0;
+  const deps={
+    ...schedulerDeps(async sport=>({sport}),async()=>({persisted:true})),
+    publicWorkerConfigured:()=>true,
+    runPublicIngestionCycle:async()=>({claimed:false,results:[]}),
+    readPublicSchedulerState:async()=>null,
+    startPropLineRefresh:()=>{proplineRefreshes+=1;},
+    runFreeSportsbooksCycle:async()=>{freeBookPolls+=1;return {results:[]};},
+  };
+  await __testPersistBoards('test-public-lease-unclaimed',deps,{cycle:5000,group:100,sport:100,coordination:100});
+  assert.ok(proplineRefreshes>0,'PropLine must refresh even when another process owns the public lease');
+  assert.equal(freeBookPolls,0,'public sportsbook polling must remain gated by the public lease');
+});
 test('one hung cache-only sport does not wedge remaining sports or later scheduler ticks',async()=>{
   const gate=deferred(), fetched=[],written=[];let stalled=true;
   const deps=schedulerDeps(async(sport,options)=>{assert.equal(options.cacheOnly,true);fetched.push(sport);if(sport==='NFL'&&stalled)return gate.promise;return {sport};},async board=>{written.push(board.sport);return {persisted:true};});

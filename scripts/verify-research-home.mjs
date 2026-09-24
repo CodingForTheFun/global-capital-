@@ -52,10 +52,18 @@ try{
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),name+' root has no horizontal overflow');
   check(await page.locator('.asIdentity').getAttribute('href')==='/',name+' brand opens same-domain research home');
   await page.screenshot({path:`${out}/${name}-research.png`,fullPage:true});
-  await page.locator('#asBoardFilterMenu>summary').click();
-  await page.locator('#asSearch').fill('No Matching Fixture');await page.waitForFunction(()=>document.querySelectorAll('.asCard').length===0);
-  await page.locator('#asSearch').fill('');await page.locator('.asCard').first().waitFor();check(true,name+' existing player filter still works');
-  await page.keyboard.press('Control+k');check(await page.locator('#asSearch').evaluate(e=>e===document.activeElement),name+' keyboard search shortcut works');
+  if(name==='mobile'){
+   check(await page.locator('#as5.asMobileRefReady #asMobileRefMenu').isVisible(),'mobile reference top menu renders');
+   const railsSwipe=await page.evaluate(()=>{const f=document.getElementById('asMobileRefFilterRail'),m=document.getElementById('asMobileRefMetricRail');return !!f&&!!m&&f.scrollWidth>f.clientWidth&&m.scrollWidth>m.clientWidth;});
+   check(railsSwipe,'mobile filter and metric rails are horizontally swipeable');
+  }
+  const mobileReferenceSearch=name==='mobile'&&(await page.locator('#asMobileRefSearchInput').count())>0;
+  const searchBox=mobileReferenceSearch?page.locator('#asMobileRefSearchInput'):page.locator('#asSearch');
+  if(mobileReferenceSearch)await page.locator('#asMobileRefSearchToggle').click();
+  else await page.locator('#asBoardFilterMenu>summary').click();
+  await searchBox.fill('No Matching Fixture');await page.waitForFunction(()=>document.querySelectorAll('.asCard').length===0);
+  await searchBox.fill('');await page.locator('.asCard').first().waitFor();check(true,name+' existing player filter still works');
+  await page.keyboard.press('Control+k');check(await searchBox.evaluate(e=>e===document.activeElement),name+' keyboard search shortcut works');
   await page.locator('.asCard').first().click();await page.locator('#asTab-intelligence').click();await page.locator('#asi-sensitivity').waitFor();
   check(await page.locator('#asIntelligenceDetail details').count()===7,name+' retains the seven tools supported by this fixture');
   check(await page.locator('#asi-dependencies').count()===0,name+' does not invent teammate dependencies without participation data');
@@ -70,7 +78,8 @@ try{
   }else{
    const saved=await(await ctx.request.get(base+'/api/saved-props')).json();check(saved.saved?.length>0,'Existing server-bound saves survive a fresh mobile sign-in');
   }
-  await page.locator('#asProfileMenu>summary').click();
+  if(mobileReferenceSearch)await page.locator('#asMobileRefProfile').click();
+  else await page.locator('#asProfileMenu>summary').click();
   await page.locator('#asSettings').click();check(await page.locator('#asUtility').evaluate(e=>e.open),name+' original settings open');await page.keyboard.press('Escape');
   await page.goto(base+'/sportsbooks#tacos',{waitUntil:'domcontentloaded'});await page.waitForURL('**/apex#tacos');
   await page.getByRole('heading',{name:'🌮 Taco-only props',exact:true}).waitFor();check(true,name+' old Taco bookmark opens research-only promotion view');

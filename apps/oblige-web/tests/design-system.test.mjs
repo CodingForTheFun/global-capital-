@@ -29,10 +29,10 @@ test('fonts load from this origin, which the production CSP allows', () => {
   for (const file of files) assert.ok(existsSync(new URL('../app/' + file, import.meta.url)), file);
 });
 
-test('the phone dock has five items in one row, with Profile and without Home', () => {
+test('the phone dock keeps six core destinations in one row, including Live Moves', () => {
   const block = chrome.match(/const MOBILE_NAV = \[([\s\S]*?)\];/)[1];
   const hrefs = [...block.matchAll(/href: '([^']+)'/g)].map((match) => match[1]);
-  assert.deepEqual(hrefs, ['/board', '/scores', '/news', '/research', '/account']);
+  assert.deepEqual(hrefs, ['/board', '/moves', '/scores', '/news', '/research', '/account']);
   assert.match(chrome, /repeat\(\$\{MOBILE_NAV\.length\}, minmax\(0, 1fr\)\)/, 'columns follow the item count');
 });
 

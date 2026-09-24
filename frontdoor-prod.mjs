@@ -10,6 +10,8 @@ import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
 import { fetchMatchupResearch, fetchDefensePosition } from './lib/data-sources/espn/research.mjs';
+import { fetchClosingWinProbabilities, MAX_MONEYLINE_EVENTS } from './lib/data-sources/propline/closing-moneyline.mjs';
+import { fetchTennisContext, MAX_TENNIS_MATCHES } from './lib/data-sources/sportradar/tennis-context.mjs';
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
 import { researchBatchLogLine } from './lib/autoscout/research-batch-log.mjs';
 import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
@@ -178,7 +180,7 @@ function safeParam(url, name, max = 100) {
 
 async function maybeServeResearch(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
-  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup' && url.pathname !== '/api/apex/research-defense-position') return false;
+  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup' && url.pathname !== '/api/apex/research-defense-position' && url.pathname !== '/api/apex/research-moneyline' && url.pathname !== '/api/apex/research-tennis') return false;
   if (req.method !== 'GET') {
     directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
     return true;
@@ -200,6 +202,26 @@ async function maybeServeResearch(req, res) {
   if(url.pathname === '/api/apex/research-defense-position') {
     const result = await fetchDefensePosition({sport}).catch(()=>({ok:true,available:false,message:'Position defense could not load. Try again shortly.',teams:[],rows:[]}));
     directJson(res,200,sanitizePublicPayload(result,{statsContext:true}));return true;
+  }
+  if(url.pathname === '/api/apex/research-moneyline') {
+    // Repeated event=<id>~<opponent> pairs; bounded before any provider read.
+    const events = url.searchParams.getAll('event').slice(0, MAX_MONEYLINE_EVENTS).map((raw) => {
+      const value = String(raw || '').slice(0, 260), cut = value.indexOf('~');
+      return cut < 0 ? { id: value.trim() } : { id: value.slice(0, cut).trim(), opponent: value.slice(cut + 1).trim().slice(0, 100) };
+    });
+    const result = await fetchClosingWinProbabilities({ sport, player: safeParam(url, 'player', 90), events }).catch(() => ({ ok: true, available: false, code: 'MONEYLINE_UNAVAILABLE', message: 'Pre-match win probability could not load. Try again shortly.', events: {} }));
+    directJson(res, 200, sanitizePublicPayload(result, { statsContext: true }));
+    return true;
+  }
+  if(url.pathname === '/api/apex/research-tennis') {
+    // Repeated match=<id>~<ISO date>~<opponent>; bounded before any provider read.
+    const matches = url.searchParams.getAll('match').slice(0, MAX_TENNIS_MATCHES).map((raw) => {
+      const [id = '', date = '', opponent = ''] = String(raw || '').slice(0, 300).split('~');
+      return { id: id.trim().slice(0, 120), date: date.trim().slice(0, 40), opponent: opponent.trim().slice(0, 100) };
+    }).filter((row) => row.id);
+    const result = await fetchTennisContext({ player: safeParam(url, 'player', 90), opponent: safeParam(url, 'opponent', 90) || null, matches, fill: url.searchParams.get('fill') === '1' }).catch(() => ({ ok: true, available: false, code: 'TENNIS_CONTEXT_UNAVAILABLE', message: 'Tennis match context could not load. Try again shortly.', matches: {} }));
+    directJson(res, 200, sanitizePublicPayload(result, { statsContext: true }));
+    return true;
   }
   if(url.pathname === '/api/apex/research-matchup') {
     const result = await fetchMatchupResearch({sport,eventId:safeParam(url,'eventId',160),homeTeam:safeParam(url,'homeTeam',100),awayTeam:safeParam(url,'awayTeam',100),gameStartTime:safeParam(url,'gameStartTime',40)}).catch(()=>({ok:true,available:false,code:'MATCHUP_SOURCE_UNAVAILABLE',message:'Game context could not load. Try again shortly.'}));

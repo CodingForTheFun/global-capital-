@@ -122,7 +122,7 @@ export function sameTeamLabel(left: unknown, right: unknown): boolean {
 }
 
 export function currentOpponentLabels(
-  group: Pick<PropGroup, 'team' | 'opponent' | 'homeTeam' | 'awayTeam'>,
+  group: Pick<PropGroup, 'team' | 'opponent' | 'homeTeam' | 'awayTeam'> & { player?: string | null },
 ): string[] {
   const labels: string[] = [];
   const add = (value: unknown) => {
@@ -140,6 +140,16 @@ export function currentOpponentLabels(
 
   if (group.opponent && home && sameTeamLabel(group.opponent, home)) add(home);
   if (group.opponent && away && sameTeamLabel(group.opponent, away)) add(away);
+
+  // Individual sports (tennis) post the two players as the event's home and
+  // away sides and carry no team. The opponent is the other side only when
+  // this player is exactly one of them; initials and abbreviations do not
+  // count for people.
+  const player = compact(group.player);
+  if (!team && player && home && away && compact(home) !== compact(away)) {
+    if (compact(home) === player) add(away);
+    else if (compact(away) === player) add(home);
+  }
 
   return labels;
 }

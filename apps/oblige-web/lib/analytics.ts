@@ -95,7 +95,42 @@ export type SampleFilters = {
   rest?: 'all' | '0' | '1' | '2' | '3+';
   /** Minimum minutes played, e.g. '25'. */
   minutes?: string;
+  /** Tennis: sets played in the match. */
+  setsPlayed?: 'all' | '2' | '3' | '4' | '5';
+  /** Tennis: best of three or best of five. */
+  matchFormat?: 'all' | 'BO3' | 'BO5';
+  /** Opponent's current defense-vs-position tier for this stat. */
+  defenseTier?: 'all' | 'soft' | 'average' | 'tough';
+  /** Pre-match win probability band from the closing moneyline. */
+  winProb?: 'all' | WinBand;
+  /** Tennis: opponent's current ranking band, playing hand and court surface. */
+  opponentRank?: 'all' | RankBand;
+  opponentHand?: 'all' | 'L' | 'R';
+  surface?: 'all' | 'Hard' | 'Clay' | 'Grass' | 'Carpet';
 };
+
+export type RankBand = 'top10' | 'top50' | 'top100' | 'over100';
+
+export function rankBand(rank: number | null | undefined): RankBand | null {
+  const r = recorded(rank);
+  if (r === null || r < 1 || !Number.isInteger(r)) return null;
+  if (r <= 10) return 'top10';
+  if (r <= 50) return 'top50';
+  if (r <= 100) return 'top100';
+  return 'over100';
+}
+
+export type WinBand = 'fav70' | 'fav55' | 'even' | 'dog';
+
+/** Band edges are inclusive at the bottom: 70 is a heavy favourite, 55 a favourite. */
+export function winBand(probability: number | null | undefined): WinBand | null {
+  const p = recorded(probability);
+  if (p === null || p < 0 || p > 100) return null;
+  if (p >= 70) return 'fav70';
+  if (p >= 55) return 'fav55';
+  if (p >= 45) return 'even';
+  return 'dog';
+}
 
 export const EMPTY_FILTERS: SampleFilters = {
   opponent: 'all',
@@ -106,6 +141,13 @@ export const EMPTY_FILTERS: SampleFilters = {
   seasonType: 'all',
   rest: 'all',
   minutes: 'all',
+  setsPlayed: 'all',
+  matchFormat: 'all',
+  defenseTier: 'all',
+  winProb: 'all',
+  opponentRank: 'all',
+  opponentHand: 'all',
+  surface: 'all',
 };
 
 const DAY_MS = 86_400_000;
@@ -169,6 +211,13 @@ export function filterCoverage(games: GameLogRow[]) {
     seasonType: has((game) => game.seasonType === 2) && has((game) => game.seasonType === 3),
     rest: restByGame(games).size >= 2,
     minutes: games.filter((game) => (recorded(game.minutes) ?? 0) > 0).length >= 2,
+    setsPlayed: new Set(games.map((game) => recorded(game.setsPlayed)).filter((value) => value !== null)).size >= 2,
+    matchFormat: has((game) => game.matchFormat === 'BO3') && has((game) => game.matchFormat === 'BO5'),
+    defenseTier: new Set(games.map((game) => game.opponentDefenseTier).filter(Boolean)).size >= 2,
+    winProb: new Set(games.map((game) => winBand(game.winProbability)).filter(Boolean)).size >= 2,
+    opponentRank: new Set(games.map((game) => rankBand(game.opponentRank)).filter(Boolean)).size >= 2,
+    opponentHand: has((game) => game.opponentHand === 'L') && has((game) => game.opponentHand === 'R'),
+    surface: new Set(games.map((game) => game.surface).filter(Boolean)).size >= 2,
   };
 }
 
@@ -195,12 +244,19 @@ export function applyFilters(games: GameLogRow[], filters: SampleFilters) {
       if (days === undefined || restBucket(days) !== filters.rest) return false;
     }
     if (minMinutes !== null && !((recorded(game.minutes) ?? -1) >= minMinutes)) return false;
+    if (filters.setsPlayed && filters.setsPlayed !== 'all' && String(recorded(game.setsPlayed) ?? '') !== filters.setsPlayed) return false;
+    if (filters.matchFormat && filters.matchFormat !== 'all' && game.matchFormat !== filters.matchFormat) return false;
+    if (filters.defenseTier && filters.defenseTier !== 'all' && game.opponentDefenseTier !== filters.defenseTier) return false;
+    if (filters.winProb && filters.winProb !== 'all' && winBand(game.winProbability) !== filters.winProb) return false;
+    if (filters.opponentRank && filters.opponentRank !== 'all' && rankBand(game.opponentRank) !== filters.opponentRank) return false;
+    if (filters.opponentHand && filters.opponentHand !== 'all' && game.opponentHand !== filters.opponentHand) return false;
+    if (filters.surface && filters.surface !== 'all' && game.surface !== filters.surface) return false;
     return true;
   });
 }
 
 export function advancedFilterCount(filters: SampleFilters) {
-  return (['result', 'role', 'seasonType', 'rest', 'minutes'] as const)
+  return (['result', 'role', 'seasonType', 'rest', 'minutes', 'setsPlayed', 'matchFormat', 'defenseTier', 'winProb', 'opponentRank', 'opponentHand', 'surface'] as const)
     .filter((key) => filters[key] && filters[key] !== 'all').length;
 }
 

@@ -33,3 +33,12 @@ test('raw tennis history retains source stats and rejects missing stats as zero'
  const h=historyForMarket({player_name:p.name,player_id:'p',sport_key:'tennis',season:2026,games:[{event_id:'old',status:'final',commence_time:'2026-09-18T12:00:00Z',opponent:'Other',season:2026,result:'W',stats:{aces:8,dblfaults:0,games_w:12,sets_won:2,breakpts_w:null}}]},p,{marketKey:'player_aces'},{now:Date.parse('2026-09-20')});
  assert.equal(h.gameLog[0].aces,8);assert.equal(h.gameLog[0].doubleFaults,0);assert.equal(h.gameLog[0].setsWon,2);assert.equal(h.gameLog[0].breakPointsWon,undefined);assert.equal(h.season,2026);assert.equal(h.gameLog[0].gameResult,'W');
 });
+
+test('NFL reads six weeks of daily scoreboards; basketball keeps fourteen days',async()=>{
+ const boards=sport=>{const days=new Set();return {days,get:createDefensePosition({teamDirectory:async()=>[{id:'a',abbreviation:'A',displayName:'A'}],request:async path=>{const m=/scoreboard\?dates=(\d{8})/.exec(path);if(m)days.add(m[1]);return {data:{events:[]}};},now:()=>Date.parse('2026-09-24T12:00:00Z')})};};
+ const nfl=boards('NFL'),nba=boards('NBA');
+ const n=await nfl.get({sport:'NFL'}),b=await nba.get({sport:'NBA'});
+ assert.equal(nfl.days.size,42);assert.equal(nba.days.size,14);
+ assert.equal(n.windowDays,42);assert.equal(b.windowDays,14);
+ assert.match(n.basis,/within 42 days/);
+});

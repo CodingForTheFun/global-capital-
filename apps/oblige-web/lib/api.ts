@@ -1,9 +1,12 @@
 import type {
   Account,
   BoardResponse,
+  DefensePositionResponse,
   GameLogRow,
   LineHistoryResponse,
   LiveMovesResponse,
+  MoneylineResponse,
+  TennisContextResponse,
   MatchupResponse,
   PropGroup,
   PropRow,
@@ -606,6 +609,70 @@ export async function fetchLiveMoves(
   if (filters.type) params.set('type', filters.type);
   if (filters.player) params.set('player', filters.player);
   return getJson<LiveMovesResponse>(`/api/apex/live-moves?${params}`, signal);
+}
+
+const defenseCache = new Map<string, { value: DefensePositionResponse; until: number }>();
+
+/**
+ * League-wide allowance by position (NBA, WNBA, NFL), computed server side from
+ * completed box scores. One cached response per sport serves every prop.
+ */
+export async function fetchDefensePosition(sport: string, signal?: AbortSignal): Promise<DefensePositionResponse> {
+  const key = sport.toUpperCase();
+  const hit = defenseCache.get(key);
+  if (hit && hit.until > Date.now()) return hit.value;
+  try {
+    const value = await getJson<DefensePositionResponse>(`/api/apex/research-defense-position?sport=${encodeURIComponent(key)}`, signal);
+    defenseCache.set(key, { value, until: Date.now() + (value.available ? 10 : 2) * 60_000 });
+    return value;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return { ok: false, available: false, message: 'Position defense could not load. Try again shortly.', rows: [], teams: [] };
+  }
+}
+
+/**
+ * Pre-match win probability for completed matches, from each event's closing
+ * moneyline. The server bounds this to 15 events and caches closes for a week.
+ */
+export async function fetchMoneyline(
+  sport: string,
+  player: string,
+  events: Array<{ id: string; opponent?: string | null }>,
+  signal?: AbortSignal,
+): Promise<MoneylineResponse> {
+  const params = new URLSearchParams({ sport, player });
+  for (const event of events.slice(0, 15)) params.append('event', event.opponent ? `${event.id}~${event.opponent}` : event.id);
+  try {
+    return await getJson<MoneylineResponse>(`/api/apex/research-moneyline?${params}`, signal);
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return { ok: false, available: false, events: {}, message: 'Pre-match win probability could not load. Try again shortly.' };
+  }
+}
+
+/**
+ * Tennis opponent ranking and hand, plus court surface for past matches.
+ * `fill` lets the server spend its small daily budget on missing answers; the
+ * page header asks without it and the filter panel asks with it.
+ */
+export async function fetchTennisContext(
+  player: string,
+  opponent: string | null,
+  matches: Array<{ id: string; date: string; opponent: string }>,
+  fill: boolean,
+  signal?: AbortSignal,
+): Promise<TennisContextResponse> {
+  const params = new URLSearchParams({ player });
+  if (opponent) params.set('opponent', opponent);
+  if (fill) params.set('fill', '1');
+  for (const match of matches.slice(0, 20)) params.append('match', `${match.id}~${match.date}~${match.opponent}`);
+  try {
+    return await getJson<TennisContextResponse>(`/api/apex/research-tennis?${params}`, signal);
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return { ok: false, available: false, matches: {}, message: 'Tennis match context could not load. Try again shortly.' };
+  }
 }
 
 export async function fetchLineHistory(propId: string, signal?: AbortSignal) {

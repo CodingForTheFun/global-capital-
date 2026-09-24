@@ -143,6 +143,78 @@ export type GameLogRow = {
   scoreAgainst?: number | null;
   started?: boolean | null;
   opponentName?: string | null;
+  /** Tennis, from a verified set score: the player's sets, the opponent's, and the format. */
+  setsWon?: number | null;
+  setsLost?: number | null;
+  setsPlayed?: number | null;
+  matchFormat?: 'BO3' | 'BO5' | null;
+  /** Tennis match-level total games and this player's games won. */
+  matchTotalGames?: number | null;
+  gamesWon?: number | null;
+  /**
+   * Client-side tags joined from separate verified sources before filtering.
+   * Each stays null when its source cannot answer for that exact game.
+   */
+  opponentDefenseTier?: DefenseTier | null;
+  /** Pre-match no-vig win probability (0-100) from the closing moneyline. */
+  winProbability?: number | null;
+  /** Tennis: the opponent's current singles ranking, playing hand and the court. */
+  opponentRank?: number | null;
+  opponentHand?: 'L' | 'R' | null;
+  surface?: 'Hard' | 'Clay' | 'Grass' | 'Carpet' | null;
+  indoor?: boolean | null;
+};
+
+export type TennisMatchContext = {
+  opponentRank?: number | null;
+  opponentHand?: 'L' | 'R' | null;
+  surface?: 'Hard' | 'Clay' | 'Grass' | 'Carpet' | null;
+  indoor?: boolean | null;
+  paired?: boolean;
+};
+
+export type TennisContextResponse = {
+  ok?: boolean;
+  available?: boolean;
+  message?: string;
+  complete?: boolean;
+  rankingsAsOf?: string | null;
+  player?: { rank?: number | null; tour?: string | null };
+  upcoming?: TennisMatchContext | null;
+  matches?: Record<string, TennisMatchContext>;
+};
+
+export type MoneylineResponse = {
+  ok?: boolean;
+  available?: boolean;
+  message?: string;
+  events?: Record<string, { available?: boolean; winProbability?: number; books?: number; stale?: boolean; retryable?: boolean }>;
+};
+
+export type DefenseTier = 'soft' | 'average' | 'tough';
+
+/** One team's allowance to one position for one stat, from `/api/apex/research-defense-position`. */
+export type DefensePositionRow = {
+  teamId?: string;
+  position?: string;
+  metric?: string;
+  average?: number;
+  games?: number;
+  /** 1 = fewest allowed. Null until every team has enough games. */
+  rank?: number | null;
+  leagueSize?: number;
+};
+
+export type DefensePositionResponse = {
+  ok?: boolean;
+  available?: boolean;
+  message?: string | null;
+  sport?: string;
+  positions?: string[];
+  teams?: Array<{ id?: string; abbreviation?: string; name?: string }>;
+  rows?: DefensePositionRow[];
+  windowDays?: number;
+  retrievedAt?: string;
 };
 
 export type ResearchResponse = {
@@ -173,6 +245,13 @@ export type ResearchResponse = {
   /** Verified public team directory for this league. Used only to populate the
    * opponent picker; it never creates history rows or changes hit rates. */
   leagueTeams?: Array<{ id?: string; abbreviation?: string; name?: string }>;
+  /** The raw statistic the game log's `value` holds, e.g. total_games or games_w. */
+  statKind?: string | null;
+  /** Verified provider context; only the fields the UI reads are typed. */
+  context?: {
+    sportradar?: { position?: string | null; primaryPosition?: string | null } | null;
+    [key: string]: unknown;
+  } | null;
   coverage?: Record<string, unknown>;
 };
 

@@ -78,7 +78,7 @@ begin
 
   -- Exact normalized name is safe only when it identifies exactly one registry row.
   if v_id is null then
-    select count(*), min(r.canonical_id)
+    select count(*), min(r.canonical_id::text)::uuid
       into v_name_count, v_id
     from public.player_registry r
     where r.sport = v_sport

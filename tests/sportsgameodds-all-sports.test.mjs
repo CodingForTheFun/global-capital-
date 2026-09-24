@@ -220,3 +220,27 @@ test('tennis event requests use the provider-documented minimal query parameters
     if(previousKey===undefined) delete process.env.SPORTS_ODDS_API_KEY_HEADER; else process.env.SPORTS_ODDS_API_KEY_HEADER=previousKey;
   }
 });
+
+
+test('tennis event requests use exact account catalog league IDs rather than guessed tour labels', async () => {
+  const previousKey=process.env.SPORTS_ODDS_API_KEY_HEADER; const previousFetch=globalThis.fetch;
+  const eventLeagueIDs=[];
+  try {
+    process.env.SPORTS_ODDS_API_KEY_HEADER='test-key'; __resetSportsGameOddsClient(); __resetSportsGameOddsProvider();
+    globalThis.fetch=async(input)=>{
+      const url=new URL(String(input));
+      if(url.pathname.endsWith('/account/usage')) return new Response(JSON.stringify({success:true,data:{tier:'test',rateLimits:{'per-month':{'max-entities':100000,'current-entities':0}}}}),{status:200});
+      if(url.pathname.endsWith('/sports')) return new Response(JSON.stringify({success:true,data:[{sportID:'TENNIS'}]}),{status:200});
+      if(url.pathname.endsWith('/leagues')) return new Response(JSON.stringify({success:true,data:[{leagueID:'ATP_TOUR_2026',sportID:'TENNIS',name:'ATP'},{leagueID:'WTA_TOUR_2026',sportID:'TENNIS',name:'WTA'}]}),{status:200});
+      if(url.pathname.endsWith('/events')) { eventLeagueIDs.push(url.searchParams.get('leagueID')); return new Response(JSON.stringify({success:true,data:[]}),{status:200}); }
+      throw new Error('Unexpected URL '+url.href);
+    };
+    const result=await fetchSportsGameOddsBoard('TENNIS',{force:true,eventLimit:8});
+    assert.equal(result.meta.supported,true);
+    assert.deepEqual(eventLeagueIDs.sort(),['ATP_TOUR_2026','WTA_TOUR_2026']);
+    assert.deepEqual(result.meta.leaguesRequested.sort(),['ATP_TOUR_2026','WTA_TOUR_2026']);
+  } finally {
+    globalThis.fetch=previousFetch; __resetSportsGameOddsClient(); __resetSportsGameOddsProvider();
+    if(previousKey===undefined) delete process.env.SPORTS_ODDS_API_KEY_HEADER; else process.env.SPORTS_ODDS_API_KEY_HEADER=previousKey;
+  }
+});

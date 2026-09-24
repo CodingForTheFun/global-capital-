@@ -128,3 +128,50 @@ test('generic sport boards query SportsGameOdds by sportID, not a guessed league
     else process.env.OBLIGE_PROP_PROVIDER_MODE = previousMode;
   }
 });
+
+
+test('tennis uses documented ATP, WTA and ITF league queries instead of generic sportID', async () => {
+  const previousKey = process.env.SPORTS_ODDS_API_KEY_HEADER;
+  const previousMode = process.env.OBLIGE_PROP_PROVIDER_MODE;
+  const previousFetch = globalThis.fetch;
+  const urls = [];
+  try {
+    process.env.SPORTS_ODDS_API_KEY_HEADER = 'test-key';
+    process.env.OBLIGE_PROP_PROVIDER_MODE = 'sportsgameodds';
+    __resetSportsGameOddsClient();
+    __resetSportsGameOddsProvider();
+
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      urls.push(url);
+      if (url.pathname.endsWith('/account/usage')) {
+        return new Response(JSON.stringify({
+          success: true,
+          data: { tier: 'test', rateLimits: { 'per-month': { 'max-entities': 100000, 'current-entities': 0 } } },
+        }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      if (url.pathname.endsWith('/events')) {
+        return new Response(JSON.stringify({ success: true, data: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      throw new Error('Unexpected URL ' + url.href);
+    };
+
+    const board = await fetchSportsGameOddsBoard('TENNIS', { force: true, eventLimit: 8 });
+    assert.equal(board.meta.supported, true);
+    const eventUrl = urls.find((url) => url.pathname.endsWith('/events'));
+    assert.ok(eventUrl, 'events endpoint must be called');
+    assert.equal(eventUrl.searchParams.get('leagueID'), 'ATP,WTA,ITF');
+    assert.equal(eventUrl.searchParams.has('sportID'), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+    __resetSportsGameOddsClient();
+    __resetSportsGameOddsProvider();
+    if (previousKey === undefined) delete process.env.SPORTS_ODDS_API_KEY_HEADER;
+    else process.env.SPORTS_ODDS_API_KEY_HEADER = previousKey;
+    if (previousMode === undefined) delete process.env.OBLIGE_PROP_PROVIDER_MODE;
+    else process.env.OBLIGE_PROP_PROVIDER_MODE = previousMode;
+  }
+});

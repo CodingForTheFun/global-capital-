@@ -2,8 +2,9 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { Bookmark, Minus, Plus, Trash2 } from 'lucide-react';
-import { ApiError, fetchAccount, fetchWatchlist, postAccount, updateWatchlist, type WatchlistItem } from '@/lib/api';
+import { Activity, Bookmark, Minus, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { ApiError, fetchAccount, fetchLiveMoves, fetchWatchlist, postAccount, updateWatchlist, type WatchlistItem } from '@/lib/api';
+import type { LiveMove } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { CardHeader, CardPanel, CardTitle } from '@/components/ui/card';
@@ -126,12 +127,46 @@ function watchlistHref(item: WatchlistItem) {
   return `/research?${params.toString()}`;
 }
 
+function identity(value: unknown) {
+  return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function savedActivity(item: WatchlistItem, events: LiveMove[]) {
+  if (!item.eventId || !item.marketId || (item.period || 'game') !== 'game') return null;
+  const eventId = String(item.eventId).trim();
+  const player = identity(item.player);
+  const market = identity(item.marketId);
+  return events.find((row) =>
+    String(row.eventId || '').trim() === eventId &&
+    identity(row.playerName) === player &&
+    identity(row.marketKey) === market
+  ) || null;
+}
+
+function activityLabel(row: LiveMove | null) {
+  if (!row) return null;
+  if (row.type === 'line_movement') {
+    const previous = row.previous?.point;
+    const current = row.current?.point;
+    return previous !== null && previous !== undefined && current !== null && current !== undefined
+      ? `Line ${previous} → ${current}`
+      : 'Line moved';
+  }
+  if (row.type === 'steam') return 'Steam';
+  if (row.type === 'market_suspended') return 'Off board';
+  if (row.type === 'resolution') return 'Graded';
+  return 'Market update';
+}
+
 function SavedProps() {
   const [items, setItems] = React.useState<WatchlistItem[]>([]);
   const [csrfToken, setCsrfToken] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [busyKey, setBusyKey] = React.useState('');
   const [error, setError] = React.useState('');
+  const [activity, setActivity] = React.useState<LiveMove[]>([]);
+  const [activityLoading, setActivityLoading] = React.useState(false);
+  const [activityRevision, setActivityRevision] = React.useState(0);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -153,6 +188,26 @@ function SavedProps() {
       });
     return () => controller.abort();
   }, []);
+
+  React.useEffect(() => {
+    if (!items.some((item) => item.eventId && item.marketId && (item.period || 'game') === 'game')) {
+      setActivity([]);
+      return;
+    }
+    const controller = new AbortController();
+    setActivityLoading(true);
+    fetchLiveMoves({ limit: 300 }, controller.signal)
+      .then((value) => {
+        if (!controller.signal.aborted) setActivity(value.events || []);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setActivity([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setActivityLoading(false);
+      });
+    return () => controller.abort();
+  }, [items, activityRevision]);
 
   async function removeSaved(item: WatchlistItem) {
     if (!csrfToken || busyKey) return;
@@ -177,9 +232,20 @@ function SavedProps() {
             Synced to your ObligeProps account across signed-in devices.
           </p>
         </div>
-        <span className="text-[length:var(--fs-xs)] font-semibold text-[var(--text-3)]">
-          {items.length}/100
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Refresh saved prop activity"
+            onClick={() => setActivityRevision((value) => value + 1)}
+            disabled={activityLoading}
+            className="grid size-8 place-items-center rounded-[var(--radius-sm)] border border-[var(--line)] text-[var(--text-3)] hover:text-[var(--text)] disabled:opacity-50"
+          >
+            <RefreshCw className={`size-3.5 ${activityLoading ? 'animate-spin' : ''}`} aria-hidden />
+          </button>
+          <span className="text-[length:var(--fs-xs)] font-semibold text-[var(--text-3)]">
+            {items.length}/100
+          </span>
+        </div>
       </CardHeader>
 
       {loading ? (
@@ -205,7 +271,10 @@ function SavedProps() {
         <>
           {error ? <p role="alert" className="mb-3 text-[length:var(--fs-xs)] text-[var(--neg)]">{error}</p> : null}
           <div className="grid gap-2">
-            {items.map((item) => (
+            {items.map((item) => {
+              const move = savedActivity(item, activity);
+              const signal = activityLabel(move);
+              return (
               <article
                 key={item.key}
                 className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius)] border border-[var(--line)] bg-[var(--surface-2)] p-3"
@@ -214,6 +283,15 @@ function SavedProps() {
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="shrink-0 rounded-md border border-[var(--line-strong)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--accent)]">{item.sport}</span>
                     <strong className="truncate text-[length:var(--fs-sm)]">{item.player}</strong>
+                    {signal ? (
+                      <span
+                        data-qa="saved-activity"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[color-mix(in_srgb,var(--accent)_35%,var(--line))] bg-[var(--accent-soft)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--accent)]"
+                      >
+                        <Activity className="size-2.5" aria-hidden />
+                        {signal}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="mt-1 truncate text-[length:var(--fs-xs)] font-semibold text-[var(--text-2)]">
                     {item.market} · {item.line} · {item.period || 'game'}
@@ -232,7 +310,8 @@ function SavedProps() {
                   <Trash2 className="size-4" aria-hidden />
                 </button>
               </article>
-            ))}
+              );
+            })}
           </div>
         </>
       )}

@@ -1,5 +1,5 @@
 Release: player registry + PrizePicks NFL fantasy + player-card/data refresh, 2026-09-23
-Current production head: 24119d2f322dc6b2b9dc90f4827a80f58fe8adc1
+Current production head at release review: f7b64473b33eb28de421370f862ed85160443004
 Verified deployed backend anchor: 7736cc44e38e055bae86c3c95ae584504822269a
 
 Release the already-merged, tested data-enrichment work through the existing protected

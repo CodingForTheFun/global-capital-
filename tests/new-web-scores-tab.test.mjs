@@ -8,6 +8,7 @@ test('actual Next mobile shell keeps Scores in the expanded bottom navigation', 
   assert.match(chrome, /RadioTower/);
   // Five items since Home moved to the logo; Scores and News keep their slots.
   assert.match(chrome, /grid-cols-5/);
+  assert.match(chrome, /data-mobile-nav-item=\{item\.label\.toLowerCase\(\)\}/);
 });
 
 test('Scores route is a real Next page backed by the live score API', () => {

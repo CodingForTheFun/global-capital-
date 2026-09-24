@@ -58,3 +58,81 @@ test('full-game formulas reject periods and multi-player selections',()=>{
   for(const extra of [{period:'h1'},{period:'q1'},{playerName:'Player One + Player Two'},{market:'Fantasy Score (Combo)'}]) assert.equal(fantasySpec({...params,...extra}),null);
   assert.ok(fantasySpec({...params,period:'full_game'}));
 });
+
+
+test('PrizePicks NFL offensive fantasy scoring uses the full verified PPR formula', async () => {
+  const nflParams = {
+    sport: 'NFL',
+    playerName: 'Fixture Quarterback',
+    position: 'QB',
+    market: 'Fantasy Score',
+    providerMarketKey: 'prizepicks:player_fantasy_score',
+  };
+  const spec = fantasySpec(nflParams);
+  assert.ok(spec);
+  assert.equal(spec.id, 'nfl_offense');
+  assert.equal(spec.proxyMarketKey, 'player_pass_yds');
+
+  const names = [
+    'passingYards','passingTouchdowns','interceptions',
+    'rushingYards','rushingTouchdowns','receptions',
+    'receivingYards','receivingTouchdowns','fumblesLost',
+    'twoPointConversions','offensiveFumbleRecoveryTouchdowns',
+    'kickPuntFieldGoalReturnTouchdowns',
+  ];
+  const stats = [['250','2','1','30','1','0','0','0','1','1','0','0']];
+  const result = await fetchFantasyResearch(nflParams, {
+    fetchHistory: async proxy => {
+      assert.equal(proxy.providerMarketKey, 'player_pass_yds');
+      return {
+        ok: true,
+        available: true,
+        player: { providerPlayerId: 'history:NFL:3918298' },
+        season: 2026,
+        coverage: { seasonComplete: true },
+        gameLog: [{ gameId:'nfl:1', date:'2026-09-20T00:00:00Z', season:2026, seasonType:2, value:250 }],
+      };
+    },
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({
+        names,
+        seasonTypes: [{ categories: [{ type:'event', events:[{ eventId:'1', stats:stats[0] }] }] }],
+      }),
+    }),
+  });
+  // 250 pass yds=10, 2 pass TD=8, INT=-1, 30 rush yds=3,
+  // rush TD=6, fumble=-1, 2PT=2 => 27.
+  assert.equal(result.available, true);
+  assert.equal(result.gameLog[0].value, 27);
+});
+
+test('PrizePicks NFL fantasy history fails closed when a scoring component is missing', async () => {
+  const nflParams = {
+    sport: 'NFL',
+    playerName: 'Fixture Receiver',
+    position: 'WR',
+    market: 'Fantasy Points',
+    providerMarketKey: 'prizepicks:player_fantasy_points',
+  };
+  const result = await fetchFantasyResearch(nflParams, {
+    fetchHistory: async proxy => ({
+      ok:true,
+      available:true,
+      player:{providerPlayerId:'history:NFL:4426354'},
+      season:2026,
+      coverage:{seasonComplete:true},
+      gameLog:[{gameId:'nfl:2',date:'2026-09-20T00:00:00Z',season:2026,seasonType:2,value:80}],
+    }),
+    fetchImpl: async () => ({
+      ok:true,
+      json:async()=>({
+        names:['passingYards','passingTouchdowns','interceptions','rushingYards','rushingTouchdowns','receptions','receivingYards','receivingTouchdowns','fumblesLost','twoPointConversions','offensiveFumbleRecoveryTouchdowns'],
+        seasonTypes:[{categories:[{type:'event',events:[{eventId:'2',stats:['0','0','0','0','0','6','80','1','0','0','0']}]}]}],
+      }),
+    }),
+  });
+  assert.equal(result.available, false);
+  assert.equal(result.lineOnly, true);
+  assert.equal(result.code, 'FANTASY_COMPONENTS_INCOMPLETE');
+});

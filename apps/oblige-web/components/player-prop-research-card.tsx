@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { BarChart3, BookOpen, CalendarDays, ChevronDown, ChevronRight, Flame, History, Minus, Plus, SlidersHorizontal, Star, Target, TrendingUp, Users } from 'lucide-react';
+import { BarChart3, BookOpen, CalendarDays, ChevronDown, ChevronRight, Flame, History, Minus, Plus, RotateCcw, SlidersHorizontal, Star, Target, TrendingUp, Users } from 'lucide-react';
 import type { GameLogRow, LineHistoryPoint, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
 import {
   applyFilters,
@@ -9,12 +9,17 @@ import {
   headToHead,
   sortRecentFirst,
   type SampleFilters,
+  advancedFilterCount,
+  EMPTY_FILTERS,
+  filterCoverage,
+  upcomingRest,
 } from '@/lib/analytics';
 import { buildOpponentOptions, currentOpponentLabels, sameTeamLabel } from '@/lib/opponent-options';
 import { bookInfo } from '../../../lib/constants/books.mjs';
 import { catalogBookRows, type CatalogBookRow } from '@/lib/book-catalog';
 import { expectedValueFor, expectedValueSourceLabel, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 import { PlayerAvatar } from '@/components/face-card';
+import { GameContext } from '@/components/game-context';
 import { fetchLineHistory } from '@/lib/api';
 import { marketDisplayLabel, odds, shortDate, shortTime } from '@/lib/utils';
 
@@ -79,7 +84,6 @@ type SupportMetric = {
   sample: number;
 };
 
-const EMPTY_FILTERS: SampleFilters = { opponent: 'all', season: 'all', venue: 'all' };
 const text = (value: unknown) => String(value ?? '').trim();
 
 function numberOf(value: unknown): number | null {
@@ -321,6 +325,40 @@ function SelectPill({
   );
 }
 
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange(value: string): void;
+}) {
+  const active = value !== 'all';
+  return (
+    <label className="grid min-w-0 gap-1">
+      <span className="truncate text-[9px] font-bold text-[#7E97B0]">{label}</span>
+      <span className={cx(
+        'relative flex h-10 items-center rounded-lg border bg-[#0B1826] px-3 pr-8 text-[11px] font-semibold',
+        active ? 'border-[#0A8EE8] text-white' : 'border-[#244868] text-[#C6D0DE]',
+      )}>
+        <span className="truncate">{options.find((option) => option.value === value)?.label || 'Any'}</span>
+        <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-[#7E97B0]" aria-hidden />
+        <select
+          aria-label={label}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+        >
+          {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </span>
+    </label>
+  );
+}
+
 function HistoryChart({
   games,
   line,
@@ -523,6 +561,7 @@ export function PlayerPropResearchCard({
   onMarket,
 }: Props) {
   const [filters, setFilters] = React.useState<SampleFilters>(EMPTY_FILTERS);
+  const [showMoreFilters, setShowMoreFilters] = React.useState(false);
   const [sample, setSample] = React.useState<SampleId>('l10');
   const [lineHistory, setLineHistory] = React.useState<LineHistoryPoint[]>([]);
 
@@ -568,6 +607,16 @@ export function PlayerPropResearchCard({
     () => buildOpponentOptions(verifiedGames.map((game) => game.opponent), group, research?.leagueTeams || []),
     [verifiedGames, group, research?.leagueTeams],
   );
+  const coverage = React.useMemo(() => filterCoverage(rawGames), [rawGames]);
+  const restUpcoming = React.useMemo(() => upcomingRest(rawGames, group.startsAt), [rawGames, group.startsAt]);
+  const minuteOptions = React.useMemo(() => {
+    const played = verifiedGames.map((game) => numberOf(game.minutes)).filter((value): value is number => value !== null && value > 0);
+    // Offer only thresholds that actually split this sample.
+    const steps = [10, 15, 20, 25, 30, 35, 40].filter((step) => played.some((value) => value < step) && played.some((value) => value >= step));
+    return [{ value: 'all', label: 'Any' }, ...steps.map((step) => ({ value: String(step), label: step + '+ min' }))];
+  }, [verifiedGames]);
+  const advancedCount = advancedFilterCount(filters);
+  const anyAdvanced = coverage.result || coverage.role || coverage.seasonType || coverage.rest || minuteOptions.length > 1;
   const seasonOptions = React.useMemo(() => {
     const seasons = [...new Set(verifiedGames.map((game) => text(game.season)).filter(Boolean))].sort().reverse();
     return [{ value: 'all', label: 'All' }, ...seasons.map((season) => ({ value: season, label: season }))];
@@ -808,7 +857,7 @@ export function PlayerPropResearchCard({
         <div className="p-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="truncate text-[18px] font-black tracking-[-.02em] text-white">{marketLabel}</h2>
-            <div className="text-[8px] font-bold text-[#66809B]">{loading ? 'Loading verified history…' : filteredGames.length + ' / ' + verifiedGames.length + ' verified'}</div>
+            <div data-qa="sample-count" className="shrink-0 text-[9px] font-bold text-[#66809B]">{loading ? 'Loading verified history…' : filteredGames.length + ' of ' + verifiedGames.length + ' verified ' + (verifiedGames.length === 1 ? 'game' : 'games')}</div>
           </div>
 
           <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -816,6 +865,30 @@ export function PlayerPropResearchCard({
               <button type="button" aria-label="Lower target line" onClick={() => stepLine(-1)} className="grid place-items-center border-r border-[#244868] text-[#55B8FF]"><Minus className="h-4 w-4" /></button>
               <div data-qa="line-number" className="grid place-items-center text-[16px] font-black text-white">{state.line}</div>
               <button type="button" aria-label="Raise target line" onClick={() => stepLine(1)} className="grid place-items-center border-l border-[#244868] text-[#55B8FF]"><Plus className="h-4 w-4" /></button>
+            </div>
+
+            <div role="group" aria-label="Hit-rate side" className="grid h-10 grid-cols-2 overflow-hidden rounded-lg border border-[#244868] bg-[#081523] text-[12px] font-black">
+              {(['OVER', 'UNDER'] as const).map((side) => {
+                const active = state.side === side;
+                const letter = side === 'OVER' ? 'O' : 'U';
+                return (
+                  <button
+                    key={side}
+                    type="button"
+                    aria-pressed={active}
+                    aria-label={letter + ' ' + state.line}
+                    onClick={() => onState({ ...state, side })}
+                    className={cx(
+                      'w-10 transition',
+                      active
+                        ? side === 'OVER' ? 'bg-[#0E3A2A] text-[#23E787]' : 'bg-[#3A0E1A] text-[#FF6B7D]'
+                        : 'text-[#6F88A3] hover:text-white',
+                    )}
+                  >
+                    {letter}
+                  </button>
+                );
+              })}
             </div>
 
             <label className="relative flex h-10 min-w-[130px] items-center gap-2 rounded-lg border border-[#244868] bg-[#081523] px-3 text-[9px] font-bold">
@@ -849,10 +922,23 @@ export function PlayerPropResearchCard({
               <Star className="h-5 w-5" fill={favourite ? 'currentColor' : 'none'} />
             </button>
 
-            <div className="ml-auto hidden h-10 items-center gap-2 rounded-lg border border-[#244868] bg-[#081523] px-3 text-[9px] text-[#7790AA] sm:flex">
-              <SlidersHorizontal className="h-4 w-4 text-[#2FAEFF]" />
-              Verified filters
-            </div>
+            <button
+              type="button"
+              aria-expanded={showMoreFilters}
+              aria-controls="more-history-filters"
+              onClick={() => setShowMoreFilters((open) => !open)}
+              className={cx(
+                'relative ml-auto flex h-10 items-center gap-2 rounded-lg border bg-[#081523] px-3 text-[10px] font-bold',
+                showMoreFilters || advancedCount ? 'border-[#0A8EE8] text-white shadow-[0_0_14px_rgba(0,153,255,.25)]' : 'border-[#244868] text-[#9DB2C8]',
+              )}
+            >
+              <SlidersHorizontal className="h-4 w-4 text-[#2FAEFF]" aria-hidden />
+              <span className="hidden min-[380px]:inline">More filters</span>
+              <span className="sr-only min-[380px]:hidden">More filters</span>
+              {advancedCount ? (
+                <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[#0A8EE8] px-1 text-[9px] font-black text-white">{advancedCount}</span>
+              ) : null}
+            </button>
           </div>
 
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -879,6 +965,84 @@ export function PlayerPropResearchCard({
               </label>
             ) : null}
           </div>
+
+          {!quoteAtResearchLine ? (
+            <div className="mt-2 flex items-center gap-2 text-[9px] text-[#7E97B0]">
+              <span className="rounded-md border border-[#6B4F0A] bg-[#2A1F05] px-1.5 py-0.5 font-black text-[#FACC15]">Research line</span>
+              <span>Books post {group.line}; prices apply to the posted line only.</span>
+            </div>
+          ) : null}
+
+          {showMoreFilters ? (
+            <div id="more-history-filters" className="mt-2 rounded-xl border border-[#1C3B58] bg-[#06111D] p-3">
+              {anyAdvanced ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {coverage.rest ? (
+                    <FilterSelect
+                      label={'Days rest' + (restUpcoming !== null ? ' (upcoming: ' + restUpcoming + ')' : '')}
+                      value={filters.rest || 'all'}
+                      options={[
+                        { value: 'all', label: 'Any' },
+                        { value: '0', label: 'Back-to-back' },
+                        { value: '1', label: '1 day' },
+                        { value: '2', label: '2 days' },
+                        { value: '3+', label: '3+ days' },
+                      ]}
+                      onChange={(rest) => setFilters((previous) => ({ ...previous, rest: rest as SampleFilters['rest'] }))}
+                    />
+                  ) : null}
+                  {coverage.result ? (
+                    <FilterSelect
+                      label="Win/Loss"
+                      value={filters.result || 'all'}
+                      options={[{ value: 'all', label: 'Any' }, { value: 'W', label: 'Team won' }, { value: 'L', label: 'Team lost' }]}
+                      onChange={(result) => setFilters((previous) => ({ ...previous, result: result as SampleFilters['result'] }))}
+                    />
+                  ) : null}
+                  {coverage.role ? (
+                    <FilterSelect
+                      label="Role"
+                      value={filters.role || 'all'}
+                      options={[{ value: 'all', label: 'Any' }, { value: 'starter', label: 'Started' }, { value: 'bench', label: 'Bench' }]}
+                      onChange={(role) => setFilters((previous) => ({ ...previous, role: role as SampleFilters['role'] }))}
+                    />
+                  ) : null}
+                  {minuteOptions.length > 1 ? (
+                    <FilterSelect
+                      label="Minutes played"
+                      value={filters.minutes || 'all'}
+                      options={minuteOptions}
+                      onChange={(minutes) => setFilters((previous) => ({ ...previous, minutes }))}
+                    />
+                  ) : null}
+                  {coverage.seasonType ? (
+                    <FilterSelect
+                      label="Game type"
+                      value={filters.seasonType || 'all'}
+                      options={[{ value: 'all', label: 'Any' }, { value: 'regular', label: 'Regular season' }, { value: 'post', label: 'Playoffs' }]}
+                      onChange={(seasonType) => setFilters((previous) => ({ ...previous, seasonType: seasonType as SampleFilters['seasonType'] }))}
+                    />
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-[10px] leading-4 text-[#7E97B0]">
+                  {loading ? 'Loading verified history…' : 'This player\'s verified history has no rest, result, role or minutes detail to filter by.'}
+                </p>
+              )}
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <p className="text-[9px] leading-4 text-[#55718E]">Only filters this player's verified history can answer are shown.</p>
+                {advancedCount || filters.opponent !== 'all' || filters.season !== 'all' || filters.venue !== 'all' ? (
+                  <button
+                    type="button"
+                    onClick={() => setFilters(EMPTY_FILTERS)}
+                    className="flex shrink-0 items-center gap-1 rounded-md border border-[#244868] px-2 py-1 text-[9px] font-bold text-[#9DB2C8] hover:text-white"
+                  >
+                    <RotateCcw className="h-3 w-3" aria-hidden /> Clear all
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {unavailableReason ? <p className="mt-1 text-[9px] leading-4 text-[#FF9AAF]">{unavailableReason}</p> : null}
 
@@ -932,6 +1096,10 @@ export function PlayerPropResearchCard({
           <p className="px-3 py-4 text-[9px] text-[#7E97B0]">No verified stats for this player yet.</p>
         )}
       </section>
+
+      <div className="mt-2">
+        <GameContext group={group} />
+      </div>
 
       <div className="mt-2 grid grid-cols-2 gap-2">
         <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">

@@ -1,13 +1,13 @@
 'use client';
 import * as React from 'react';
-import { Download, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 type InstallEvent = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
 
 export function AppInstall() {
   const dialog = React.useRef<HTMLDialogElement>(null);
   const [event, setEvent] = React.useState<InstallEvent | null>(null);
-  const [installed, setInstalled] = React.useState(false);
+  const [, setInstalled] = React.useState(false);
   const [offline, setOffline] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [message, setMessage] = React.useState('');
@@ -52,7 +52,6 @@ export function AppInstall() {
 
   return <>
     {offline && <p className="op-offline" role="status">Offline — live lines and account changes require a connection.</p>}
-    {!installed && <div className="op-install-entry"><button type="button" onClick={() => dialog.current?.showModal()}><Download size={17} aria-hidden="true" /> Install Oblige Props</button><span>Same account. Home Screen access.</span></div>}
     <dialog ref={dialog} className="op-install-dialog" aria-labelledby="op-install-title">
       <button type="button" className="op-install-close" aria-label="Close installation instructions" onClick={() => dialog.current?.close()}><X size={20} /></button>
       <div className="op-install-mark" aria-hidden="true">OP</div>

@@ -33,7 +33,7 @@ function ownRow(value: MatchupResponse | null, playerId: string | null, pick: (t
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <article className="min-w-0 rounded-xl border border-slate-800 bg-slate-950/35 p-3">
+    <article className="min-w-0 rounded-xl border border-[#1C3B58] bg-[#081421] p-3">
       <h4 className="mb-2 truncate text-[11px] font-black text-white">{title}</h4>
       {children}
     </article>
@@ -44,7 +44,7 @@ function Rows({ head, rows }: { head: [string, string, string]; rows: Array<[Rea
   return (
     <div className="max-h-64 overflow-auto">
       <table className="w-full text-left text-[10px]">
-        <thead className="sticky top-0 bg-[#0b111b] text-[8px] uppercase tracking-wide text-slate-500">
+        <thead className="sticky top-0 bg-[#081421] text-[8px] uppercase tracking-wide text-slate-500">
           <tr>{head.map((label) => <th key={label} className="py-1 pr-2 font-bold">{label}</th>)}</tr>
         </thead>
         <tbody>
@@ -95,7 +95,7 @@ export function GameContext({ group }: { group: PropGroup }) {
   const sourceUrl = ready && ESPN_GAME_URL.test(value?.sourceUrl || '') ? value?.sourceUrl : null;
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-[#0d1420] p-3 sm:p-4" aria-label="Game context" aria-busy={loading}>
+    <section className="rounded-[14px] border border-[#153D5F] bg-[#071321] p-3 sm:p-4" aria-label="Game context" aria-busy={loading}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-black text-white">Game Context</h3>
@@ -158,6 +158,9 @@ export function GameContext({ group }: { group: PropGroup }) {
             ))}
           </div>
 
+          {teams.every((team) => !team.lineup?.available && !(team.lineup?.starters?.length || team.lineup?.probables?.length)) ? (
+            <Muted>Lineups: confirmed starters have not been published for either team.</Muted>
+          ) : (
           <div className="grid gap-2 sm:grid-cols-2">
             {teams.map((team) => {
               const rows = [...(team.lineup?.starters || []), ...(team.lineup?.probables || [])];
@@ -178,6 +181,7 @@ export function GameContext({ group }: { group: PropGroup }) {
               );
             })}
           </div>
+          )}
 
           <div className="grid gap-2 sm:grid-cols-3">
             <Card title="Pre-game win estimate">

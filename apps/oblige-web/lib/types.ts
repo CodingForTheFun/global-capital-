@@ -137,6 +137,12 @@ export type GameLogRow = {
   /** null means the game pushed, or that there is no line to compare against. */
   hit?: boolean | null;
   push?: boolean | null;
+  /** Team result, score and starter flag, when the stats source records them. */
+  gameResult?: 'W' | 'L' | 'T' | null;
+  scoreFor?: number | null;
+  scoreAgainst?: number | null;
+  started?: boolean | null;
+  opponentName?: string | null;
 };
 
 export type ResearchResponse = {

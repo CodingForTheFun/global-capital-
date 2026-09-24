@@ -85,11 +85,96 @@ export type SampleFilters = {
   opponent: string;
   season: string;
   venue: 'all' | 'home' | 'away';
+  /** Team result in that game, as recorded by the stats source. */
+  result?: 'all' | 'W' | 'L';
+  /** Whether the player was a listed starter. */
+  role?: 'all' | 'starter' | 'bench';
+  /** ESPN season type: 2 regular season, 3 postseason. */
+  seasonType?: 'all' | 'regular' | 'post';
+  /** Days since the player's previous logged game. */
+  rest?: 'all' | '0' | '1' | '2' | '3+';
+  /** Minimum minutes played, e.g. '25'. */
+  minutes?: string;
 };
 
-export const EMPTY_FILTERS: SampleFilters = { opponent: 'all', season: 'all', venue: 'all' };
+export const EMPTY_FILTERS: SampleFilters = {
+  opponent: 'all',
+  season: 'all',
+  venue: 'all',
+  result: 'all',
+  role: 'all',
+  seasonType: 'all',
+  rest: 'all',
+  minutes: 'all',
+};
+
+const DAY_MS = 86_400_000;
+
+/** Strict: `num(null)` is 0 because Number(null) is 0, and a DNP is not a zero. */
+function recorded(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Calendar days between two instants, counted on UTC dates so a late tip and
+ * an early one the next day read as one day apart, not zero. */
+function calendarDays(later: number, earlier: number) {
+  const a = Date.UTC(new Date(later).getUTCFullYear(), new Date(later).getUTCMonth(), new Date(later).getUTCDate());
+  const b = Date.UTC(new Date(earlier).getUTCFullYear(), new Date(earlier).getUTCMonth(), new Date(earlier).getUTCDate());
+  return Math.round((a - b) / DAY_MS);
+}
+
+/**
+ * Days of rest before each logged game: calendar days since the previous game
+ * in the same log, minus one (back-to-back = 0). The oldest game has no
+ * earlier game to measure from, so it has no rest value rather than a guess.
+ * Keyed by row identity so it survives any later filtering or sorting.
+ */
+export function restByGame(games: GameLogRow[]): Map<GameLogRow, number> {
+  // Only games the player actually logged a value in count as games played.
+  const dated = games
+    .filter((game) => recorded(game.value) !== null)
+    .map((game) => ({ game, time: Date.parse(game.date || '') }))
+    .filter((row) => Number.isFinite(row.time))
+    .sort((a, b) => a.time - b.time);
+  const out = new Map<GameLogRow, number>();
+  for (let index = 1; index < dated.length; index += 1) {
+    const gap = calendarDays(dated[index].time, dated[index - 1].time);
+    if (gap >= 1) out.set(dated[index].game, gap - 1);
+  }
+  return out;
+}
+
+/** Rest before the upcoming game, measured from the latest logged game. */
+export function upcomingRest(games: GameLogRow[], startsAt: string | null | undefined): number | null {
+  const start = Date.parse(startsAt || '');
+  const latest = Math.max(...games.filter((game) => recorded(game.value) !== null).map((game) => Date.parse(game.date || '')).filter(Number.isFinite));
+  if (!Number.isFinite(start) || !Number.isFinite(latest) || start <= latest) return null;
+  const gap = calendarDays(start, latest);
+  return gap >= 1 ? gap - 1 : null;
+}
+
+function restBucket(days: number) {
+  return days >= 3 ? '3+' : String(days);
+}
+
+/** Which advanced filters this log can actually answer. A filter with no
+ * source field is hidden rather than offered and silently emptying the sample. */
+export function filterCoverage(games: GameLogRow[]) {
+  const has = (pick: (game: GameLogRow) => boolean) => games.some(pick);
+  return {
+    result: has((game) => game.gameResult === 'W') && has((game) => game.gameResult === 'L'),
+    role: has((game) => game.started === true) && has((game) => game.started === false),
+    seasonType: has((game) => game.seasonType === 2) && has((game) => game.seasonType === 3),
+    rest: restByGame(games).size >= 2,
+    minutes: games.filter((game) => (recorded(game.minutes) ?? 0) > 0).length >= 2,
+  };
+}
 
 export function applyFilters(games: GameLogRow[], filters: SampleFilters) {
+  const rest = filters.rest && filters.rest !== 'all' ? restByGame(games) : null;
+  const minMinutes = filters.minutes && filters.minutes !== 'all' ? recorded(filters.minutes) : null;
   return games.filter((game) => {
     if (filters.venue === 'home' && game.isHome !== true) return false;
     if (filters.venue === 'away' && game.isHome !== false) return false;
@@ -98,12 +183,29 @@ export function applyFilters(games: GameLogRow[], filters: SampleFilters) {
     // exact comparison silently emptied the sample for every such pair.
     if (filters.opponent !== 'all' && !sameTeamLabel(game.opponent, filters.opponent)) return false;
     if (filters.season !== 'all' && String(game.season ?? '') !== filters.season) return false;
+    // Every advanced filter fails closed: a game missing the field is not
+    // assumed to match.
+    if (filters.result && filters.result !== 'all' && game.gameResult !== filters.result) return false;
+    if (filters.role === 'starter' && game.started !== true) return false;
+    if (filters.role === 'bench' && game.started !== false) return false;
+    if (filters.seasonType === 'regular' && game.seasonType !== 2) return false;
+    if (filters.seasonType === 'post' && game.seasonType !== 3) return false;
+    if (rest) {
+      const days = rest.get(game);
+      if (days === undefined || restBucket(days) !== filters.rest) return false;
+    }
+    if (minMinutes !== null && !((recorded(game.minutes) ?? -1) >= minMinutes)) return false;
     return true;
   });
 }
 
+export function advancedFilterCount(filters: SampleFilters) {
+  return (['result', 'role', 'seasonType', 'rest', 'minutes'] as const)
+    .filter((key) => filters[key] && filters[key] !== 'all').length;
+}
+
 export function filtersActive(filters: SampleFilters) {
-  return filters.opponent !== 'all' || filters.season !== 'all' || filters.venue !== 'all';
+  return filters.opponent !== 'all' || filters.season !== 'all' || filters.venue !== 'all' || advancedFilterCount(filters) > 0;
 }
 
 export const SAMPLE_WINDOWS = [

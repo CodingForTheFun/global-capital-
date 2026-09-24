@@ -90,7 +90,7 @@ try {
     // compact card this check used to target is no longer routed.
     const panel = page.locator('[data-design="player-prop-research-card"]');
     const sampleCount = panel.locator('[data-qa="sample-count"]');
-    await sampleCount.filter({ hasText: '20 of 20 verified games' }).waitFor();
+    await sampleCount.filter({ hasText: '20 / 20 verified' }).waitFor();
     const initialResearchRequests = researchRequests;
     const opponent = panel.getByLabel('Opponent');
     const season = panel.getByLabel('Season');

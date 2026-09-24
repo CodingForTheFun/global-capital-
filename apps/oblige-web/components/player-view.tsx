@@ -48,6 +48,8 @@ function readFavourites(): string[] {
 }
 
 function watchlistItemFor(group: PropGroup): WatchlistItem {
+  const quote = group.bestOver || group.bestUnder || group.quotes[0] || null;
+  const eventId = String(quote?.eventId || group.sportsGameOddsEventId || '').trim() || null;
   return {
     key: group.key,
     sport: group.sport,
@@ -58,6 +60,8 @@ function watchlistItemFor(group: PropGroup): WatchlistItem {
     team: group.team,
     opponent: group.opponent,
     propId: group.propId,
+    eventId,
+    marketId: group.marketId,
     startsAt: group.startsAt,
   };
 }

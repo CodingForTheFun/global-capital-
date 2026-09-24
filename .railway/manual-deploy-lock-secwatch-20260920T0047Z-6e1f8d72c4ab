@@ -1,14 +1,13 @@
-Release: multi-year prop history, 2026-09-21
-Source PR: #546
-Merged history SHA: 3c871ffa1514e5448e119702c608f754f2fe4bbd
-Current production snapshot: 37fb47f21742613ee7b81fbb4d9d3089c719f604
-Verified deployed recovery anchor: 8ea9d17918574dcbfa857ad364803a82b158a7f0
+Release: player registry + PrizePicks NFL fantasy + player-card/data refresh, 2026-09-23
+Current production head at release review: f7b64473b33eb28de421370f862ed85160443004
+Verified deployed backend anchor: 7736cc44e38e055bae86c3c95ae584504822269a
 
-Release the already-merged and fully tested multi-year player-prop history upgrade through
-the existing reviewed recovery gate. Full player research may load up to five verified
-seasons and 100 raw PropLine games, while board hydration remains at the existing 40-game
-window. ESPN backfill accepts only the exact requested season and existing competition
-checks; missing history remains unavailable rather than synthesized. The Season control
-shows All years plus returned verified years, while SZN analytics remain scoped to the
-active regular season. This release changes no auth, domain, database schema, provider
-polling cadence, secret, or customer-access policy.
+Release the already-merged, tested data-enrichment work through the existing protected
+Railway recovery path. The current branch includes the canonical cross-provider player
+registry, verified PrizePicks NFL offensive fantasy reconstruction, the reference player
+research-card work, and the PropLine lease-coordination fix.
+
+Fantasy reconstruction fails closed when required scoring components are missing and keeps
+the existing exact graded SportsGameOdds fallback. The registry does not rewrite existing
+prop/player foreign keys. No auth, domain, customer-access policy, secret, or paid-provider
+polling cadence is changed by this release marker.

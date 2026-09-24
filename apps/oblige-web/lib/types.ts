@@ -188,3 +188,113 @@ export type LineHistoryResponse = {
 };
 
 export type Account = { id: string; email?: string } | null;
+
+/** One player row in a published injury report or lineup. */
+export type MatchupPlayer = {
+  playerId?: string;
+  playerName?: string;
+  position?: string | null;
+  status?: string;
+  detail?: string | null;
+  reportedAt?: string | null;
+};
+
+export type MatchupTeam = {
+  teamId?: string;
+  side?: 'home' | 'away';
+  name?: string;
+  abbreviation?: string;
+  record?: string | null;
+  rank?: number | null;
+  injuries?: { available?: boolean; rows?: MatchupPlayer[] };
+  lineup?: {
+    available?: boolean;
+    starters?: MatchupPlayer[];
+    bench?: MatchupPlayer[];
+    probables?: MatchupPlayer[];
+  };
+};
+
+/** Game context from `/api/apex/research-matchup`. Unavailable answers carry
+ * a sentence the UI prints verbatim instead of guessing. */
+export type MatchupResponse = {
+  ok?: boolean;
+  available?: boolean;
+  code?: string;
+  message?: string;
+  sport?: string;
+  eventId?: string;
+  gameStartTime?: string;
+  source?: string;
+  sourceUrl?: string;
+  retrievedAt?: string;
+  expiresAt?: string;
+  pregame?: boolean;
+  prediction?: {
+    available?: boolean;
+    homePercent?: number;
+    awayPercent?: number;
+    note?: string;
+    message?: string;
+    expiresAt?: string;
+  };
+  odds?: {
+    available?: boolean;
+    book?: string;
+    homeMoneyline?: number | null;
+    awayMoneyline?: number | null;
+    spread?: string | null;
+    total?: number | null;
+    message?: string;
+  };
+  teams?: MatchupTeam[];
+  venue?: { name?: string | null; city?: string | null; indoor?: boolean | null };
+  weather?: { available?: boolean; temperature?: number; unit?: string; note?: string; message?: string };
+};
+
+export type LiveMoveType = 'line_movement' | 'steam' | 'market_suspended' | 'resolution';
+
+/** One sanitised realtime market event from `/api/apex/live-moves`. */
+export type LiveMove = {
+  id?: string;
+  type?: LiveMoveType | string;
+  sport?: string | null;
+  eventId?: string | null;
+  homeTeam?: string | null;
+  awayTeam?: string | null;
+  bookmakerKey?: string | null;
+  bookmakerTitle?: string | null;
+  playerName?: string | null;
+  marketKey?: string | null;
+  marketDescription?: string | null;
+  outcomeName?: string | null;
+  dfsOddsType?: string | null;
+  previous?: { price?: number | null; point?: number | null };
+  current?: { price?: number | null; point?: number | null };
+  priceChangePct?: number | null;
+  resolution?: string | null;
+  actualValue?: number | null;
+  steamScore?: number | null;
+  consensusDirection?: string | null;
+  booksMoved?: number | null;
+  booksQuoting?: number | null;
+  booksAgreeing?: number | null;
+  books?: string[];
+  markets?: unknown[];
+  occurredAt?: string | null;
+  receivedAt?: string | null;
+};
+
+export type LiveMovesResponse = {
+  ok?: boolean;
+  events?: LiveMove[];
+  summary?: {
+    windowMinutes?: number;
+    lineMovements?: number;
+    steam?: number;
+    marketSuspensions?: number;
+    resolutions?: number;
+  };
+  trendingPlayers?: Array<{ sport?: string; playerName: string; signals: number }>;
+  meta?: { connected?: boolean; lastEventAt?: string | null };
+};

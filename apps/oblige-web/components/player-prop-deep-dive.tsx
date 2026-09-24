@@ -13,6 +13,7 @@ import {
 import { buildOpponentOptions } from '@/lib/opponent-options';
 import { catalogBookRows } from '@/lib/book-catalog';
 import { PlayerAvatar } from '@/components/face-card';
+import { GameContext } from '@/components/game-context';
 import { marketDisplayLabel, odds, shortDate, shortTime } from '@/lib/utils';
 import { expectedValueFor, expectedValueSourceLabel, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 
@@ -755,6 +756,8 @@ export function PlayerPropDeepDive({
             ))}
           </div>
         </section>
+
+        <GameContext group={group} />
 
         <section className="rounded-2xl border border-slate-800 bg-[#0d1420] p-3 sm:p-4" aria-label="History model">
           <div className="mb-3 text-[9px] font-black uppercase tracking-[.16em] text-slate-500">Model choice</div>

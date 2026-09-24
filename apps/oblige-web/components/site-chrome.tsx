@@ -10,6 +10,7 @@ import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
 
 const NAV = [
   { href: '/board', label: 'Props' },
+  { href: '/moves', label: 'Moves' },
   { href: '/scores', label: 'Scores' },
   { href: '/news', label: 'News' },
   { href: '/research', label: 'Research' },
@@ -27,6 +28,7 @@ const MOBILE_NAV = [
 
 const MOBILE_MENU = [
   { href: '/board', label: 'Props' },
+  { href: '/moves', label: 'Live Moves' },
   { href: '/scores', label: 'Scores' },
   { href: '/news', label: 'News' },
   { href: '/research', label: 'Research' },
@@ -298,6 +300,7 @@ export function SiteFooter() {
             title="Product"
             links={[
               { href: '/board', label: 'Props' },
+              { href: '/moves', label: 'Live Moves' },
               { href: '/scores', label: 'Scores' },
               { href: '/news', label: 'News' },
               { href: '/research', label: 'Player research' },

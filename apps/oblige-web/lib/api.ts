@@ -3,6 +3,8 @@ import type {
   BoardResponse,
   GameLogRow,
   LineHistoryResponse,
+  LiveMovesResponse,
+  MatchupResponse,
   PropGroup,
   PropRow,
   ResearchResponse,
@@ -542,6 +544,68 @@ export async function fetchResearchBatch(
   }
 
   return body.results;
+}
+
+const MATCHUP_UNAVAILABLE: MatchupResponse = {
+  ok: true,
+  available: false,
+  code: 'MATCHUP_SOURCE_UNAVAILABLE',
+  message: 'Game context could not load. Try again shortly.',
+};
+
+/**
+ * Injuries, lineups, weather and the published pre-game estimate for the
+ * prop's game. The backend needs the exact event identity; without it we
+ * answer "unavailable" locally rather than sending a guess.
+ */
+export async function fetchMatchup(group: PropGroup, signal?: AbortSignal): Promise<MatchupResponse> {
+  const quote = group.bestOver || group.bestUnder || group.quotes[0] || null;
+  const eventId = quote?.eventId ? String(quote.eventId) : '';
+  if (!eventId || !group.homeTeam || !group.awayTeam || !group.startsAt) {
+    return {
+      ok: true,
+      available: false,
+      code: 'MATCHUP_IDENTITY_MISSING',
+      message: 'Game context needs a verified game, teams and start time, which this prop does not carry.',
+    };
+  }
+  const params = new URLSearchParams({
+    sport: group.sport,
+    eventId,
+    homeTeam: group.homeTeam,
+    awayTeam: group.awayTeam,
+    gameStartTime: group.startsAt,
+  });
+  try {
+    const value = await getJson<MatchupResponse>(`/api/apex/research-matchup?${params}`, signal);
+    if (typeof value?.available !== 'boolean') return MATCHUP_UNAVAILABLE;
+    // A context for a different game is worse than none.
+    if (value.available && (value.eventId !== eventId || !Array.isArray(value.teams) || value.teams.length !== 2)) {
+      return MATCHUP_UNAVAILABLE;
+    }
+    return value;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    if (error instanceof ApiError && error.status === 401) {
+      return { ok: false, available: false, code: 'AUTH_REQUIRED', message: 'Sign in to view game context.' };
+    }
+    if (error instanceof ApiError && error.message && error.status === 400) {
+      return { ok: true, available: false, code: error.code, message: error.message };
+    }
+    return MATCHUP_UNAVAILABLE;
+  }
+}
+
+/** Realtime line movement, steam, suspensions and gradings. */
+export async function fetchLiveMoves(
+  filters: { sport?: string | null; type?: string | null; player?: string | null; limit?: number },
+  signal?: AbortSignal,
+): Promise<LiveMovesResponse> {
+  const params = new URLSearchParams({ limit: String(Math.min(300, Math.max(1, filters.limit || 120))) });
+  if (filters.sport) params.set('sport', filters.sport);
+  if (filters.type) params.set('type', filters.type);
+  if (filters.player) params.set('player', filters.player);
+  return getJson<LiveMovesResponse>(`/api/apex/live-moves?${params}`, signal);
 }
 
 export async function fetchLineHistory(propId: string, signal?: AbortSignal) {

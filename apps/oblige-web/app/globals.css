@@ -719,30 +719,6 @@
    ============================================================================ */
 
 @layer components {
-  .op-install-entry {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    padding: 20px 16px;
-    color: var(--text-3);
-    font-size: 12px;
-  }
-  .op-install-entry button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 44px;
-    padding: 10px 14px;
-    border: 1px solid var(--line-strong);
-    border-radius: 10px;
-    background: var(--surface-2);
-    color: var(--text);
-    font-weight: 650;
-  }
-  .op-install-entry button:hover { border-color: var(--accent); }
-
   .op-install-dialog {
     position: fixed;
     inset: 0;
@@ -789,5 +765,4 @@
 
 @media (display-mode: standalone) {
   body { padding-top: env(safe-area-inset-top); }
-  .op-install-entry { display: none; }
 }

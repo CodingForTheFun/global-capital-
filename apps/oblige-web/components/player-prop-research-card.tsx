@@ -1,21 +1,28 @@
 'use client';
 
 import * as React from 'react';
-import { BarChart3, BookOpen, CalendarDays, ChevronDown, ChevronRight, Flame, History, Minus, Plus, SlidersHorizontal, Star, Target, TrendingUp, Users } from 'lucide-react';
-import type { GameLogRow, LineHistoryPoint, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
+import { BarChart3, BookOpen, CalendarDays, ChevronDown, ChevronRight, Flame, History, Minus, Plus, RotateCcw, Shield, SlidersHorizontal, Star, Target, TrendingUp, Users } from 'lucide-react';
+import type { DefensePositionResponse, DefenseTier, GameLogRow, MoneylineResponse, TennisContextResponse, LineHistoryPoint, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
 import {
   applyFilters,
   computeWindow,
   headToHead,
   sortRecentFirst,
   type SampleFilters,
+  advancedFilterCount,
+  EMPTY_FILTERS,
+  filterCoverage,
+  upcomingRest,
 } from '@/lib/analytics';
 import { buildOpponentOptions, currentOpponentLabels, sameTeamLabel } from '@/lib/opponent-options';
 import { bookInfo } from '../../../lib/constants/books.mjs';
 import { catalogBookRows, type CatalogBookRow } from '@/lib/book-catalog';
 import { expectedValueFor, expectedValueSourceLabel, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 import { PlayerAvatar } from '@/components/face-card';
-import { fetchLineHistory } from '@/lib/api';
+import { GameContext } from '@/components/game-context';
+import { OpponentField } from '@/components/opponent-field';
+import { fetchDefensePosition, fetchLineHistory, fetchMoneyline, fetchTennisContext } from '@/lib/api';
+import { DEFENSE_SPORTS, defenseMetricFor, defenseReading, exactPosition, metricLabel, ordinal } from '@/lib/defense';
 import { marketDisplayLabel, odds, shortDate, shortTime } from '@/lib/utils';
 
 export type PlayerPropResearchState = {
@@ -79,8 +86,8 @@ type SupportMetric = {
   sample: number;
 };
 
-const EMPTY_FILTERS: SampleFilters = { opponent: 'all', season: 'all', venue: 'all' };
 const text = (value: unknown) => String(value ?? '').trim();
+const DEFENSE_TIER_LABEL: Record<DefenseTier, string> = { soft: 'Soft', average: 'Average', tough: 'Tough' };
 
 function numberOf(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
@@ -161,6 +168,22 @@ function teamShort(label: unknown, leagueTeams: NonNullable<ResearchResponse['le
   // LAC, and picking either would put a wrong team under the bar.
   const matches = leagueTeams.filter((team) => sameTeamLabel(team?.name, value) || sameTeamLabel(team?.abbreviation, value));
   return matches.length === 1 ? text(matches[0]?.abbreviation) || value : value;
+}
+
+/**
+ * A person's opponent (tennis) as a three-letter surname code, the way score
+ * graphics show it. Display only: the full verified name stays in the tooltip
+ * and in every filter and head-to-head comparison.
+ */
+function personShort(label: unknown) {
+  const parts = text(label).split(/\s+/).filter(Boolean);
+  const surname = parts.length > 1 ? parts[parts.length - 1] : parts[0] || '';
+  return surname.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase();
+}
+
+function surname(label: unknown) {
+  const parts = text(label).split(/\s+/).filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 1] : parts[0] || '';
 }
 
 function quoteModifier(row: PropRow | null | undefined) {
@@ -321,18 +344,54 @@ function SelectPill({
   );
 }
 
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange(value: string): void;
+}) {
+  const active = value !== 'all';
+  return (
+    <label className="grid min-w-0 gap-1">
+      <span className="truncate text-[9px] font-bold text-[#7E97B0]">{label}</span>
+      <span className={cx(
+        'relative flex h-10 items-center rounded-lg border bg-[#0B1826] px-3 pr-8 text-[11px] font-semibold',
+        active ? 'border-[#0A8EE8] text-white' : 'border-[#244868] text-[#C6D0DE]',
+      )}>
+        <span className="truncate">{options.find((option) => option.value === value)?.label || 'Any'}</span>
+        <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-[#7E97B0]" aria-hidden />
+        <select
+          aria-label={label}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+        >
+          {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+      </span>
+    </label>
+  );
+}
+
 function HistoryChart({
   games,
   line,
   market,
   period,
   leagueTeams = [],
+  individual = false,
 }: {
   games: GameLogRow[];
   line: number;
   market: string;
   period: string;
   leagueTeams?: NonNullable<ResearchResponse['leagueTeams']>;
+  individual?: boolean;
 }) {
   if (!games.length) {
     return (
@@ -418,7 +477,7 @@ function HistoryChart({
           {rows.map((game, index) => (
             <span key={'label-' + (game.gameId || game.date || index)} className="min-w-0 overflow-hidden text-[7px] text-[#718198]">
               <b className="block truncate font-semibold text-[#93A2B8]">{numericDate(game.date)}</b>
-              <span className="block truncate">{game.isHome === false ? '@' : ''}{teamShort(game.opponent, leagueTeams) || '—'}</span>
+              <span className="block truncate">{individual ? personShort(game.opponent) || '—' : (game.isHome === false ? '@' : '') + (teamShort(game.opponent, leagueTeams) || '—')}</span>
             </span>
           ))}
         </div>
@@ -523,6 +582,7 @@ export function PlayerPropResearchCard({
   onMarket,
 }: Props) {
   const [filters, setFilters] = React.useState<SampleFilters>(EMPTY_FILTERS);
+  const [showMoreFilters, setShowMoreFilters] = React.useState(false);
   const [sample, setSample] = React.useState<SampleId>('l10');
   const [lineHistory, setLineHistory] = React.useState<LineHistoryPoint[]>([]);
 
@@ -546,7 +606,130 @@ export function PlayerPropResearchCard({
   }, [group.propId]);
 
   const marketLabel = marketDisplayLabel(group.market, group.player, group.marketId, group.sport);
-  const rawGames = research?.gameLog || [];
+  const sourceGames = research?.gameLog;
+  const sportKey = text(group.sport).toUpperCase();
+  const individualSport = /^(tennis|atp|wta|itf)$/i.test(sportKey);
+  const defenseMetric = React.useMemo(() => defenseMetricFor(sportKey, group.marketId, group.market), [sportKey, group.marketId, group.market]);
+  const defensePosition = exactPosition(
+    sportKey,
+    research?.context?.sportradar?.primaryPosition,
+    group.position,
+    research?.context?.sportradar?.position,
+  );
+  const [defense, setDefense] = React.useState<DefensePositionResponse | null>(null);
+  React.useEffect(() => {
+    if (!DEFENSE_SPORTS.has(sportKey) || !defenseMetric) {
+      setDefense(null);
+      return;
+    }
+    const controller = new AbortController();
+    fetchDefensePosition(sportKey, controller.signal)
+      .then(setDefense)
+      .catch(() => {
+        if (!controller.signal.aborted) setDefense(null);
+      });
+    return () => controller.abort();
+  }, [sportKey, defenseMetric]);
+  // Closing moneylines are read only after the filter panel is opened, and
+  // only for the latest 15 named matches: each close is a provider read.
+  const [moneyline, setMoneyline] = React.useState<MoneylineResponse | null>(null);
+  const [moneylineLoading, setMoneylineLoading] = React.useState(false);
+  const moneylineRequested = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    setMoneyline(null);
+    moneylineRequested.current = null;
+  }, [group.key]);
+  React.useEffect(() => {
+    if (!individualSport || !showMoreFilters || !sourceGames?.length) return;
+    const events = [...sourceGames]
+      .filter((game) => text(game.gameId) && text(game.opponent) && numberOf(game.value) !== null)
+      .sort((a, b) => (Date.parse(b.date || '') || 0) - (Date.parse(a.date || '') || 0))
+      .slice(0, 15)
+      .map((game) => ({ id: text(game.gameId), opponent: text(game.opponent) }));
+    const requestKey = group.key + '|' + events.map((event) => event.id).join(',');
+    if (!events.length || moneylineRequested.current === requestKey) return;
+    moneylineRequested.current = requestKey;
+    const controller = new AbortController();
+    setMoneylineLoading(true);
+    fetchMoneyline(sportKey, group.player, events, controller.signal)
+      .then(setMoneyline)
+      .catch(() => {
+        if (!controller.signal.aborted) moneylineRequested.current = null;
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setMoneylineLoading(false);
+      });
+    return () => {
+      controller.abort();
+      if (moneylineRequested.current === requestKey) moneylineRequested.current = null;
+      setMoneylineLoading(false);
+    };
+  }, [individualSport, showMoreFilters, sourceGames, group.key, group.player, sportKey]);
+
+  // Tennis context: today's opponent ranking/hand on load; hands and surfaces
+  // for past matches only once the filter panel asks for them.
+  const upcomingOpponent = text(research?.matchup?.opponent || group.opponent) || currentOpponentLabels(group)[0] || null;
+  const [tennis, setTennis] = React.useState<TennisContextResponse | null>(null);
+  const [tennisRetry, setTennisRetry] = React.useState(0);
+  const tennisRequested = React.useRef<string | null>(null);
+  const tennisFilled = React.useRef(false);
+  React.useEffect(() => {
+    setTennis(null);
+    setTennisRetry(0);
+    tennisRequested.current = null;
+    tennisFilled.current = false;
+  }, [group.key]);
+  React.useEffect(() => {
+    if (!individualSport || !sourceGames) return;
+    const fill = showMoreFilters;
+    if (!fill && tennisFilled.current) return;
+    const matches = [...sourceGames]
+      .filter((game) => text(game.gameId) && text(game.opponent) && text(game.date) && numberOf(game.value) !== null)
+      .sort((a, b) => (Date.parse(b.date || '') || 0) - (Date.parse(a.date || '') || 0))
+      .slice(0, 20)
+      .map((game) => ({ id: text(game.gameId), date: text(game.date), opponent: text(game.opponent) }));
+    const requestKey = [group.key, fill ? 'fill' : 'light', tennisRetry, upcomingOpponent || '', matches.map((match) => match.id).join(',')].join('|');
+    if (tennisRequested.current === requestKey) return;
+    tennisRequested.current = requestKey;
+    const controller = new AbortController();
+    let retryTimer: number | undefined;
+    fetchTennisContext(group.player, upcomingOpponent, matches, fill, controller.signal)
+      .then((value) => {
+        setTennis(value);
+        if (fill) tennisFilled.current = true;
+        // The server fills a few answers per call; ask again for the rest.
+        if (fill && value.available && value.complete === false && tennisRetry < 2) {
+          retryTimer = window.setTimeout(() => setTennisRetry((count) => count + 1), 12_000);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) tennisRequested.current = null;
+      });
+    return () => {
+      controller.abort();
+      if (retryTimer) window.clearTimeout(retryTimer);
+      if (tennisRequested.current === requestKey) tennisRequested.current = null;
+    };
+  }, [individualSport, sourceGames, showMoreFilters, tennisRetry, group.key, group.player, upcomingOpponent]);
+
+  // Each past game is tagged from separate verified sources before any filter
+  // runs; a tag stays null when its source cannot answer for that game.
+  const rawGames = React.useMemo(
+    () => (sourceGames || []).map((game) => {
+      const close = moneyline?.events?.[text(game.gameId)];
+      const match = tennis?.matches?.[text(game.gameId)];
+      return {
+        ...game,
+        opponentDefenseTier: defenseReading(defense, game.opponent, defensePosition, defenseMetric)?.tier ?? null,
+        winProbability: close?.available && Number.isFinite(Number(close.winProbability)) ? Number(close.winProbability) : null,
+        opponentRank: Number.isInteger(match?.opponentRank) ? match?.opponentRank ?? null : null,
+        opponentHand: match?.opponentHand === 'L' || match?.opponentHand === 'R' ? match.opponentHand : null,
+        surface: match?.surface || null,
+        indoor: typeof match?.indoor === 'boolean' ? match.indoor : null,
+      };
+    }),
+    [sourceGames, defense, defensePosition, defenseMetric, moneyline, tennis],
+  );
   const verifiedGames = React.useMemo(
     () => sortRecentFirst(rawGames.filter((game) => numberOf(game.value) !== null)),
     [rawGames],
@@ -564,10 +747,32 @@ export function PlayerPropResearchCard({
     () => text(research?.matchup?.opponent || group.opponent) || currentOpponentLabels(group)[0] || null,
     [research?.matchup?.opponent, group],
   );
+  const currentDefense = defenseReading(defense, currentOpponent, defensePosition, defenseMetric);
   const opponentOptions = React.useMemo(
     () => buildOpponentOptions(verifiedGames.map((game) => game.opponent), group, research?.leagueTeams || []),
     [verifiedGames, group, research?.leagueTeams],
   );
+  const coverage = React.useMemo(() => filterCoverage(rawGames), [rawGames]);
+  const restUpcoming = React.useMemo(() => upcomingRest(rawGames, group.startsAt), [rawGames, group.startsAt]);
+  const minuteOptions = React.useMemo(() => {
+    const played = verifiedGames.map((game) => numberOf(game.minutes)).filter((value): value is number => value !== null && value > 0);
+    // Offer only thresholds that actually split this sample.
+    const steps = [10, 15, 20, 25, 30, 35, 40].filter((step) => played.some((value) => value < step) && played.some((value) => value >= step));
+    return [{ value: 'all', label: 'Any' }, ...steps.map((step) => ({ value: String(step), label: step + '+ min' }))];
+  }, [verifiedGames]);
+  const advancedCount = advancedFilterCount(filters);
+  const setsOptions = React.useMemo(() => {
+    const counts = [...new Set(verifiedGames.map((game) => numberOf(game.setsPlayed)).filter((value): value is number => value !== null))].sort((a, b) => a - b);
+    return [{ value: 'all', label: 'Any' }, ...counts.map((count) => ({ value: String(count), label: count + ' sets' }))];
+  }, [verifiedGames]);
+  const anyAdvanced = coverage.result || coverage.role || coverage.seasonType || coverage.rest || minuteOptions.length > 1
+    || coverage.setsPlayed || coverage.matchFormat || coverage.defenseTier || coverage.winProb
+    || coverage.opponentRank || coverage.opponentHand || coverage.surface;
+  const surfaceOptions = React.useMemo(() => {
+    const seen = [...new Set(rawGames.map((game) => game.surface).filter(Boolean))] as string[];
+    return [{ value: 'all', label: 'Any' }, ...['Hard', 'Clay', 'Grass', 'Carpet'].filter((value) => seen.includes(value)).map((value) => ({ value, label: value }))];
+  }, [rawGames]);
+  const upcoming = individualSport ? tennis?.upcoming || null : null;
   const seasonOptions = React.useMemo(() => {
     const seasons = [...new Set(verifiedGames.map((game) => text(game.season)).filter(Boolean))].sort().reverse();
     return [{ value: 'all', label: 'All' }, ...seasons.map((season) => ({ value: season, label: season }))];
@@ -808,7 +1013,7 @@ export function PlayerPropResearchCard({
         <div className="p-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="truncate text-[18px] font-black tracking-[-.02em] text-white">{marketLabel}</h2>
-            <div className="text-[8px] font-bold text-[#66809B]">{loading ? 'Loading verified history…' : filteredGames.length + ' / ' + verifiedGames.length + ' verified'}</div>
+            <div data-qa="sample-count" className="shrink-0 text-[9px] font-bold text-[#66809B]">{loading ? 'Loading verified history…' : filteredGames.length + ' of ' + verifiedGames.length + ' verified ' + (verifiedGames.length === 1 ? 'game' : 'games')}</div>
           </div>
 
           <div className="mt-2 flex flex-wrap items-end gap-2">
@@ -816,6 +1021,30 @@ export function PlayerPropResearchCard({
               <button type="button" aria-label="Lower target line" onClick={() => stepLine(-1)} className="grid place-items-center border-r border-[#244868] text-[#55B8FF]"><Minus className="h-4 w-4" /></button>
               <div data-qa="line-number" className="grid place-items-center text-[16px] font-black text-white">{state.line}</div>
               <button type="button" aria-label="Raise target line" onClick={() => stepLine(1)} className="grid place-items-center border-l border-[#244868] text-[#55B8FF]"><Plus className="h-4 w-4" /></button>
+            </div>
+
+            <div role="group" aria-label="Hit-rate side" className="grid h-10 grid-cols-2 overflow-hidden rounded-lg border border-[#244868] bg-[#081523] text-[12px] font-black">
+              {(['OVER', 'UNDER'] as const).map((side) => {
+                const active = state.side === side;
+                const letter = side === 'OVER' ? 'O' : 'U';
+                return (
+                  <button
+                    key={side}
+                    type="button"
+                    aria-pressed={active}
+                    aria-label={letter + ' ' + state.line}
+                    onClick={() => onState({ ...state, side })}
+                    className={cx(
+                      'w-10 transition',
+                      active
+                        ? side === 'OVER' ? 'bg-[#0E3A2A] text-[#23E787]' : 'bg-[#3A0E1A] text-[#FF6B7D]'
+                        : 'text-[#6F88A3] hover:text-white',
+                    )}
+                  >
+                    {letter}
+                  </button>
+                );
+              })}
             </div>
 
             <label className="relative flex h-10 min-w-[130px] items-center gap-2 rounded-lg border border-[#244868] bg-[#081523] px-3 text-[9px] font-bold">
@@ -849,10 +1078,23 @@ export function PlayerPropResearchCard({
               <Star className="h-5 w-5" fill={favourite ? 'currentColor' : 'none'} />
             </button>
 
-            <div className="ml-auto hidden h-10 items-center gap-2 rounded-lg border border-[#244868] bg-[#081523] px-3 text-[9px] text-[#7790AA] sm:flex">
-              <SlidersHorizontal className="h-4 w-4 text-[#2FAEFF]" />
-              Verified filters
-            </div>
+            <button
+              type="button"
+              aria-expanded={showMoreFilters}
+              aria-controls="more-history-filters"
+              onClick={() => setShowMoreFilters((open) => !open)}
+              className={cx(
+                'relative ml-auto flex h-10 items-center gap-2 rounded-lg border bg-[#081523] px-3 text-[10px] font-bold',
+                showMoreFilters || advancedCount ? 'border-[#0A8EE8] text-white shadow-[0_0_14px_rgba(0,153,255,.25)]' : 'border-[#244868] text-[#9DB2C8]',
+              )}
+            >
+              <SlidersHorizontal className="h-4 w-4 text-[#2FAEFF]" aria-hidden />
+              <span className="hidden min-[380px]:inline">More filters</span>
+              <span className="sr-only min-[380px]:hidden">More filters</span>
+              {advancedCount ? (
+                <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[#0A8EE8] px-1 text-[9px] font-black text-white">{advancedCount}</span>
+              ) : null}
+            </button>
           </div>
 
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -879,6 +1121,206 @@ export function PlayerPropResearchCard({
               </label>
             ) : null}
           </div>
+
+          {upcoming && upcomingOpponent && (upcoming.opponentRank || upcoming.opponentHand || upcoming.surface) ? (
+            <div data-qa="tennis-matchup" className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[#1C3B58] bg-[#081421] px-3 py-2 text-[10px] leading-4 text-[#9DB2C8]">
+              <Users className="h-3.5 w-3.5 shrink-0 text-[#2FAEFF]" aria-hidden />
+              <span className="min-w-0">
+                vs <b className="text-white">{upcomingOpponent}</b>
+                {upcoming.opponentRank ? <> · <b className="text-white">#{upcoming.opponentRank}</b></> : null}
+                {upcoming.opponentHand ? <> · {upcoming.opponentHand === 'L' ? 'Left-handed' : 'Right-handed'}</> : null}
+                {upcoming.surface ? <> · {upcoming.surface}{upcoming.indoor === true ? ' (indoor)' : ''}</> : null}
+              </span>
+              {tennis?.player?.rank ? (
+                <span className="rounded-full border border-[#244868] bg-[#0B1826] px-2 py-0.5 text-[9px] font-black text-[#C6D0DE]">
+                  {group.player.split(' ').slice(-1)[0]} #{tennis.player.rank}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
+          {currentDefense && defenseMetric ? (
+            <div data-qa="defense-matchup" className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[#1C3B58] bg-[#081421] px-3 py-2 text-[10px] leading-4 text-[#9DB2C8]">
+              <Shield className="h-3.5 w-3.5 shrink-0 text-[#2FAEFF]" aria-hidden />
+              <span className="min-w-0">
+                <b className="text-white">{currentDefense.team}</b> allows{' '}
+                <b className="text-white">
+                  {currentDefense.allowedRank === 1 ? 'the most' : currentDefense.allowedRank === currentDefense.leagueSize ? 'the fewest' : 'the ' + ordinal(currentDefense.allowedRank) + '-most'}
+                </b>{' '}
+                {metricLabel(defenseMetric)} to {defensePosition}s · {Number(currentDefense.row.average).toFixed(1)}/game
+              </span>
+              <span className={cx(
+                'rounded-full border px-2 py-0.5 text-[9px] font-black',
+                currentDefense.tier === 'soft' ? 'border-[#1E8A5A] bg-[#0E3A2A] text-[#23E787]'
+                  : currentDefense.tier === 'tough' ? 'border-[#8A1E36] bg-[#3A0E1A] text-[#FF6B7D]'
+                    : 'border-[#244868] bg-[#0B1826] text-[#C6D0DE]',
+              )}>
+                {DEFENSE_TIER_LABEL[currentDefense.tier]} matchup
+              </span>
+            </div>
+          ) : null}
+
+          {!quoteAtResearchLine ? (
+            <div className="mt-2 flex items-center gap-2 text-[9px] text-[#7E97B0]">
+              <span className="rounded-md border border-[#6B4F0A] bg-[#2A1F05] px-1.5 py-0.5 font-black text-[#FACC15]">Research line</span>
+              <span>Books post {group.line}; prices apply to the posted line only.</span>
+            </div>
+          ) : null}
+
+          {showMoreFilters ? (
+            <div id="more-history-filters" className="mt-2 rounded-xl border border-[#1C3B58] bg-[#06111D] p-3">
+              {anyAdvanced ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {coverage.rest ? (
+                    <FilterSelect
+                      label={'Days rest' + (restUpcoming !== null ? ' (upcoming: ' + restUpcoming + ')' : '')}
+                      value={filters.rest || 'all'}
+                      options={[
+                        { value: 'all', label: 'Any' },
+                        { value: '0', label: 'Back-to-back' },
+                        { value: '1', label: '1 day' },
+                        { value: '2', label: '2 days' },
+                        { value: '3+', label: '3+ days' },
+                      ]}
+                      onChange={(rest) => setFilters((previous) => ({ ...previous, rest: rest as SampleFilters['rest'] }))}
+                    />
+                  ) : null}
+                  {coverage.result ? (
+                    <FilterSelect
+                      label="Win/Loss"
+                      value={filters.result || 'all'}
+                      options={[
+                        { value: 'all', label: 'Any' },
+                        { value: 'W', label: individualSport ? 'Won match' : 'Team won' },
+                        { value: 'L', label: individualSport ? 'Lost match' : 'Team lost' },
+                      ]}
+                      onChange={(result) => setFilters((previous) => ({ ...previous, result: result as SampleFilters['result'] }))}
+                    />
+                  ) : null}
+                  {coverage.role ? (
+                    <FilterSelect
+                      label="Role"
+                      value={filters.role || 'all'}
+                      options={[{ value: 'all', label: 'Any' }, { value: 'starter', label: 'Started' }, { value: 'bench', label: 'Bench' }]}
+                      onChange={(role) => setFilters((previous) => ({ ...previous, role: role as SampleFilters['role'] }))}
+                    />
+                  ) : null}
+                  {minuteOptions.length > 1 ? (
+                    <FilterSelect
+                      label="Minutes played"
+                      value={filters.minutes || 'all'}
+                      options={minuteOptions}
+                      onChange={(minutes) => setFilters((previous) => ({ ...previous, minutes }))}
+                    />
+                  ) : null}
+                  {coverage.setsPlayed ? (
+                    <FilterSelect
+                      label="Sets played"
+                      value={filters.setsPlayed || 'all'}
+                      options={setsOptions}
+                      onChange={(setsPlayed) => setFilters((previous) => ({ ...previous, setsPlayed: setsPlayed as SampleFilters['setsPlayed'] }))}
+                    />
+                  ) : null}
+                  {coverage.matchFormat ? (
+                    <FilterSelect
+                      label="Match format"
+                      value={filters.matchFormat || 'all'}
+                      options={[{ value: 'all', label: 'Any' }, { value: 'BO3', label: 'Best of 3' }, { value: 'BO5', label: 'Best of 5' }]}
+                      onChange={(matchFormat) => setFilters((previous) => ({ ...previous, matchFormat: matchFormat as SampleFilters['matchFormat'] }))}
+                    />
+                  ) : null}
+                  {coverage.surface ? (
+                    <FilterSelect
+                      label="Court type"
+                      value={filters.surface || 'all'}
+                      options={surfaceOptions}
+                      onChange={(surface) => setFilters((previous) => ({ ...previous, surface: surface as SampleFilters['surface'] }))}
+                    />
+                  ) : null}
+                  {coverage.opponentHand ? (
+                    <FilterSelect
+                      label="Opponent hand"
+                      value={filters.opponentHand || 'all'}
+                      options={[{ value: 'all', label: 'Any' }, { value: 'R', label: 'Right-handed' }, { value: 'L', label: 'Left-handed' }]}
+                      onChange={(opponentHand) => setFilters((previous) => ({ ...previous, opponentHand: opponentHand as SampleFilters['opponentHand'] }))}
+                    />
+                  ) : null}
+                  {coverage.opponentRank ? (
+                    <FilterSelect
+                      label="Opponent rank (current)"
+                      value={filters.opponentRank || 'all'}
+                      options={[
+                        { value: 'all', label: 'Any' },
+                        { value: 'top10', label: 'Top 10' },
+                        { value: 'top50', label: '11–50' },
+                        { value: 'top100', label: '51–100' },
+                        { value: 'over100', label: 'Outside top 100' },
+                      ]}
+                      onChange={(opponentRank) => setFilters((previous) => ({ ...previous, opponentRank: opponentRank as SampleFilters['opponentRank'] }))}
+                    />
+                  ) : null}
+                  {coverage.winProb ? (
+                    <FilterSelect
+                      label="Win % from moneyline"
+                      value={filters.winProb || 'all'}
+                      options={[
+                        { value: 'all', label: 'Any' },
+                        { value: 'fav70', label: 'Heavy favorite (70%+)' },
+                        { value: 'fav55', label: 'Favorite (55–70%)' },
+                        { value: 'even', label: 'Toss-up (45–55%)' },
+                        { value: 'dog', label: 'Underdog (<45%)' },
+                      ]}
+                      onChange={(winProb) => setFilters((previous) => ({ ...previous, winProb: winProb as SampleFilters['winProb'] }))}
+                    />
+                  ) : null}
+                  {coverage.defenseTier ? (
+                    <FilterSelect
+                      label="Opponent defense (current)"
+                      value={filters.defenseTier || 'all'}
+                      options={[
+                        { value: 'all', label: 'Any' },
+                        { value: 'soft', label: DEFENSE_TIER_LABEL.soft },
+                        { value: 'average', label: DEFENSE_TIER_LABEL.average },
+                        { value: 'tough', label: DEFENSE_TIER_LABEL.tough },
+                      ]}
+                      onChange={(defenseTier) => setFilters((previous) => ({ ...previous, defenseTier: defenseTier as SampleFilters['defenseTier'] }))}
+                    />
+                  ) : null}
+                  {coverage.seasonType ? (
+                    <FilterSelect
+                      label="Game type"
+                      value={filters.seasonType || 'all'}
+                      options={[{ value: 'all', label: 'Any' }, { value: 'regular', label: 'Regular season' }, { value: 'post', label: 'Playoffs' }]}
+                      onChange={(seasonType) => setFilters((previous) => ({ ...previous, seasonType: seasonType as SampleFilters['seasonType'] }))}
+                    />
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-[10px] leading-4 text-[#7E97B0]">
+                  {loading ? 'Loading verified history…' : 'This player\'s verified history has no rest, result, role, minutes or set detail to filter by.'}
+                </p>
+              )}
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <p className="text-[9px] leading-4 text-[#55718E]">
+                  Only filters this player's verified history can answer are shown.
+                  {coverage.defenseTier ? ' Opponent defense uses each team\'s current rank vs ' + defensePosition + 's, not its rank at the time of the game.' : ''}
+                  {coverage.winProb ? ' Win % is the no-vig closing moneyline for the latest 15 matches; older matches have no value and drop out when it is set.' : ''}
+                  {coverage.opponentRank ? ' Opponent rank is today\'s ranking, not the ranking at the time of the match.' : ''}
+                  {individualSport && moneylineLoading ? ' Loading closing moneylines…' : ''}
+                  {individualSport && tennis?.available && tennis.complete === false ? ' Loading more match details…' : ''}
+                </p>
+                {advancedCount || filters.opponent !== 'all' || filters.season !== 'all' || filters.venue !== 'all' ? (
+                  <button
+                    type="button"
+                    onClick={() => setFilters(EMPTY_FILTERS)}
+                    className="flex shrink-0 items-center gap-1 rounded-md border border-[#244868] px-2 py-1 text-[9px] font-bold text-[#9DB2C8] hover:text-white"
+                  >
+                    <RotateCcw className="h-3 w-3" aria-hidden /> Clear all
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {unavailableReason ? <p className="mt-1 text-[9px] leading-4 text-[#FF9AAF]">{unavailableReason}</p> : null}
 
@@ -910,7 +1352,7 @@ export function PlayerPropResearchCard({
             {loading ? (
               <div className="h-[250px] animate-pulse rounded-xl border border-[#173C59] bg-[#07131F]" />
             ) : (
-              <HistoryChart games={chartGames} line={state.line} market={marketLabel} period={periodLabel(group.period)} leagueTeams={research?.leagueTeams || []} />
+              <HistoryChart games={chartGames} line={state.line} market={marketLabel} period={periodLabel(group.period)} leagueTeams={research?.leagueTeams || []} individual={individualSport} />
             )}
           </div>
         </div>
@@ -932,6 +1374,14 @@ export function PlayerPropResearchCard({
           <p className="px-3 py-4 text-[9px] text-[#7E97B0]">No verified stats for this player yet.</p>
         )}
       </section>
+
+      {individualSport && currentOpponent ? (
+        <OpponentField group={group} opponent={currentOpponent} line={state.line} side={state.side} marketLabel={marketLabel} />
+      ) : null}
+
+      <div className="mt-2">
+        <GameContext group={group} />
+      </div>
 
       <div className="mt-2 grid grid-cols-2 gap-2">
         <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
@@ -980,7 +1430,7 @@ export function PlayerPropResearchCard({
               <div key={(game.gameId || game.date || 'history') + '-' + index} className="grid grid-cols-[.55fr_1fr_1fr] gap-1 border-b border-[#102C44] px-2 py-1.5 text-[7px] last:border-b-0">
                 <span className="font-black text-white">{state.line}</span>
                 <span className={cx('truncate font-black', tone)}>{result}</span>
-                <span className="truncate text-[#91A7BE]">{numericDate(game.date)}{game.opponent ? ' vs ' + teamShort(game.opponent, research?.leagueTeams || []) : ''}</span>
+                <span className="truncate text-[#91A7BE]">{numericDate(game.date)}{game.opponent ? ' vs ' + (individualSport ? surname(game.opponent) : teamShort(game.opponent, research?.leagueTeams || [])) : ''}</span>
               </div>
             );
           }) : <p className="px-2.5 py-4 text-[8px] leading-3 text-[#6F8BA6]">Verified prop history is unavailable.</p>}
@@ -1074,7 +1524,7 @@ export function PlayerPropResearchCard({
             return (
               <div key={(game.gameId || game.date || 'gamelog') + '-' + index} className="grid grid-cols-[.7fr_1fr_.7fr_.8fr] gap-1 border-b border-[#102C44] px-2 py-1.5 text-[7px] last:border-b-0">
                 <span className="text-[#9EB0C2]">{numericDate(game.date)}</span>
-                <span className="truncate text-[#D9E5F1]">{teamShort(game.opponent, research?.leagueTeams || []) || '—'}</span>
+                <span className="truncate text-[#D9E5F1]" title={text(game.opponent) || undefined}>{(individualSport ? surname(game.opponent) : teamShort(game.opponent, research?.leagueTeams || [])) || '—'}</span>
                 <span className="font-black text-white">{value ?? '—'}</span>
                 <span className={cx('font-black', tone)}>{result}</span>
               </div>

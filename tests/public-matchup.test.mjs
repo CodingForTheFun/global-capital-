@@ -81,3 +81,5 @@ test('bench membership requires an explicit non-starter designation',()=>{
  const {summary}=fixture();summary.rosters=[{team:{id:'4'},homeAway:'home',roster:[{athlete:{id:'12',displayName:'Verified bench'},starter:false},{athlete:{id:'13',displayName:'Unclassified player'}}]}];
  const r=run(summary);assert.equal(r.teams[0].lineup.bench.length,1);assert.equal(r.teams[0].lineup.bench[0].status,'Status not reported');
 });
+test('moneyline and tennis context routes are covered by the research account gate',()=>{assert.equal(gatedApi('/api/apex/research-moneyline'),true);assert.equal(gatedApi('/api/apex/research-tennis'),true);});
+test('live market moves require an account like every other prop-data route',()=>{assert.equal(gatedApi('/api/apex/live-moves'),true);assert.equal(gatedApi('/api/apex/live-moves?sport=NBA&limit=160'),true);});

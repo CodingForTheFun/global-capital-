@@ -115,3 +115,60 @@ test('actual research service reaches tennis raw logs and reuses archive across 
     __resetProplineClient();
   }
 });
+
+test('tennis rows name the opponent from the participants only on an exact player match', () => {
+  const data = normalizeGameArchive(payload([
+    row('home', 21, { home_team: 'Regression Tennis', away_team: 'Other Player', commence_time: '2026-09-17T12:00:00Z' }),
+    row('away', 22, { home_team: 'Rival Player', away_team: 'regression  tennis', commence_time: '2026-09-16T12:00:00Z' }),
+    row('stated', 23, { opponent: 'Stated Opponent', home_team: 'Regression Tennis', away_team: 'Ignored', commence_time: '2026-09-15T12:00:00Z' }),
+    row('neither', 24, { home_team: 'Somebody', away_team: 'Someone Else', commence_time: '2026-09-14T12:00:00Z' }),
+    row('doubles', 25, { home_team: 'Regression Tennis', away_team: 'Regression Tennis', commence_time: '2026-09-13T12:00:00Z' }),
+  ]), target, NOW);
+  assert.deepEqual(data.gameLog.map(game => [game.gameId, game.opponent]), [
+    ['home', 'Other Player'], ['away', 'Rival Player'], ['stated', 'Stated Opponent'], ['neither', null], ['doubles', null],
+  ]);
+  assert.ok(data.gameLog.every(game => game.isHome === null), 'a tennis slot is never a venue');
+});
+
+test('tennis set score, format and result are verified or left unknown', () => {
+  const at = (id, day, extra) => row(id, 20, { commence_time: `2026-09-${day}T12:00:00Z`, ...extra });
+  const data = normalizeGameArchive(payload([
+    at('bo3-win', 17, { result: 'W', score_for: 2, score_against: 1, stats: { total_games: 29, games_w: 16, sets_won: 2 } }),
+    at('bo5-loss', 16, { stats: { total_games: 40, sets_won: 1, set_1_games: 12, set_2_games: 10, set_3_games: 9, set_4_games: 9 } }),
+    at('games-not-sets', 15, { result: 'W', score_for: 13, score_against: 10, stats: { total_games: 23, sets_won: 2 } }),
+    at('conflict', 14, { result: 'W', score_for: 0, score_against: 2, stats: { total_games: 20, sets_won: 0 } }),
+    at('rows-disagree', 13, { score_for: 2, score_against: 0, stats: { total_games: 20, sets_won: 2, set_1_games: 10, set_2_games: 10, set_3_games: 0 } }),
+    at('incomplete', 12, { score_for: 1, score_against: 0, stats: { total_games: 7, sets_won: 1 } }),
+  ]), target, NOW);
+  const by = Object.fromEntries(data.gameLog.map(game => [game.gameId, game]));
+  assert.deepEqual([by['bo3-win'].setsWon, by['bo3-win'].setsLost, by['bo3-win'].setsPlayed, by['bo3-win'].matchFormat, by['bo3-win'].gameResult], [2, 1, 3, 'BO3', 'W']);
+  assert.equal(by['bo3-win'].matchTotalGames, 29);
+  assert.equal(by['bo3-win'].gamesWon, 16);
+  assert.deepEqual([by['bo5-loss'].setsLost, by['bo5-loss'].matchFormat, by['bo5-loss'].gameResult], [3, 'BO5', 'L']);
+  assert.equal(by['games-not-sets'].setsPlayed, undefined, 'a game score is not read as sets');
+  assert.equal(by['games-not-sets'].gameResult, 'W', 'the stated result still stands');
+  assert.equal(by['conflict'].gameResult, null, 'stated W against a 0-2 set score is unknown');
+  assert.equal(by['rows-disagree'].setsPlayed, undefined);
+  assert.equal(by['incomplete'].matchFormat, undefined);
+  assert.equal(by['bo3-win'].scoreFor, undefined, 'tennis never exposes an ambiguous raw score');
+});
+
+test('team-sport archive rows keep documented result, score and season type', () => {
+  const params = { ...target, sport: 'NBA', market: 'Points', providerMarketKey: 'player_points' };
+  const nba = (id, extra) => ({ event_id: id, commence_time: '2026-09-17T12:00:00Z', status: 'final', stats: { points: 20 }, ...extra });
+  const data = normalizeGameArchive({ player_name: target.playerName, sport_key: PROPLINE_GAME_SPORTS.NBA, games: [
+    nba('won', { result: 'W', score_for: 110, score_against: 104, season_type: 'playoffs' }),
+    nba('derived', { score_for: 99, score_against: 101, season_type: 2, commence_time: '2026-09-16T12:00:00Z' }),
+    nba('conflict', { result: 'L', score_for: 120, score_against: 100, commence_time: '2026-09-15T12:00:00Z' }),
+    nba('none', { commence_time: '2026-09-14T12:00:00Z' }),
+  ] }, params, NOW);
+  assert.deepEqual(data.gameLog.map(game => [game.gameId, game.gameResult, game.seasonType, game.scoreFor]), [
+    ['won', 'W', 3, 110], ['derived', 'L', 2, 99], ['conflict', null, null, 120], ['none', null, null, null],
+  ]);
+});
+
+test('the upcoming tennis opponent comes from the posted event participants', () => {
+  const data = normalizeGameArchive(payload([row('a', 21)]), { ...target, homeTeam: 'Next Rival', awayTeam: 'Regression Tennis' }, NOW);
+  assert.equal(data.opponent, 'Next Rival');
+  assert.equal(normalizeGameArchive(payload([row('a', 21)]), { ...target, homeTeam: 'A', awayTeam: 'B' }, NOW).opponent, null);
+});

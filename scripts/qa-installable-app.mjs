@@ -122,9 +122,14 @@ try {
     await opponent.selectOption('NYG');
     assert.match(await sampleCount.innerText(), /^5 of 20/);
     await opponent.selectOption('all');
-    await page.getByRole('button', { name: 'Install Oblige Props', exact: true }).click();
+    // The persistent install banner was removed; instructions stay reachable
+    // through the ?install=1 entry link while manifest and worker stay intact.
+    assert.equal(await page.getByRole('button', { name: 'Install Oblige Props', exact: true }).count(), 0, 'Install banner must not render');
+    await page.goto(base + researchURL + '&install=1', { waitUntil: 'domcontentloaded' });
     await page.locator('dialog[open]').waitFor();
     await page.getByRole('button', { name: 'Close installation instructions' }).click();
+    await sampleCount.filter({ hasText: '20 of 20 verified games' }).waitFor();
+    const researchBeforeExactPeriod = researchRequests;
     assert.equal(await page.locator('link[rel="manifest"]').getAttribute('href'), '/app.webmanifest');
     await page.waitForFunction(async () => {
       const registration = await navigator.serviceWorker.getRegistration('/');
@@ -162,7 +167,7 @@ try {
     await exactPanel.locator('[data-qa="history-chart"]').waitFor();
     await exactPanel.locator('[data-qa="chart-bar"]').first().waitFor();
     assert.ok(await exactPanel.locator('[data-qa="chart-bar"]').count() > 0, 'Exact half-game fixture history should render');
-    assert.equal(researchRequests, initialResearchRequests + 1, 'Opening an exact-period player page makes one detail research request');
+    assert.equal(researchRequests, researchBeforeExactPeriod + 1, 'Opening an exact-period player page makes one detail research request');
     const periodRequest = researchRequestUrls.at(-1);
     assert.equal(periodRequest?.searchParams.get('period'), '1h', 'Player detail must request the selected period');
     assert.equal(periodRequest?.searchParams.get('detail'), '1', 'Exact-period paid fallback is detail-only');

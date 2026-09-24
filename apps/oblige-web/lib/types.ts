@@ -137,6 +137,84 @@ export type GameLogRow = {
   /** null means the game pushed, or that there is no line to compare against. */
   hit?: boolean | null;
   push?: boolean | null;
+  /** Team result, score and starter flag, when the stats source records them. */
+  gameResult?: 'W' | 'L' | 'T' | null;
+  scoreFor?: number | null;
+  scoreAgainst?: number | null;
+  started?: boolean | null;
+  opponentName?: string | null;
+  /** Tennis, from a verified set score: the player's sets, the opponent's, and the format. */
+  setsWon?: number | null;
+  setsLost?: number | null;
+  setsPlayed?: number | null;
+  matchFormat?: 'BO3' | 'BO5' | null;
+  /** Tennis match-level total games and this player's games won. */
+  matchTotalGames?: number | null;
+  gamesWon?: number | null;
+  /**
+   * Client-side tags joined from separate verified sources before filtering.
+   * Each stays null when its source cannot answer for that exact game.
+   */
+  opponentDefenseTier?: DefenseTier | null;
+  /** Pre-match no-vig win probability (0-100) from the closing moneyline. */
+  winProbability?: number | null;
+  /** Tennis: the opponent's current singles ranking, playing hand and the court. */
+  opponentRank?: number | null;
+  opponentHand?: 'L' | 'R' | null;
+  surface?: 'Hard' | 'Clay' | 'Grass' | 'Carpet' | null;
+  indoor?: boolean | null;
+};
+
+export type TennisMatchContext = {
+  opponentRank?: number | null;
+  opponentHand?: 'L' | 'R' | null;
+  surface?: 'Hard' | 'Clay' | 'Grass' | 'Carpet' | null;
+  indoor?: boolean | null;
+  paired?: boolean;
+};
+
+export type TennisContextResponse = {
+  ok?: boolean;
+  available?: boolean;
+  message?: string;
+  complete?: boolean;
+  rankingsAsOf?: string | null;
+  player?: { rank?: number | null; tour?: string | null };
+  upcoming?: TennisMatchContext | null;
+  matches?: Record<string, TennisMatchContext>;
+};
+
+export type MoneylineResponse = {
+  ok?: boolean;
+  available?: boolean;
+  message?: string;
+  events?: Record<string, { available?: boolean; winProbability?: number; books?: number; stale?: boolean; retryable?: boolean }>;
+};
+
+export type DefenseTier = 'soft' | 'average' | 'tough';
+
+/** One team's allowance to one position for one stat, from `/api/apex/research-defense-position`. */
+export type DefensePositionRow = {
+  teamId?: string;
+  position?: string;
+  metric?: string;
+  average?: number;
+  games?: number;
+  /** 1 = fewest allowed. Null until every team has enough games. */
+  rank?: number | null;
+  leagueSize?: number;
+};
+
+export type DefensePositionResponse = {
+  ok?: boolean;
+  available?: boolean;
+  message?: string | null;
+  sport?: string;
+  positions?: string[];
+  teams?: Array<{ id?: string; abbreviation?: string; name?: string }>;
+  rows?: DefensePositionRow[];
+  windowDays?: number;
+  retrievedAt?: string;
 };
 
 export type ResearchResponse = {
@@ -167,6 +245,13 @@ export type ResearchResponse = {
   /** Verified public team directory for this league. Used only to populate the
    * opponent picker; it never creates history rows or changes hit rates. */
   leagueTeams?: Array<{ id?: string; abbreviation?: string; name?: string }>;
+  /** The raw statistic the game log's `value` holds, e.g. total_games or games_w. */
+  statKind?: string | null;
+  /** Verified provider context; only the fields the UI reads are typed. */
+  context?: {
+    sportradar?: { position?: string | null; primaryPosition?: string | null } | null;
+    [key: string]: unknown;
+  } | null;
   coverage?: Record<string, unknown>;
 };
 
@@ -188,3 +273,113 @@ export type LineHistoryResponse = {
 };
 
 export type Account = { id: string; email?: string } | null;
+
+/** One player row in a published injury report or lineup. */
+export type MatchupPlayer = {
+  playerId?: string;
+  playerName?: string;
+  position?: string | null;
+  status?: string;
+  detail?: string | null;
+  reportedAt?: string | null;
+};
+
+export type MatchupTeam = {
+  teamId?: string;
+  side?: 'home' | 'away';
+  name?: string;
+  abbreviation?: string;
+  record?: string | null;
+  rank?: number | null;
+  injuries?: { available?: boolean; rows?: MatchupPlayer[] };
+  lineup?: {
+    available?: boolean;
+    starters?: MatchupPlayer[];
+    bench?: MatchupPlayer[];
+    probables?: MatchupPlayer[];
+  };
+};
+
+/** Game context from `/api/apex/research-matchup`. Unavailable answers carry
+ * a sentence the UI prints verbatim instead of guessing. */
+export type MatchupResponse = {
+  ok?: boolean;
+  available?: boolean;
+  code?: string;
+  message?: string;
+  sport?: string;
+  eventId?: string;
+  gameStartTime?: string;
+  source?: string;
+  sourceUrl?: string;
+  retrievedAt?: string;
+  expiresAt?: string;
+  pregame?: boolean;
+  prediction?: {
+    available?: boolean;
+    homePercent?: number;
+    awayPercent?: number;
+    note?: string;
+    message?: string;
+    expiresAt?: string;
+  };
+  odds?: {
+    available?: boolean;
+    book?: string;
+    homeMoneyline?: number | null;
+    awayMoneyline?: number | null;
+    spread?: string | null;
+    total?: number | null;
+    message?: string;
+  };
+  teams?: MatchupTeam[];
+  venue?: { name?: string | null; city?: string | null; indoor?: boolean | null };
+  weather?: { available?: boolean; temperature?: number; unit?: string; note?: string; message?: string };
+};
+
+export type LiveMoveType = 'line_movement' | 'steam' | 'market_suspended' | 'resolution';
+
+/** One sanitised realtime market event from `/api/apex/live-moves`. */
+export type LiveMove = {
+  id?: string;
+  type?: LiveMoveType | string;
+  sport?: string | null;
+  eventId?: string | null;
+  homeTeam?: string | null;
+  awayTeam?: string | null;
+  bookmakerKey?: string | null;
+  bookmakerTitle?: string | null;
+  playerName?: string | null;
+  marketKey?: string | null;
+  marketDescription?: string | null;
+  outcomeName?: string | null;
+  dfsOddsType?: string | null;
+  previous?: { price?: number | null; point?: number | null };
+  current?: { price?: number | null; point?: number | null };
+  priceChangePct?: number | null;
+  resolution?: string | null;
+  actualValue?: number | null;
+  steamScore?: number | null;
+  consensusDirection?: string | null;
+  booksMoved?: number | null;
+  booksQuoting?: number | null;
+  booksAgreeing?: number | null;
+  books?: string[];
+  markets?: unknown[];
+  occurredAt?: string | null;
+  receivedAt?: string | null;
+};
+
+export type LiveMovesResponse = {
+  ok?: boolean;
+  events?: LiveMove[];
+  summary?: {
+    windowMinutes?: number;
+    lineMovements?: number;
+    steam?: number;
+    marketSuspensions?: number;
+    resolutions?: number;
+  };
+  trendingPlayers?: Array<{ sport?: string; playerName: string; signals: number }>;
+  meta?: { connected?: boolean; lastEventAt?: string | null };
+};

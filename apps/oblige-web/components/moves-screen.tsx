@@ -38,8 +38,8 @@ function ago(value: string | null | undefined) {
 
 function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="min-w-0 rounded-lg bg-slate-950/45 px-2 py-1.5">
-      <div className="truncate text-[8px] font-bold uppercase tracking-wide text-slate-500">{label}</div>
+    <div className="min-w-0 rounded-[6px] bg-[var(--bg)] px-2 py-1.5">
+      <div className="truncate text-[11px] font-bold uppercase tracking-wide text-[var(--text-3)]">{label}</div>
       <div className="mt-0.5 truncate text-[11px] font-black tabular-nums text-white">{value}</div>
     </div>
   );
@@ -90,23 +90,23 @@ function MoveCard({ row }: { row: LiveMove }) {
   }
 
   return (
-    <article className="rounded-2xl border border-slate-800 bg-[#0d1420] p-3">
+    <article className="rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] p-3">
       <div className="flex items-center justify-between gap-2">
-        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-black ${style.tone}`}>
+        <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] font-black ${style.tone}`}>
           <style.Icon className="size-3" aria-hidden />
           {style.label}
         </span>
-        <span className="text-[9px] font-semibold text-slate-500">
+        <span className="text-[12px] font-semibold text-[var(--text-3)]">
           {row.sport ? `${row.sport} · ` : ''}{ago(row.occurredAt || row.receivedAt)}
         </span>
       </div>
       <h3 className="mt-2 truncate text-sm font-black text-white">
         {who}
         {row.dfsOddsType && row.dfsOddsType !== 'standard' ? (
-          <span className="ml-1.5 rounded bg-slate-800 px-1 py-0.5 align-middle text-[8px] font-black uppercase text-slate-300">{row.dfsOddsType}</span>
+          <span className="ml-1.5 rounded bg-[var(--surface-2)] px-1 py-0.5 align-middle text-[11px] font-black uppercase text-[var(--text-2)]">{row.dfsOddsType}</span>
         ) : null}
       </h3>
-      <p className="truncate text-[10px] text-slate-400">{market} · {book}</p>
+      <p className="truncate text-[12px] text-[var(--text-2)]">{market} · {book}</p>
       <div className="mt-2 grid grid-cols-3 gap-1.5">{metrics}</div>
     </article>
   );
@@ -156,13 +156,13 @@ export function MovesScreen() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-black tracking-[-.03em] text-white sm:text-3xl">Live Moves</h1>
-          <p className="mt-1 max-w-xl text-xs text-slate-400">
+          <p className="mt-1 max-w-xl text-xs text-[var(--text-2)]">
             Line movement, steam and markets coming off the board across sportsbooks, as it happens.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <span
-            className={`rounded-full border px-2.5 py-1 text-[9px] font-black ${connected ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-slate-700 bg-slate-900 text-slate-400'}`}
+            className={`rounded-full border px-2.5 py-1 text-[12px] font-black ${connected ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-[var(--line-strong)] bg-[var(--surface)] text-[var(--text-2)]'}`}
             role="status"
           >
             {data ? (connected ? 'LIVE' : 'WARMING UP') : '…'}
@@ -172,7 +172,7 @@ export function MovesScreen() {
             onClick={() => setTick((value) => value + 1)}
             disabled={loading}
             aria-label="Refresh moves"
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/80 px-2.5 text-[10px] font-bold text-white hover:border-slate-600 disabled:opacity-60"
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface)] px-2.5 text-[12px] font-bold text-white hover:border-[var(--line-strong)] disabled:opacity-60"
           >
             <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} aria-hidden />
             Refresh
@@ -187,8 +187,8 @@ export function MovesScreen() {
           { label: 'Off board', value: summary?.marketSuspensions },
           { label: 'Graded', value: summary?.resolutions },
         ].map((item) => (
-          <div key={item.label} className="rounded-2xl border border-slate-800 bg-[#0d1420] px-3 py-2.5">
-            <div className="text-[9px] font-bold uppercase tracking-wide text-slate-500">{item.label} · {summary?.windowMinutes ?? 15}m</div>
+          <div key={item.label} className="rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2.5">
+            <div className="text-[12px] font-bold uppercase tracking-wide text-[var(--text-3)]">{item.label} · {summary?.windowMinutes ?? 15}m</div>
             <div className="mt-1 text-2xl font-black tabular-nums text-white">{item.value ?? '—'}</div>
           </div>
         ))}
@@ -203,7 +203,7 @@ export function MovesScreen() {
               role="tab"
               aria-selected={sport === item}
               onClick={() => setSport(item)}
-              className={`min-h-8 flex-none rounded-full border px-3 text-[10px] font-black ${sport === item ? 'border-sky-400/50 bg-sky-400/15 text-sky-200' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white'}`}
+              className={`min-h-8 flex-none rounded-full border px-3 text-[12px] font-black ${sport === item ? 'border-sky-400/50 bg-sky-400/15 text-sky-200' : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:text-white'}`}
             >
               {item}
             </button>
@@ -217,7 +217,7 @@ export function MovesScreen() {
               role="tab"
               aria-selected={type === item.id}
               onClick={() => setType(item.id)}
-              className={`min-h-8 flex-none rounded-full border px-3 text-[10px] font-bold ${type === item.id ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white'}`}
+              className={`min-h-8 flex-none rounded-full border px-3 text-[12px] font-bold ${type === item.id ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200' : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-2)] hover:text-white'}`}
             >
               {item.label}
             </button>
@@ -227,11 +227,11 @@ export function MovesScreen() {
 
       {data?.trendingPlayers?.length ? (
         <section className="mt-3" aria-label="Trending players">
-          <div className="mb-1.5 text-[9px] font-black uppercase tracking-[.16em] text-slate-500">Trending now</div>
+          <div className="mb-1.5 text-[12px] font-black uppercase tracking-[.16em] text-[var(--text-3)]">Trending now</div>
           <div className="flex flex-wrap gap-1.5">
             {data.trendingPlayers.map((player) => (
-              <span key={`${player.sport}-${player.playerName}`} className="rounded-full border border-slate-800 bg-slate-900/70 px-2.5 py-1 text-[10px] font-bold text-slate-200">
-                {player.playerName} <span className="text-slate-500">· {player.signals} signal{player.signals === 1 ? '' : 's'}</span>
+              <span key={`${player.sport}-${player.playerName}`} className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 text-[12px] font-bold text-[var(--text)]">
+                {player.playerName} <span className="text-[var(--text-3)]">· {player.signals} signal{player.signals === 1 ? '' : 's'}</span>
               </span>
             ))}
           </div>
@@ -240,16 +240,16 @@ export function MovesScreen() {
 
       <section className="mt-4" aria-live="polite">
         {error ? (
-          <div className="rounded-2xl border border-slate-800 bg-[#0d1420] p-6 text-center">
+          <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] p-6 text-center">
             <p className="text-sm font-black text-white">{error.message}</p>
             {error.auth ? (
-              <Link href="/account" className="mt-3 inline-block rounded-lg bg-emerald-500 px-4 py-2 text-xs font-black text-slate-950">Sign in</Link>
+              <Link href="/account" className="mt-3 inline-block rounded-[6px] bg-emerald-500 px-4 py-2 text-xs font-black text-slate-950">Sign in</Link>
             ) : null}
           </div>
         ) : !data ? (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }, (_, index) => (
-              <div key={index} className="h-32 animate-pulse rounded-2xl border border-slate-800 bg-[#0d1420]" />
+              <div key={index} className="h-32 animate-pulse rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)]" />
             ))}
           </div>
         ) : events.length ? (
@@ -257,9 +257,9 @@ export function MovesScreen() {
             {events.map((row, index) => <MoveCard key={row.id || index} row={row} />)}
           </div>
         ) : (
-          <div className="rounded-2xl border border-slate-800 bg-[#0d1420] p-6 text-center">
+          <div className="rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] p-6 text-center">
             <p className="text-sm font-black text-white">No matching signals yet</p>
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-[var(--text-3)]">
               {connected ? 'The feed is connected; this filter has no recent movement.' : 'The live feed is warming up. Signals appear here as books move.'}
             </p>
           </div>

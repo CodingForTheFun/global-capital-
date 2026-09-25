@@ -1081,14 +1081,41 @@ function streakLabel(summary: ResearchSummary | null | undefined) {
 }
 
 /** The EV figure as a pill: stronger fill at 4% and up, dimmed when negative. */
-function EvPill({ prediction, bestEv }: { prediction: ModelPrediction | undefined; bestEv: ExpectedValueSelection | null }) {
+/**
+ * The decision figure for a row. EV when a single-bet sportsbook price and a
+ * verified probability both exist; otherwise the model's own hit probability
+ * for its stronger side (the number pick'em players need); otherwise the
+ * model's stated reason for having no estimate.
+ */
+function EvPill({ group, prediction, bestEv }: { group: PropGroup; prediction: ModelPrediction | undefined; bestEv: ExpectedValueSelection | null }) {
   if (prediction === undefined) return <span className={styles.loadingDot}>…</span>;
-  if (!bestEv) return <span className={styles.unavailable} title="No verified model estimate for this prop">No model</span>;
-  const tone = bestEv.ev >= 4 ? 'hot' : bestEv.ev > 0 ? 'pos' : 'neg';
+  if (bestEv) {
+    const tone = bestEv.ev >= 4 ? 'hot' : bestEv.ev > 0 ? 'pos' : 'neg';
+    return (
+      <span className={styles.evPill} data-tone={tone} title={expectedValueSourceLabel(bestEv) || undefined}>
+        {bestEv.ev > 0 ? '+' : bestEv.ev < 0 ? '−' : ''}{Math.abs(bestEv.ev).toFixed(1)}%
+        <small>{bestEv.side === 'OVER' ? 'O' : 'U'}</small>
+      </span>
+    );
+  }
+  const over = finite(prediction.probabilityOver) ? prediction.probabilityOver : null;
+  const under = finite(prediction.probabilityUnder) ? prediction.probabilityUnder : null;
+  if (prediction.available !== false && over !== null && under !== null) {
+    const priced = [group.bestOver, group.bestUnder].some((quote) => Math.abs(numberOf(quote?.price) ?? 0) >= 100);
+    const side = over >= under ? 'O' : 'U';
+    const pct = Math.round(Math.max(over, under) * 100);
+    const why = priced
+      ? 'EV needs a current single-bet sportsbook price; this one is stale or not a straight bet.'
+      : 'Pick\'em app: there is no single-bet price, so EV cannot be computed.';
+    return (
+      <span className={styles.evPill} data-tone="prob" title={`Model hit probability for the ${side === 'O' ? 'over' : 'under'}. ${why}`}>
+        {pct}%<small>{side}</small>
+      </span>
+    );
+  }
   return (
-    <span className={styles.evPill} data-tone={tone} title={expectedValueSourceLabel(bestEv) || undefined}>
-      {bestEv.ev > 0 ? '+' : bestEv.ev < 0 ? '−' : ''}{Math.abs(bestEv.ev).toFixed(1)}%
-      <small>{bestEv.side === 'OVER' ? 'O' : 'U'}</small>
+    <span className={styles.unavailable} title={prediction.message || 'No verified model estimate for this prop.'}>
+      No model
     </span>
   );
 }
@@ -1233,7 +1260,7 @@ function DesktopMatrix({
                   {streakLabel(summary)}
                 </td>
                 <td className={styles.evCell}>
-                  <EvPill prediction={prediction} bestEv={bestEv} />
+                  <EvPill group={group} prediction={prediction} bestEv={bestEv} />
                 </td>
               </tr>
             );
@@ -1285,7 +1312,7 @@ function MobileMatrix({
                 <small> · {group.matchup}</small>
               </span>
             </button>
-            <span className={styles.mobileEv}><EvPill prediction={prediction} bestEv={bestEv} /></span>
+            <span className={styles.mobileEv}><EvPill group={group} prediction={prediction} bestEv={bestEv} /></span>
             <span className={styles.mobileRate}>
               <RecentMarks marks={summary?.recent || []} />
               {l10 !== undefined && isBlankWindow(l10) ? (

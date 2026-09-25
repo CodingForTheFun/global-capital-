@@ -86,40 +86,54 @@
   --display-tracking: -.03em;
   --display-case: none;
 
-  /* surfaces: a blue-black base so the indigo accent reads as part of it */
-  --bg: #060812;
-  --bg-deep: #04050c;
-  --surface: #0c1021;
-  --surface-2: #121831;
-  --surface-3: #1a2142;
-  --line: #1d2440;
-  --line-strong: #2d3661;
+  /* "Night Session": a deep navy ground rather than near-black, so long
+     sessions are easier on the eyes, with violet for interaction and cyan
+     for live states. Text is never pure white, to keep glare down. */
+  --bg: #0b1022;
+  --bg-deep: #080c1a;
+  --surface: #10172e;
+  --surface-2: #172040;
+  --surface-3: #1f2a52;
+  --line: #1b2446;
+  --line-strong: #2a3563;
 
-  --text: #f5f7ff;
-  --text-2: #b4bdd8;
-  --text-3: #7c87a8;
+  --text: #e8ecf8;
+  --text-2: #a9b3d3;
+  --text-3: #8290b4;
 
   /* accent: text, icons, borders and focus on dark surfaces */
-  --accent: #8e94ff;
+  --accent: #9d8fff;
   /* accent-fill: solid controls; white label on it stays above 4.5:1 */
-  --accent-fill: #5850ec;
+  --accent-fill: #6d5dfb;
   --accent-ink: #ffffff;
-  --accent-soft: rgb(142 148 255 / .14);
+  --accent-soft: rgb(157 143 255 / .16);
+  /* second accent: live status and links, never data */
+  --accent-2: #3fd0f5;
+  --brand-grad: linear-gradient(90deg, #8b7bff, #3fd0f5);
+  --fill-grad: linear-gradient(90deg, #6d5dfb, #5b7bfb);
 
-  --pos: #3de8a8;
-  --neg: #ff6b7d;
-  --warn: #ffc53d;
+  --pos: #2fe0a0;
+  --neg: #ff6f8e;
+  --warn: #ffc857;
   --info: #6ea8ff;
+  --pos-soft: rgb(47 224 160 / .14);
+  --pos-strong: rgb(47 224 160 / .26);
+  --pos-ink: #7dffcf;
+  --neg-soft: rgb(255 111 142 / .13);
+  --warn-soft: rgb(255 200 87 / .14);
+  /* hit/miss bars in charts */
+  --hit-grad: linear-gradient(180deg, #3ff0b0, #1fbf95);
+  --miss: #2a3563;
 
   --radius: 12px; --radius-sm: 9px; --radius-lg: 18px;
   --bw: 1px;
 
   --shadow-1: 0 1px 2px rgb(0 0 0 / .45), 0 10px 28px -16px rgb(0 0 0 / .7);
   --shadow-2: 0 28px 70px -28px rgb(0 0 0 / .85);
-  --shadow-glow: 0 10px 28px -12px rgb(88 80 236 / .75);
+  --shadow-glow: 0 10px 28px -12px rgb(109 93 251 / .7);
   --hero-wash:
-    radial-gradient(900px 520px at 80% -10%, rgb(88 80 236 / .20), transparent 64%),
-    radial-gradient(700px 460px at 4% 6%, rgb(110 168 255 / .07), transparent 62%);
+    radial-gradient(900px 520px at 80% -10%, rgb(109 93 251 / .20), transparent 64%),
+    radial-gradient(700px 460px at 4% 6%, rgb(63 208 245 / .08), transparent 62%);
   --grain: .02;
 
   /* ---- player face cards -------------------------------------------------
@@ -152,6 +166,11 @@
   --color-accent-fill: var(--accent-fill);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-2: var(--accent-2);
+  --color-pos-soft: var(--pos-soft);
+  --color-pos-strong: var(--pos-strong);
+  --color-neg-soft: var(--neg-soft);
+  --color-warn-soft: var(--warn-soft);
   --color-pos: var(--pos);
   --color-neg: var(--neg);
   --color-warn: var(--warn);
@@ -196,7 +215,8 @@
     margin: 0;
     min-height: 100vh;
     background:
-      radial-gradient(900px 420px at 50% -180px, rgb(88 80 236 / .16), transparent 70%),
+      radial-gradient(1100px 420px at 20% -180px, rgb(109 93 251 / .18), transparent 70%),
+      radial-gradient(900px 360px at 95% -200px, rgb(63 208 245 / .10), transparent 70%),
       var(--bg);
     color: var(--text);
     font: 400 var(--fs-base) / 1.55 var(--font-body);
@@ -284,7 +304,7 @@
     width: 30px;
     height: 30px;
     border-radius: 9px;
-    background: linear-gradient(145deg, #7b82ff, var(--accent-fill) 60%, #4338ca);
+    background: linear-gradient(145deg, #8b7bff, var(--accent-fill) 55%, #2fa3d8);
     color: #fff;
     font: 800 11px / 1 var(--font-sans);
     letter-spacing: -.04em;
@@ -296,7 +316,7 @@
     letter-spacing: -.04em;
     white-space: nowrap;
   }
-  .op-wordmark__accent { color: var(--accent); }
+  .op-wordmark__accent { background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 }
 
 /* The dock is fixed, so the page reserves its height at the very end (after
@@ -752,7 +772,7 @@
     height: 58px;
     margin-bottom: 20px;
     border-radius: 15px;
-    background: linear-gradient(145deg, #7b82ff, var(--accent-fill) 60%, #4338ca);
+    background: linear-gradient(145deg, #8b7bff, var(--accent-fill) 55%, #2fa3d8);
     color: #fff;
     font-size: 23px;
     font-weight: 850;

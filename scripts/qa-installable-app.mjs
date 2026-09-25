@@ -135,6 +135,9 @@ try {
       const registration = await navigator.serviceWorker.getRegistration('/');
       return registration?.active?.scriptURL.endsWith('/app-worker.js');
     });
+    // Opening a prop plays a random entrance (scale/rotate); measure the
+    // settled layout, not a frame in the middle of the animation.
+    await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState !== 'running'));
     const dimensions = await page.evaluate(() => {
       const panel = document.querySelector('[data-design="player-prop-research-card"]').getBoundingClientRect();
       const chart = document.querySelector('[data-qa="history-chart"]').getBoundingClientRect();

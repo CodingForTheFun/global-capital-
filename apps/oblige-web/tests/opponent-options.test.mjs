@@ -11,7 +11,7 @@ const compiled = ts.transpileModule(source, {
 }).outputText;
 const module = { exports: {} };
 new Function('require', 'module', 'exports', compiled)(require, module, module.exports);
-const { buildOpponentOptions, currentOpponentLabels, sameTeamLabel } = module.exports;
+const { buildOpponentOptions, currentOpponentLabels, sameTeamLabel, teamDisplayName, markCurrentOption } = module.exports;
 
 test('Opponent picker lists the entire verified league directory, not only historical opponents', () => {
   const options = buildOpponentOptions(
@@ -227,4 +227,21 @@ test('a consonant-skeleton abbreviation still resolves through the directory abb
   );
   assert.equal(options[1].label, '★ Washington Commanders ★');
   assert.equal(options.filter((option) => option.label.includes('★')).length, 1);
+});
+
+test('team names resolve to the full directory name only on a single match', () => {
+  const teams = [{ abbreviation: 'BOS', name: 'Boston Celtics' }, { abbreviation: 'NYK', name: 'New York Knicks' }, { abbreviation: 'BKN', name: 'Brooklyn Nets' }];
+  assert.equal(teamDisplayName('BOS', teams), 'Boston Celtics');
+  assert.equal(teamDisplayName('New York Knicks', teams), 'New York Knicks');
+  assert.equal(teamDisplayName('Unknown FC', teams), 'Unknown FC', 'unmatched labels are kept, never guessed');
+  assert.equal(teamDisplayName('', teams), '');
+});
+
+test('the current option in any filter carries the same stars as the Opponent picker', () => {
+  const options = [{ value: 'all', label: 'All' }, { value: 'home', label: 'Home' }, { value: 'away', label: 'Away' }];
+  const marked = markCurrentOption(options, 'away');
+  assert.deepEqual(marked.map((o) => o.label), ['All', 'Home', '★ Away ★']);
+  assert.deepEqual(markCurrentOption(options, null), options, 'unknown context marks nothing');
+  assert.deepEqual(markCurrentOption(options, 'all'), options);
+  assert.deepEqual(markCurrentOption(marked, 'away').map((o) => o.label)[2], '★ Away ★', 'never double-marked');
 });

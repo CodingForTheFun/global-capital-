@@ -295,3 +295,54 @@ test('the export fetcher streams the CSV, sends the key as a header and reports 
     if (previous === undefined) delete process.env.PROPLINE_API_KEY; else process.env.PROPLINE_API_KEY = previous;
   }
 });
+
+test('a slow player history never holds back a ready global or market answer', async () => {
+  let researchCalls = 0;
+  const research = () => { researchCalls++; return new Promise(resolve => setTimeout(() => resolve({ available: false }), 400)); };
+  const global = { predict: async (t, base) => t.marketOverProbability ? { available: true, sourceKind: 'market-consensus', projection: base?.projection ?? null, probabilityOver: 0.5, probabilityUnder: 0.5, probabilityPush: 0 } : null };
+  const store = createMLStore({ file: '/nonexistent/predictions.json', research, global, adaptiveBudgetMs: 50 });
+  const started = Date.now();
+  const result = await store.lookup(target({ gameStartTime: '2030-01-01T00:00:00.000Z', marketOverProbability: 0.5 }));
+  assert.equal(result.sourceKind, 'market-consensus');
+  assert.ok(Date.now() - started < 300, 'answered inside the budget, not after the history loaded');
+  assert.equal(researchCalls, 1, 'the history load still started, so the next request finds it cached');
+});
+
+test('the export window-start header is only a floor when PropLine clamped the request', async () => {
+  const dir = await tmp();
+  try {
+    const now = Date.parse('2026-09-25T21:16:00Z');
+    const seen = [];
+    // PropLine echoes the requested since as the window start, except when the
+    // plan's floor (here 90 days back) is later than what was asked for.
+    const planFloor = now - 90 * 86_400_000;
+    const fetchWindow = async ({ since, until }) => {
+      seen.push({ since, until });
+      return { ok: true, observations: [], meta: { windowStart: new Date(Math.max(since, planFloor)).toISOString(), dailyRemaining: '80' } };
+    };
+    await runTrainingCycle({ sports: ['MLB'], now, dir, fetchWindow, policy: { maxExportCallsPerCycle: 30, exportReserve: 15, lookbackDays: 365, defaultWindowDays: 7, minWindowDays: 1 } });
+    assert.ok(seen.length > 2, 'backfill ran after the incremental pull');
+    const state = await readState(dir);
+    assert.ok(Date.parse(state.sports.MLB.backfillThrough) <= planFloor + 86_400_000, 'backfill reached the plan floor');
+    assert.equal(state.sports.MLB.tierFloor, new Date(planFloor).toISOString());
+    assert.ok(seen.every(w => w.until > planFloor - 1), 'no window was requested before the plan floor once it was known');
+    assert.equal(state.lastCycle.backfillPending, false);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('a stale windowStart saved by the first release does not block backfill', async () => {
+  const dir = await tmp();
+  try {
+    const now = Date.parse('2026-09-26T21:16:00Z');
+    const { writeState } = await import('../lib/ml/global/store.mjs');
+    await writeState({ sports: { MLB: { incrementalThrough: '2026-09-25T21:16:43.234Z', backfillThrough: '2026-09-23T21:16:43.234Z', windowStart: '2026-09-23T21:16:43.234Z', windowDays: 7 } } }, dir);
+    let calls = 0;
+    await runTrainingCycle({ sports: ['MLB'], now, dir, fetchWindow: async () => { calls++; return { ok: true, observations: [], meta: { dailyRemaining: '80' } }; },
+      policy: { maxExportCallsPerCycle: 5, exportReserve: 15, lookbackDays: 365, defaultWindowDays: 7, minWindowDays: 1 } });
+    assert.equal(calls, 5);
+    const state = await readState(dir);
+    assert.equal(state.sports.MLB.windowStart, undefined);
+    assert.ok(Date.parse(state.sports.MLB.backfillThrough) < Date.parse('2026-09-23T00:00:00Z'));
+    assert.equal(state.lastCycle.backfillPending, true);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

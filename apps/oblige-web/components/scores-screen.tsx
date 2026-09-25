@@ -4,6 +4,7 @@ import * as React from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Scoreboard } from '@/components/scoreboard/scoreboard';
 import type { MatchStatus, ScoreboardEvent, SportKey } from '@/components/scoreboard/types';
+import { teamLogoUrl } from '@/lib/api';
 
 const API_SPORTS = 'NFL,NBA,SOCCER,NHL,MLB';
 const SPORT_MAP: Record<string, SportKey> = {
@@ -64,6 +65,17 @@ function winnerFlags(
   return { away: away > home, home: home > away };
 }
 
+/**
+ * Crests come through the same-origin logo route: the site's CSP blocks
+ * third-party images, so a feed's own logo URL would never load. Soccer has
+ * no single league directory to match against, so it keeps the feed's URL
+ * and the card's initials fallback.
+ */
+function logoFor(sport: SportKey, name: string, feedLogo: unknown): string | undefined {
+  if (sport !== 'soccer' && name) return teamLogoUrl(sport, name);
+  return text(feedLogo) || undefined;
+}
+
 function adaptGame(raw: unknown): ScoreboardEvent | null {
   const game = object(raw);
   const sport = SPORT_MAP[text(game.sport).toUpperCase()];
@@ -100,7 +112,7 @@ function adaptGame(raw: unknown): ScoreboardEvent | null {
       id: text(game.awayTeamId) || `${id}:away`,
       name: awayName,
       shortName: awayShort,
-      logoUrl: text(game.awayLogo) || undefined,
+      logoUrl: logoFor(sport, awayName, game.awayLogo),
       score: awayScore,
       isWinner: winners.away,
     },
@@ -108,7 +120,7 @@ function adaptGame(raw: unknown): ScoreboardEvent | null {
       id: text(game.homeTeamId) || `${id}:home`,
       name: homeName,
       shortName: homeShort,
-      logoUrl: text(game.homeLogo) || undefined,
+      logoUrl: logoFor(sport, homeName, game.homeLogo),
       score: homeScore,
       isWinner: winners.home,
     },

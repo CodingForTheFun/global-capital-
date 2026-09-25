@@ -22,6 +22,7 @@ import {
   artworkUrl,
   fetchAccount,
   fetchBoard,
+  prefetchResearch,
   fetchMovement,
   fetchResearchBatch,
   movementKey,
@@ -30,6 +31,7 @@ import {
   type MovementRow,
 } from '@/lib/api';
 import { marketDisplayLabel, pctValue } from '@/lib/utils';
+import { teamFor } from '@/lib/teams';
 import { marketArbitrage } from '@/lib/arbitrage.mjs';
 import {
   expectedValueFor,
@@ -263,8 +265,10 @@ async function fetchPredictions(groups: PropGroup[], signal?: AbortSignal) {
   if (!jobs.length) return output;
 
   const batchSize = 24; // Must stay aligned with ML_BATCH_MAX in lib/ml/routes.mjs.
-  for (let offset = 0; offset < jobs.length; offset += batchSize) {
-    const batch = jobs.slice(offset, offset + batchSize);
+  const batches: Array<typeof jobs> = [];
+  for (let offset = 0; offset < jobs.length; offset += batchSize) batches.push(jobs.slice(offset, offset + batchSize));
+  // Batches run side by side; one page is at most two or three of them.
+  await Promise.all(batches.map(async (batch) => {
     const response = await fetch('/api/props/ml', {
       method: 'POST',
       credentials: 'same-origin',
@@ -290,7 +294,7 @@ async function fetchPredictions(groups: PropGroup[], signal?: AbortSignal) {
         message: 'No verified model estimate is available for this prop.',
       };
     });
-  }
+  }));
 
   return output;
 }
@@ -781,6 +785,8 @@ export function TerminalBoard() {
     if (!accountId) return;
     const queue = createResearchQueue<PropGroup, ResearchResponse>({
       batchSize: RESEARCH_BATCH_SIZE,
+      // The rows on screen go out on their own so their hit rates land first.
+      priorityBatchSize: 16,
       fetchBatch: (groups, signal) => fetchResearchBatch(groups, 'OVER', signal),
       onAuthLost: () => setAccount(null),
       onSettled: (entries) => {
@@ -1154,7 +1160,8 @@ function streakLabel(summary: ResearchSummary | null | undefined) {
  * model's stated reason for having no estimate.
  */
 function EvPill({ group, prediction, bestEv }: { group: PropGroup; prediction: ModelPrediction | undefined; bestEv: ExpectedValueSelection | null }) {
-  if (prediction === undefined) return <span className={styles.loadingDot}>…</span>;
+  // Sportsbook-priced EV needs no model, so it shows while the model loads.
+  if (prediction === undefined && !bestEv) return <span className={styles.loadingDot}>…</span>;
   if (bestEv) {
     const tone = bestEv.ev >= 4 ? 'hot' : bestEv.ev > 0 ? 'pos' : 'neg';
     return (
@@ -1164,6 +1171,7 @@ function EvPill({ group, prediction, bestEv }: { group: PropGroup; prediction: M
       </span>
     );
   }
+  if (!prediction) return <span className={styles.loadingDot}>…</span>;
   const over = finite(prediction.probabilityOver) ? prediction.probabilityOver : null;
   const under = finite(prediction.probabilityUnder) ? prediction.probabilityUnder : null;
   if (prediction.available !== false && over !== null && under !== null) {
@@ -1189,6 +1197,46 @@ function EvPill({ group, prediction, bestEv }: { group: PropGroup; prediction: M
       No model
     </span>
   );
+}
+
+/**
+ * The player's face from the artwork route (which falls back to a sport badge
+ * when no verified photo exists), ringed in the team colour. A failed load
+ * leaves the initials underneath.
+ */
+function Face({ group, size }: { group: PropGroup; size: number }) {
+  const [failed, setFailed] = React.useState(false);
+  const club = teamFor(group.team);
+  const initials = group.player.split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase();
+  return (
+    <span className={styles.face} style={{ width: size, height: size, ['--ring' as string]: club.c1 }} aria-hidden="true">
+      <span>{initials}</span>
+      {!failed ? (
+        // eslint-disable-next-line @next/next/no-img-element -- same-origin artwork proxy
+        <img
+          src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
+          alt=""
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+// Hovering a desktop row for 200 ms starts loading its research, so a click
+// opens a warm page; sweeping the pointer across rows requests nothing.
+let prefetchTimer: ReturnType<typeof setTimeout> | null = null;
+function schedulePrefetch(group: PropGroup) {
+  if (prefetchTimer) clearTimeout(prefetchTimer);
+  prefetchTimer = setTimeout(() => { prefetchTimer = null; prefetchResearch(group); }, 200);
+}
+function cancelPrefetch() {
+  if (prefetchTimer) clearTimeout(prefetchTimer);
+  prefetchTimer = null;
 }
 
 /** Ten marks, newest on the right, one per verified game against this line. */
@@ -1315,14 +1363,9 @@ function DesktopMatrix({
             const move = movementFor(group);
 
             return (
-              <tr key={group.key} onClick={() => onInspect(group)}>
+              <tr key={group.key} onClick={() => onInspect(group)} onPointerEnter={() => schedulePrefetch(group)} onPointerLeave={cancelPrefetch}>
                 <td className={styles.playerCell}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
-                    alt=""
-                    onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-                  />
+                  <Face group={group} size={32} />
                   <b>{group.player}</b>
                   {group.team ? <small>{group.team}</small> : null}
                   {arb ? <span className={styles.arbTag}>ARB</span> : null}
@@ -1412,11 +1455,17 @@ function MobileMatrix({
 
         return (
           <li key={group.key} className={styles.mobileRow} data-open={open ? 'true' : 'false'}>
+            <button type="button" className={styles.mobileFace} onClick={() => onInspect(group)} aria-label={`Research ${group.player}`}>
+              <Face group={group} size={44} />
+            </button>
             <button
               type="button"
               className={styles.mobileMain}
               aria-expanded={open}
-              onClick={() => setOpenKey(open ? null : group.key)}
+              onClick={() => {
+                if (!open) prefetchResearch(group);
+                setOpenKey(open ? null : group.key);
+              }}
             >
               <span className={styles.mobileName}>
                 <b>{group.player}</b>

@@ -151,6 +151,8 @@ export type GameLogRow = {
   /** Tennis match-level total games and this player's games won. */
   matchTotalGames?: number | null;
   gamesWon?: number | null;
+  /** Tennis: the other player's value of this same statistic (PropLine opp_* mirror). */
+  opponentValue?: number | null;
   /**
    * Client-side tags joined from separate verified sources before filtering.
    * Each stays null when its source cannot answer for that exact game.

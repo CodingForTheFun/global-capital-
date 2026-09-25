@@ -153,6 +153,54 @@ test('tennis set score, format and result are verified or left unknown', () => {
   assert.equal(by['bo3-win'].scoreFor, undefined, 'tennis never exposes an ambiguous raw score');
 });
 
+test('tennis W/L, sets and opponent value come from documented PropLine fields', () => {
+  const at = (id, day, extra) => row(id, 20, { commence_time: `2026-09-${day}T12:00:00Z`, ...extra });
+  const data = normalizeGameArchive(payload([
+    at('mirror', 17, { home_team: 'Regression Tennis', away_team: 'Rival A', stats: { total_games: 22, sets_w: 2, opp_sets_w: 0, matches_w: 1, opp_total_games: 22 } }),
+    at('event-score', 16, { home_team: 'Rival B', away_team: 'Regression Tennis', home_score: 2, away_score: 1, stats: { total_games: 30, sets_won: 1, matches_w: 0 } }),
+    at('event-games', 15, { home_team: 'Regression Tennis', away_team: 'Rival C', home_score: 13, away_score: 10, stats: { total_games: 23, sets_won: 2, matches_w: 1 } }),
+    at('sets-disagree', 14, { home_team: 'Regression Tennis', away_team: 'Rival D', stats: { total_games: 20, sets_won: 2, sets_w: 1 } }),
+    at('opp-disagree', 13, { home_team: 'Regression Tennis', away_team: 'Rival E', home_score: 2, away_score: 1, stats: { total_games: 20, sets_won: 2, opp_sets_w: 0 } }),
+    at('matches-conflict', 12, { home_team: 'Regression Tennis', away_team: 'Rival F', stats: { total_games: 20, sets_won: 2, opp_sets_w: 1, matches_w: 0 } }),
+  ]), target, NOW);
+  const by = Object.fromEntries(data.gameLog.map(game => [game.gameId, game]));
+  assert.deepEqual([by.mirror.setsWon, by.mirror.setsLost, by.mirror.matchFormat, by.mirror.gameResult, by.mirror.opponentValue], [2, 0, 'BO3', 'W', null], 'total games has no documented mirror');
+  assert.deepEqual([by['event-score'].setsWon, by['event-score'].setsLost, by['event-score'].gameResult], [1, 2, 'L'], 'away side read from the named participant');
+  assert.equal(by['event-games'].setsPlayed, undefined, 'a game score on the event is not read as sets');
+  assert.equal(by['event-games'].gameResult, 'W', 'matches_w still answers the result');
+  assert.equal(by['sets-disagree'].setsPlayed, undefined);
+  assert.equal(by['opp-disagree'].setsPlayed, undefined, 'opp_sets_w against the event score is unknown');
+  assert.equal(by['matches-conflict'].gameResult, null, 'matches_w against a 2-1 set score is unknown');
+  assert.equal(by['event-score'].opponentValue, null, 'no mirror means no opponent value');
+});
+
+test('serve statistics expose the opponent value only from the opp_ mirror', () => {
+  const params = { ...target, market: 'Aces', providerMarketKey: 'player_aces' };
+  const data = normalizeGameArchive(payload([
+    row('a', 0, { stats: { aces: 7, opp_aces: 3 } }),
+    row('b', 0, { commence_time: '2026-09-16T12:00:00Z', stats: { aces: 5 } }),
+  ]), params, NOW);
+  assert.deepEqual(data.gameLog.map(game => [game.gameId, game.value, game.opponentValue]), [['a', 7, 3], ['b', 5, null]]);
+  const games = normalizeGameArchive(payload([row('g', 0, { stats: { games_w: 12, opp_games_w: 7 } })]), { ...target, market: 'Games Won', providerMarketKey: 'player_games_won' }, NOW);
+  assert.equal(games.gameLog[0].opponentValue, 7);
+});
+
+test('team result and score come from home/away score and is_home, cross-checked with score_for', () => {
+  const params = { ...target, sport: 'NBA', market: 'Points', providerMarketKey: 'player_points' };
+  const nba = (id, day, extra) => ({ event_id: id, commence_time: `2026-09-${day}T12:00:00Z`, status: 'final', stats: { points: 20 }, ...extra });
+  const data = normalizeGameArchive({ player_name: target.playerName, sport_key: PROPLINE_GAME_SPORTS.NBA, games: [
+    nba('home-win', 17, { is_home: true, home_score: 110, away_score: 100 }),
+    nba('away-loss', 16, { is_home: false, home_score: 110, away_score: 100 }),
+    nba('agree', 15, { is_home: true, home_score: 90, away_score: 95, score_for: 90, score_against: 95 }),
+    nba('disagree', 14, { is_home: true, home_score: 90, away_score: 95, score_for: 95, score_against: 90 }),
+    nba('side-unknown', 13, { home_score: 90, away_score: 95 }),
+  ] }, params, NOW);
+  assert.deepEqual(data.gameLog.map(game => [game.gameId, game.gameResult, game.scoreFor, game.scoreAgainst]), [
+    ['home-win', 'W', 110, 100], ['away-loss', 'L', 100, 110], ['agree', 'L', 90, 95], ['disagree', null, null, null], ['side-unknown', null, null, null],
+  ]);
+  assert.ok(data.gameLog.every(game => game.opponentValue === undefined), 'team rows carry no opponent mirror');
+});
+
 test('team-sport archive rows keep documented result, score and season type', () => {
   const params = { ...target, sport: 'NBA', market: 'Points', providerMarketKey: 'player_points' };
   const nba = (id, extra) => ({ event_id: id, commence_time: '2026-09-17T12:00:00Z', status: 'final', stats: { points: 20 }, ...extra });

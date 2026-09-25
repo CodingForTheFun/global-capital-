@@ -37,7 +37,7 @@ test('match totals are shared; head-to-head and unnamed matches are left out', (
   assert.equal(field.hits, 2);
 });
 
-test('sets use the verified set score; serve statistics are not recoverable', () => {
+test('sets use the verified set score; serve statistics need the source mirror', () => {
   assert.equal(otherSideValue('sets_won', { value: 2, setsWon: 2, setsLost: 3 }), 3);
   assert.equal(otherSideValue('sets_won', { value: 2, setsWon: 1, setsLost: 2 }), null, 'value disagrees with the set score');
   assert.equal(opponentField(royer, 'aces', 'X', 5.5, 'OVER'), null);
@@ -48,4 +48,18 @@ test('a push is neither a hit nor a miss', () => {
   const field = opponentField([{ gameId: 'p', date: '2026-09-01', opponent: 'Someone', value: 20, matchTotalGames: 20 }], 'total_games', 'X', 20, 'OVER');
   assert.equal(field.rows[0].push, true);
   assert.equal(field.decided, 0);
+});
+
+test('the source mirror answers serve statistics and must agree with a derivation', () => {
+  assert.equal(otherSideValue('aces', { value: 7, opponentValue: 3 }), 3);
+  assert.equal(otherSideValue('aces', { value: 7, opponentValue: null }), null);
+  assert.equal(otherSideValue('games_w', { value: 12, matchTotalGames: 19, opponentValue: 7 }), 7);
+  assert.equal(otherSideValue('games_w', { value: 12, matchTotalGames: 19, opponentValue: 8 }), null, 'a conflict is skipped');
+  const games = [
+    { gameId: 'a', date: '2026-09-20', opponent: 'Adam Walton', value: 4, opponentValue: 9 },
+    { gameId: 'b', date: '2026-09-10', opponent: 'Dalibor Svrcina', value: 6 },
+  ];
+  const field = opponentField(games, 'aces', 'Valentin Royer', 6.5, 'OVER');
+  assert.deepEqual(field.rows.map((row) => [row.player, row.value, row.hit]), [['Adam Walton', 9, true]]);
+  assert.equal(opponentField([{ gameId: 'x', opponent: 'A', value: 3 }], 'aces', 'Valentin Royer', 6.5, 'OVER'), null);
 });

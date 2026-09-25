@@ -120,8 +120,8 @@ export function OpponentField({
         </p>
       ) : !field ? (
         <p className="px-3 py-4 text-[10px] leading-4 text-[#7E97B0]">
-          Other players' {marketLabel.toLowerCase()} can't be read from {opponent}'s matches: the source records that statistic for {opponent} only.
-          Total games, games won and sets won are available.
+          Other players' {marketLabel.toLowerCase()} weren't returned with {opponent}'s matches, so this comparison isn't available for this market.
+          Total games, games won and sets won can always be compared.
         </p>
       ) : !field.rows.length ? (
         <p className="px-3 py-4 text-[10px] leading-4 text-[#7E97B0]">No other verified matches for {opponent} yet.</p>

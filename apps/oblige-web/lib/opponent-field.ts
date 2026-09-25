@@ -3,10 +3,12 @@ import type { GameLogRow, Side } from './types';
 /**
  * "Other players vs <opponent>": the opponent's own verified matches, read from
  * the other side of the net. Only statistics that can be recovered exactly from
- * the opponent's row are offered -- a match total is shared, games won is the
- * match total minus the opponent's games, sets come from the verified set score.
- * Per-player serve statistics (aces, double faults, break points) cannot be
- * recovered from the opponent's row and are reported as unavailable.
+ * the opponent's row are offered. The source's own mirror of the other player's
+ * value (opponentValue) is used when present; otherwise a match total is shared,
+ * games won is the match total minus the opponent's games, and sets come from
+ * the verified set score. When both exist and disagree the match is skipped.
+ * Serve statistics (aces, double faults, break points) have no derivation, so
+ * they appear only for matches where the source returned the mirror.
  */
 
 export type FieldRow = {
@@ -41,9 +43,7 @@ const clean = (value: unknown) =>
 /** Stat kinds whose other-side value can be recovered exactly. */
 export const DERIVABLE_STATS = new Set(['total_games', 'games_w', 'sets_won']);
 
-export function otherSideValue(statKind: string | null | undefined, game: GameLogRow): number | null {
-  const value = finite(game.value);
-  if (value === null) return null;
+function derivedOtherSide(statKind: string | null | undefined, game: GameLogRow, value: number): number | null {
   if (statKind === 'total_games') return value;
   if (statKind === 'games_w') {
     const total = finite(game.matchTotalGames);
@@ -56,6 +56,15 @@ export function otherSideValue(statKind: string | null | undefined, game: GameLo
   return null;
 }
 
+export function otherSideValue(statKind: string | null | undefined, game: GameLogRow): number | null {
+  const value = finite(game.value);
+  if (value === null) return null;
+  const mirror = finite(game.opponentValue);
+  const derived = derivedOtherSide(statKind, game, value);
+  if (mirror !== null && derived !== null && mirror !== derived) return null;
+  return mirror ?? derived;
+}
+
 export function opponentField(
   games: GameLogRow[],
   statKind: string | null | undefined,
@@ -63,7 +72,7 @@ export function opponentField(
   line: number,
   side: Side,
 ): FieldSummary | null {
-  if (!DERIVABLE_STATS.has(String(statKind || ''))) return null;
+  if (!DERIVABLE_STATS.has(String(statKind || '')) && !games.some((game) => finite(game.opponentValue) !== null)) return null;
   const me = clean(player);
   const rows: FieldRow[] = [];
   for (const game of games) {

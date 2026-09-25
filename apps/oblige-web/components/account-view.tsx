@@ -281,12 +281,12 @@ function SavedProps() {
               >
                 <Link href={watchlistHref(item)} className="min-w-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className="shrink-0 rounded-md border border-[var(--line-strong)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--accent)]">{item.sport}</span>
+                    <span className="shrink-0 rounded-[3px] border border-[var(--line-strong)] px-1.5 py-0.5 text-[12px] font-bold text-[var(--accent)]">{item.sport}</span>
                     <strong className="truncate text-[length:var(--fs-sm)]">{item.player}</strong>
                     {signal ? (
                       <span
                         data-qa="saved-activity"
-                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[color-mix(in_srgb,var(--accent)_35%,var(--line))] bg-[var(--accent-soft)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--accent)]"
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[color-mix(in_srgb,var(--accent)_35%,var(--line))] bg-[var(--accent-soft)] px-1.5 py-0.5 text-[12px] font-bold text-[var(--accent)]"
                       >
                         <Activity className="size-2.5" aria-hidden />
                         {signal}

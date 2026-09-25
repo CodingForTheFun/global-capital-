@@ -198,7 +198,7 @@ export function ScoresScreen() {
     <div className="mx-auto w-full max-w-[var(--maxw)] px-3 pb-24 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pb-12">
       <div className="mx-auto mb-4 flex w-full max-w-5xl items-end justify-between gap-4">
         <div>
-          <span className="text-[10px] font-bold uppercase tracking-[.16em] text-[var(--accent)]">Live sports</span>
+          <span className="text-[12px] font-bold uppercase tracking-[.16em] text-[var(--accent)]">Live sports</span>
           <h1 className="mt-1 font-display text-2xl font-black tracking-[-.04em] text-[var(--text)] sm:text-3xl">Scores</h1>
           <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-[var(--text-3)] sm:text-xs">
             Live and recent scores for NFL, NBA, EPL, NHL and MLB.
@@ -210,12 +210,12 @@ export function ScoresScreen() {
             type="button"
             onClick={() => void load(true)}
             disabled={isRefreshing}
-            className="inline-flex min-h-8 items-center gap-1.5 rounded-[9px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] px-2.5 text-[10px] font-bold text-[var(--text-2)] transition-colors hover:text-[var(--text)] disabled:opacity-50"
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-[9px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_82%,transparent)] px-2.5 text-[12px] font-bold text-[var(--text-2)] transition-colors hover:text-[var(--text)] disabled:opacity-50"
           >
             <RefreshCw className={`size-3.5 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
             Refresh
           </button>
-          <span className="font-mono text-[8px] text-[var(--text-3)]">
+          <span className="font-mono text-[11px] text-[var(--text-3)]">
             {fetchedAt
               ? `Updated ${new Date(fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
               : 'Connecting…'}
@@ -224,7 +224,7 @@ export function ScoresScreen() {
       </div>
 
       {error && (
-        <div className="mx-auto mb-3 w-full max-w-5xl rounded-[10px] border border-red-500/25 bg-red-500/5 px-3 py-2 text-[10px] text-red-300">
+        <div className="mx-auto mb-3 w-full max-w-5xl rounded-[10px] border border-red-500/25 bg-red-500/5 px-3 py-2 text-[12px] text-red-300">
           {error}
         </div>
       )}

@@ -33,7 +33,7 @@ function ownRow(value: MatchupResponse | null, playerId: string | null, pick: (t
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <article className="min-w-0 rounded-xl border border-[#1C3B58] bg-[#081421] p-3">
+    <article className="min-w-0 rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)] p-3">
       <h4 className="mb-2 truncate text-[11px] font-black text-white">{title}</h4>
       {children}
     </article>
@@ -43,13 +43,13 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 function Rows({ head, rows }: { head: [string, string, string]; rows: Array<[React.ReactNode, React.ReactNode, React.ReactNode]> }) {
   return (
     <div className="max-h-64 overflow-auto">
-      <table className="w-full text-left text-[10px]">
-        <thead className="sticky top-0 bg-[#081421] text-[8px] uppercase tracking-wide text-slate-500">
+      <table className="w-full text-left text-[12px]">
+        <thead className="sticky top-0 bg-[var(--surface-2)] text-[11px] uppercase tracking-wide text-[var(--text-3)]">
           <tr>{head.map((label) => <th key={label} className="py-1 pr-2 font-bold">{label}</th>)}</tr>
         </thead>
         <tbody>
           {rows.map((cells, index) => (
-            <tr key={index} className="border-t border-slate-800/70 align-top text-slate-300">
+            <tr key={index} className="border-t border-[var(--line)] align-top text-[var(--text-2)]">
               {cells.map((cell, column) => <td key={column} className="py-1.5 pr-2">{cell}</td>)}
             </tr>
           ))}
@@ -60,7 +60,7 @@ function Rows({ head, rows }: { head: [string, string, string]; rows: Array<[Rea
 }
 
 function Muted({ children }: { children: React.ReactNode }) {
-  return <p className="text-[10px] leading-relaxed text-slate-500">{children}</p>;
+  return <p className="text-[12px] leading-relaxed text-[var(--text-3)]">{children}</p>;
 }
 
 export function GameContext({ group }: { group: PropGroup }) {
@@ -95,18 +95,18 @@ export function GameContext({ group }: { group: PropGroup }) {
   const sourceUrl = ready && ESPN_GAME_URL.test(value?.sourceUrl || '') ? value?.sourceUrl : null;
 
   return (
-    <section className="rounded-[14px] border border-[#153D5F] bg-[#071321] p-3 sm:p-4" aria-label="Game context" aria-busy={loading}>
+    <section className="rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)] p-3 sm:p-4" aria-label="Game context" aria-busy={loading}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-black text-white">Game Context</h3>
-          <p className="mt-0.5 text-[9px] text-slate-500">Injuries, lineups and conditions for {group.matchup}</p>
+          <p className="mt-0.5 text-[12px] text-[var(--text-3)]">Injuries, lineups and conditions for {group.matchup}</p>
         </div>
         <button
           type="button"
           onClick={() => setRevision((current) => current + 1)}
           disabled={loading}
           aria-label="Refresh game context"
-          className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/80 px-2.5 text-[10px] font-bold text-white transition hover:border-slate-600 disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex min-h-9 items-center gap-1.5 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface)] px-2.5 text-[12px] font-bold text-white transition hover:border-[var(--line-strong)] disabled:cursor-wait disabled:opacity-60"
         >
           <RefreshCw className={`size-3 ${loading ? 'animate-spin' : ''}`} aria-hidden />
           {loading ? 'Loading' : 'Refresh'}
@@ -122,12 +122,12 @@ export function GameContext({ group }: { group: PropGroup }) {
           {(injury || starter) && (
             <div className="flex flex-wrap gap-2" role="status">
               {injury && (
-                <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-[10px] font-black text-amber-300">
+                <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-[12px] font-black text-amber-300">
                   {group.player}: {injury.status}{injury.detail ? ` · ${injury.detail}` : ''}
                 </span>
               )}
               {starter && (
-                <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-300">
+                <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[12px] font-black text-emerald-300">
                   {group.player}: listed starter
                 </span>
               )}
@@ -147,9 +147,9 @@ export function GameContext({ group }: { group: PropGroup }) {
                     rows={team.injuries.rows.map((row) => [
                       <span key="p" className={row.playerId && row.playerId === group.providerPlayerId ? 'font-black text-amber-300' : 'font-semibold text-white'}>
                         {row.playerName}
-                        {row.position ? <span className="ml-1 text-slate-500">{row.position}</span> : null}
+                        {row.position ? <span className="ml-1 text-[var(--text-3)]">{row.position}</span> : null}
                       </span>,
-                      <span key="s">{row.status}{row.detail ? <span className="block text-slate-500">{row.detail}</span> : null}</span>,
+                      <span key="s">{row.status}{row.detail ? <span className="block text-[var(--text-3)]">{row.detail}</span> : null}</span>,
                       reportedDate(row.reportedAt),
                     ])}
                   />
@@ -190,14 +190,14 @@ export function GameContext({ group }: { group: PropGroup }) {
                   <div className="grid grid-cols-2 gap-2">
                     {teams.map((team) => (
                       <div key={team.side}>
-                        <div className="truncate text-[9px] font-bold text-slate-500">{team.abbreviation || team.name}</div>
+                        <div className="truncate text-[12px] font-bold text-[var(--text-3)]">{team.abbreviation || team.name}</div>
                         <div className="text-xl font-black tabular-nums text-white">
                           {team.side === 'home' ? prediction?.homePercent : prediction?.awayPercent}%
                         </div>
                       </div>
                     ))}
                   </div>
-                  {prediction?.note && <p className="mt-2 text-[9px] text-slate-500">{prediction.note}</p>}
+                  {prediction?.note && <p className="mt-2 text-[12px] text-[var(--text-3)]">{prediction.note}</p>}
                 </>
               ) : (
                 <Muted>{prediction?.message || 'A current pre-game estimate is not available.'}</Muted>
@@ -205,18 +205,18 @@ export function GameContext({ group }: { group: PropGroup }) {
             </Card>
             <Card title="Game lines">
               {value.odds?.available ? (
-                <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]">
                   {teams.map((team) => (
                     <React.Fragment key={team.side}>
-                      <dt className="truncate text-slate-500">{team.abbreviation || team.name} ML</dt>
+                      <dt className="truncate text-[var(--text-3)]">{team.abbreviation || team.name} ML</dt>
                       <dd className="text-right font-black tabular-nums text-white">
                         {moneyline(team.side === 'home' ? value.odds?.homeMoneyline : value.odds?.awayMoneyline)}
                       </dd>
                     </React.Fragment>
                   ))}
-                  <dt className="text-slate-500">Spread</dt>
+                  <dt className="text-[var(--text-3)]">Spread</dt>
                   <dd className="text-right font-black text-white">{value.odds.spread || '—'}</dd>
-                  <dt className="text-slate-500">Total</dt>
+                  <dt className="text-[var(--text-3)]">Total</dt>
                   <dd className="text-right font-black tabular-nums text-white">{value.odds.total ?? '—'}</dd>
                 </dl>
               ) : (
@@ -224,18 +224,18 @@ export function GameContext({ group }: { group: PropGroup }) {
               )}
             </Card>
             <Card title="Venue and weather">
-              <p className="text-[10px] font-semibold text-white">
+              <p className="text-[12px] font-semibold text-white">
                 {[value.venue?.name, value.venue?.city].filter(Boolean).join(' · ') || 'Venue not reported'}
-                {value.venue?.indoor === true ? <span className="ml-1 text-slate-500">(indoor)</span> : null}
+                {value.venue?.indoor === true ? <span className="ml-1 text-[var(--text-3)]">(indoor)</span> : null}
               </p>
               {value.weather?.available ? (
-                <p className="mt-1 text-[10px] text-slate-400">
+                <p className="mt-1 text-[12px] text-[var(--text-2)]">
                   <strong className="text-white">{value.weather.temperature}{value.weather.unit}</strong> · {value.weather.note}
                 </p>
               ) : (
                 <Muted>{value.weather?.message || 'No weather report is available.'}</Muted>
               )}
-              <div className="mt-2 grid gap-0.5 text-[10px] text-slate-400">
+              <div className="mt-2 grid gap-0.5 text-[12px] text-[var(--text-2)]">
                 {teams.map((team) => (
                   <span key={team.side}>
                     {team.abbreviation || team.name}: {team.record || 'Record not reported'}
@@ -246,7 +246,7 @@ export function GameContext({ group }: { group: PropGroup }) {
             </Card>
           </div>
 
-          <p className="text-[9px] leading-relaxed text-slate-500">
+          <p className="text-[12px] leading-relaxed text-[var(--text-3)]">
             Team records are not opponent defensive ranks, and injury reports do not establish with/without-player effects.{' '}
             {sourceUrl ? (
               <a href={sourceUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-sky-400 hover:underline">

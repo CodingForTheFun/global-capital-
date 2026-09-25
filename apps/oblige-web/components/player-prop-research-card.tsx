@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { BarChart3, BookOpen, CalendarDays, ChevronDown, ChevronRight, Flame, History, Minus, Plus, RotateCcw, Shield, SlidersHorizontal, Star, Target, TrendingUp, Users } from 'lucide-react';
+import { BarChart3, BookOpen, CalendarDays, ChevronDown, ChevronRight, Flame, History, Minus, Plus, RotateCcw, Shield, SlidersHorizontal, Star, TrendingUp, Users } from 'lucide-react';
 import type { DefensePositionResponse, DefenseTier, GameLogRow, MoneylineResponse, TennisContextResponse, LineHistoryPoint, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
 import {
   applyFilters,
@@ -319,7 +319,7 @@ function MarketPill({
         'h-10 shrink-0 rounded-full border px-4 text-[11px] font-extrabold tracking-[0.04em] transition',
         active
           ? 'border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_0_20px_rgb(88_80_236/.22)]'
-          : 'border-[#263548] bg-[#0F1722] text-[#73829A]',
+          : 'border-[var(--line-strong)] bg-[var(--surface-2)] text-[var(--text-2)]',
       )}
     >
       {children}
@@ -340,8 +340,8 @@ function SelectPill({
 }) {
   const selected = options.find((option) => option.value === value)?.label || 'Unavailable';
   return (
-    <label className="relative flex h-10 shrink-0 items-center gap-2 rounded-full border border-[#2B3A50] bg-[#111927] px-4 pr-8 text-[11px] font-medium text-[#93A2B8]">
-      <span className="whitespace-nowrap">{label}: <b className="font-semibold text-[#C6D0DE]">{selected}</b></span>
+    <label className="relative flex h-10 shrink-0 items-center gap-2 rounded-full border border-[var(--line-strong)] bg-[var(--surface-2)] px-4 pr-8 text-[11px] font-medium text-[var(--text-2)]">
+      <span className="whitespace-nowrap">{label}: <b className="font-semibold text-[var(--text)]">{selected}</b></span>
       <select
         className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
         value={value}
@@ -369,13 +369,13 @@ function FilterSelect({
   const active = value !== 'all';
   return (
     <label className="grid min-w-0 gap-1">
-      <span className="truncate text-[9px] font-bold text-[#7E97B0]">{label}</span>
+      <span className="truncate text-[12px] font-bold text-[var(--text-2)]">{label}</span>
       <span className={cx(
-        'relative flex h-10 items-center rounded-lg border bg-[#0B1826] px-3 pr-8 text-[11px] font-semibold',
-        active ? 'border-[#0A8EE8] text-white' : 'border-[#244868] text-[#C6D0DE]',
+        'relative flex h-10 items-center rounded-[6px] border bg-[var(--surface-2)] px-3 pr-8 text-[11px] font-semibold',
+        active ? 'border-[var(--accent-2)] text-white' : 'border-[var(--line-strong)] text-[var(--text)]',
       )}>
         <span className="truncate">{options.find((option) => option.value === value)?.label || 'Any'}</span>
-        <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-[#7E97B0]" aria-hidden />
+        <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-[var(--text-2)]" aria-hidden />
         <select
           aria-label={label}
           value={value}
@@ -406,12 +406,12 @@ function HistoryChart({
 }) {
   if (!games.length) {
     return (
-      <section className="rounded-2xl border border-[#1E2D3D] bg-[#0E1823] p-3">
+      <section className="rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)] p-3">
         <div className="flex items-center gap-2 text-[13px] font-black text-white">
-          <Flame className="h-4 w-4 text-[#FF8B2B]" fill="currentColor" />
+          <Flame className="h-4 w-4 text-[var(--text-2)]" fill="currentColor" />
           Historical results
         </div>
-        <div className="mt-3 grid min-h-[160px] place-items-center rounded-xl border border-dashed border-[#263548] px-5 text-center text-[11px] text-[#7E8FA5]">
+        <div className="mt-3 grid min-h-[160px] place-items-center rounded-[10px] border border-dashed border-[var(--line-strong)] px-5 text-center text-[11px] text-[var(--text-2)]">
           Verified historical games are unavailable for this selection.
         </div>
       </section>
@@ -425,27 +425,27 @@ function HistoryChart({
   const threshold = Math.max(0, Math.min(100, (line / ceiling) * 100));
 
   return (
-    <section data-qa="history-chart" className="rounded-2xl border border-[#1E2D3D] bg-[#0E1823] p-3">
+    <section data-qa="history-chart" className="rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)] p-3">
       <div className="flex items-center gap-2 text-[13px] font-black text-white">
-        <Flame className="h-4 w-4 text-[#FF8B2B]" fill="currentColor" />
+        <Flame className="h-4 w-4 text-[var(--text-2)]" fill="currentColor" />
         Last {rows.length} Games – {market}
       </div>
-      <div className="mt-1 text-[10px] font-medium text-[#8A9AB0]">
+      <div className="mt-1 text-[12px] font-medium text-[var(--text-2)]">
         Current target: {line} · {period}
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] text-[#94A3B8]">
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[#10B981]" />Over</span>
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[#FF4D76]" />Under</span>
-        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full border border-[#64748B]" />DNP</span>
-        <span className="flex items-center gap-1.5"><i className="w-4 border-t-2 border-dashed border-[#FBBF24]" />Prop line</span>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[var(--text-2)]">
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[var(--pos-soft)]" />Over</span>
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full bg-[var(--neg-soft)]" />Under</span>
+        <span className="flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full border border-[var(--line-strong)]" />DNP</span>
+        <span className="flex items-center gap-1.5"><i className="w-4 border-t-2 border-dashed border-[var(--warn)]" />Prop line</span>
       </div>
       <div className="mt-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="relative h-[188px] min-w-[390px] border-b border-[#263548] bg-[repeating-linear-gradient(to_top,transparent_0,transparent_54px,rgba(71,85,105,.16)_54px,rgba(71,85,105,.16)_55px)]">
+        <div className="relative h-[188px] min-w-[390px] border-b border-[var(--line-strong)] bg-[repeating-linear-gradient(to_top,transparent_0,transparent_54px,rgba(71,85,105,.16)_54px,rgba(71,85,105,.16)_55px)]">
           <div
-            className="pointer-events-none absolute inset-x-0 z-20 border-t border-dashed border-[#FBBF24]"
+            className="pointer-events-none absolute inset-x-0 z-20 border-t border-dashed border-[var(--warn)]"
             style={{ bottom: String(threshold) + '%' }}
           >
-            <span className="absolute right-0 -top-4 rounded bg-[#211d10] px-1 py-0.5 text-[8px] font-black text-[#FBBF24]">{line}</span>
+            <span className="absolute right-0 -top-4 rounded bg-[var(--surface-2)] px-1 py-0.5 text-[11px] font-black text-[var(--warn)]">{line}</span>
           </div>
           <div
             className="absolute inset-0 grid items-end gap-[5px] px-1 pt-5"
@@ -459,7 +459,7 @@ function HistoryChart({
               return (
                 <div key={(game.gameId || game.date || 'game') + '-' + index} className="relative flex h-full items-end">
                   <span
-                    className="absolute inset-x-0 text-center text-[7px] font-black text-[#EEF3F8]"
+                    className="absolute inset-x-0 text-center text-[11px] font-black text-[var(--text)]"
                     style={{ bottom: 'calc(' + height + '% + 3px)' }}
                   >
                     {unavailable ? 'DNP' : value}
@@ -486,8 +486,8 @@ function HistoryChart({
           style={{ gridTemplateColumns: 'repeat(' + rows.length + ', minmax(18px, 1fr))' }}
         >
           {rows.map((game, index) => (
-            <span key={'label-' + (game.gameId || game.date || index)} className="min-w-0 overflow-hidden text-[7px] text-[#718198]">
-              <b className="block truncate font-semibold text-[#93A2B8]">{numericDate(game.date)}</b>
+            <span key={'label-' + (game.gameId || game.date || index)} className="min-w-0 overflow-hidden text-[11px] text-[var(--text-2)]">
+              <b className="block truncate font-semibold text-[var(--text-2)]">{numericDate(game.date)}</b>
               <span className="block truncate">{individual ? personShort(game.opponent) || '—' : (game.isHome === false ? '@' : '') + (teamShort(game.opponent, leagueTeams) || '—')}</span>
             </span>
           ))}
@@ -497,14 +497,19 @@ function HistoryChart({
   );
 }
 
+type ModelSummary = { projection: number | null; side: 'O' | 'U' | null; probability: number | null; ev: ExpectedValueSelection | null; loading: boolean };
+
 function HistoryModel({
   group,
   selectedBook,
   line,
+  onSummary,
 }: {
   group: PropGroup;
   selectedBook: CatalogBookRow | null;
   line: number;
+  /** Lets the page header show the answer without a second model request. */
+  onSummary?: (summary: ModelSummary) => void;
 }) {
   const [prediction, setPrediction] = React.useState<ModelPrediction | null>(null);
   const [loading, setLoading] = React.useState(false);
@@ -555,42 +560,55 @@ function HistoryModel({
   const baselineRmse = numberOf(prediction?.validation?.baselineRmse);
   const validationChecks = numberOf(prediction?.validation?.observations);
   const modelSample = numberOf(prediction?.sampleSize);
+  const overProbability = available ? numberOf(prediction?.probabilityOver) : null;
+  const underProbability = available ? numberOf(prediction?.probabilityUnder) : null;
+  React.useEffect(() => {
+    if (!onSummary) return;
+    const both = overProbability !== null && underProbability !== null;
+    onSummary({
+      projection: projectionValue,
+      side: both ? (overProbability! >= underProbability! ? 'O' : 'U') : null,
+      probability: both ? Math.max(overProbability!, underProbability!) : null,
+      ev: selectedEv,
+      loading,
+    });
+  }, [onSummary, projectionValue, overProbability, underProbability, selectedEv, loading]);
 
   return (
-    <div className="rounded-2xl border border-[#1E2D3D] bg-[#101925] p-2.5">
+    <div className="rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)] p-2.5">
       <div className="text-[13px] font-black text-white">History model</div>
       <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2">
-        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
-        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
-        <div className="min-w-0"><div className="text-[8px] text-[#8494AA]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
-        <div className="min-w-0"><div className="whitespace-nowrap text-[7px] text-[#8494AA]">Selected-quote EV</div><div className="mt-0.5 whitespace-nowrap text-[17px] font-black leading-none text-white">{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[11px] text-[var(--text-2)]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[11px] text-[var(--text-2)]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="text-[11px] text-[var(--text-2)]">Under</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityUnder) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
+        <div className="min-w-0"><div className="whitespace-nowrap text-[11px] text-[var(--text-2)]">Selected-quote EV</div><div className="mt-0.5 whitespace-nowrap text-[17px] font-black leading-none text-white">{selectedEv ? (selectedEv.ev >= 0 ? '+' : '') + selectedEv.ev.toFixed(1) + '%' : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
       </div>
-      <div data-qa="history-model-evidence" className="mt-2 grid grid-cols-3 overflow-hidden rounded-lg border border-[#223247] bg-[#0B1420]">
+      <div data-qa="history-model-evidence" className="mt-2 grid grid-cols-3 overflow-hidden rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)]">
         <div className="min-w-0 px-2 py-2">
-          <div className="text-[7px] font-bold uppercase tracking-[.03em] text-[#71849B]">Proj vs line</div>
+          <div className="text-[11px] font-bold uppercase tracking-[.03em] text-[var(--text-2)]">Proj vs line</div>
           <div className="mt-0.5 truncate text-[11px] font-black text-white">
             {projectionDelta === null ? '—' : (projectionDelta > 0 ? '+' : '') + projectionDelta.toFixed(1)}
           </div>
         </div>
-        <div className="min-w-0 border-l border-[#223247] px-2 py-2">
-          <div className="text-[7px] font-bold uppercase tracking-[.03em] text-[#71849B]">Model sample</div>
+        <div className="min-w-0 border-l border-[var(--line-strong)] px-2 py-2">
+          <div className="text-[11px] font-bold uppercase tracking-[.03em] text-[var(--text-2)]">Model sample</div>
           <div className="mt-0.5 truncate text-[11px] font-black text-white">
             {modelSample === null ? '—' : Math.round(modelSample) + ' games'}
           </div>
         </div>
-        <div className="min-w-0 border-l border-[#223247] px-2 py-2">
-          <div className="text-[7px] font-bold uppercase tracking-[.03em] text-[#71849B]">Validation</div>
+        <div className="min-w-0 border-l border-[var(--line-strong)] px-2 py-2">
+          <div className="text-[11px] font-bold uppercase tracking-[.03em] text-[var(--text-2)]">Validation</div>
           <div className="mt-0.5 truncate text-[11px] font-black text-white">
             {validationRmse === null ? '—' : 'RMSE ' + validationRmse.toFixed(2)}
           </div>
         </div>
       </div>
-      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[7px] leading-3 text-[#657A91]">
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] leading-3 text-[var(--text-3)]">
         <span>{validationChecks === null ? 'Rolling checks unavailable' : Math.round(validationChecks) + ' rolling checks'}</span>
         <span>{baselineRmse === null ? 'Baseline error unavailable' : 'Baseline RMSE ' + baselineRmse.toFixed(2)}</span>
         <span>{prediction?.modelVersion ? 'Version ' + prediction.modelVersion : 'Version unavailable'}</span>
       </div>
-      <p className="mt-2 text-[8px] leading-[1.45] text-[#7E8FA5]">
+      <p className="mt-2 text-[11px] leading-[1.45] text-[var(--text-2)]">
         {loading
           ? 'Checking the verified history model…'
           : available
@@ -604,7 +622,7 @@ function HistoryModel({
         type="button"
         onClick={() => setRevision((value) => value + 1)}
         disabled={loading}
-        className="mt-2 h-9 rounded-lg border border-[#2A3A4F] bg-[#0D1722] px-3 text-[10px] font-semibold text-white disabled:opacity-50"
+        className="mt-2 h-9 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 text-[12px] font-semibold text-white disabled:opacity-50"
       >
         {loading ? 'Refreshing…' : 'Refresh forecast'}
       </button>
@@ -863,6 +881,7 @@ export function PlayerPropResearchCard({
   }, [availableBooks]);
   const bestOverBook = bestOverPrice === null ? null : availableBooks.find((book) => numberOf(book.over?.price) === bestOverPrice) || null;
   const bestUnderBook = bestUnderPrice === null ? null : availableBooks.find((book) => numberOf(book.under?.price) === bestUnderPrice) || null;
+  const [modelSummary, setModelSummary] = React.useState<ModelSummary | null>(null);
   const selectedBook = state.book ? books.find((book) => book.key === state.book) || null : null;
   const heroQuote = (state.side === 'UNDER'
     ? selectedBook?.under || group.bestUnder
@@ -1000,61 +1019,67 @@ export function PlayerPropResearchCard({
 
   return (
     <section
-      className="mx-auto w-full max-w-[900px] text-white [font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe_UI',sans-serif]"
+      className="mx-auto w-full max-w-[1100px] text-[var(--text)]"
       data-design="player-prop-research-card"
       data-release="oblige-paid-ready-research-v5-20260924"
     >
-      <div className="overflow-hidden rounded-[18px] border border-[#0879E8] bg-[radial-gradient(circle_at_28%_0%,rgba(18,71,181,.42),transparent_42%),linear-gradient(180deg,#071428_0%,#07111F_100%)] shadow-[0_0_26px_rgba(0,126,255,.23),0_18px_55px_rgba(0,0,0,.35)]">
-        <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 p-3 sm:grid-cols-[auto_minmax(0,1fr)_210px]">
-          <div className="relative h-[72px] w-[72px] shrink-0 rounded-full border-2 border-[#0EA5FF] bg-[#0B1B2E] p-[2px] shadow-[0_0_22px_rgba(0,153,255,.55)]">
-            <div className="h-full w-full overflow-hidden rounded-full">
-              <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} size={68} className="!size-full" />
-            </div>
-            <span className="absolute -bottom-1 -right-1 rounded-md border border-[#19639E] bg-[#07111F] px-1.5 py-0.5 text-[7px] font-black tracking-[.08em] text-[#7DD3FC]">
-              {group.sport}
-            </span>
+      {/* Flat header: who, when, and the market in one decision row. No hero card. */}
+      <header className="grid gap-3 border-b border-[var(--line)] pb-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="size-11 shrink-0 overflow-hidden rounded-full bg-[var(--surface-3)] ring-1 ring-[var(--line-strong)]">
+            <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} size={44} className="!size-full" />
           </div>
-
-          <div className="min-w-0 pt-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <h1 className="truncate text-[20px] font-black leading-none tracking-[-.025em] text-white sm:text-[24px]">{group.player}</h1>
-              {group.position ? <span className="rounded-md border border-[#254867] bg-[#0A1A2B] px-2 py-1 text-[9px] font-extrabold text-[#A9C2DE]">{group.position}</span> : null}
-            </div>
-            <div className="mt-2 truncate text-[11px] font-semibold text-[#A7B9CF]">
-              {teamLabel}{currentOpponent ? ' · vs ' + currentOpponent : ''}{kickoff ? ' · ' + kickoff : ''}{group.live ? ' · LIVE' : ''}
-            </div>
-            <div className="mt-1 truncate text-[9px] text-[#6F8AA7]">
-              {group.matchup || 'Matchup unavailable'}
-            </div>
-          </div>
-
-          <div className="col-span-2 rounded-xl border border-[#164B78] bg-[#06101D]/90 px-3 py-2.5 sm:col-span-1">
-            <div className="text-[11px] font-black tracking-[.02em] text-[#42B8FF]">{group.sport}</div>
-            <div className="mt-1 truncate text-[10px] font-semibold text-[#B7C8DB]">{group.matchup || 'Event details unavailable'}</div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <span className="rounded-md border border-[#2B4563] bg-[#102039] px-2 py-1 text-[8px] font-black text-[#C7D6E7]">{periodLabel(group.period)}</span>
-              <span className={cx('rounded-md border px-2 py-1 text-[8px] font-black', group.live ? 'border-[#0E6045] bg-[#082A21] text-[#31E59A]' : 'border-[#2B4563] bg-[#102039] text-[#8FA7C0]')}>
-                {group.live ? 'LIVE' : 'PRE-GAME'}
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+              <h1 className="truncate text-[20px] font-extrabold leading-tight tracking-[-.02em] text-[var(--text)] sm:text-[24px]">{group.player}</h1>
+              {group.position ? <span className="rounded-[3px] bg-[var(--surface-2)] px-1.5 text-[11px] font-bold leading-[18px] text-[var(--text-2)]">{group.position}</span> : null}
+              <span className="rounded-[3px] bg-[var(--surface-2)] px-1.5 text-[11px] font-bold leading-[18px] text-[var(--text-2)]">{group.sport}</span>
+              <span className="rounded-[3px] bg-[var(--surface-2)] px-1.5 text-[11px] font-bold leading-[18px] text-[var(--text-2)]">{periodLabel(group.period)}</span>
+              <span className={cx('rounded-[3px] px-1.5 text-[11px] font-bold leading-[18px]', group.live ? 'bg-[var(--neg-soft)] text-[var(--neg)]' : 'bg-[var(--surface-2)] text-[var(--text-2)]')}>
+                {group.live ? 'LIVE' : 'Pre-game'}
               </span>
+            </div>
+            <div className="mt-0.5 truncate text-[13px] text-[var(--text-2)]">
+              {[text(group.team) || null, currentOpponent ? 'vs ' + currentOpponent : (group.matchup && group.matchup !== group.player ? group.matchup : null), kickoff || null]
+                .filter(Boolean)
+                .join(' · ') || 'Event details unavailable'}
             </div>
           </div>
         </div>
 
-        <div className="mx-3 mb-3 grid min-h-[58px] grid-cols-[minmax(0,1fr)_auto] items-center overflow-hidden rounded-xl border border-[#0D5E9E] bg-[linear-gradient(100deg,#071A2F_0%,#061425_60%,#06101B_100%)] shadow-[inset_0_0_20px_rgba(0,115,255,.08)]">
-          <div className="flex min-w-0 items-center gap-3 px-3 py-2.5">
-            <Target className="h-5 w-5 shrink-0 text-[#1AA7FF]" aria-hidden="true" />
-            <div className="min-w-0">
-              <div className="truncate text-[11px] font-black text-[#EDF6FF]">{marketLabel} O/U {group.line}</div>
-              <div className="mt-1 flex items-center gap-3 text-[10px] font-black">
-                <span className="rounded-md border border-[#6A5A16] bg-[#241E08] px-1.5 py-0.5 text-[#FACC15]">{bookInitials(selectedBook ? selectedBook.name : quoteBook(heroQuote))}</span>
-                <span className="text-[#23E787]">O {over ? quotePrice(over) : 'Unavailable'}</span>
-                <span className="text-[#FF6B7D]">U {under ? quotePrice(under) : 'Unavailable'}</span>
-              </div>
-            </div>
+        <div className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface)] sm:flex sm:items-stretch [&>*]:border-[var(--line)] max-sm:[&>*:nth-child(odd)]:border-r max-sm:[&>*:nth-child(n+3)]:border-t">
+          <div className="grid min-w-0 content-center gap-0.5 px-3 py-2 sm:min-w-[140px] sm:flex-1">
+            <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Market</span>
+            <span className="truncate text-[15px] font-bold text-[var(--text)]">{marketLabel} <span className="tabular-nums">{group.line}</span></span>
           </div>
-          <label className="relative mr-2 flex h-10 max-w-[150px] items-center gap-1 rounded-lg border border-[#0B6FC5] bg-[#0B2B4A] px-3 text-[9px] font-black text-white shadow-[0_0_18px_rgba(0,122,255,.16)]">
+          <div className="grid content-center gap-0.5 px-3 py-2 sm:border-l">
+            <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Over</span>
+            <span className="text-[15px] font-bold tabular-nums text-[var(--text)]">{over ? quotePrice(over) : '—'} <span className="text-[12px] font-medium text-[var(--text-3)]">{over ? quoteBook(over) : 'No price'}</span></span>
+          </div>
+          <div className="grid content-center gap-0.5 px-3 py-2 sm:border-l">
+            <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Under</span>
+            <span className="text-[15px] font-bold tabular-nums text-[var(--text)]">{under ? quotePrice(under) : '—'} <span className="text-[12px] font-medium text-[var(--text-3)]">{under ? quoteBook(under) : 'No price'}</span></span>
+          </div>
+          <div className="grid content-center gap-0.5 px-3 py-2 sm:border-l">
+            <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Model</span>
+            <span className="text-[15px] font-bold tabular-nums text-[var(--text)]">
+              {modelSummary?.projection != null ? modelSummary.projection.toFixed(1) : modelSummary?.loading ? '…' : '—'}
+              {modelSummary?.probability != null ? <span className="ml-1 text-[12px] font-medium text-[var(--text-3)]">{Math.round(modelSummary.probability * 100)}% {modelSummary.side}</span> : null}
+            </span>
+          </div>
+          <div className="grid content-center gap-0.5 px-3 py-2 sm:border-l">
+            <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">EV</span>
+            {modelSummary?.ev ? (
+              <span className={cx('w-fit rounded-[3px] px-1.5 text-[15px] font-bold tabular-nums', modelSummary.ev.ev > 0 ? 'bg-[var(--pos-soft)] text-[var(--pos)]' : 'text-[var(--text-3)]')} title={expectedValueSourceLabel(modelSummary.ev) || undefined}>
+                {modelSummary.ev.ev > 0 ? '+' : modelSummary.ev.ev < 0 ? '−' : ''}{Math.abs(modelSummary.ev.ev).toFixed(1)}% <span className="text-[11px]">{modelSummary.ev.side === 'OVER' ? 'O' : 'U'}</span>
+              </span>
+            ) : (
+              <span className="text-[13px] text-[var(--text-3)]">{over || under ? 'No verified edge' : 'No single-bet price'}</span>
+            )}
+          </div>
+          <label className="relative flex min-h-11 items-center gap-1 px-3 text-[13px] font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] sm:border-l">
             <span className="truncate">{selectedBook ? selectedBook.name : 'Best prices'}</span>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[#72C7FF]" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--text-3)]" />
             <select
               aria-label="Sportsbook"
               value={state.book || 'all'}
@@ -1066,66 +1091,66 @@ export function PlayerPropResearchCard({
             </select>
           </label>
         </div>
-      </div>
+      </header>
 
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1.25fr_.75fr]">
+      <div className="mt-3 grid grid-cols-1 items-start gap-2 sm:grid-cols-[1.25fr_.75fr]">
         <section
           data-qa="research-snapshot"
-          className="overflow-hidden rounded-2xl border border-[#153D5F] bg-[linear-gradient(180deg,#081827_0%,#07111D_100%)]"
+          className="overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface)]"
         >
-          <div className="flex items-center justify-between gap-3 border-b border-[#153D5F] px-3 py-2.5">
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--line-strong)] px-3 py-2.5">
             <div>
               <div className="text-[12px] font-black text-white">Research Snapshot</div>
-              <div className="mt-0.5 text-[8px] text-[#718AA3]">Built only from verified rows available for this exact prop.</div>
+              <div className="mt-0.5 text-[11px] text-[var(--text-2)]">Built only from verified rows available for this exact prop.</div>
             </div>
-            <span className="shrink-0 rounded-full border border-[#0F5B44] bg-[#08271F] px-2 py-1 text-[7px] font-black tracking-[.04em] text-[#23E787]">
+            <span className="shrink-0 rounded-full border border-[var(--line-strong)] bg-[var(--pos-soft)] px-2 py-1 text-[11px] font-black tracking-[.04em] text-[var(--pos)]">
               VERIFIED INPUTS
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4">
-            <div className="min-w-0 border-b border-r border-[#102C44] px-2.5 py-2.5 sm:border-b-0">
-              <div className="text-[7px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">Recent · L10</div>
+            <div className="min-w-0 border-b border-r border-[var(--line-strong)] px-2.5 py-2.5 sm:border-b-0">
+              <div className="text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">Recent · L10</div>
               <div className="mt-1 text-[17px] font-black leading-none text-white">{recentWindow?.hitRate === null || recentWindow?.hitRate === undefined ? '—' : recentWindow.hitRate + '%'}</div>
-              <div className="mt-1 truncate text-[7px] text-[#8FA4BA]">
+              <div className="mt-1 truncate text-[11px] text-[var(--text-2)]">
                 {recentWindow?.games ? recentWindow.hits + '/' + recentWindow.games + ' hits' : 'No verified sample'}
                 {recentWindow?.average === null || recentWindow?.average === undefined ? '' : ' · Avg ' + recentWindow.average}
               </div>
             </div>
-            <div className="min-w-0 border-b border-[#102C44] px-2.5 py-2.5 sm:border-b-0 sm:border-r">
-              <div className="text-[7px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">Vs opponent</div>
+            <div className="min-w-0 border-b border-[var(--line-strong)] px-2.5 py-2.5 sm:border-b-0 sm:border-r">
+              <div className="text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">Vs opponent</div>
               <div className="mt-1 text-[17px] font-black leading-none text-white">{h2h?.hitRate === null || h2h?.hitRate === undefined ? '—' : h2h.hitRate + '%'}</div>
-              <div className="mt-1 truncate text-[7px] text-[#8FA4BA]">
+              <div className="mt-1 truncate text-[11px] text-[var(--text-2)]">
                 {h2h?.games ? h2h.hits + '/' + h2h.games + ' H2H hits' : 'No verified H2H sample'}
               </div>
             </div>
-            <div className="min-w-0 border-r border-[#102C44] px-2.5 py-2.5">
-              <div className="text-[7px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">Same-book line</div>
+            <div className="min-w-0 border-r border-[var(--line-strong)] px-2.5 py-2.5">
+              <div className="text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">Same-book line</div>
               <div className="mt-1 truncate text-[15px] font-black leading-none text-white">
                 {researchLineMove ? researchLineMove.from + ' → ' + researchLineMove.to : state.line}
               </div>
-              <div className="mt-1 truncate text-[7px] text-[#8FA4BA]">
+              <div className="mt-1 truncate text-[11px] text-[var(--text-2)]">
                 {researchLineMove ? researchLineMove.book + (researchLineMove.capturedAt ? ' · ' + shortTime(researchLineMove.capturedAt) : '') : 'No comparable movement yet'}
               </div>
             </div>
             <div className="min-w-0 px-2.5 py-2.5">
-              <div className="text-[7px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">Matchup</div>
+              <div className="text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">Matchup</div>
               <div className="mt-1 truncate text-[15px] font-black leading-none text-white">{currentDefense ? DEFENSE_TIER_LABEL[currentDefense.tier] : '—'}</div>
-              <div className="mt-1 truncate text-[7px] text-[#8FA4BA]">
+              <div className="mt-1 truncate text-[11px] text-[var(--text-2)]">
                 {currentDefense && defensePosition && defenseMetric
                   ? ordinal(currentDefense.allowedRank) + '-most allowed vs ' + defensePosition + ' · ' + metricLabel(defenseMetric)
                   : 'Verified DvP unavailable'}
               </div>
             </div>
           </div>
-          <div className="border-t border-[#153D5F] px-3 py-2 text-[7px] font-medium text-[#66809B]">
+          <div className="border-t border-[var(--line-strong)] px-3 py-2 text-[11px] font-medium text-[var(--text-2)]">
             Evidence: {verifiedGames.length} verified {verifiedGames.length === 1 ? 'game' : 'games'} · {availableBooks.length} priced {availableBooks.length === 1 ? 'book' : 'books'} · {lineHistory.length} line {lineHistory.length === 1 ? 'snapshot' : 'snapshots'}
           </div>
         </section>
 
-        <HistoryModel group={group} selectedBook={selectedBook} line={state.line} />
+        <HistoryModel group={group} selectedBook={selectedBook} line={state.line} onSummary={setModelSummary} />
       </div>
 
-      <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <nav aria-label="Market" className="mt-3 flex gap-1 overflow-x-auto border-b border-[var(--line)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {categoryLabels.map((entry) => {
           const active = entry.label === marketLabel;
           return (
@@ -1135,33 +1160,33 @@ export function PlayerPropResearchCard({
               aria-pressed={active}
               onClick={() => chooseCategory(entry.label)}
               className={cx(
-                'h-10 min-w-[118px] shrink-0 rounded-lg border px-3 text-[10px] font-black transition',
+                '-mb-px shrink-0 border-b-2 px-3 py-2 text-[13px] font-semibold transition-colors',
                 active
-                  ? 'border-[#03A9FF] bg-[linear-gradient(180deg,#0B4C88_0%,#062E57_100%)] text-white shadow-[0_0_15px_rgba(0,164,255,.48),inset_0_0_16px_rgba(0,164,255,.16)]'
-                  : 'border-[#183750] bg-[#081423] text-[#A7B6C8]',
+                  ? 'border-[var(--accent)] text-[var(--text)]'
+                  : 'border-transparent text-[var(--text-2)] hover:text-[var(--text)]',
               )}
             >
               {entry.label}
             </button>
           );
         })}
-      </div>
+      </nav>
 
-      <section className="mt-1.5 overflow-hidden rounded-[16px] border border-[#153D5F] bg-[linear-gradient(180deg,#071323_0%,#06101C_100%)] shadow-[0_12px_34px_rgba(0,0,0,.24)]">
+      <section className="mt-1.5 overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface)]">
         <div className="p-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="truncate text-[18px] font-black tracking-[-.02em] text-white">{marketLabel}</h2>
-            <div data-qa="sample-count" className="shrink-0 text-[9px] font-bold text-[#66809B]">{loading ? 'Loading verified history…' : filteredGames.length + ' of ' + verifiedGames.length + ' verified ' + (verifiedGames.length === 1 ? 'game' : 'games')}</div>
+            <div data-qa="sample-count" className="shrink-0 text-[12px] font-bold text-[var(--text-2)]">{loading ? 'Loading verified history…' : filteredGames.length + ' of ' + verifiedGames.length + ' verified ' + (verifiedGames.length === 1 ? 'game' : 'games')}</div>
           </div>
 
           <div className="mt-2 flex flex-wrap items-end gap-2">
-            <div className="grid h-10 grid-cols-[36px_58px_36px] overflow-hidden rounded-lg border border-[#244868] bg-[#081523]">
-              <button type="button" aria-label="Lower target line" onClick={() => stepLine(-1)} className="grid place-items-center border-r border-[#244868] text-[#55B8FF]"><Minus className="h-4 w-4" /></button>
+            <div className="grid h-10 grid-cols-[36px_58px_36px] overflow-hidden rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)]">
+              <button type="button" aria-label="Lower target line" onClick={() => stepLine(-1)} className="grid place-items-center border-r border-[var(--line-strong)] text-[var(--accent-2)]"><Minus className="h-4 w-4" /></button>
               <div data-qa="line-number" className="grid place-items-center text-[16px] font-black text-white">{state.line}</div>
-              <button type="button" aria-label="Raise target line" onClick={() => stepLine(1)} className="grid place-items-center border-l border-[#244868] text-[#55B8FF]"><Plus className="h-4 w-4" /></button>
+              <button type="button" aria-label="Raise target line" onClick={() => stepLine(1)} className="grid place-items-center border-l border-[var(--line-strong)] text-[var(--accent-2)]"><Plus className="h-4 w-4" /></button>
             </div>
 
-            <div role="group" aria-label="Hit-rate side" className="grid h-10 grid-cols-2 overflow-hidden rounded-lg border border-[#244868] bg-[#081523] text-[12px] font-black">
+            <div role="group" aria-label="Hit-rate side" className="grid h-10 grid-cols-2 overflow-hidden rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] text-[12px] font-black">
               {(['OVER', 'UNDER'] as const).map((side) => {
                 const active = state.side === side;
                 const letter = side === 'OVER' ? 'O' : 'U';
@@ -1175,8 +1200,8 @@ export function PlayerPropResearchCard({
                     className={cx(
                       'w-10 transition',
                       active
-                        ? side === 'OVER' ? 'bg-[#0E3A2A] text-[#23E787]' : 'bg-[#3A0E1A] text-[#FF6B7D]'
-                        : 'text-[#6F88A3] hover:text-white',
+                        ? side === 'OVER' ? 'bg-[var(--pos-soft)] text-[var(--pos)]' : 'bg-[var(--neg-soft)] text-[var(--neg)]'
+                        : 'text-[var(--text-2)] hover:text-white',
                     )}
                   >
                     {letter}
@@ -1185,12 +1210,12 @@ export function PlayerPropResearchCard({
               })}
             </div>
 
-            <label className="relative flex h-10 min-w-[130px] items-center gap-2 rounded-lg border border-[#244868] bg-[#081523] px-3 text-[9px] font-bold">
-              <span className="rounded-md border border-[#67540A] bg-[#241E07] px-1.5 py-0.5 text-[#FACC15]">{bookInitials(selectedBook ? selectedBook.name : quoteBook(heroQuote))}</span>
+            <label className="relative flex h-10 min-w-[130px] items-center gap-2 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 text-[12px] font-bold">
+              <span className="rounded-[3px] border border-[var(--line-strong)] bg-[var(--warn-soft)] px-1.5 py-0.5 text-[var(--warn)]">{bookInitials(selectedBook ? selectedBook.name : quoteBook(heroQuote))}</span>
               <span className="min-w-0 truncate">
-                <b className="text-[#23E787]">O {quoteAtResearchLine && over ? quotePrice(over) : '—'}</b>
-                <span className="mx-1 text-[#46627E]">·</span>
-                <b className="text-[#FF6B7D]">U {quoteAtResearchLine && under ? quotePrice(under) : '—'}</b>
+                <b className="text-[var(--pos)]">O {quoteAtResearchLine && over ? quotePrice(over) : '—'}</b>
+                <span className="mx-1 text-[var(--text-3)]">·</span>
+                <b className="text-[var(--neg)]">U {quoteAtResearchLine && under ? quotePrice(under) : '—'}</b>
               </span>
               <select
                 aria-label="Sportsbook price source"
@@ -1209,8 +1234,8 @@ export function PlayerPropResearchCard({
               aria-pressed={favourite}
               onClick={onFavourite}
               className={cx(
-                'grid h-10 w-10 place-items-center rounded-lg border bg-[#081523]',
-                favourite ? 'border-[#0A8EE8] text-[#2FAEFF] shadow-[0_0_14px_rgba(0,153,255,.3)]' : 'border-[#244868] text-[#7F98B2]',
+                'grid h-10 w-10 place-items-center rounded-[6px] border bg-[var(--surface-2)]',
+                favourite ? 'border-[var(--accent-2)] text-[var(--accent-2)]' : 'border-[var(--line-strong)] text-[var(--text-2)]',
               )}
             >
               <Star className="h-5 w-5" fill={favourite ? 'currentColor' : 'none'} />
@@ -1222,15 +1247,15 @@ export function PlayerPropResearchCard({
               aria-controls="more-history-filters"
               onClick={() => setShowMoreFilters((open) => !open)}
               className={cx(
-                'relative ml-auto flex h-10 items-center gap-2 rounded-lg border bg-[#081523] px-3 text-[10px] font-bold',
-                showMoreFilters || advancedCount ? 'border-[#0A8EE8] text-white shadow-[0_0_14px_rgba(0,153,255,.25)]' : 'border-[#244868] text-[#9DB2C8]',
+                'relative ml-auto flex h-10 items-center gap-2 rounded-[6px] border bg-[var(--surface-2)] px-3 text-[12px] font-bold',
+                showMoreFilters || advancedCount ? 'border-[var(--accent-2)] text-white' : 'border-[var(--line-strong)] text-[var(--text-2)]',
               )}
             >
-              <SlidersHorizontal className="h-4 w-4 text-[#2FAEFF]" aria-hidden />
+              <SlidersHorizontal className="h-4 w-4 text-[var(--accent-2)]" aria-hidden />
               <span className="hidden min-[380px]:inline">More filters</span>
               <span className="sr-only min-[380px]:hidden">More filters</span>
               {advancedCount ? (
-                <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[#0A8EE8] px-1 text-[9px] font-black text-white">{advancedCount}</span>
+                <span className="grid h-4 min-w-4 place-items-center rounded-full bg-[var(--accent-2)] px-1 text-[12px] font-black text-white">{advancedCount}</span>
               ) : null}
             </button>
           </div>
@@ -1245,7 +1270,7 @@ export function PlayerPropResearchCard({
               onChange={(venue) => setFilters((previous) => ({ ...previous, venue: venue as SampleFilters['venue'] }))}
             />
             {periods.length > 1 ? (
-              <label className="relative flex h-10 shrink-0 items-center gap-2 rounded-lg border border-[#244868] bg-[#081523] px-3 pr-7 text-[9px] font-semibold text-[#91A7BE]">
+              <label className="relative flex h-10 shrink-0 items-center gap-2 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 pr-7 text-[12px] font-semibold text-[var(--text-2)]">
                 <span>Period: <b className="text-white">{periodLabel(group.period)}</b></span>
                 <ChevronDown className="absolute right-2 h-3 w-3" />
                 <select
@@ -1261,8 +1286,8 @@ export function PlayerPropResearchCard({
           </div>
 
           {upcoming && upcomingOpponent && (upcoming.opponentRank || upcoming.opponentHand || upcoming.surface) ? (
-            <div data-qa="tennis-matchup" className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[#1C3B58] bg-[#081421] px-3 py-2 text-[10px] leading-4 text-[#9DB2C8]">
-              <Users className="h-3.5 w-3.5 shrink-0 text-[#2FAEFF]" aria-hidden />
+            <div data-qa="tennis-matchup" className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 py-2 text-[12px] leading-4 text-[var(--text-2)]">
+              <Users className="h-3.5 w-3.5 shrink-0 text-[var(--accent-2)]" aria-hidden />
               <span className="min-w-0">
                 vs <b className="text-white">{upcomingOpponent}</b>
                 {upcoming.opponentRank ? <> · <b className="text-white">#{upcoming.opponentRank}</b></> : null}
@@ -1270,7 +1295,7 @@ export function PlayerPropResearchCard({
                 {upcoming.surface ? <> · {upcoming.surface}{upcoming.indoor === true ? ' (indoor)' : ''}</> : null}
               </span>
               {tennis?.player?.rank ? (
-                <span className="rounded-full border border-[#244868] bg-[#0B1826] px-2 py-0.5 text-[9px] font-black text-[#C6D0DE]">
+                <span className="rounded-full border border-[var(--line-strong)] bg-[var(--surface-2)] px-2 py-0.5 text-[12px] font-black text-[var(--text)]">
                   {group.player.split(' ').slice(-1)[0]} #{tennis.player.rank}
                 </span>
               ) : null}
@@ -1278,8 +1303,8 @@ export function PlayerPropResearchCard({
           ) : null}
 
           {currentDefense && defenseMetric ? (
-            <div data-qa="defense-matchup" className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-[#1C3B58] bg-[#081421] px-3 py-2 text-[10px] leading-4 text-[#9DB2C8]">
-              <Shield className="h-3.5 w-3.5 shrink-0 text-[#2FAEFF]" aria-hidden />
+            <div data-qa="defense-matchup" className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 py-2 text-[12px] leading-4 text-[var(--text-2)]">
+              <Shield className="h-3.5 w-3.5 shrink-0 text-[var(--accent-2)]" aria-hidden />
               <span className="min-w-0">
                 <b className="text-white">{currentDefense.team}</b> allows{' '}
                 <b className="text-white">
@@ -1288,10 +1313,10 @@ export function PlayerPropResearchCard({
                 {metricLabel(defenseMetric)} to {defensePosition}s · {Number(currentDefense.row.average).toFixed(1)}/game
               </span>
               <span className={cx(
-                'rounded-full border px-2 py-0.5 text-[9px] font-black',
-                currentDefense.tier === 'soft' ? 'border-[#1E8A5A] bg-[#0E3A2A] text-[#23E787]'
-                  : currentDefense.tier === 'tough' ? 'border-[#8A1E36] bg-[#3A0E1A] text-[#FF6B7D]'
-                    : 'border-[#244868] bg-[#0B1826] text-[#C6D0DE]',
+                'rounded-full border px-2 py-0.5 text-[12px] font-black',
+                currentDefense.tier === 'soft' ? 'border-[var(--line-strong)] bg-[var(--pos-soft)] text-[var(--pos)]'
+                  : currentDefense.tier === 'tough' ? 'border-[var(--line-strong)] bg-[var(--neg-soft)] text-[var(--neg)]'
+                    : 'border-[var(--line-strong)] bg-[var(--surface-2)] text-[var(--text)]',
               )}>
                 {DEFENSE_TIER_LABEL[currentDefense.tier]} matchup
               </span>
@@ -1299,14 +1324,14 @@ export function PlayerPropResearchCard({
           ) : null}
 
           {!quoteAtResearchLine ? (
-            <div className="mt-2 flex items-center gap-2 text-[9px] text-[#7E97B0]">
-              <span className="rounded-md border border-[#6B4F0A] bg-[#2A1F05] px-1.5 py-0.5 font-black text-[#FACC15]">Research line</span>
+            <div className="mt-2 flex items-center gap-2 text-[12px] text-[var(--text-2)]">
+              <span className="rounded-[3px] border border-[var(--line-strong)] bg-[var(--warn-soft)] px-1.5 py-0.5 font-black text-[var(--warn)]">Research line</span>
               <span>Books post {group.line}; prices apply to the posted line only.</span>
             </div>
           ) : null}
 
           {showMoreFilters ? (
-            <div id="more-history-filters" className="mt-2 rounded-xl border border-[#1C3B58] bg-[#06111D] p-3">
+            <div id="more-history-filters" className="mt-2 rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)] p-3">
               {anyAdvanced ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {coverage.rest ? (
@@ -1434,12 +1459,12 @@ export function PlayerPropResearchCard({
                   ) : null}
                 </div>
               ) : (
-                <p className="text-[10px] leading-4 text-[#7E97B0]">
+                <p className="text-[12px] leading-4 text-[var(--text-2)]">
                   {loading ? 'Loading verified history…' : 'This player\'s verified history has no rest, result, role, minutes or set detail to filter by.'}
                 </p>
               )}
               <div className="mt-2 flex items-center justify-between gap-2">
-                <p className="text-[9px] leading-4 text-[#55718E]">
+                <p className="text-[12px] leading-4 text-[var(--text-3)]">
                   Only filters this player's verified history can answer are shown.
                   {coverage.defenseTier ? ' Opponent defense uses each team\'s current rank vs ' + defensePosition + 's, not its rank at the time of the game.' : ''}
                   {coverage.winProb ? ' Win % is the no-vig closing moneyline for the latest 15 matches; older matches have no value and drop out when it is set.' : ''}
@@ -1451,7 +1476,7 @@ export function PlayerPropResearchCard({
                   <button
                     type="button"
                     onClick={() => setFilters(EMPTY_FILTERS)}
-                    className="flex shrink-0 items-center gap-1 rounded-md border border-[#244868] px-2 py-1 text-[9px] font-bold text-[#9DB2C8] hover:text-white"
+                    className="flex shrink-0 items-center gap-1 rounded-[3px] border border-[var(--line-strong)] px-2 py-1 text-[12px] font-bold text-[var(--text-2)] hover:text-white"
                   >
                     <RotateCcw className="h-3 w-3" aria-hidden /> Clear all
                   </button>
@@ -1460,7 +1485,7 @@ export function PlayerPropResearchCard({
             </div>
           ) : null}
 
-          {unavailableReason ? <p className="mt-1 text-[9px] leading-4 text-[#FF9AAF]">{unavailableReason}</p> : null}
+          {unavailableReason ? <p className="mt-1 text-[12px] leading-4 text-[var(--neg)]">{unavailableReason}</p> : null}
 
           <div className="mt-2 grid grid-cols-4 gap-1.5">
             {quickWindows.map((item) => {
@@ -1472,15 +1497,15 @@ export function PlayerPropResearchCard({
                   aria-pressed={active}
                   onClick={() => setSample(item.id as SampleId)}
                   className={cx(
-                    'min-h-[64px] rounded-lg border px-2 py-2 text-left transition',
+                    'min-h-[64px] rounded-[6px] border px-2 py-2 text-left transition',
                     active
-                      ? 'border-[#008DFF] bg-[linear-gradient(180deg,#0B2F58_0%,#081C34_100%)] shadow-[0_0_14px_rgba(0,140,255,.3)]'
-                      : 'border-[#1C3B58] bg-[#081421]',
+                      ? 'border-[var(--accent-2)] bg-[var(--surface)]'
+                      : 'border-[var(--line-strong)] bg-[var(--surface-2)]',
                   )}
                 >
-                  <div className="text-[9px] font-black text-[#C1D1E2]">{item.label}</div>
-                  <div className={cx('mt-1 text-[11px] font-black', item.hitRate === null ? 'text-[#91A0B5]' : 'text-[#22E78A]')}>HR {rateLabel(item.hitRate)}</div>
-                  <div className="mt-0.5 text-[9px] font-semibold text-[#8CA0B6]">{item.average === null ? 'Avg —' : 'Avg ' + item.average}</div>
+                  <div className="text-[12px] font-black text-[var(--text)]">{item.label}</div>
+                  <div className={cx('mt-1 text-[11px] font-black', item.hitRate === null ? 'text-[var(--text-2)]' : 'text-[var(--pos)]')}>HR {rateLabel(item.hitRate)}</div>
+                  <div className="mt-0.5 text-[12px] font-semibold text-[var(--text-2)]">{item.average === null ? 'Avg —' : 'Avg ' + item.average}</div>
                 </button>
               );
             })}
@@ -1488,7 +1513,7 @@ export function PlayerPropResearchCard({
 
           <div className="mt-2">
             {loading ? (
-              <div className="h-[250px] animate-pulse rounded-xl border border-[#173C59] bg-[#07131F]" />
+              <div className="h-[250px] animate-pulse rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)]" />
             ) : (
               <HistoryChart games={chartGames} line={state.line} market={marketLabel} period={periodLabel(group.period)} leagueTeams={research?.leagueTeams || []} individual={individualSport} />
             )}
@@ -1496,20 +1521,20 @@ export function PlayerPropResearchCard({
         </div>
       </section>
 
-      <section className="mt-2 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
-        <div className="border-b border-[#153D5F] px-3 py-2 text-[12px] font-black text-white">Supporting Stats</div>
+      <section className="mt-2 overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)]">
+        <div className="border-b border-[var(--line-strong)] px-3 py-2 text-[12px] font-black text-white">Supporting Stats</div>
         {support.length ? (
           <div className="grid grid-cols-6" data-mobile-columns={Math.min(support.length, 3)}>
             {support.map((item, index) => (
-              <div key={item.label} className={cx('min-w-0 px-1.5 py-2.5 text-center', index > 0 && 'border-l border-[#153D5F]')}>
-                <div className="truncate text-[7px] font-black uppercase tracking-[.03em] text-[#7E97B0]">{item.label}</div>
+              <div key={item.label} className={cx('min-w-0 px-1.5 py-2.5 text-center', index > 0 && 'border-l border-[var(--line-strong)]')}>
+                <div className="truncate text-[11px] font-black uppercase tracking-[.03em] text-[var(--text-2)]">{item.label}</div>
                 <div className="mt-1 truncate text-[11px] font-black text-white">{item.value}</div>
-                <div className="mt-0.5 text-[6px] text-[#55718E]">{item.sample} gm</div>
+                <div className="mt-0.5 text-[11px] text-[var(--text-3)]">{item.sample} gm</div>
               </div>
             ))}
           </div>
         ) : (
-          <p className="px-3 py-4 text-[9px] text-[#7E97B0]">No verified stats for this player yet.</p>
+          <p className="px-3 py-4 text-[12px] text-[var(--text-2)]">No verified stats for this player yet.</p>
         )}
       </section>
 
@@ -1522,15 +1547,15 @@ export function PlayerPropResearchCard({
       </div>
 
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
-          <div className="flex items-center justify-between border-b border-[#153D5F] px-2.5 py-2">
-            <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-black text-white">
-              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-[#25AFFF]" />
+        <section className="min-w-0 overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)]">
+          <div className="flex items-center justify-between border-b border-[var(--line-strong)] px-2.5 py-2">
+            <div className="flex min-w-0 items-center gap-1.5 text-[12px] font-black text-white">
+              <TrendingUp className="h-3.5 w-3.5 shrink-0 text-[var(--accent-2)]" />
               <span className="truncate">Line Movement</span>
             </div>
-            <ChevronRight className="h-3.5 w-3.5 text-[#6F8BA6]" />
+            <ChevronRight className="h-3.5 w-3.5 text-[var(--text-2)]" />
           </div>
-          <div className="grid grid-cols-[.6fr_.8fr_1fr] gap-1 border-b border-[#102C44] px-2 py-1 text-[6px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">
+          <div className="grid grid-cols-[.6fr_.8fr_1fr] gap-1 border-b border-[var(--line-strong)] px-2 py-1 text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">
             <span>Line</span><span>Odds</span><span>Book / Time</span>
           </div>
           {movementRows.length ? movementRows.map((point, index) => {
@@ -1538,171 +1563,171 @@ export function PlayerPropResearchCard({
             const when = text(point.recordedAt || point.capturedAt);
             const info = bookInfo(point.bookmakerKey);
             return (
-              <div key={(when || 'movement') + '-' + index} className="grid grid-cols-[.6fr_.8fr_1fr] gap-1 border-b border-[#102C44] px-2 py-1.5 text-[7px] last:border-b-0">
+              <div key={(when || 'movement') + '-' + index} className="grid grid-cols-[.6fr_.8fr_1fr] gap-1 border-b border-[var(--line-strong)] px-2 py-1.5 text-[11px] last:border-b-0">
                 <span className="font-black text-white">{numberOf(point.line) ?? '—'}</span>
-                <span className={point.side?.toUpperCase() === 'UNDER' ? 'font-black text-[#FF6B7D]' : 'font-black text-[#23E787]'}>
+                <span className={point.side?.toUpperCase() === 'UNDER' ? 'font-black text-[var(--neg)]' : 'font-black text-[var(--pos)]'}>
                   {point.side ? point.side.slice(0, 1).toUpperCase() + ' ' : ''}{price !== null && price !== 0 ? odds(price) : '—'}
                 </span>
-                <span className="min-w-0 truncate text-[#91A7BE]">{info?.name || point.bookmakerKey || 'Book unavailable'}{when ? ' · ' + shortTime(when) : ''}</span>
+                <span className="min-w-0 truncate text-[var(--text-2)]">{info?.name || point.bookmakerKey || 'Book unavailable'}{when ? ' · ' + shortTime(when) : ''}</span>
               </div>
             );
-          }) : <p className="px-2.5 py-4 text-[8px] leading-3 text-[#6F8BA6]">No verified line movement yet.</p>}
+          }) : <p className="px-2.5 py-4 text-[11px] leading-3 text-[var(--text-2)]">No verified line movement yet.</p>}
         </section>
 
-        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
-          <div className="flex items-center justify-between border-b border-[#153D5F] px-2.5 py-2">
-            <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-black text-white">
-              <History className="h-3.5 w-3.5 shrink-0 text-[#25AFFF]" />
+        <section className="min-w-0 overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)]">
+          <div className="flex items-center justify-between border-b border-[var(--line-strong)] px-2.5 py-2">
+            <div className="flex min-w-0 items-center gap-1.5 text-[12px] font-black text-white">
+              <History className="h-3.5 w-3.5 shrink-0 text-[var(--accent-2)]" />
               <span className="truncate">Prop History</span>
             </div>
-            <ChevronRight className="h-3.5 w-3.5 text-[#6F8BA6]" />
+            <ChevronRight className="h-3.5 w-3.5 text-[var(--text-2)]" />
           </div>
-          <div className="grid grid-cols-[.55fr_1fr_1fr] gap-1 border-b border-[#102C44] px-2 py-1 text-[6px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">
+          <div className="grid grid-cols-[.55fr_1fr_1fr] gap-1 border-b border-[var(--line-strong)] px-2 py-1 text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">
             <span>Line</span><span>Result</span><span>Date</span>
           </div>
           {recentHistory.length ? recentHistory.map((game, index) => {
             const value = numberOf(game.value);
             const result = value === null ? 'Unavailable' : value > state.line ? 'Over (' + value + ')' : value < state.line ? 'Under (' + value + ')' : 'Push (' + value + ')';
-            const tone = value === null || value === state.line ? 'text-[#A9B6C6]' : value > state.line ? 'text-[#23E787]' : 'text-[#FF6B7D]';
+            const tone = value === null || value === state.line ? 'text-[var(--text-2)]' : value > state.line ? 'text-[var(--pos)]' : 'text-[var(--neg)]';
             return (
-              <div key={(game.gameId || game.date || 'history') + '-' + index} className="grid grid-cols-[.55fr_1fr_1fr] gap-1 border-b border-[#102C44] px-2 py-1.5 text-[7px] last:border-b-0">
+              <div key={(game.gameId || game.date || 'history') + '-' + index} className="grid grid-cols-[.55fr_1fr_1fr] gap-1 border-b border-[var(--line-strong)] px-2 py-1.5 text-[11px] last:border-b-0">
                 <span className="font-black text-white">{state.line}</span>
                 <span className={cx('truncate font-black', tone)}>{result}</span>
-                <span className="truncate text-[#91A7BE]">{numericDate(game.date)}{game.opponent ? ' vs ' + (individualSport ? surname(game.opponent) : teamShort(game.opponent, research?.leagueTeams || [])) : ''}</span>
+                <span className="truncate text-[var(--text-2)]">{numericDate(game.date)}{game.opponent ? ' vs ' + (individualSport ? surname(game.opponent) : teamShort(game.opponent, research?.leagueTeams || [])) : ''}</span>
               </div>
             );
-          }) : <p className="px-2.5 py-4 text-[8px] leading-3 text-[#6F8BA6]">Verified prop history is unavailable.</p>}
+          }) : <p className="px-2.5 py-4 text-[11px] leading-3 text-[var(--text-2)]">Verified prop history is unavailable.</p>}
         </section>
       </div>
 
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
-          <div className="flex items-center gap-1.5 border-b border-[#153D5F] px-2.5 py-2 text-[10px] font-black text-white">
-            <Users className="h-3.5 w-3.5 text-[#25AFFF]" />
+        <section className="min-w-0 overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)]">
+          <div className="flex items-center gap-1.5 border-b border-[var(--line-strong)] px-2.5 py-2 text-[12px] font-black text-white">
+            <Users className="h-3.5 w-3.5 text-[var(--accent-2)]" />
             Matchup
           </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 px-2 py-2.5">
             <div className="min-w-0 text-center">
-              <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[#1C6DA6]">
+              <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[var(--accent-2)]">
                 <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} size={40} className="!size-full" />
               </div>
-              <div className="mt-1 truncate text-[8px] font-black text-white">{group.player}</div>
-              <div className="truncate text-[7px] text-[#718AA3]">{teamLabel}</div>
+              <div className="mt-1 truncate text-[11px] font-black text-white">{group.player}</div>
+              <div className="truncate text-[11px] text-[var(--text-2)]">{teamLabel}</div>
             </div>
-            <div className="text-[9px] font-black text-[#7C91A8]">VS</div>
+            <div className="text-[12px] font-black text-[var(--text-2)]">VS</div>
             <div className="min-w-0 text-center">
-              <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[#1C6DA6]">
+              <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[var(--accent-2)]">
                 <PlayerAvatar name={currentOpponent || 'Opponent'} sport={group.sport} team={currentOpponent} size={40} className="!size-full" />
               </div>
-              <div className="mt-1 truncate text-[8px] font-black text-white">{currentOpponent || 'Opponent unavailable'}</div>
-              <div className="truncate text-[7px] text-[#718AA3]">{group.matchup || 'Matchup unavailable'}</div>
+              <div className="mt-1 truncate text-[11px] font-black text-white">{currentOpponent || 'Opponent unavailable'}</div>
+              <div className="truncate text-[11px] text-[var(--text-2)]">{group.matchup || 'Matchup unavailable'}</div>
             </div>
           </div>
-          <div className="grid grid-cols-2 border-t border-[#153D5F]">
+          <div className="grid grid-cols-2 border-t border-[var(--line-strong)]">
             <div className="px-2 py-2 text-center">
-              <div className="text-[7px] font-bold uppercase text-[#6F8BA6]">H2H prop hit rate</div>
-              <div className="mt-1 text-[16px] font-black text-[#23E787]">{h2h?.hitRate === null || h2h?.hitRate === undefined ? '—' : h2h.hitRate + '%'}</div>
+              <div className="text-[11px] font-bold uppercase text-[var(--text-2)]">H2H prop hit rate</div>
+              <div className="mt-1 text-[16px] font-black text-[var(--pos)]">{h2h?.hitRate === null || h2h?.hitRate === undefined ? '—' : h2h.hitRate + '%'}</div>
             </div>
-            <div className="border-l border-[#153D5F] px-2 py-2 text-center">
-              <div className="text-[7px] font-bold uppercase text-[#6F8BA6]">H2H average</div>
-              <div className="mt-1 text-[16px] font-black text-[#26AEFF]">{h2h?.average === null || h2h?.average === undefined ? '—' : h2h.average}</div>
+            <div className="border-l border-[var(--line-strong)] px-2 py-2 text-center">
+              <div className="text-[11px] font-bold uppercase text-[var(--text-2)]">H2H average</div>
+              <div className="mt-1 text-[16px] font-black text-[var(--accent-2)]">{h2h?.average === null || h2h?.average === undefined ? '—' : h2h.average}</div>
             </div>
           </div>
         </section>
 
-        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
-          <div className="flex items-center gap-1.5 border-b border-[#153D5F] px-2.5 py-2 text-[10px] font-black text-white">
-            <BarChart3 className="h-3.5 w-3.5 text-[#25AFFF]" />
+        <section className="min-w-0 overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)]">
+          <div className="flex items-center gap-1.5 border-b border-[var(--line-strong)] px-2.5 py-2 text-[12px] font-black text-white">
+            <BarChart3 className="h-3.5 w-3.5 text-[var(--accent-2)]" />
             Advanced Averages
           </div>
-          <div className="grid grid-cols-[1fr_.8fr_.7fr_.7fr] gap-1 border-b border-[#102C44] px-2 py-1 text-[6px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">
+          <div className="grid grid-cols-[1fr_.8fr_.7fr_.7fr] gap-1 border-b border-[var(--line-strong)] px-2 py-1 text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">
             <span>Split</span><span>W-L</span><span>HR</span><span>Avg</span>
           </div>
           {advancedRows.map((row) => (
-            <div key={row.id} className="grid grid-cols-[1fr_.8fr_.7fr_.7fr] gap-1 border-b border-[#102C44] px-2 py-1.5 text-[7px] last:border-b-0">
+            <div key={row.id} className="grid grid-cols-[1fr_.8fr_.7fr_.7fr] gap-1 border-b border-[var(--line-strong)] px-2 py-1.5 text-[11px] last:border-b-0">
               <span className="truncate font-bold text-white">{row.label}</span>
-              <span className="text-[#A9B8C9]">{row.games ? row.hits + '-' + row.misses : '0-0'}</span>
-              <span className={row.hitRate === null ? 'text-[#7C91A8]' : 'font-black text-[#23E787]'}>{rateLabel(row.hitRate)}</span>
-              <span className="font-black text-[#72C7FF]">{row.average === null ? '—' : row.average}</span>
+              <span className="text-[var(--text)]">{row.games ? row.hits + '-' + row.misses : '0-0'}</span>
+              <span className={row.hitRate === null ? 'text-[var(--text-2)]' : 'font-black text-[var(--pos)]'}>{rateLabel(row.hitRate)}</span>
+              <span className="font-black text-[var(--accent-2)]">{row.average === null ? '—' : row.average}</span>
             </div>
           ))}
         </section>
       </div>
 
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
-          <div className="flex items-center justify-between border-b border-[#153D5F] px-2.5 py-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-black text-white"><BookOpen className="h-3.5 w-3.5 text-[#25AFFF]" />Stat Glossary</div>
-            <span className="text-[7px] font-bold text-[#35B6FF]">VERIFIED</span>
+        <section className="min-w-0 overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)]">
+          <div className="flex items-center justify-between border-b border-[var(--line-strong)] px-2.5 py-2">
+            <div className="flex items-center gap-1.5 text-[12px] font-black text-white"><BookOpen className="h-3.5 w-3.5 text-[var(--accent-2)]" />Stat Glossary</div>
+            <span className="text-[11px] font-bold text-[var(--accent-2)]">VERIFIED</span>
           </div>
-          <div className="grid grid-cols-2 gap-x-2 gap-y-1 px-2 py-2 text-[6.5px] leading-3 text-[#8FA4BA]">
-            <span><b className="text-[#DCE7F3]">HR:</b> Hit rate</span>
-            <span><b className="text-[#DCE7F3]">Avg:</b> Average result</span>
-            <span><b className="text-[#DCE7F3]">L5:</b> Last 5 games</span>
-            <span><b className="text-[#DCE7F3]">L10:</b> Last 10 games</span>
-            <span><b className="text-[#DCE7F3]">L15:</b> Last 15 games</span>
-            <span><b className="text-[#DCE7F3]">H2H:</b> vs current opponent</span>
-            <span><b className="text-[#DCE7F3]">O/U:</b> Over / Under</span>
-            <span><b className="text-[#DCE7F3]">EV:</b> Expected value</span>
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 px-2 py-2 text-[11px] leading-3 text-[var(--text-2)]">
+            <span><b className="text-[var(--accent-2)]">HR:</b> Hit rate</span>
+            <span><b className="text-[var(--accent-2)]">Avg:</b> Average result</span>
+            <span><b className="text-[var(--accent-2)]">L5:</b> Last 5 games</span>
+            <span><b className="text-[var(--accent-2)]">L10:</b> Last 10 games</span>
+            <span><b className="text-[var(--accent-2)]">L15:</b> Last 15 games</span>
+            <span><b className="text-[var(--accent-2)]">H2H:</b> vs current opponent</span>
+            <span><b className="text-[var(--accent-2)]">O/U:</b> Over / Under</span>
+            <span><b className="text-[var(--accent-2)]">EV:</b> Expected value</span>
           </div>
         </section>
 
-        <section className="min-w-0 overflow-hidden rounded-[14px] border border-[#153D5F] bg-[#071321]">
-          <div className="flex items-center justify-between border-b border-[#153D5F] px-2.5 py-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-black text-white"><CalendarDays className="h-3.5 w-3.5 text-[#25AFFF]" />Gamelog – Last 15</div>
-            <span className="text-[7px] font-bold text-[#35B6FF]">{filteredGames.length} GAMES</span>
+        <section className="min-w-0 overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)]">
+          <div className="flex items-center justify-between border-b border-[var(--line-strong)] px-2.5 py-2">
+            <div className="flex items-center gap-1.5 text-[12px] font-black text-white"><CalendarDays className="h-3.5 w-3.5 text-[var(--accent-2)]" />Gamelog – Last 15</div>
+            <span className="text-[11px] font-bold text-[var(--accent-2)]">{filteredGames.length} GAMES</span>
           </div>
-          <div className="grid grid-cols-[.7fr_1fr_.7fr_.8fr] gap-1 border-b border-[#102C44] px-2 py-1 text-[6px] font-bold uppercase tracking-[.04em] text-[#6F8BA6]">
+          <div className="grid grid-cols-[.7fr_1fr_.7fr_.8fr] gap-1 border-b border-[var(--line-strong)] px-2 py-1 text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">
             <span>Date</span><span>Opponent</span><span>Value</span><span>Result</span>
           </div>
           {filteredGames.slice(0, 5).map((game, index) => {
             const value = numberOf(game.value);
             const result = value === null ? '—' : value > state.line ? 'Over' : value < state.line ? 'Under' : 'Push';
-            const tone = result === 'Over' ? 'text-[#23E787]' : result === 'Under' ? 'text-[#FF6B7D]' : 'text-[#A9B8C9]';
+            const tone = result === 'Over' ? 'text-[var(--pos)]' : result === 'Under' ? 'text-[var(--neg)]' : 'text-[var(--text)]';
             return (
-              <div key={(game.gameId || game.date || 'gamelog') + '-' + index} className="grid grid-cols-[.7fr_1fr_.7fr_.8fr] gap-1 border-b border-[#102C44] px-2 py-1.5 text-[7px] last:border-b-0">
-                <span className="text-[#9EB0C2]">{numericDate(game.date)}</span>
-                <span className="truncate text-[#D9E5F1]" title={text(game.opponent) || undefined}>{(individualSport ? surname(game.opponent) : teamShort(game.opponent, research?.leagueTeams || [])) || '—'}</span>
+              <div key={(game.gameId || game.date || 'gamelog') + '-' + index} className="grid grid-cols-[.7fr_1fr_.7fr_.8fr] gap-1 border-b border-[var(--line-strong)] px-2 py-1.5 text-[11px] last:border-b-0">
+                <span className="text-[var(--text-2)]">{numericDate(game.date)}</span>
+                <span className="truncate text-[var(--accent-2)]" title={text(game.opponent) || undefined}>{(individualSport ? surname(game.opponent) : teamShort(game.opponent, research?.leagueTeams || [])) || '—'}</span>
                 <span className="font-black text-white">{value ?? '—'}</span>
                 <span className={cx('font-black', tone)}>{result}</span>
               </div>
             );
           })}
-          {!filteredGames.length ? <p className="px-2.5 py-4 text-[8px] text-[#6F8BA6]">Verified game log is unavailable.</p> : null}
+          {!filteredGames.length ? <p className="px-2.5 py-4 text-[11px] text-[var(--text-2)]">Verified game log is unavailable.</p> : null}
         </section>
       </div>
 
       <div className="mt-2">
-        <details data-qa="market-comparison" className="group overflow-hidden rounded-2xl border border-[#153D5F] bg-[#071321]" open>
+        <details data-qa="market-comparison" className="group overflow-hidden rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)]" open>
           <summary className="flex cursor-pointer list-none items-center justify-between px-3.5 py-3 text-[11px] font-black text-white [&::-webkit-details-marker]:hidden">
             <span>Market Comparison</span>
-            <span className="whitespace-nowrap rounded-full border border-[#0F5B44] bg-[#08271F] px-2.5 py-1 text-[8px] font-black text-[#23E787]">
+            <span className="whitespace-nowrap rounded-full border border-[var(--line-strong)] bg-[var(--pos-soft)] px-2.5 py-1 text-[11px] font-black text-[var(--pos)]">
               {!availableBooks.length && dfsSource
                 ? '0 SPORTSBOOKS · ' + dfsSource.toUpperCase() + ' LINE'
                 : availableBooks.length + ' ' + (availableBooks.length === 1 ? 'BOOK' : 'BOOKS')}
             </span>
           </summary>
-          <div className="border-t border-[#153D5F] px-3 pb-3 pt-2">
+          <div className="border-t border-[var(--line-strong)] px-3 pb-3 pt-2">
             {availableBooks.length ? (
               <>
                 <div className="mb-2 grid grid-cols-2 gap-2">
-                  <div className="rounded-xl border border-[#164832] bg-[#08251C] px-3 py-2.5">
-                    <div className="text-[7px] font-bold uppercase tracking-[.05em] text-[#6F9E86]">Best Over</div>
+                  <div className="rounded-[10px] border border-[var(--line-strong)] bg-[var(--pos-soft)] px-3 py-2.5">
+                    <div className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-2)]">Best Over</div>
                     <div className="mt-1 flex items-end justify-between gap-2">
-                      <div className="text-[18px] font-black leading-none text-[#23E787]">{bestOverPrice === null ? '—' : odds(bestOverPrice)}</div>
-                      <div className="truncate text-right text-[8px] font-bold text-[#DCE5EF]">{bestOverBook?.name || 'Unavailable'}</div>
+                      <div className="text-[18px] font-black leading-none text-[var(--pos)]">{bestOverPrice === null ? '—' : odds(bestOverPrice)}</div>
+                      <div className="truncate text-right text-[11px] font-bold text-[var(--text)]">{bestOverBook?.name || 'Unavailable'}</div>
                     </div>
-                    <div className="mt-1 text-[7px] text-[#79A28D]">
+                    <div className="mt-1 text-[11px] text-[var(--text-2)]">
                       {bestOverPrice === null ? 'No verified Over price' : 'Implied ' + (americanImpliedProbability(bestOverPrice) ?? 0).toFixed(1) + '%'}
                     </div>
                   </div>
-                  <div className="rounded-xl border border-[#5A2032] bg-[#29101A] px-3 py-2.5">
-                    <div className="text-[7px] font-bold uppercase tracking-[.05em] text-[#B48693]">Best Under</div>
+                  <div className="rounded-[10px] border border-[var(--line-strong)] bg-[var(--neg-soft)] px-3 py-2.5">
+                    <div className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-2)]">Best Under</div>
                     <div className="mt-1 flex items-end justify-between gap-2">
-                      <div className="text-[18px] font-black leading-none text-[#FF5C88]">{bestUnderPrice === null ? '—' : odds(bestUnderPrice)}</div>
-                      <div className="truncate text-right text-[8px] font-bold text-[#DCE5EF]">{bestUnderBook?.name || 'Unavailable'}</div>
+                      <div className="text-[18px] font-black leading-none text-[var(--neg)]">{bestUnderPrice === null ? '—' : odds(bestUnderPrice)}</div>
+                      <div className="truncate text-right text-[11px] font-bold text-[var(--text)]">{bestUnderBook?.name || 'Unavailable'}</div>
                     </div>
-                    <div className="mt-1 text-[7px] text-[#B48A97]">
+                    <div className="mt-1 text-[11px] text-[var(--text-2)]">
                       {bestUnderPrice === null ? 'No verified Under price' : 'Implied ' + (americanImpliedProbability(bestUnderPrice) ?? 0).toFixed(1) + '%'}
                     </div>
                   </div>
@@ -1721,32 +1746,32 @@ export function PlayerPropResearchCard({
                         onClick={() => onState({ ...state, book: book.key })}
                         aria-pressed={selected}
                         className={cx(
-                          'grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-lg border px-2.5 py-2 text-left text-[9px] transition',
-                          selected ? 'border-[#0A8EE8] bg-[#0A2136] shadow-[0_0_12px_rgba(0,142,232,.16)]' : 'border-[#183750] bg-[#081421]',
+                          'grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 rounded-[6px] border px-2.5 py-2 text-left text-[12px] transition',
+                          selected ? 'border-[var(--accent-2)] bg-[var(--surface-3)]' : 'border-[var(--line-strong)] bg-[var(--surface-2)]',
                         )}
                       >
                         <span className="min-w-0">
-                          <span className="block truncate font-bold text-[#DCE5EF]">{book.name}</span>
-                          <span className="mt-0.5 block text-[7px] text-[#607891]">{book.type === 'sportsbook' ? 'Sportsbook' : book.type}</span>
+                          <span className="block truncate font-bold text-[var(--text)]">{book.name}</span>
+                          <span className="mt-0.5 block text-[11px] text-[var(--text-3)]">{book.type === 'sportsbook' ? 'Sportsbook' : book.type}</span>
                         </span>
                         <span className="min-w-[72px] text-right">
-                          <span className="block font-black text-[#23E787]">O {book.over ? odds(book.over.price) : '—'}</span>
-                          <span className="mt-0.5 block text-[6px] font-bold text-[#7FA990]">{bestOver ? 'BEST OVER' : overPrice === null ? 'NO PRICE' : (americanImpliedProbability(overPrice) ?? 0).toFixed(1) + '%'}</span>
+                          <span className="block font-black text-[var(--pos)]">O {book.over ? odds(book.over.price) : '—'}</span>
+                          <span className="mt-0.5 block text-[11px] font-bold text-[var(--text-2)]">{bestOver ? 'BEST OVER' : overPrice === null ? 'NO PRICE' : (americanImpliedProbability(overPrice) ?? 0).toFixed(1) + '%'}</span>
                         </span>
                         <span className="min-w-[72px] text-right">
-                          <span className="block font-black text-[#FF5C88]">U {book.under ? odds(book.under.price) : '—'}</span>
-                          <span className="mt-0.5 block text-[6px] font-bold text-[#B98695]">{bestUnder ? 'BEST UNDER' : underPrice === null ? 'NO PRICE' : (americanImpliedProbability(underPrice) ?? 0).toFixed(1) + '%'}</span>
+                          <span className="block font-black text-[var(--neg)]">U {book.under ? odds(book.under.price) : '—'}</span>
+                          <span className="mt-0.5 block text-[11px] font-bold text-[var(--text-2)]">{bestUnder ? 'BEST UNDER' : underPrice === null ? 'NO PRICE' : (americanImpliedProbability(underPrice) ?? 0).toFixed(1) + '%'}</span>
                         </span>
                       </button>
                     );
                   })}
                 </div>
-                <p className="mt-2 text-[7px] leading-3 text-[#607891]">
+                <p className="mt-2 text-[11px] leading-3 text-[var(--text-3)]">
                   Best price means the highest verified American price currently posted for this exact player, market, period and line. Implied probability includes each book's pricing margin; it is not a no-vig model probability.
                 </p>
               </>
             ) : (
-              <p className="text-[9px] leading-4 text-[#7E8FA5]">No verified sportsbook price is available for this exact line.</p>
+              <p className="text-[12px] leading-4 text-[var(--text-2)]">No verified sportsbook price is available for this exact line.</p>
             )}
           </div>
         </details>

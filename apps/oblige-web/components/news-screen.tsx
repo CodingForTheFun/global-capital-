@@ -127,7 +127,7 @@ export function NewsScreen() {
     <div className="mx-auto w-full max-w-[var(--maxw)] px-3 pb-24 pt-4 sm:px-6 sm:pt-6 lg:px-8 lg:pb-12">
       <header className="mb-5 flex items-end justify-between gap-4">
         <div>
-          <span className="text-[10px] font-bold uppercase tracking-[.16em] text-[var(--accent)]">News & updates</span>
+          <span className="text-[12px] font-bold uppercase tracking-[.16em] text-[var(--accent)]">News & updates</span>
           <h1 className="mt-1 font-display text-2xl font-black tracking-[-.04em] text-[var(--text)] sm:text-3xl">Sports News</h1>
           <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-[var(--text-3)] sm:text-xs">
             League news, roster movement and injury updates beside your prop research.
@@ -138,18 +138,18 @@ export function NewsScreen() {
             type="button"
             onClick={() => void load(true)}
             disabled={refreshing}
-            className="inline-flex min-h-8 items-center gap-1.5 rounded-[9px] border border-[var(--line)] bg-[var(--surface)] px-2.5 text-[10px] font-bold text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)] disabled:opacity-50"
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-[9px] border border-[var(--line)] bg-[var(--surface)] px-2.5 text-[12px] font-bold text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)] disabled:opacity-50"
           >
             <RefreshCw className={refreshing ? 'size-3.5 animate-spin' : 'size-3.5'} aria-hidden="true" />
             Refresh
           </button>
-          <span className="font-mono text-[8px] text-[var(--text-3)]">
+          <span className="font-mono text-[11px] text-[var(--text-3)]">
             {fetchedAt ? 'Updated ' + new Date(fetchedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'Connecting…'}
           </span>
         </div>
       </header>
 
-      <section className="sticky top-[58px] z-20 mb-4 grid gap-2 border-y border-[var(--line)] bg-[color-mix(in_srgb,var(--bg)_95%,transparent)] py-2 backdrop-blur-xl md:top-16 md:rounded-[14px] md:border md:p-2.5" aria-label="News filters">
+      <section className="sticky top-[58px] z-20 mb-4 grid gap-2 border-y border-[var(--line)] bg-[color-mix(in_srgb,var(--bg)_95%,transparent)] py-2 backdrop-blur-xl md:top-16 md:rounded-[10px] md:border md:p-2.5" aria-label="News filters">
         <div className="flex gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {SPORTS.map(([id, label]) => (
             <button
@@ -179,7 +179,7 @@ export function NewsScreen() {
                   : 'inline-flex min-h-9 flex-none items-center gap-1.5 rounded-[9px] border border-[var(--line)] bg-[var(--surface)] px-2.5 text-[11px] font-semibold text-[var(--text-2)] hover:border-[var(--line-strong)] hover:text-[var(--text)]'}
               >
                 <span>{option.label}</span>
-                <span className="font-mono text-[9px] text-[var(--text-3)]">{counts[option.id]}</span>
+                <span className="font-mono text-[12px] text-[var(--text-3)]">{counts[option.id]}</span>
               </button>
             ))}
           </div>
@@ -204,7 +204,7 @@ export function NewsScreen() {
       </section>
 
       {partial && (
-        <div className="mb-3 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_srgb,var(--warn)_30%,transparent)] bg-[color-mix(in_srgb,var(--warn)_7%,transparent)] px-3 py-2 text-[10px] text-[var(--text-2)]">
+        <div className="mb-3 flex items-center gap-2 rounded-[10px] border border-[color-mix(in_srgb,var(--warn)_30%,transparent)] bg-[color-mix(in_srgb,var(--warn)_7%,transparent)] px-3 py-2 text-[12px] text-[var(--text-2)]">
           <AlertTriangle className="size-3.5 shrink-0 text-[var(--warn)]" aria-hidden="true" />
           <span>Some league feeds are temporarily unavailable{unavailable.length ? ': ' + unavailable.map((item) => item.toUpperCase()).join(', ') : ''}.</span>
         </div>
@@ -225,7 +225,7 @@ export function NewsScreen() {
           <div className="grid min-w-0 gap-2.5">
             {visible.map((article) => <ArticleCard key={article.id} article={article} />)}
           </div>
-          <aside className="hidden self-start rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4 lg:sticky lg:top-40 lg:block">
+          <aside className="hidden self-start rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-4 lg:sticky lg:top-40 lg:block">
             <div className="flex items-center justify-between border-b border-[var(--line)] pb-3">
               <h2 className="text-xs font-bold uppercase tracking-[.12em] text-[var(--text-2)]">Latest</h2>
               <Newspaper className="size-4 text-[var(--text-3)]" aria-hidden="true" />
@@ -240,7 +240,7 @@ export function NewsScreen() {
                   className="grid gap-1 py-3"
                   aria-disabled={!article.sourceUrl}
                 >
-                  <div className="flex justify-between gap-3 font-mono text-[9px] uppercase tracking-wide text-[var(--text-3)]">
+                  <div className="flex justify-between gap-3 font-mono text-[12px] uppercase tracking-wide text-[var(--text-3)]">
                     <span>{article.sportLabel}</span>
                     <span>{timeAgo(article.published)}</span>
                   </div>
@@ -275,7 +275,7 @@ function ArticleArtwork({ article }: { article: NewsArticle }) {
   // an error left the browser's broken-image glyph on every ESPN story.
   return (
     <div className="relative h-24 min-h-24 overflow-hidden rounded-[9px] border border-[var(--line)] bg-[var(--surface-2)] sm:h-28">
-      <div className="grid h-full place-items-center bg-[linear-gradient(145deg,var(--surface-2),color-mix(in_srgb,var(--surface-3)_72%,var(--surface-2)))]">
+      <div className="grid h-full place-items-center bg-[var(--surface)]">
         <Newspaper className="size-5 text-[var(--text-3)]" aria-hidden="true" />
       </div>
       {showImage && (
@@ -290,7 +290,7 @@ function ArticleArtwork({ article }: { article: NewsArticle }) {
           className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0'}`}
         />
       )}
-      <span className="absolute bottom-1.5 left-1.5 rounded-[6px] border border-white/10 bg-black/75 px-1.5 py-0.5 font-mono text-[8px] font-bold uppercase text-white">{article.sportLabel}</span>
+      <span className="absolute bottom-1.5 left-1.5 rounded-[6px] border border-white/10 bg-black/75 px-1.5 py-0.5 font-mono text-[11px] font-bold uppercase text-white">{article.sportLabel}</span>
     </div>
   );
 }
@@ -300,14 +300,14 @@ function ArticleCard({ article }: { article: NewsArticle }) {
     <>
       <ArticleArtwork article={article} />
       <div className="min-w-0 self-stretch">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[9px] sm:text-[10px]">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] sm:text-[12px]">
           <span className="rounded-[6px] border border-[var(--line)] bg-[var(--surface-2)] px-1.5 py-0.5 font-semibold text-[var(--text-2)]">{CATEGORY_LABEL[article.category]}</span>
           <span className="inline-flex items-center gap-1 font-mono text-[var(--text-3)]"><Clock3 className="size-3" aria-hidden="true" />{timeAgo(article.published)}</span>
           {article.byline && <span className="max-w-full truncate text-[var(--text-3)]">· {article.byline}</span>}
         </div>
         <h2 className="mt-1.5 line-clamp-3 text-[13px] font-bold leading-snug tracking-[-.015em] text-[var(--text)] sm:mt-2 sm:line-clamp-2 sm:text-[15px]">{article.headline}</h2>
-        {article.description && <p className="mt-1 line-clamp-1 text-[10px] leading-relaxed text-[var(--text-3)] sm:mt-1.5 sm:line-clamp-2 sm:text-xs">{article.description}</p>}
-        <div className="mt-2 flex items-center justify-between gap-2 border-t border-[var(--line)] pt-1.5 text-[9px] sm:mt-3 sm:pt-2 sm:text-[10px]">
+        {article.description && <p className="mt-1 line-clamp-1 text-[12px] leading-relaxed text-[var(--text-3)] sm:mt-1.5 sm:line-clamp-2 sm:text-xs">{article.description}</p>}
+        <div className="mt-2 flex items-center justify-between gap-2 border-t border-[var(--line)] pt-1.5 text-[12px] sm:mt-3 sm:pt-2 sm:text-[12px]">
           <span className="min-w-0 truncate font-mono uppercase text-[var(--text-3)]">{article.source}</span>
           {article.sourceUrl && (
             <span className="inline-flex flex-none items-center gap-1 font-semibold text-[var(--text-2)]">Open source <ExternalLink className="size-3" aria-hidden="true" /></span>
@@ -318,7 +318,7 @@ function ArticleCard({ article }: { article: NewsArticle }) {
   );
 
   return (
-    <article className="overflow-hidden rounded-[13px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)] transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] sm:rounded-[14px]">
+    <article className="overflow-hidden rounded-[13px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-1)] transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] sm:rounded-[10px]">
       {article.sourceUrl ? (
         <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer" className="grid min-w-0 grid-cols-[96px_minmax(0,1fr)] gap-2.5 p-2.5 text-left sm:grid-cols-[156px_minmax(0,1fr)] sm:gap-3 sm:p-4">{body}</a>
       ) : (
@@ -330,7 +330,7 @@ function ArticleCard({ article }: { article: NewsArticle }) {
 
 function EmptyState({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
-    <div className="grid min-h-52 place-items-center rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-6 text-center">
+    <div className="grid min-h-52 place-items-center rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-6 text-center">
       <div>{icon}<h2 className="mt-3 text-sm font-semibold text-[var(--text)]">{title}</h2>{children}</div>
     </div>
   );
@@ -340,7 +340,7 @@ function NewsSkeleton() {
   return (
     <div className="grid gap-2.5">
       {Array.from({ length: 5 }).map((_, index) => (
-        <div key={index} className="grid animate-pulse grid-cols-[96px_minmax(0,1fr)] gap-2.5 rounded-[13px] border border-[var(--line)] bg-[var(--surface)] p-2.5 sm:grid-cols-[156px_minmax(0,1fr)] sm:gap-3 sm:rounded-[14px] sm:p-4">
+        <div key={index} className="grid animate-pulse grid-cols-[96px_minmax(0,1fr)] gap-2.5 rounded-[13px] border border-[var(--line)] bg-[var(--surface)] p-2.5 sm:grid-cols-[156px_minmax(0,1fr)] sm:gap-3 sm:rounded-[10px] sm:p-4">
           <div className="h-24 rounded-[9px] bg-[var(--surface-2)] sm:h-28 sm:rounded-[10px]" />
           <div className="grid content-start gap-2 py-1">
             <div className="h-3 w-24 rounded bg-[var(--surface-2)]" />

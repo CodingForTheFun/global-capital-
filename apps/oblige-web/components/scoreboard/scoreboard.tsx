@@ -34,7 +34,7 @@ export function Scoreboard({
   );
 
   return (
-    <section className="mx-auto w-full max-w-5xl overflow-hidden rounded-[18px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_92%,transparent)] text-[var(--text)] shadow-[0_20px_70px_rgba(0,0,0,.22)]">
+    <section className="mx-auto w-full max-w-5xl overflow-hidden rounded-[10px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_92%,transparent)] text-[var(--text)]">
       <div className="flex flex-col gap-2.5 border-b border-[var(--line)] bg-[color-mix(in_srgb,var(--bg-deep)_88%,transparent)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {SPORTS.map((sport) => (
@@ -82,7 +82,7 @@ export function Scoreboard({
               )}
               <span>{filter}</span>
               {filter === 'live' && liveCount > 0 && (
-                <span className="font-mono text-[10px] font-bold text-[var(--pos)]">{liveCount}</span>
+                <span className="font-mono text-[12px] font-bold text-[var(--pos)]">{liveCount}</span>
               )}
             </button>
           ))}
@@ -148,7 +148,7 @@ function TeamMark({ logoUrl, label }: { logoUrl?: string; label: string }) {
         backgroundColor: `color-mix(in srgb, hsl(${hue} 58% 52%) 20%, transparent)`,
         color: `hsl(${hue} 58% 68%)`,
       }}
-      className="grid size-6 shrink-0 place-items-center rounded-full text-[9px] font-black tracking-tight"
+      className="grid size-6 shrink-0 place-items-center rounded-full text-[12px] font-black tracking-tight"
     >
       {label.slice(0, 3).toUpperCase()}
     </span>
@@ -251,7 +251,7 @@ function MatchCard({
     <Wrapper
       {...(onSelect ? { type: 'button' as const, onClick: () => onSelect(event.id) } : {})}
       className={[
-        'flex w-full flex-col gap-2 rounded-xl border p-3.5 text-left transition-colors',
+        'flex w-full flex-col gap-2 rounded-[10px] border p-3.5 text-left transition-colors',
         'border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_70%,transparent)]',
         onSelect ? 'cursor-pointer hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)]' : '',
       ].join(' ')}

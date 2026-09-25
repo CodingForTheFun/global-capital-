@@ -14,7 +14,6 @@ const NAV = [
   { href: '/scores', label: 'Scores' },
   { href: '/news', label: 'News' },
   { href: '/research', label: 'Research' },
-  { href: '/#pricing', label: 'Pricing' },
 ];
 
 /** Keep core live research destinations directly reachable from the phone dock. Home is the logo. */
@@ -33,7 +32,6 @@ const MOBILE_MENU = [
   { href: '/scores', label: 'Scores' },
   { href: '/news', label: 'News' },
   { href: '/research', label: 'Research' },
-  { href: '/#pricing', label: 'Pricing' },
   { href: '/account', label: 'Account / Profile' },
 ];
 
@@ -156,9 +154,6 @@ export function SiteHeader() {
               <User className="size-4" aria-hidden="true" />
               Account
             </Link>
-          </Button>
-          <Button asChild size="sm" className="hidden lg:inline-flex">
-            <Link href="/board">Open Props</Link>
           </Button>
         </div>
       </div>

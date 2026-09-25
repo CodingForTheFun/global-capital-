@@ -746,6 +746,36 @@ export async function fetchMoneyline(
   }
 }
 
+export type MovementSide = { open: number | null; latest: number | null; books: number };
+export type MovementRow = {
+  over: MovementSide | null;
+  under: MovementSide | null;
+  steam: { score: number; direction: string; booksMoved: number; booksQuoting: number | null; side: string | null } | null;
+};
+export type MovementResponse = {
+  ok: boolean;
+  available: boolean;
+  events: Record<string, { available: boolean; retryable?: boolean; markets?: Record<string, MovementRow> }>;
+  message?: string;
+};
+
+/** Key used by the movement feed: provider market key + player name. */
+export function movementKey(market: string | null | undefined, player: string | null | undefined) {
+  return `${String(market ?? '').trim().toLowerCase()}|${String(player ?? '').trim().normalize('NFKC').toLowerCase().replace(/\s+/g, ' ')}`;
+}
+
+/** Consensus opening vs current line and steam, for up to 12 events. */
+export async function fetchMovement(sport: string, eventIds: string[], signal?: AbortSignal): Promise<MovementResponse> {
+  const params = new URLSearchParams({ sport });
+  for (const id of eventIds.slice(0, 12)) params.append('event', id);
+  try {
+    return await getJson<MovementResponse>(`/api/apex/research-movement?${params}`, signal);
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    return { ok: false, available: false, events: {}, message: 'Line movement could not load. Try again shortly.' };
+  }
+}
+
 /**
  * Tennis opponent ranking and hand, plus court surface for past matches.
  * `fill` lets the server spend its small daily budget on missing answers; the

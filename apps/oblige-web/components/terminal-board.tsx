@@ -22,9 +22,12 @@ import {
   artworkUrl,
   fetchAccount,
   fetchBoard,
+  fetchMovement,
   fetchResearchBatch,
+  movementKey,
   streakOf,
   windowOf,
+  type MovementRow,
 } from '@/lib/api';
 import { marketDisplayLabel, pctValue } from '@/lib/utils';
 import { marketArbitrage } from '@/lib/arbitrage.mjs';
@@ -96,6 +99,8 @@ type ResearchSummary = {
   diff: number | null;
   /** Last ten verified games against this line, newest first; empty when unknown. */
   recent: Array<'hit' | 'miss' | 'push'>;
+  /** The same ten games' values, newest first; empty whenever `recent` is. */
+  recentValues: number[];
 };
 
 type MlTarget = {
@@ -306,6 +311,7 @@ function summarizeResearch(row: ResearchResponse | null | undefined, line: numbe
     streak: streakOf(row),
     diff: average === null ? null : Number((average - line).toFixed(2)),
     recent: recentResults(row, line, l10),
+    recentValues: recentResults(row, line, l10).length ? recentGames(row).map((game) => game.value as number) : [],
   };
 }
 
@@ -314,11 +320,20 @@ function summarizeResearch(row: ResearchResponse | null | undefined, line: numbe
  * when it agrees with the L10 window the server reported; if the two disagree
  * the row keeps the server's rate and shows no marks.
  */
-function recentResults(row: ResearchResponse, line: number, l10: RateWindow | null): Array<'hit' | 'miss' | 'push'> {
-  const games = (row.gameLog || [])
+function eventIdOf(group: PropGroup): string | null {
+  const quote = group.bestOver || group.bestUnder || group.quotes[0] || null;
+  return quote?.eventId ? String(quote.eventId) : null;
+}
+
+function recentGames(row: ResearchResponse) {
+  return (row.gameLog || [])
     .filter((game) => finite(game.value))
     .sort((a, b) => (Date.parse(b.date || '') || 0) - (Date.parse(a.date || '') || 0))
     .slice(0, 10);
+}
+
+function recentResults(row: ResearchResponse, line: number, l10: RateWindow | null): Array<'hit' | 'miss' | 'push'> {
+  const games = recentGames(row);
   if (games.length < 10) return [];
   const marks = games.map((game) => (game.value! > line ? 'hit' : game.value! < line ? 'miss' : 'push') as 'hit' | 'miss' | 'push');
   const hits = marks.filter((mark) => mark === 'hit').length;
@@ -710,6 +725,46 @@ export function TerminalBoard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [account, pageKey]);
 
+  // Consensus opening vs current line and steam for the events on this page.
+  // Keys are eventId::market|player so a player's other events never collide.
+  const [movement, setMovement] = React.useState<Record<string, MovementRow>>({});
+  const movementEvents = React.useMemo(
+    () => [...new Set(page.map(eventIdOf).filter((id): id is string => Boolean(id) && /^\d{1,18}$/.test(id!)))].slice(0, 12),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pageKey],
+  );
+  const movementEventsKey = movementEvents.join(',');
+  React.useEffect(() => {
+    if (!account || !movementEvents.length) return;
+    const controller = new AbortController();
+    const load = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      void fetchMovement(sport, movementEvents, controller.signal)
+        .then((result) => {
+          const next: Record<string, MovementRow> = {};
+          for (const [eventId, event] of Object.entries(result.events || {})) {
+            for (const [key, row] of Object.entries(event.markets || {})) next[eventId + '::' + key] = row;
+          }
+          setMovement((current) => ({ ...current, ...next }));
+        })
+        .catch(() => { /* movement is an enhancement; the board stands without it */ });
+    };
+    load();
+    const timer = window.setInterval(load, 90_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account, sport, movementEventsKey]);
+  const movementFor = React.useCallback(
+    (group: PropGroup) => {
+      const eventId = eventIdOf(group);
+      return eventId ? movement[eventId + '::' + movementKey(group.marketId, group.player)] || null : null;
+    },
+    [movement],
+  );
+
   // One queue per signed-in board load. It is never torn down because the row
   // list changed (live refreshes and EV re-sorts change it constantly); it only
   // skips props it already has and puts the visible ones first.
@@ -1000,6 +1055,7 @@ export function TerminalBoard() {
           <>
             <DesktopMatrix
               rows={page}
+              movementFor={movementFor}
               predictions={predictions}
               research={research}
               slip={slip}
@@ -1009,6 +1065,8 @@ export function TerminalBoard() {
             />
             <MobileMatrix
               rows={page}
+              allRows={filtered}
+              movementFor={movementFor}
               predictions={predictions}
               research={research}
               slip={slip}
@@ -1156,8 +1214,34 @@ function PriceButton({ group, side, selected, onSelect }: { group: PropGroup; si
   );
 }
 
+/** How far the consensus line has moved since it opened, from the movement feed. */
+function LineMove({ row }: { row: MovementRow | null }) {
+  const side = row?.over || row?.under || null;
+  if (!side || side.open === null || side.latest === null) return null;
+  const delta = Math.round((side.latest - side.open) * 10) / 10;
+  if (delta === 0) return null;
+  return (
+    <small className={styles.lineMove} data-dir={delta > 0 ? 'up' : 'down'} title={`Opened ${side.open}; consensus now ${side.latest} (median of ${side.books} ${side.books === 1 ? 'book' : 'books'})`}>
+      {delta > 0 ? '▲' : '▼'}{Math.abs(delta)}
+    </small>
+  );
+}
+
+/** Several books moved this player market the same way. */
+function SteamTag({ row }: { row: MovementRow | null }) {
+  const steam = row?.steam;
+  if (!steam) return null;
+  const up = /up|over|higher/i.test(steam.direction);
+  return (
+    <span className={styles.steamTag} title={`${steam.booksMoved}${steam.booksQuoting ? ' of ' + steam.booksQuoting : ''} books moved ${steam.side ? steam.side.toLowerCase() + ' ' : ''}${up ? 'up' : 'down'} · steam score ${Math.round(steam.score)}`}>
+      Steam {up ? '▲' : '▼'}
+    </span>
+  );
+}
+
 function DesktopMatrix({
   rows,
+  movementFor,
   predictions,
   research,
   slip,
@@ -1166,6 +1250,7 @@ function DesktopMatrix({
   onExplain,
 }: {
   rows: PropGroup[];
+  movementFor: (group: PropGroup) => MovementRow | null;
   predictions: Record<string, ModelPrediction>;
   research: Record<string, ResearchSummary | null>;
   slip: SlipSelection[];
@@ -1178,7 +1263,7 @@ function DesktopMatrix({
       <table className={styles.matrix}>
         <colgroup>
           <col className={styles.colPlayer} /><col className={styles.colMarket} /><col className={styles.colGame} />
-          <col className={styles.colNum} /><col className={styles.colPrice} /><col className={styles.colPrice} />
+          <col className={styles.colLine} /><col className={styles.colPrice} /><col className={styles.colPrice} />
           <col className={styles.colNum} /><col className={styles.colL10} /><col className={styles.colNum} />
           <col className={styles.colNum} /><col className={styles.colNum} /><col className={styles.colAvg} />
           <col className={styles.colNum} /><col className={styles.colEv} />
@@ -1214,6 +1299,7 @@ function DesktopMatrix({
             const projection = projectionOf(prediction);
             const loaded = summary !== undefined;
             const explain = (column: string) => () => onExplain(group, column);
+            const move = movementFor(group);
 
             return (
               <tr key={group.key} onClick={() => onInspect(group)}>
@@ -1227,10 +1313,11 @@ function DesktopMatrix({
                   <b>{group.player}</b>
                   {group.team ? <small>{group.team}</small> : null}
                   {arb ? <span className={styles.arbTag}>ARB</span> : null}
+                  <SteamTag row={move} />
                 </td>
                 <td className={styles.marketCell}>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</td>
                 <td className={styles.gameCell}>{group.matchup}</td>
-                <td className={styles.lineCell}>{group.line}</td>
+                <td className={styles.lineCell}>{group.line}<LineMove row={move} /></td>
                 <td className={styles.priceCell}><PriceButton group={group} side="OVER" selected={overSelected} onSelect={onSelect} /></td>
                 <td className={styles.priceCell}><PriceButton group={group} side="UNDER" selected={underSelected} onSelect={onSelect} /></td>
                 <td className={styles.metricCell} data-tone={projection !== null && projection > group.line ? 'up' : 'none'}>
@@ -1273,6 +1360,8 @@ function DesktopMatrix({
 
 function MobileMatrix({
   rows,
+  allRows,
+  movementFor,
   predictions,
   research,
   slip,
@@ -1281,6 +1370,9 @@ function MobileMatrix({
   onExplain,
 }: {
   rows: PropGroup[];
+  /** Every filtered row, so an expanded prop can list the player's other markets. */
+  allRows: PropGroup[];
+  movementFor: (group: PropGroup) => MovementRow | null;
   predictions: Record<string, ModelPrediction>;
   research: Record<string, ResearchSummary | null>;
   slip: SlipSelection[];
@@ -1288,6 +1380,9 @@ function MobileMatrix({
   onSelect: (group: PropGroup, side: Side) => void;
   onExplain: (group: PropGroup, column: string) => void;
 }) {
+  // One row open at a time: a tap previews in place instead of leaving the list.
+  const [openKey, setOpenKey] = React.useState<string | null>(null);
+
   return (
     <ol className={styles.mobileList} aria-label="Player props">
       {rows.map((group) => {
@@ -1299,16 +1394,25 @@ function MobileMatrix({
         const projection = projectionOf(prediction);
         const l10 = summary === undefined ? undefined : summary?.l10 ?? null;
         const sample = hitSample(l10);
+        const move = movementFor(group);
+        const open = openKey === group.key;
 
         return (
-          <li key={group.key} className={styles.mobileRow}>
-            <button type="button" className={styles.mobileMain} onClick={() => onInspect(group)}>
+          <li key={group.key} className={styles.mobileRow} data-open={open ? 'true' : 'false'}>
+            <button
+              type="button"
+              className={styles.mobileMain}
+              aria-expanded={open}
+              onClick={() => setOpenKey(open ? null : group.key)}
+            >
               <span className={styles.mobileName}>
                 <b>{group.player}</b>
                 {group.team ? <small>{group.team}</small> : null}
+                <SteamTag row={move} />
               </span>
               <span className={styles.mobileMarket}>
                 {marketDisplayLabel(group.market, group.player, group.marketId, group.sport)} <b>{group.line}</b>
+                <LineMove row={move} />
                 <small> · {group.matchup}</small>
               </span>
             </button>
@@ -1326,10 +1430,106 @@ function MobileMatrix({
               <PriceButton group={group} side="UNDER" selected={underSelected} onSelect={onSelect} />
               {projection !== null ? <span className={styles.mobileProj}>Proj <b>{projection.toFixed(1)}</b></span> : null}
             </span>
+            {open ? (
+              <PropPreview
+                group={group}
+                summary={summary}
+                move={move}
+                allRows={allRows}
+                research={research}
+                overSelected={overSelected}
+                onInspect={onInspect}
+                onSelect={onSelect}
+              />
+            ) : null}
           </li>
         );
       })}
     </ol>
+  );
+}
+
+/** In-place preview for a phone row: recent games, prices across books, the player's other markets, actions. */
+function PropPreview({
+  group,
+  summary,
+  move,
+  allRows,
+  research,
+  overSelected,
+  onInspect,
+  onSelect,
+}: {
+  group: PropGroup;
+  summary: ResearchSummary | null | undefined;
+  move: MovementRow | null;
+  allRows: PropGroup[];
+  research: Record<string, ResearchSummary | null>;
+  overSelected: boolean;
+  onInspect: (group: PropGroup) => void;
+  onSelect: (group: PropGroup, side: Side) => void;
+}) {
+  const values = [...(summary?.recentValues || [])].reverse();
+  const max = Math.max(group.line * 1.4, ...values, 1);
+  const books = group.quotes
+    .filter((quote) => quote.side === 'OVER' && Math.abs(Number(quote.line) - group.line) < 1e-9 && Math.abs(numberOf(quote.price) ?? 0) >= 100)
+    .sort((a, b) => (numberOf(b.price) ?? -Infinity) - (numberOf(a.price) ?? -Infinity))
+    .slice(0, 3);
+  const others = allRows
+    .filter((row) => row.key !== group.key && row.player === group.player && row.matchup === group.matchup)
+    .slice(0, 8);
+  const opened = move?.over || move?.under || null;
+
+  return (
+    <div className={styles.preview}>
+      {values.length ? (
+        <div>
+          <div className={styles.previewHead}><span>Last {values.length} vs {group.line}</span>{summary?.l10?.average != null ? <span>Avg {summary.l10.average.toFixed(1)}</span> : null}</div>
+          <div className={styles.previewChart} aria-label={`Last ${values.length} games: ${values.join(', ')}`}>
+            {values.map((value, index) => (
+              <i key={index} data-mark={value > group.line ? 'hit' : value < group.line ? 'miss' : 'push'} style={{ height: `${Math.max(6, (value / max) * 100)}%` }} />
+            ))}
+            <b className={styles.previewLine} style={{ bottom: `${(group.line / max) * 100}%` }}><span>{group.line}</span></b>
+          </div>
+        </div>
+      ) : null}
+      {books.length ? (
+        <div className={styles.previewBooks}>
+          {books.map((quote) => (
+            <div key={quote.id || quote.sportsbookKey || quote.sportsbook}>
+              <span>{quoteBook(quote)}</span>
+              <b>{priceLabel(quote.price)}</b>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {opened && opened.open !== null && opened.latest !== null && opened.open !== opened.latest ? (
+        <p className={styles.previewNote}>Line opened at {opened.open}; consensus now {opened.latest} across {opened.books} {opened.books === 1 ? 'book' : 'books'}.</p>
+      ) : null}
+      {others.length ? (
+        <div>
+          <div className={styles.previewHead}><span>Other markets tonight</span></div>
+          <div className={styles.previewStrip}>
+            {others.map((row) => {
+              const rate = research[row.key]?.l10?.rate ?? null;
+              return (
+                <button key={row.key} type="button" onClick={() => onInspect(row)}>
+                  <small>{marketDisplayLabel(row.market, row.player, row.marketId, row.sport)}</small>
+                  <b>{row.line}</b>
+                  {rate !== null ? <em data-tone={rate >= 60 ? 'good' : 'none'}>L10 {Math.round(rate)}%</em> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+      <div className={styles.previewActions}>
+        <button type="button" onClick={() => onInspect(group)}>Full research</button>
+        <button type="button" data-primary="true" aria-pressed={overSelected} onClick={() => onSelect(group, 'OVER')}>
+          {overSelected ? 'Over in slip' : `Add over ${group.bestOver ? priceLabel(group.bestOver.price) : ''}`.trim()}
+        </button>
+      </div>
+    </div>
   );
 }
 

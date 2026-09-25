@@ -11,6 +11,7 @@ import { spawn } from 'node:child_process';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
 import { fetchMatchupResearch, fetchDefensePosition } from './lib/data-sources/espn/research.mjs';
 import { fetchClosingWinProbabilities, MAX_MONEYLINE_EVENTS } from './lib/data-sources/propline/closing-moneyline.mjs';
+import { fetchPropMovement, MAX_MOVEMENT_EVENTS } from './lib/data-sources/propline/movement.mjs';
 import { fetchTennisContext, MAX_TENNIS_MATCHES } from './lib/data-sources/sportradar/tennis-context.mjs';
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
 import { researchBatchLogLine } from './lib/autoscout/research-batch-log.mjs';
@@ -180,7 +181,7 @@ function safeParam(url, name, max = 100) {
 
 async function maybeServeResearch(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
-  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup' && url.pathname !== '/api/apex/research-defense-position' && url.pathname !== '/api/apex/research-moneyline' && url.pathname !== '/api/apex/research-tennis') return false;
+  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup' && url.pathname !== '/api/apex/research-defense-position' && url.pathname !== '/api/apex/research-moneyline' && url.pathname !== '/api/apex/research-tennis' && url.pathname !== '/api/apex/research-movement') return false;
   if (req.method !== 'GET') {
     directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
     return true;
@@ -210,6 +211,13 @@ async function maybeServeResearch(req, res) {
       return cut < 0 ? { id: value.trim() } : { id: value.slice(0, cut).trim(), opponent: value.slice(cut + 1).trim().slice(0, 100) };
     });
     const result = await fetchClosingWinProbabilities({ sport, player: safeParam(url, 'player', 90), events }).catch(() => ({ ok: true, available: false, code: 'MONEYLINE_UNAVAILABLE', message: 'Pre-match win probability could not load. Try again shortly.', events: {} }));
+    directJson(res, 200, sanitizePublicPayload(result, { statsContext: true }));
+    return true;
+  }
+  if(url.pathname === '/api/apex/research-movement') {
+    // Repeated event=<numeric id>; bounded before any provider read.
+    const eventIds = url.searchParams.getAll('event').slice(0, MAX_MOVEMENT_EVENTS).map((raw) => String(raw || '').trim().slice(0, 20));
+    const result = await fetchPropMovement({ sport, eventIds }).catch(() => ({ ok: true, available: false, code: 'MOVEMENT_UNAVAILABLE', message: 'Line movement could not load. Try again shortly.', events: {} }));
     directJson(res, 200, sanitizePublicPayload(result, { statsContext: true }));
     return true;
   }

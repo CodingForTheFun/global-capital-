@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { MovesScreen } from '@/components/moves-screen';
 
 export const metadata: Metadata = {
-  title: 'Live Moves',
+  title: 'Market',
   description: 'Live player-prop line movement, steam and suspended markets across sportsbooks.',
 };
 

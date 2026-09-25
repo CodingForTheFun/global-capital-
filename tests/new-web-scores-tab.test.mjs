@@ -7,7 +7,7 @@ test('actual Next mobile shell keeps Scores in the expanded bottom navigation', 
   assert.match(chrome, /href: '\/scores', label: 'Scores'/);
   assert.match(chrome, /RadioTower/);
   // Six items since Live Moves is a first-class phone destination; Home stays on the logo.
-  assert.match(chrome, /href: '\/moves', label: 'Moves'/);
+  assert.match(chrome, /href: '\/moves', label: 'Market'/);
   assert.match(chrome, /grid-cols-6/);
 });
 

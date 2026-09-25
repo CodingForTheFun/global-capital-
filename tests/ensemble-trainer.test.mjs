@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {trainRidge,predictRidge,walkForwardTrain,ENSEMBLE_SLOTS} from '../lib/ml/ensemble-trainer.mjs';
+const rows=Array.from({length:60},(_,i)=>({gameStartTime:new Date(Date.parse('2025-01-01T00:00:00Z')+i*86400000).toISOString(),actual:10+i*.2+(i%3),line:15.5,features:{l5Mean:9+i*.2,l10Mean:9+i*.19,l20Mean:9+i*.18,seasonMean:9+i*.17,l5OverRate:i/60,l10OverRate:i/65,l20OverRate:i/70,h2hMean:10+i*.1,h2hOverRate:.5,h2hGames:i%5,historyGames:i+5,isHome:i%2,restDays:2,opponentDefenseRank:15,marketOverProbability:.52}}));
+test('ridge trainer fits structured prop rows and predicts finite values',()=>{const m=trainRidge(rows);assert.ok(m);assert.equal(m.trainedRows,60);assert.ok(Number.isFinite(predictRidge(m,rows[0])));});
+test('walk-forward trainer never trains through the game it predicts',()=>{const out=walkForwardTrain(rows,{minTrain:20,step:5});assert.ok(out.length>0);for(const r of out)assert.ok(Date.parse(r.trainedThrough)<Date.parse(r.gameStartTime));});
+test('unimplemented ensemble members are explicit and cannot masquerade as trained',()=>{assert.equal(ENSEMBLE_SLOTS.ridge,'ready');assert.equal(ENSEMBLE_SLOTS.boostedTree,'pending-runtime');assert.equal(ENSEMBLE_SLOTS.neuralNetwork,'pending-runtime');});

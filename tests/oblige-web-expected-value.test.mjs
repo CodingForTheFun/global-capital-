@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   expectedValueFor,
   expectedValueSourceLabel,
+  marketOverProbability,
 } from '../apps/oblige-web/lib/expected-value.mjs';
 
 const NOW = Date.parse('2026-09-21T20:00:00.000Z');
@@ -137,4 +138,30 @@ test('stale or suspended sportsbook quotes cannot create EV', () => {
 
     assert.notEqual(result?.sportsbookKey, 'book-a');
   }
+});
+
+test('market over probability is the median no-vig split of books quoting both sides of this line', () => {
+  const g = group(20.5, [
+    quote('book-a', 'OVER', 20.5, -120), quote('book-a', 'UNDER', 20.5, 100),
+    quote('book-b', 'OVER', 20.5, -110), quote('book-b', 'UNDER', 20.5, -110),
+    quote('book-c', 'OVER', 20.5, -150), // one-sided: contributes nothing
+    quote('prizepicks', 'OVER', 20.5, -137), quote('prizepicks', 'UNDER', 20.5, -137),
+    quote('book-d', 'OVER', 21.5, 120), quote('book-d', 'UNDER', 21.5, -140), // other line
+  ]);
+  const a = (120 / 220) / (120 / 220 + 0.5);
+  assert.ok(Math.abs(marketOverProbability(g, { now: NOW }) - (a + 0.5) / 2) < 1e-12);
+  assert.equal(marketOverProbability(group(20.5, [quote('prizepicks', 'OVER', 20.5, -137)]), { now: NOW }), null, 'pick\'em only: no market');
+  assert.equal(marketOverProbability(group(20.5, g.quotes, { live: true }), { now: NOW }), null);
+});
+
+test('a market-consensus prediction is not relabelled as model EV', () => {
+  const g = group(20.5, [
+    quote('book-a', 'OVER', 20.5, 110), quote('book-a', 'UNDER', 20.5, -130),
+    quote('book-b', 'OVER', 20.5, -110), quote('book-b', 'UNDER', 20.5, -110),
+  ]);
+  const market = expectedValueFor(g, { available: true, sourceKind: 'market-consensus', probabilityOver: 0.5, probabilityUnder: 0.5, probabilityPush: 0 }, { now: NOW });
+  assert.equal(market.source, 'market-consensus');
+  const global = expectedValueFor(g, { available: true, sourceKind: 'global-model', probabilityOver: 0.55, probabilityUnder: 0.45, probabilityPush: 0 }, { now: NOW });
+  assert.equal(global.source, 'global-model');
+  assert.match(expectedValueSourceLabel(global), /Global model/);
 });

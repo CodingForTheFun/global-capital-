@@ -16,8 +16,8 @@ test('Live Moves stays directly visible in primary navigation', () => {
   assert.match(arrayBlock('NAV'), /href:\s*['"]\/moves['"]/);
 });
 
-test('Live Moves stays directly visible in the mobile bottom dock', () => {
+test('the live market feed stays directly visible in the mobile bottom dock', () => {
   const mobileNav = arrayBlock('MOBILE_NAV');
   assert.match(mobileNav, /href:\s*['"]\/moves['"]/);
-  assert.match(mobileNav, /label:\s*['"]Moves['"]/);
+  assert.match(mobileNav, /label:\s*['"]Market['"]/);
 });

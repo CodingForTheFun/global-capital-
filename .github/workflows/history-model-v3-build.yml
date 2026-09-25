@@ -1,0 +1,56 @@
+name: History Model v3 preflight and regression
+on:
+  push:
+    branches: [chatgpt/history-model-v3-calibration]
+permissions:
+  contents: read
+concurrency:
+  group: history-model-v3-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  jev-preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Require a real Jev invocation
+        env:
+          JEV_MCP_URL: ${{ secrets.JEV_MCP_URL }}
+        run: |
+          node --input-type=module <<'JS'
+          const url=process.env.JEV_MCP_URL;
+          if(!url){console.log('JEV_VERIFICATION_UNAVAILABLE: configure JEV_MCP_URL securely before proceeding. No Jev success claimed.');process.exit(1);}
+          let id=0;
+          async function rpc(method,params){
+            const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json',accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:++id,method,params}),signal:AbortSignal.timeout(45000)});
+            if(!r.ok)throw Error('Jev HTTP '+r.status);
+            const text=await r.text();
+            const payload=text.startsWith('data:')||text.startsWith('event:')?JSON.parse(text.split('\n').find(l=>l.startsWith('data:')).slice(5)):JSON.parse(text);
+            if(payload.error)throw Error('Jev RPC failed');return payload.result;
+          }
+          try{
+            const init=await rpc('initialize',{protocolVersion:'2024-11-05',capabilities:{},clientInfo:{name:'oblige-model-review',version:'1.0'}});
+            const list=await rpc('tools/list',{});
+            const tool=list.tools.find(t=>t.name==='jev_check');
+            if(!tool||!tool.inputSchema?.properties?.state||!tool.inputSchema?.properties?.checks)throw Error('Jev check schema unavailable');
+            const result=await rpc('tools/call',{name:tool.name,arguments:{state:'History Model v3 proposal: replace hand-picked probability caps with calibration fitted on immutable pregame forecasts and verified results; chronological disjoint fitting/calibration/holdout, per-sport/stat/period/scoring-rule scopes, H2H shrinkage, explicit missingness, event-cluster validation, bounded background training, promotion gated against an incumbent on untouched data. Never train on UI percentages or synthetic labels.',checks:['Are overlapping L5/L10/full-history hit rates independent observations?','Would fitting or selecting a calibrator using the final test outcomes invalidate that final holdout?','Does a probability cap alone establish calibrated accuracy?']}});
+            if(result?.isError||!Array.isArray(result?.content)||!result.content.some(c=>c.type==='text'&&c.text?.length))throw Error('Jev tool returned no successful result');
+            console.log(JSON.stringify({jevInvoked:true,server:init.serverInfo,tool:tool.name,result}));
+          }catch(e){console.log('JEV_VERIFICATION_FAILED: '+(e.message?.startsWith('Jev')?e.message:'request failed; sensitive endpoint omitted'));process.exitCode=1;}
+          JS
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test existing model behavior, not predictive accuracy
+        run: |
+          node --test tests/adaptive-ml.test.mjs
+          if [ -f tests/history-model-v3.test.mjs ]; then node --test tests/history-model-v3.test.mjs; fi

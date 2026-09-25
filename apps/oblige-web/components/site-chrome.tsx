@@ -10,7 +10,7 @@ import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
 
 const NAV = [
   { href: '/board', label: 'Props' },
-  { href: '/moves', label: 'Moves' },
+  { href: '/moves', label: 'Market' },
   { href: '/scores', label: 'Scores' },
   { href: '/news', label: 'News' },
   { href: '/research', label: 'Research' },
@@ -19,7 +19,7 @@ const NAV = [
 /** Keep core live research destinations directly reachable from the phone dock. Home is the logo. */
 const MOBILE_NAV = [
   { href: '/board', label: 'Props', icon: LayoutGrid },
-  { href: '/moves', label: 'Moves', icon: Activity },
+  { href: '/moves', label: 'Market', icon: Activity },
   { href: '/scores', label: 'Scores', icon: RadioTower },
   { href: '/news', label: 'News', icon: Newspaper },
   { href: '/research', label: 'Research', icon: BarChart3 },
@@ -28,7 +28,7 @@ const MOBILE_NAV = [
 
 const MOBILE_MENU = [
   { href: '/board', label: 'Props' },
-  { href: '/moves', label: 'Live Moves' },
+  { href: '/moves', label: 'Market' },
   { href: '/scores', label: 'Scores' },
   { href: '/news', label: 'News' },
   { href: '/research', label: 'Research' },
@@ -296,7 +296,7 @@ export function SiteFooter() {
             title="Product"
             links={[
               { href: '/board', label: 'Props' },
-              { href: '/moves', label: 'Live Moves' },
+              { href: '/moves', label: 'Market' },
               { href: '/scores', label: 'Scores' },
               { href: '/news', label: 'News' },
               { href: '/research', label: 'Player research' },

@@ -173,6 +173,18 @@ function crossBookFairProbability(group, side, targetBook, now) {
   return median(references.map(pair => side === 'OVER' ? pair.over : pair.under));
 }
 
+/**
+ * Consensus no-vig over probability at this exact line from every current
+ * straight sportsbook quoting both sides (median), else the feed's exact-line
+ * fair odds. Null when no two-sided market exists (pick'em-only props).
+ */
+export function marketOverProbability(group, { now = Date.now() } = {}) {
+  if (!group || group.live === true) return null;
+  const paired = median(pairedBookProbabilities(group, now).map(pair => pair.over));
+  const value = paired ?? exactFairProbability(group, 'OVER', now);
+  return value !== null && value > 0 && value < 1 ? value : null;
+}
+
 function resultFor(quote, side, probability, pushProbability, source) {
   if (!quote || probability === null) return null;
   const push = pushProbability ?? 0;
@@ -207,10 +219,13 @@ export function expectedValueFor(group, prediction, { now = Date.now() } = {}) {
   const underQuote = bestStraightQuote(group, 'UNDER', now);
   const candidates = [];
 
-  if (prediction?.available === true) {
+  // A market-consensus "prediction" is the books' own price, not a model: its
+  // EV is the cross-book comparison below, which excludes the priced book.
+  if (prediction?.available === true && prediction.sourceKind !== 'market-consensus') {
     const push = probability01(prediction.probabilityPush) ?? 0;
-    const over = resultFor(overQuote, 'OVER', probability01(prediction.probabilityOver), push, 'model');
-    const under = resultFor(underQuote, 'UNDER', probability01(prediction.probabilityUnder), push, 'model');
+    const source = prediction.sourceKind === 'global-model' ? 'global-model' : 'model';
+    const over = resultFor(overQuote, 'OVER', probability01(prediction.probabilityOver), push, source);
+    const under = resultFor(underQuote, 'UNDER', probability01(prediction.probabilityUnder), push, source);
     if (over) candidates.push(over);
     if (under) candidates.push(under);
   }
@@ -232,6 +247,7 @@ export function expectedValueFor(group, prediction, { now = Date.now() } = {}) {
 
 export function expectedValueSourceLabel(value) {
   if (!value) return null;
+  if (value.source === 'global-model') return 'Global model probability (validated on later games)';
   if (value.source === 'model') return 'Verified model probability';
   if (value.source === 'fair-odds') return 'Exact-line no-vig fair odds';
   if (value.source === 'market-consensus') return 'Cross-book no-vig consensus';

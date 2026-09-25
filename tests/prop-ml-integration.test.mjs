@@ -69,6 +69,16 @@ function evidence(){const records=[];for(let i=0;i<400;i++){
  const day=Math.floor(i/4),kick=Date.parse('2025-03-02T20:00:00Z')+day*86400000,over=i%10<7;
  records.push({eventId:'fixture-game-'+day,playerId:'fixture-athlete-'+i%4,gameStartTime:new Date(kick).toISOString(),forecastAt:new Date(kick-3600000).toISOString(),settledAt:new Date(kick+4*3600000).toISOString(),oddsObservedAt:new Date(kick-7200000).toISOString(),sourceOddsRecordId:'test-odds-'+i,sourceStatsRecordId:'test-stats-'+i,line:22.5,actualValue:over?30:20,projection:27,probabilityOver:.7,probabilityUnder:.3,probabilityPush:0,overPrice:-110,underPrice:-110});
  }return {model:{...model,validation:undefined},records};}
+test('adaptive v3 uses H2H and exact-line evidence without tiny-sample extreme confidence',async()=>{
+ const {adaptivePrediction}=await import('../lib/ml/adaptive.mjs');
+ const gameLog=Array.from({length:20},(_,i)=>({gameId:'g'+i,date:new Date(Date.parse('2026-01-01T00:00:00Z')+i*86400000).toISOString(),value:[3,4,5,6,5,7,4,6,5,8][i%10],opponent:i>=18?'NYM':'OTHER'}));
+ const target={sport:'MLB',line:4.5,gameStartTime:'2026-10-01T00:00:00Z'};
+ const result=adaptivePrediction({research:{available:true,gameLog,matchup:{opponent:'NYM'}},target,now:Date.parse('2026-09-25T20:00:00Z')});
+ assert.equal(result.available,true);assert.equal(result.modelVersion,'adaptive-ridge-v3');
+ assert.equal(result.validation.probabilityEvidence.h2h.games,2);
+ assert.ok(result.probabilityOver<=.85&&result.probabilityOver>=.15);
+ assert.equal(result.validation.probabilityEvidence.opponent,'NYM');
+});
 test('held-out gate computes metrics and forbids train/test leakage, later odds and duplicate evidence',()=>{
  const input=evidence(),r=evaluateHeldout(input,{now:NOW});assert.equal(r.validation.observations,400);assert.equal(r.validation.events,100);assert.ok(Math.abs(r.validation.brier-.21)<1e-8);assert.ok(r.validation.passed);
  for(const altered of [{...input,records:input.records.slice(0,20)}])assert.equal(evaluateHeldout(altered,{now:NOW}).validation.passed,false);

@@ -5,6 +5,7 @@ import { BOARD_SPORTS } from './lib/autoscout/models.mjs';
 import { proplineTrafficEnabled } from './lib/data-sources/propline/client.mjs';
 import { SCOPED_PUBLIC_SPORTS } from './lib/autoscout/board-coverage-catalog.mjs';
 import {createMLHandler} from './lib/ml/routes.mjs';
+import {startGlobalTraining} from './lib/ml/global/scheduler.mjs';
 const maybeServeML = createMLHandler();
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
@@ -880,6 +881,12 @@ const server = http.createServer(async (req, res) => {
 server.listen(FRONT_PORT, '0.0.0.0', () => {
   console.log(`Production frontdoor listening on 0.0.0.0:${FRONT_PORT}; ScoutLegacy=${SCOUT_PORT}; AutoScoutCore=${APEX_PORT}; ApexNext=${APEX_NEXT_PORT}; AutoScoutShell=prop-research-v5`);
 });
+
+// Daily self-training of the global prop model from PropLine's resolved-props
+// export (bounded calls, reserve-aware; ML_GLOBAL_TRAINING=off disables it).
+if (process.env.NODE_ENV === 'production' && startGlobalTraining({
+  onCycle: summary => console.log('[global-model] cycle', JSON.stringify({at:summary?.at,exportCalls:summary?.exportCalls,stop:summary?.stop,trained:summary?.trained,error:summary?.error})),
+})) console.log('[global-model] daily training scheduled');
 
 setTimeout(async () => {
   try {

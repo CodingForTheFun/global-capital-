@@ -1,49 +1,32 @@
 import Link from 'next/link';
-import {
-  ArrowRight,
-  BarChart3,
-  Check,
-  Layers3,
-  LineChart,
-  Search,
-  ShieldCheck,
-  Smartphone,
-  Sparkles,
-} from 'lucide-react';
+import { Activity, ArrowRight, BrainCircuit, Check, Flame, LayoutGrid, LineChart, Scale, Shield, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/motion';
 
-const FEATURES = [
+const STEPS = [
+  {
+    icon: LayoutGrid,
+    title: 'Scan the board',
+    body: 'Every prop in one dense row: best over and under across books, hit marks against the line, and where the line has moved since it opened.',
+  },
   {
     icon: LineChart,
-    title: 'Understand the line, not just the number',
-    body: 'See the context around a prop — recent performance, movement, matchup history and the market behind the current line.',
+    title: 'Open the player',
+    body: 'Last 5, 10 and 15, head-to-head, home and away, rest, season and opponent defense, with tonight’s game starred in every filter.',
   },
   {
-    icon: Layers3,
-    title: 'Compare books without tab hopping',
-    body: 'Bring available sportsbook pricing into one research surface so the best side and the market disagreement are easier to read.',
+    icon: Scale,
+    title: 'Price the edge',
+    body: 'EV against the no-vig market, a model checked on games it never saw, and pick’em hit rates where there is no single-bet price.',
   },
-  {
-    icon: BarChart3,
-    title: 'Research that stays visual',
-    body: 'Hit-rate windows, trends and game logs are designed to be scanned quickly on a phone without losing the detail you want on desktop.',
-  },
-  {
-    icon: Search,
-    title: 'Get from board to player fast',
-    body: 'Search, filter and open a player directly into the deeper research view instead of digging through disconnected pages.',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Missing data stays honest',
-    body: 'When a verified sample is not available, Oblige says so. The interface does not invent percentages, history or sportsbook data.',
-  },
-  {
-    icon: Smartphone,
-    title: 'Made to feel native on mobile',
-    body: 'Touch-sized controls, dense cards, sticky navigation and responsive layouts make the product feel intentional on a phone, not squeezed down.',
-  },
+];
+
+const FEATURES = [
+  { icon: Flame, title: 'Steam and line movement', body: 'Opening versus current line on every row, and a marker when several books move together.' },
+  { icon: BrainCircuit, title: 'A model that has to earn it', body: 'Retrained daily on resolved props per sport and shown only when it beats the market on later games.' },
+  { icon: Activity, title: 'Market feed', body: 'Line moves, steam, pulled markets and graded results as one live ticker.' },
+  { icon: UserRound, title: 'Faces and crests', body: 'Player headshots on the board and team crests in every matchup, so a row reads at a glance.' },
+  { icon: Shield, title: 'Honest when data is missing', body: 'No invented percentages, history or prices. A blank cell says why it is blank.' },
 ];
 
 const PLANS = [
@@ -61,14 +44,7 @@ const PLANS = [
     per: '/mo',
     highlight: true,
     cta: 'Open the board',
-    features: [
-      'Every league on the board',
-      'Full history when available',
-      'Every book we track',
-      'Sixty second refresh',
-      'Home, away and head-to-head splits',
-      'Saved filters across devices',
-    ],
+    features: ['Every league on the board', 'Full history when available', 'Every book we track', 'Sixty second refresh', 'Home, away and head-to-head splits', 'Saved filters across devices'],
   },
   {
     name: 'Full season',
@@ -82,79 +58,77 @@ const PLANS = [
 
 export default function LandingPage() {
   return (
-    <div className="premium-landing">
-      <section className="premium-hero">
-        <div className="premium-shell premium-hero-grid">
-          <div>
+    <div className="lp">
+      <section className="lp-hero">
+        <div className="lp-shell lp-hero-grid">
+          <div className="lp-hero-copy">
             <Reveal>
-              <span className="premium-eyebrow">Live player prop intelligence</span>
+              <span className="lp-eyebrow"><i aria-hidden="true" />Live player props · every book</span>
             </Reveal>
-
             <Reveal delay={60}>
-              <h1 className="premium-title">
-                Stop staring at a line.
-                <br />
-                <span>Understand why it moved.</span>
+              <h1 className="lp-title">
+                The edge is in the line.
+                <span>Find it before it moves.</span>
               </h1>
             </Reveal>
-
             <Reveal delay={120}>
-              <p className="premium-lede">
-                Oblige Props brings the board, player history, hit-rate context and sportsbook comparison into one fast research workspace built for serious mobile and desktop use.
+              <p className="lp-lede">
+                One board for every sportsbook and pick’em app, each player’s verified history against tonight’s number, and EV priced against the market itself.
               </p>
             </Reveal>
-
             <Reveal delay={180}>
-              <div className="premium-actions">
+              <div className="lp-actions">
                 <Button asChild size="lg">
                   <Link href="/board">
                     Open the board
                     <ArrowRight className="size-4" aria-hidden="true" />
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="ghost">
-                  <Link href="/research">Explore player research</Link>
-                </Button>
-              </div>
-            </Reveal>
-
-            <Reveal delay={240}>
-              <div className="premium-proof" aria-label="Product capabilities">
-                <span>Live line research</span>
-                <span>Recent-game context</span>
-                <span>Book comparison</span>
-                <span>Mobile-first workflow</span>
+                <Link href="#pricing" className="lp-text-link">See pricing</Link>
               </div>
             </Reveal>
           </div>
 
-          <Reveal delay={200}>
-            <ProductPreview />
+          <Reveal delay={160}>
+            <HeroIllustration />
           </Reveal>
         </div>
       </section>
 
-      <section className="premium-section">
-        <div className="premium-shell">
+      <section className="lp-section">
+        <div className="lp-shell">
           <Reveal>
-            <div className="premium-section-head">
-              <span className="premium-eyebrow">Built for decisions</span>
-              <h2>A research experience that feels like a product, not a spreadsheet.</h2>
-              <p>
-                The information stays dense, but the hierarchy does the work. The line, the trend, the books and the player context should be obvious before you ever have to hunt for them.
-              </p>
-            </div>
+            <h2 className="lp-h2">From a line to a decision in three taps.</h2>
           </Reveal>
+          <ol className="lp-steps">
+            {STEPS.map((step, index) => (
+              <Reveal key={step.title} delay={index * 80}>
+                <li className="lp-step">
+                  <span className="lp-step-num">{String(index + 1).padStart(2, '0')}</span>
+                  <step.icon className="lp-step-icon" strokeWidth={1.7} aria-hidden="true" />
+                  <h3>{step.title}</h3>
+                  <p>{step.body}</p>
+                </li>
+              </Reveal>
+            ))}
+          </ol>
+        </div>
+      </section>
 
-          <div className="premium-feature-grid">
+      <section className="lp-section lp-band">
+        <div className="lp-shell">
+          <Reveal>
+            <h2 className="lp-h2">What is inside.</h2>
+          </Reveal>
+          <div className="lp-features">
             {FEATURES.map((feature, index) => (
-              <Reveal key={feature.title} delay={Math.min(index * 55, 260)}>
-                <article className="premium-feature-card">
-                  <span className="premium-feature-icon">
-                    <feature.icon className="size-5" strokeWidth={1.8} aria-hidden="true" />
-                  </span>
-                  <h3>{feature.title}</h3>
-                  <p>{feature.body}</p>
+              <Reveal key={feature.title} delay={Math.min(index * 60, 240)}>
+                <article className="lp-feature">
+                  <feature.icon className="size-5 text-[var(--accent-2)]" strokeWidth={1.8} aria-hidden="true" />
+                  <div>
+                    <h3>{feature.title}</h3>
+                    <p>{feature.body}</p>
+                  </div>
                 </article>
               </Reveal>
             ))}
@@ -162,78 +136,23 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="premium-section border-y border-[var(--line)] bg-[rgba(3,5,12,.38)]">
-        <div className="premium-shell grid gap-8 lg:grid-cols-[.85fr_1.15fr] lg:items-center">
+      <section id="pricing" className="lp-section scroll-mt-24">
+        <div className="lp-shell">
           <Reveal>
-            <div className="premium-section-head !mb-0">
-              <span className="premium-eyebrow">One connected workflow</span>
-              <h2>Board → player → market → history → books.</h2>
-              <p>
-                No dead-end drawers. No generic dashboard detours. Every prop should lead naturally into the deeper research surface and keep the context you already selected.
-              </p>
-            </div>
+            <h2 className="lp-h2">Pick your access.</h2>
           </Reveal>
-
-          <Reveal delay={80}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[
-                ['01', 'Find the prop', 'Search and filter the live board without giving up density.'],
-                ['02', 'Open the player', 'Carry the market, line and matchup directly into research.'],
-                ['03', 'Read the sample', 'Compare recent results, splits and trend context against the current line.'],
-                ['04', 'Compare the market', 'See the books pricing the same prop without leaving the workflow.'],
-              ].map(([number, title, body]) => (
-                <div key={number} className="premium-feature-card !min-h-0">
-                  <span className="num text-sm font-bold text-[var(--accent)]">{number}</span>
-                  <h3 className="mt-5">{title}</h3>
-                  <p>{body}</p>
-                </div>
-              ))}
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      <section id="pricing" className="premium-section scroll-mt-24">
-        <div className="premium-shell">
-          <Reveal>
-            <div className="premium-section-head">
-              <span className="premium-eyebrow">Membership</span>
-              <h2>Pick the access level that fits how you research.</h2>
-              <p>The same Oblige Props experience scales from a first look to full-season research.</p>
-            </div>
-          </Reveal>
-
-          <div className="grid items-stretch gap-4 md:grid-cols-3">
+          <div className="lp-plans">
             {PLANS.map((plan, index) => (
               <Reveal key={plan.name} delay={index * 70}>
-                <article
-                  className={[
-                    'relative grid h-full content-start gap-6 rounded-[24px] border p-6 md:p-7',
-                    'bg-[linear-gradient(160deg,rgba(20,26,49,.80),rgba(9,13,27,.88))]',
-                    'shadow-[0_20px_64px_rgba(0,0,0,.24),inset_0_1px_0_rgba(255,255,255,.035)]',
-                    plan.highlight
-                      ? 'border-[rgba(124,140,255,.50)] shadow-[0_26px_90px_rgba(68,78,200,.18),inset_0_1px_0_rgba(255,255,255,.05)]'
-                      : 'border-[var(--line)]',
-                  ].join(' ')}
-                >
-                  {plan.highlight && (
-                    <span className="absolute -top-3 left-6 rounded-full border border-[rgba(124,140,255,.22)] bg-[#111733] px-3 py-1 text-[11px] font-bold tracking-wide text-[#c5ccff]">
-                      Most popular
-                    </span>
-                  )}
+                <article className="lp-plan" data-highlight={plan.highlight ? 'true' : 'false'}>
+                  {plan.highlight ? <span className="lp-plan-tag">Most popular</span> : null}
                   <div>
-                    <div className="text-base font-semibold text-[var(--text-2)]">{plan.name}</div>
-                    <div className="mt-3 flex items-baseline gap-1.5">
-                      <b className="num text-[38px] font-bold tracking-[-.05em]">{plan.price}</b>
-                      <span className="text-sm text-[var(--text-3)]">{plan.per}</span>
-                    </div>
+                    <div className="lp-plan-name">{plan.name}</div>
+                    <div className="lp-plan-price"><b>{plan.price}</b><span>{plan.per}</span></div>
                   </div>
-                  <ul className="grid list-none gap-3 p-0">
+                  <ul>
                     {plan.features.map((feature) => (
-                      <li key={feature} className="flex gap-3 text-sm leading-snug text-[var(--text-2)]">
-                        <Check className="mt-0.5 size-4 shrink-0 text-[var(--accent)]" strokeWidth={2.4} aria-hidden="true" />
-                        <span>{feature}</span>
-                      </li>
+                      <li key={feature}><Check className="size-4 shrink-0 text-[var(--accent)]" strokeWidth={2.4} aria-hidden="true" />{feature}</li>
                     ))}
                   </ul>
                   <Button asChild block variant={plan.highlight ? 'primary' : 'ghost'}>
@@ -249,46 +168,36 @@ export default function LandingPage() {
   );
 }
 
-function ProductPreview() {
-  const heights = ['36%', '58%', '46%', '76%', '64%', '84%', '52%', '70%', '88%', '62%', '80%', '54%'];
+/**
+ * An animated sketch of a board row opening into research. It is built from
+ * shapes only: no player names, lines, prices or percentages, so nothing on
+ * the marketing page can be mistaken for real sports data.
+ */
+function HeroIllustration() {
   return (
-    <div className="premium-preview" aria-label="Oblige Props interface preview">
-      <div className="preview-topbar">
-        <span className="preview-dot live" />
-        <span className="preview-dot" />
-        <span className="preview-dot" />
-        <span className="ml-auto text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--text-3)]">Research workspace</span>
-      </div>
-      <div className="preview-grid">
-        <div className="preview-panel preview-player">
-          <div className="preview-player-line">
-            <span className="preview-avatar" aria-hidden="true" />
-            <span className="preview-copy" aria-hidden="true">
-              <i />
-              <i />
-            </span>
-            <span className="rounded-full border border-[rgba(76,227,178,.18)] bg-[rgba(76,227,178,.08)] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.10em] text-[var(--pos)]">Live context</span>
-          </div>
+    <figure className="lp-art" aria-label="Illustration of a prop row opening into research">
+      <div className="lp-art-card lp-art-back" aria-hidden="true" />
+      <div className="lp-art-card lp-art-mid" aria-hidden="true" />
+      <div className="lp-art-card lp-art-front" aria-hidden="true">
+        <div className="lp-art-row">
+          <span className="lp-art-face" />
+          <span className="lp-art-lines"><i /><i /></span>
+          <span className="lp-art-pill" />
         </div>
-        <div className="preview-panel preview-chart" aria-hidden="true">
-          {heights.map((height, index) => (
-            <span key={`${height}-${index}`} style={{ height }} />
+        <div className="lp-art-marks">
+          {Array.from({ length: 10 }, (_, index) => <i key={index} style={{ animationDelay: `${600 + index * 90}ms` }} data-hit={[0, 1, 3, 4, 6, 7, 9].includes(index) ? 'true' : 'false'} />)}
+        </div>
+        <div className="lp-art-chart">
+          {[42, 64, 38, 72, 58, 80, 52, 76, 66, 88].map((height, index) => (
+            <span key={index} style={{ height: `${height}%`, animationDelay: `${900 + index * 70}ms` }} />
           ))}
+          <em className="lp-art-lineband" />
         </div>
-        <div className="preview-panel preview-books" aria-hidden="true">
-          {[0, 1, 2, 3, 4].map((item) => (
-            <span className="preview-book" key={item}>
-              <b />
-              <i />
-              <em />
-            </span>
-          ))}
+        <div className="lp-art-books">
+          {[0, 1, 2].map((item) => <span key={item} style={{ animationDelay: `${1500 + item * 120}ms` }}><b /><i /></span>)}
         </div>
       </div>
-      <div className="absolute bottom-5 left-5 flex items-center gap-2 rounded-full border border-[rgba(124,140,255,.14)] bg-[rgba(6,9,20,.72)] px-3 py-2 text-[11px] font-semibold text-[var(--text-2)] backdrop-blur-xl">
-        <Sparkles className="size-3.5 text-[#aeb8ff]" aria-hidden="true" />
-        Interface preview · no simulated sports data
-      </div>
-    </div>
+      <figcaption>Illustration · no real sports data</figcaption>
+    </figure>
   );
 }

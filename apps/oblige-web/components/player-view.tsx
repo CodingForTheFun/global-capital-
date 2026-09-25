@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, TriangleAlert } from 'lucide-react';
 import type { PropGroup, ResearchResponse } from '@/lib/types';
-import { ApiError, fetchAccount, fetchBoard, fetchResearch, fetchWatchlist, updateWatchlist, playedGames, type WatchlistItem } from '@/lib/api';
+import { ApiError, fetchAccount, fetchBoard, fetchResearch, fetchWatchlist, peekBoard, updateWatchlist, playedGames, type WatchlistItem } from '@/lib/api';
 import {
   computeWindow,
   headToHead,
@@ -86,9 +86,12 @@ export function PlayerView() {
 
   const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
   const [checking, setChecking] = React.useState(true);
-  const [markets, setMarkets] = React.useState<PropGroup[]>([]);
+  // Opening a prop from the board reuses the board this tab already holds, so
+  // the card renders at once instead of downloading the whole sport again.
+  const held = React.useMemo(() => (player ? peekBoard(sport)?.groups.filter((candidate) => candidate.player === player) || [] : []), [sport, player]);
+  const [markets, setMarkets] = React.useState<PropGroup[]>(held);
   const [research, setResearch] = React.useState<ResearchResponse | null>(null);
-  const [loadingBoard, setLoadingBoard] = React.useState(true);
+  const [loadingBoard, setLoadingBoard] = React.useState(!held.length);
   const [loadingResearch, setLoadingResearch] = React.useState(true);
   const [error, setError] = React.useState('');
   const [favourites, setFavourites] = React.useState<string[]>([]);
@@ -132,8 +135,16 @@ export function PlayerView() {
       setLoadingBoard(false);
       return;
     }
+    // A board younger than a minute is current enough; skip the re-download.
+    const recent = peekBoard(sport, 60_000);
+    const mineRecent = recent?.groups.filter((candidate) => candidate.player === player) || [];
+    if (mineRecent.length) {
+      setMarkets(mineRecent);
+      setLoadingBoard(false);
+      return;
+    }
     const controller = new AbortController();
-    setLoadingBoard(true);
+    setLoadingBoard(!held.length);
     setError('');
     fetchBoard(sport, controller.signal)
       .then((board) => {
@@ -249,14 +260,8 @@ export function PlayerView() {
     );
   }
   if (!player) {
-    return (
-      <Shell>
-        <Empty
-          title="Pick a prop to research"
-          body="Open any card on the board and its markets, history, splits and book prices land here."
-        />
-      </Shell>
-    );
+    // Research is always about one prop; with none chosen, go to the board.
+    return <GoToBoard />;
   }
   if (loadingBoard && !group) {
     return (
@@ -285,6 +290,7 @@ export function PlayerView() {
 
   return (
     <Shell>
+      <PropEntrance id={group.key}>
       <PlayerPropResearchCard
         group={group}
         markets={markets}
@@ -296,9 +302,35 @@ export function PlayerView() {
         onFavourite={() => toggleFavourite(group)}
         onMarket={selectMarket}
       />
+      </PropEntrance>
     </Shell>
   );
 
+}
+
+/** Entrance styles for opening a prop; one is picked at random each time. */
+const ENTRANCES = ['rise', 'zoom', 'slide', 'flip', 'focus', 'swing'] as const;
+
+/**
+ * Plays a randomly chosen entrance whenever a different prop opens. The
+ * animation is CSS only (transform, opacity, filter) and is switched off for
+ * people who ask their device for reduced motion.
+ */
+function PropEntrance({ id, children }: { id: string; children: React.ReactNode }) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const last = React.useRef<string | null>(null);
+  React.useLayoutEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const choices = ENTRANCES.filter((name) => name !== last.current);
+    const next = choices[Math.floor(Math.random() * choices.length)];
+    last.current = next;
+    // Restart the animation without remounting the card (its state survives).
+    node.removeAttribute('data-entrance');
+    void node.offsetWidth;
+    node.setAttribute('data-entrance', next);
+  }, [id]);
+  return <div ref={ref} className="prop-entrance">{children}</div>;
 }
 
 function PlayerSectionNav({
@@ -404,5 +436,15 @@ function Empty({ title, body }: { title: string; body: string }) {
         <Link href="/board">Open the board</Link>
       </Button>
     </CardPanel>
+  );
+}
+
+function GoToBoard() {
+  const router = useRouter();
+  React.useEffect(() => { router.replace('/board'); }, [router]);
+  return (
+    <Shell>
+      <Skeleton className="mt-4 h-40 rounded-[var(--radius-lg)]" />
+    </Shell>
   );
 }

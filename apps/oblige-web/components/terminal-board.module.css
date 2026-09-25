@@ -306,14 +306,6 @@
   padding-left: var(--sp-3) !important;
   text-align: left !important;
 }
-.playerCell img {
-  flex: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  object-fit: cover;
-  background: var(--surface-3);
-}
 .playerCell b {
   min-width: 0;
   overflow: hidden;
@@ -483,12 +475,12 @@
 
 .mobileRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   grid-template-areas:
-    "main ev"
-    "main rate"
-    "prices prices"
-    "preview preview";
+    "face main ev"
+    "face main rate"
+    "prices prices prices"
+    "preview preview preview";
   column-gap: var(--sp-3);
   row-gap: 2px;
   padding: var(--sp-2) var(--sp-4);
@@ -829,3 +821,29 @@
 @media (prefers-reduced-motion: reduce) {
   .feedPing, .loadingBar, .slipDrawer { animation: none; }
 }
+
+/* Player face: headshot over initials, ringed in the team colour. */
+.face {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring, var(--accent)) 70%, transparent);
+  color: var(--text-3);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+}
+.face img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.mobileFace {
+  grid-area: face;
+  align-self: center;
+  display: grid;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.mobileFace:active { transform: scale(.94); }

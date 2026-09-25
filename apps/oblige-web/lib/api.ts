@@ -2,6 +2,7 @@ import type {
   Account,
   AccountPreferences,
   BoardSavedFilters,
+  BoardMeta,
   BoardResponse,
   DefensePositionResponse,
   GameLogRow,
@@ -496,18 +497,32 @@ export function groupProps(rows: PropRow[], sport: string): PropGroup[] {
   return [...groups.values()];
 }
 
+type BoardResult = { groups: PropGroup[]; meta: BoardMeta; supportedSports: string[]; quoteCount: number };
+/** The last board fetched per sport in this tab, so opening a prop needs no second download. */
+const boardMemory = new Map<string, { at: number; board: BoardResult }>();
+
 export async function fetchBoard(sport: string, signal?: AbortSignal) {
   const body = await getJson<BoardResponse>(
     `/api/apex/props?sport=${encodeURIComponent(sport)}`,
     signal,
   );
   const rows = Array.isArray(body?.props) ? body.props : [];
-  return {
+  const board: BoardResult = {
     groups: groupProps(rows, sport),
     meta: body?.meta || {},
     supportedSports: body?.supportedSports || [],
     quoteCount: rows.length,
   };
+  boardMemory.set(String(sport).toUpperCase(), { at: Date.now(), board });
+  return board;
+}
+
+/** The board this tab already holds for a sport, if it is younger than maxAgeMs. */
+export function peekBoard(sport: string, maxAgeMs = 10 * 60_000): { groups: PropGroup[]; ageMs: number } | null {
+  const hit = boardMemory.get(String(sport).toUpperCase());
+  if (!hit) return null;
+  const ageMs = Date.now() - hit.at;
+  return ageMs <= maxAgeMs ? { groups: hit.board.groups, ageMs } : null;
 }
 
 /* --------------------------------------------------------------- research */
@@ -559,9 +574,29 @@ export async function fetchResearch(
   if (cached && cached.expiresAt > Date.now()) return cached.value;
   if (cached) researchCache.delete(path);
 
-  const value = await getJson<ResearchResponse>(path, signal);
-  rememberResearch(path, value);
-  return value;
+  // One request per prop at a time: a prefetch from the board and the research
+  // page opening share it. A caller's abort only stops that caller waiting.
+  let task = researchInflight.get(path);
+  if (!task) {
+    task = getJson<ResearchResponse>(path)
+      .then((value) => { rememberResearch(path, value); return value; })
+      .finally(() => researchInflight.delete(path));
+    researchInflight.set(path, task);
+  }
+  if (!signal) return task;
+  const shared = task;
+  return new Promise<ResearchResponse>((resolve, reject) => {
+    const onAbort = () => reject(new ApiError('The request was cancelled.', 0, 'ABORTED'));
+    signal.addEventListener('abort', onAbort, { once: true });
+    shared.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
+  });
+}
+
+const researchInflight = new Map<string, Promise<ResearchResponse>>();
+
+/** Start loading a prop's full research before it is opened; errors are ignored here. */
+export function prefetchResearch(group: PropGroup) {
+  void fetchResearch(group, 'OVER', undefined, { detail: true }).catch(() => {});
 }
 
 

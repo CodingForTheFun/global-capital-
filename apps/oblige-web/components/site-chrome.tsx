@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, BarChart3, LayoutGrid, Menu, Newspaper, RadioTower, User, X } from 'lucide-react';
+import { Activity, LayoutGrid, Menu, Newspaper, RadioTower, User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
@@ -13,16 +13,18 @@ const NAV = [
   { href: '/moves', label: 'Market' },
   { href: '/scores', label: 'Scores' },
   { href: '/news', label: 'News' },
-  { href: '/research', label: 'Research' },
 ];
 
-/** Keep core live research destinations directly reachable from the phone dock. Home is the logo. */
+/**
+ * Core destinations in the phone dock. Research has no tab: it is always about
+ * one prop, so it opens from a prop card rather than as an empty page.
+ * Home is the logo.
+ */
 const MOBILE_NAV = [
   { href: '/board', label: 'Props', icon: LayoutGrid },
   { href: '/moves', label: 'Market', icon: Activity },
   { href: '/scores', label: 'Scores', icon: RadioTower },
   { href: '/news', label: 'News', icon: Newspaper },
-  { href: '/research', label: 'Research', icon: BarChart3 },
   { href: '/account', label: 'Profile', icon: User },
 ];
 
@@ -31,7 +33,6 @@ const MOBILE_MENU = [
   { href: '/moves', label: 'Market' },
   { href: '/scores', label: 'Scores' },
   { href: '/news', label: 'News' },
-  { href: '/research', label: 'Research' },
   { href: '/account', label: 'Account / Profile' },
 ];
 
@@ -299,7 +300,6 @@ export function SiteFooter() {
               { href: '/moves', label: 'Market' },
               { href: '/scores', label: 'Scores' },
               { href: '/news', label: 'News' },
-              { href: '/research', label: 'Player research' },
               { href: '/#pricing', label: 'Pricing' },
             ]}
           />

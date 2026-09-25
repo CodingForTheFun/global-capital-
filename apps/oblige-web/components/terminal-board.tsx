@@ -22,6 +22,7 @@ import {
   artworkUrl,
   fetchAccount,
   fetchBoard,
+  prefetchResearch,
   fetchMovement,
   fetchResearchBatch,
   movementKey,
@@ -30,6 +31,7 @@ import {
   type MovementRow,
 } from '@/lib/api';
 import { marketDisplayLabel, pctValue } from '@/lib/utils';
+import { teamFor } from '@/lib/teams';
 import { marketArbitrage } from '@/lib/arbitrage.mjs';
 import {
   expectedValueFor,
@@ -1197,6 +1199,46 @@ function EvPill({ group, prediction, bestEv }: { group: PropGroup; prediction: M
   );
 }
 
+/**
+ * The player's face from the artwork route (which falls back to a sport badge
+ * when no verified photo exists), ringed in the team colour. A failed load
+ * leaves the initials underneath.
+ */
+function Face({ group, size }: { group: PropGroup; size: number }) {
+  const [failed, setFailed] = React.useState(false);
+  const club = teamFor(group.team);
+  const initials = group.player.split(/\s+/).filter(Boolean).map((part) => part[0]).slice(0, 2).join('').toUpperCase();
+  return (
+    <span className={styles.face} style={{ width: size, height: size, ['--ring' as string]: club.c1 }} aria-hidden="true">
+      <span>{initials}</span>
+      {!failed ? (
+        // eslint-disable-next-line @next/next/no-img-element -- same-origin artwork proxy
+        <img
+          src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
+          alt=""
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+        />
+      ) : null}
+    </span>
+  );
+}
+
+// Hovering a desktop row for 200 ms starts loading its research, so a click
+// opens a warm page; sweeping the pointer across rows requests nothing.
+let prefetchTimer: ReturnType<typeof setTimeout> | null = null;
+function schedulePrefetch(group: PropGroup) {
+  if (prefetchTimer) clearTimeout(prefetchTimer);
+  prefetchTimer = setTimeout(() => { prefetchTimer = null; prefetchResearch(group); }, 200);
+}
+function cancelPrefetch() {
+  if (prefetchTimer) clearTimeout(prefetchTimer);
+  prefetchTimer = null;
+}
+
 /** Ten marks, newest on the right, one per verified game against this line. */
 function RecentMarks({ marks }: { marks: Array<'hit' | 'miss' | 'push'> }) {
   if (!marks.length) return null;
@@ -1321,14 +1363,9 @@ function DesktopMatrix({
             const move = movementFor(group);
 
             return (
-              <tr key={group.key} onClick={() => onInspect(group)}>
+              <tr key={group.key} onClick={() => onInspect(group)} onPointerEnter={() => schedulePrefetch(group)} onPointerLeave={cancelPrefetch}>
                 <td className={styles.playerCell}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
-                    alt=""
-                    onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }}
-                  />
+                  <Face group={group} size={32} />
                   <b>{group.player}</b>
                   {group.team ? <small>{group.team}</small> : null}
                   {arb ? <span className={styles.arbTag}>ARB</span> : null}
@@ -1418,11 +1455,17 @@ function MobileMatrix({
 
         return (
           <li key={group.key} className={styles.mobileRow} data-open={open ? 'true' : 'false'}>
+            <button type="button" className={styles.mobileFace} onClick={() => onInspect(group)} aria-label={`Research ${group.player}`}>
+              <Face group={group} size={44} />
+            </button>
             <button
               type="button"
               className={styles.mobileMain}
               aria-expanded={open}
-              onClick={() => setOpenKey(open ? null : group.key)}
+              onClick={() => {
+                if (!open) prefetchResearch(group);
+                setOpenKey(open ? null : group.key);
+              }}
             >
               <span className={styles.mobileName}>
                 <b>{group.player}</b>

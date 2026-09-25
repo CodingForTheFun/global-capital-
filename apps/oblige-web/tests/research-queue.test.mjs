@@ -18,6 +18,7 @@ function harness(respond, options = {}) {
   let authLost = 0;
   const queue = createResearchQueue({
     batchSize: options.batchSize ?? 3,
+    priorityBatchSize: options.priorityBatchSize,
     maxAttempts: options.maxAttempts ?? 3,
     gapMs: 0,
     baseDelayMs: 1000,
@@ -153,4 +154,19 @@ test('the board uses the queue instead of aborting research on every list change
   const board = readFileSync(new URL('../components/terminal-board.tsx', import.meta.url), 'utf8');
   assert.match(board, /createResearchQueue(<[^>]*>)?\(/);
   assert.doesNotMatch(board, /fetchResearchBatch\(batch, 'OVER', controller\.signal\)/);
+});
+
+test('newly wanted rows go out in a small batch of their own, then batches return to full size', async () => {
+  const h = harness(allOk, { batchSize: 10, priorityBatchSize: 3 });
+  h.queue.want(Array.from({ length: 14 }, (_, i) => g('r' + i)));
+  await idle(h.queue);
+  assert.deepEqual(h.calls.map((c) => c.keys.length), [3, 10, 1]);
+  assert.deepEqual(h.calls[0].keys, ['r0', 'r1', 'r2'], 'the first rows asked for come back first');
+});
+
+test('without a priority size, batching is unchanged', async () => {
+  const h = harness(allOk, { batchSize: 10 });
+  h.queue.want(Array.from({ length: 14 }, (_, i) => g('r' + i)));
+  await idle(h.queue);
+  assert.deepEqual(h.calls.map((c) => c.keys.length), [10, 4]);
 });

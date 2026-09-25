@@ -68,6 +68,8 @@ export function createResearchQueue({
   onSettled,
   onAuthLost = () => {},
   batchSize = 100,
+  /** Size of the batch that carries newly prioritised (visible) props, so they return first. */
+  priorityBatchSize = batchSize,
   maxAttempts = 3,
   baseDelayMs = 2000,
   gapMs = 250,
@@ -81,6 +83,7 @@ export function createResearchQueue({
   let running = false;
   let cancelled = false;
   let requests = 0;
+  let priorityRemaining = 0;
 
   function settle(entries) {
     if (!entries.length || cancelled) return;
@@ -157,18 +160,20 @@ export function createResearchQueue({
     try {
       while (!cancelled && order.length) {
         const batch = [];
-        let limit = batchSize;
+        const size = priorityRemaining > 0 ? Math.min(batchSize, priorityBatchSize) : batchSize;
+        let limit = size;
         while (order.length && batch.length < limit) {
           const key = order.shift();
           const entry = pending.get(key);
           if (!entry) continue;
-          if (!batch.length) limit = Math.min(batchSize, entry.limit ?? batchSize);
+          if (!batch.length) limit = Math.min(size, entry.limit ?? batchSize);
           else if ((entry.limit ?? batchSize) < batchSize && batch.length) { order.unshift(key); break; }
           pending.delete(key);
           inFlight.add(key);
           batch.push(entry);
         }
         if (!batch.length) continue;
+        priorityRemaining = Math.max(0, priorityRemaining - batch.length);
         const wait = await runBatch(batch);
         if (cancelled) break;
         if (wait > 0) await sleep(wait, controller.signal);
@@ -193,6 +198,7 @@ export function createResearchQueue({
     if (!first.length) return;
     const wanted = new Set(first);
     order = [...first, ...order.filter((key) => !wanted.has(key) && pending.has(key))];
+    priorityRemaining = Math.min(first.length, priorityBatchSize);
     void pump();
   }
 

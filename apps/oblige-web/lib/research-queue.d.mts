@@ -22,6 +22,7 @@ export function createResearchQueue<G extends { key: string }, R>(options: {
   onSettled: (settled: Array<ResearchSettled<G, R>>) => void;
   onAuthLost?: () => void;
   batchSize?: number;
+  priorityBatchSize?: number;
   maxAttempts?: number;
   baseDelayMs?: number;
   gapMs?: number;

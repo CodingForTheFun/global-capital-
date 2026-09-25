@@ -295,3 +295,15 @@ test('the export fetcher streams the CSV, sends the key as a header and reports 
     if (previous === undefined) delete process.env.PROPLINE_API_KEY; else process.env.PROPLINE_API_KEY = previous;
   }
 });
+
+test('a slow player history never holds back a ready global or market answer', async () => {
+  let researchCalls = 0;
+  const research = () => { researchCalls++; return new Promise(resolve => setTimeout(() => resolve({ available: false }), 400)); };
+  const global = { predict: async (t, base) => t.marketOverProbability ? { available: true, sourceKind: 'market-consensus', projection: base?.projection ?? null, probabilityOver: 0.5, probabilityUnder: 0.5, probabilityPush: 0 } : null };
+  const store = createMLStore({ file: '/nonexistent/predictions.json', research, global, adaptiveBudgetMs: 50 });
+  const started = Date.now();
+  const result = await store.lookup(target({ gameStartTime: '2030-01-01T00:00:00.000Z', marketOverProbability: 0.5 }));
+  assert.equal(result.sourceKind, 'market-consensus');
+  assert.ok(Date.now() - started < 300, 'answered inside the budget, not after the history loaded');
+  assert.equal(researchCalls, 1, 'the history load still started, so the next request finds it cached');
+});

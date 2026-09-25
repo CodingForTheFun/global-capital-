@@ -1,6 +1,6 @@
 import {activePropsFromBoard} from '../lib/ingestion/normalize.mjs';
 import {bookEnabled,bookSelection} from '../lib/constants/books.mjs';
-import {writePublicBoard} from '../lib/autoscout/public-board-response.mjs';
+import {createBoardResponseCache,sendBoardResponse} from '../lib/autoscout/board-response-cache.mjs';
 import { fetchGameBoard, fetchTacoBoard } from '../lib/autoscout/providers/the-odds-api.mjs';
 import { startFrugalPersistence } from '../lib/autoscout/persistence-scheduler.mjs';
 import crypto from 'node:crypto';
@@ -25,6 +25,8 @@ const dashboardPassword = process.env.DASHBOARD_PASSWORD || '';
 const dashboardSessionSecret = process.env.DASHBOARD_SESSION_SECRET || crypto.createHash('sha256').update(`scout-pro:${dashboardPassword || 'local-only'}`).digest('hex');
 const sessions = createSessionCodec({ secret: dashboardSessionSecret });
 const limiter = createRateLimiter();
+// One compressed board per sport per short window, shared by every request.
+const boardResponses = createBoardResponseCache({ ttlMs: Math.max(5_000, Number(process.env.AUTOSCOUT_BOARD_RESPONSE_TTL_MS) || 15_000) });
 
 function json(res, status, body, extra = {}) {
   const payload = JSON.stringify(body);
@@ -88,23 +90,26 @@ async function propsResponse(req, url, res) {
   const timer = setTimeout(() => controller.abort(), 20_000);
   let providerMs = 0;
   let decorateMs = 0;
+  let pathTiming = {};
   try {
-    const providerStartedAt = Date.now();
-    const rawBoard = await fetchUnifiedBoard(sport, { signal: controller.signal, includeAlternates });
-    providerMs = Math.max(0, Date.now() - providerStartedAt);
+    const entry = await boardResponses.get(sport + '|' + (includeAlternates ? 'alternates' : 'main'), async () => {
+      const providerStartedAt = Date.now();
+      const rawBoard = await fetchUnifiedBoard(sport, { signal: controller.signal, includeAlternates });
+      providerMs = Math.max(0, Date.now() - providerStartedAt);
 
-    const decorateStartedAt = Date.now();
-    const board = decorateBoardWithScoutAudit(rawBoard);
-    decorateMs = Math.max(0, Date.now() - decorateStartedAt);
-    if (!board?.meta?.cacheHit) void persistNormalizedBoard(board).catch(()=>{});
-
+      const decorateStartedAt = Date.now();
+      const board = decorateBoardWithScoutAudit(rawBoard);
+      decorateMs = Math.max(0, Date.now() - decorateStartedAt);
+      if (!board?.meta?.cacheHit) void persistNormalizedBoard(board).catch(()=>{});
+      pathTiming = board?.meta?.requestTimingMs || {};
+      return { ...board, supportedSports: BOARD_SPORTS, persistence: persistenceHealth() };
+    });
     const serializeStartedAt = Date.now();
-    await writePublicBoard(res, { ...board, supportedSports: BOARD_SPORTS, persistence: persistenceHealth() });
+    const status = sendBoardResponse(req, res, entry);
     const serializeMs = Math.max(0, Date.now() - serializeStartedAt);
-    const pathTiming = board?.meta?.requestTimingMs || {};
-    const source = ['memory','persisted','live','empty'].includes(pathTiming.source) ? pathTiming.source : 'unknown';
+    const source = entry.cache !== 'miss' ? 'response-cache' : ['memory','persisted','live','empty'].includes(pathTiming.source) ? pathTiming.source : 'unknown';
     console.log(
-      `[AutoScout props timing] sport=${sport} source=${source} memory=${Number(pathTiming.memoryCache || 0)}ms persisted=${Number(pathTiming.persistedRead || 0)}ms live=${Number(pathTiming.liveFetch || 0)}ms freshness=${Number(pathTiming.freshness || 0)}ms provider=${providerMs}ms decorate=${decorateMs}ms serialize=${serializeMs}ms total=${Math.max(0, Date.now() - requestStartedAt)}ms bgRefresh=${pathTiming.backgroundRefreshScheduled === true ? 'yes' : 'no'}`,
+      `[AutoScout props timing] sport=${sport} source=${source} memory=${Number(pathTiming.memoryCache || 0)}ms persisted=${Number(pathTiming.persistedRead || 0)}ms live=${Number(pathTiming.liveFetch || 0)}ms freshness=${Number(pathTiming.freshness || 0)}ms provider=${providerMs}ms decorate=${decorateMs}ms build=${entry.buildMs}ms serialize=${serializeMs}ms total=${Math.max(0, Date.now() - requestStartedAt)}ms status=${status} bytes=${entry.raw.length} gzip=${entry.gz.length} bgRefresh=${pathTiming.backgroundRefreshScheduled === true ? 'yes' : 'no'}`,
     );
     return;
   } catch (error) {

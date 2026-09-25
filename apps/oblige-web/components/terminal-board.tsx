@@ -263,8 +263,10 @@ async function fetchPredictions(groups: PropGroup[], signal?: AbortSignal) {
   if (!jobs.length) return output;
 
   const batchSize = 24; // Must stay aligned with ML_BATCH_MAX in lib/ml/routes.mjs.
-  for (let offset = 0; offset < jobs.length; offset += batchSize) {
-    const batch = jobs.slice(offset, offset + batchSize);
+  const batches: Array<typeof jobs> = [];
+  for (let offset = 0; offset < jobs.length; offset += batchSize) batches.push(jobs.slice(offset, offset + batchSize));
+  // Batches run side by side; one page is at most two or three of them.
+  await Promise.all(batches.map(async (batch) => {
     const response = await fetch('/api/props/ml', {
       method: 'POST',
       credentials: 'same-origin',
@@ -290,7 +292,7 @@ async function fetchPredictions(groups: PropGroup[], signal?: AbortSignal) {
         message: 'No verified model estimate is available for this prop.',
       };
     });
-  }
+  }));
 
   return output;
 }
@@ -781,6 +783,8 @@ export function TerminalBoard() {
     if (!accountId) return;
     const queue = createResearchQueue<PropGroup, ResearchResponse>({
       batchSize: RESEARCH_BATCH_SIZE,
+      // The rows on screen go out on their own so their hit rates land first.
+      priorityBatchSize: 16,
       fetchBatch: (groups, signal) => fetchResearchBatch(groups, 'OVER', signal),
       onAuthLost: () => setAccount(null),
       onSettled: (entries) => {
@@ -1154,7 +1158,8 @@ function streakLabel(summary: ResearchSummary | null | undefined) {
  * model's stated reason for having no estimate.
  */
 function EvPill({ group, prediction, bestEv }: { group: PropGroup; prediction: ModelPrediction | undefined; bestEv: ExpectedValueSelection | null }) {
-  if (prediction === undefined) return <span className={styles.loadingDot}>…</span>;
+  // Sportsbook-priced EV needs no model, so it shows while the model loads.
+  if (prediction === undefined && !bestEv) return <span className={styles.loadingDot}>…</span>;
   if (bestEv) {
     const tone = bestEv.ev >= 4 ? 'hot' : bestEv.ev > 0 ? 'pos' : 'neg';
     return (
@@ -1164,6 +1169,7 @@ function EvPill({ group, prediction, bestEv }: { group: PropGroup; prediction: M
       </span>
     );
   }
+  if (!prediction) return <span className={styles.loadingDot}>…</span>;
   const over = finite(prediction.probabilityOver) ? prediction.probabilityOver : null;
   const under = finite(prediction.probabilityUnder) ? prediction.probabilityUnder : null;
   if (prediction.available !== false && over !== null && under !== null) {

@@ -845,7 +845,10 @@ const server = http.createServer(async (req, res) => {
     port: dst.port,
     path: dst.path,
     method: req.method,
-    headers: { ...req.headers, host: req.headers.host || 'localhost', 'accept-encoding': 'identity' },
+    // The data core compresses its shared props board itself and the frontdoor
+    // pipes that route untouched, so the client's gzip support is passed on
+    // there. Everything else stays identity so it can be inspected here.
+    headers: { ...req.headers, host: req.headers.host || 'localhost', 'accept-encoding': dst.port === APEX_PORT && dst.path.split('?')[0] === '/api/props' ? String(req.headers['accept-encoding'] || 'identity') : 'identity' },
   }, (upstream) => {
     const type = String(upstream.headers['content-type'] || '');
     const injectApexShell = dst.injectShell === true && dst.port === APEX_PORT && type.includes('text/html');

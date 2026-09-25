@@ -10,6 +10,7 @@ const maybeServeML = createMLHandler();
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
+import { teamLogoResponse } from './lib/autoscout/providers/team-logo.mjs';
 import { fetchMatchupResearch, fetchDefensePosition } from './lib/data-sources/espn/research.mjs';
 import { fetchClosingWinProbabilities, MAX_MONEYLINE_EVENTS } from './lib/data-sources/propline/closing-moneyline.mjs';
 import { fetchPropMovement, MAX_MOVEMENT_EVENTS } from './lib/data-sources/propline/movement.mjs';
@@ -637,6 +638,41 @@ async function maybeServeTeammates(req, res) {
   return true;
 }
 
+// Team crests for matchup and opponent displays. Public like player artwork;
+// resolved through ESPN's league directory and streamed from this origin.
+async function maybeServeTeamLogo(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/apex/team-logo') return false;
+  if (req.method !== 'GET') {
+    res.writeHead(405, { 'content-type': 'application/json; charset=utf-8', allow: 'GET' });
+    res.end(JSON.stringify({ ok: false, message: 'Method not allowed.' }));
+    return true;
+  }
+  const sport = String(url.searchParams.get('sport') || '').toUpperCase();
+  const team = String(url.searchParams.get('team') || '').trim().slice(0, 90);
+  if (!RESEARCH_SPORTS.has(sport) || !team) {
+    res.writeHead(400, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ ok: false, message: 'Valid sport and team are required.' }));
+    return true;
+  }
+  try {
+    const image = await teamLogoResponse(sport, team);
+    res.writeHead(image.status || 200, {
+      'content-type': image.contentType,
+      'content-length': Buffer.byteLength(image.body),
+      'cache-control': image.cacheControl,
+      'x-logo-status': image.verified ? 'verified' : 'unavailable',
+      'x-content-type-options': 'nosniff',
+      'cross-origin-resource-policy': 'same-origin',
+    });
+    res.end(image.body);
+  } catch {
+    res.writeHead(502, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+    res.end(JSON.stringify({ ok: false, message: 'Team logo is temporarily unavailable.' }));
+  }
+  return true;
+}
+
 async function maybeServeArtwork(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
   if (url.pathname !== '/api/apex/player-artwork') return false;
@@ -801,6 +837,7 @@ const server = http.createServer(async (req, res) => {
   if (await maybeServeAsk(req, res)) return;
   if (await maybeServeTeammates(req, res)) return;
   if (await maybeServeArtwork(req, res)) return;
+  if (await maybeServeTeamLogo(req, res)) return;
 
   const dst = target(req.url || '/');
   const proxy = http.request({

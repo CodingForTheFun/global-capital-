@@ -154,6 +154,29 @@ export function currentOpponentLabels(
   return labels;
 }
 
+/**
+ * The team's full name from the verified league directory ("BOS" -> "Boston
+ * Celtics"); the label itself when the directory has no single match.
+ */
+export function teamDisplayName(label: unknown, leagueTeams: LeagueTeam[] = []): string {
+  const value = display(label);
+  if (!value) return '';
+  const matches = directoryRows(leagueTeams).filter((row) => sameTeamLabel(row.abbreviation, value) || sameTeamLabel(row.name, value));
+  return matches.length === 1 ? matches[0].name : value;
+}
+
+/**
+ * Mark the option that describes tonight's game with the same stars the
+ * Opponent picker uses, so every filter shows which choice applies to this
+ * prop. Nothing is marked when tonight's value is unknown.
+ */
+export function markCurrentOption<T extends { value: string; label: string }>(options: T[], current: string | null | undefined): T[] {
+  if (!current || current === 'all') return options;
+  return options.map((option) => (option.value === current && !isMarkedCurrentOpponent(option.label)
+    ? { ...option, label: markCurrentOpponent(option.label) }
+    : option));
+}
+
 function directoryRows(leagueTeams: LeagueTeam[]) {
   const rows: Array<{ abbreviation: string; name: string }> = [];
   for (const team of leagueTeams || []) {

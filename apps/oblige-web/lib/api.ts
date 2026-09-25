@@ -809,6 +809,11 @@ export async function fetchLineHistory(propId: string, signal?: AbortSignal) {
 }
 
 /** The artwork route serves the image itself, so this is a URL, not a fetch. */
+/** Same-origin team crest (the CSP blocks third-party images); a neutral badge when unmatched. */
+export function teamLogoUrl(sport: string, team: string) {
+  return `/api/apex/team-logo?${new URLSearchParams({ sport: String(sport || '').toUpperCase(), team })}`;
+}
+
 export function artworkUrl(sport: string, name: string, team?: string | null, providerPlayerId?: string | null) {
   const params = new URLSearchParams({ sport, name });
   if (team) params.set('team', team);

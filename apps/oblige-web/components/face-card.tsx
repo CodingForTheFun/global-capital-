@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { ART, teamFor } from '@/lib/teams';
-import { artworkUrl, fetchResearch, playedGames } from '@/lib/api';
+import { artworkUrl, fetchResearch, playedGames, teamLogoUrl } from '@/lib/api';
 import type { GameLogRow, PropGroup } from '@/lib/types';
 import { cn, initials, marketDisplayLabel, odds, rateTone, shortTime } from '@/lib/utils';
 import { Badge, Dot } from '@/components/ui/badge';
@@ -31,6 +31,40 @@ export function TeamScene({ team, tall }: { team?: string | null; tall?: boolean
           dangerouslySetInnerHTML={{ __html: ART[club.art] }}
         />
       </span>
+    </span>
+  );
+}
+
+/* -------------------------------------------------------------- team logo */
+
+/**
+ * A team's crest from the same-origin logo route. The route answers with a
+ * neutral abbreviation badge when a team cannot be matched exactly, and a
+ * failed load falls back to initials here, so a wrong crest is never shown.
+ */
+export function TeamLogo({ sport, team, size = 40, className }: { sport: string; team: string | null | undefined; size?: number; className?: string }) {
+  const [failed, setFailed] = React.useState(false);
+  React.useEffect(() => { setFailed(false); }, [sport, team]);
+  const label = String(team || '').trim();
+  return (
+    <span
+      className={cn('relative grid shrink-0 place-items-center overflow-hidden rounded-full bg-[var(--surface-3)]', className)}
+      style={{ width: size, height: size }}
+    >
+      <span className="text-[length:var(--fs-sm)] font-bold text-[var(--text-3)]" aria-hidden="true">{initials(label || '?')}</span>
+      {label && !failed ? (
+        // eslint-disable-next-line @next/next/no-img-element -- same-origin proxy; the optimizer would add a hop
+        <img
+          src={teamLogoUrl(sport, label)}
+          alt=""
+          width={size}
+          height={size}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="absolute inset-[12%] h-[76%] w-[76%] object-contain"
+        />
+      ) : null}
     </span>
   );
 }

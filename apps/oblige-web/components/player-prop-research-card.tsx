@@ -13,12 +13,13 @@ import {
   EMPTY_FILTERS,
   filterCoverage,
   upcomingRest,
+  rankBand,
 } from '@/lib/analytics';
-import { buildOpponentOptions, currentOpponentLabels, sameTeamLabel } from '@/lib/opponent-options';
+import { buildOpponentOptions, currentOpponentLabels, markCurrentOption, sameTeamLabel, teamDisplayName } from '@/lib/opponent-options';
 import { bookInfo } from '../../../lib/constants/books.mjs';
 import { catalogBookRows, type CatalogBookRow } from '@/lib/book-catalog';
 import { expectedValueFor, expectedValueSourceLabel, marketOverProbability, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
-import { PlayerAvatar } from '@/components/face-card';
+import { PlayerAvatar, TeamLogo } from '@/components/face-card';
 import { GameContext } from '@/components/game-context';
 import { OpponentField } from '@/components/opponent-field';
 import { fetchDefensePosition, fetchLineHistory, fetchMoneyline, fetchTennisContext } from '@/lib/api';
@@ -838,10 +839,25 @@ export function PlayerPropResearchCard({
     return [{ value: 'all', label: 'Any' }, ...['Hard', 'Clay', 'Grass', 'Carpet'].filter((value) => seen.includes(value)).map((value) => ({ value, label: value }))];
   }, [rawGames]);
   const upcoming = individualSport ? tennis?.upcoming || null : null;
+  // Tonight's game, as each filter describes it. Unknown stays unmarked.
+  const currentVenue: 'home' | 'away' | null = !individualSport && text(group.team)
+    ? (text(group.homeTeam) && sameTeamLabel(group.team, group.homeTeam) ? 'home'
+      : text(group.awayTeam) && sameTeamLabel(group.team, group.awayTeam) ? 'away' : null)
+    : null;
+  const currentSeason = React.useMemo(() => {
+    // The newest season in the log is tonight's only if it was still being
+    // played recently; across an off-season the new season is not in the log.
+    const start = Date.parse(group.startsAt || '');
+    const seasons = [...new Set(verifiedGames.map((game) => text(game.season)).filter(Boolean))].sort().reverse();
+    if (!seasons.length || !Number.isFinite(start)) return null;
+    const last = Math.max(...verifiedGames.filter((game) => text(game.season) === seasons[0]).map((game) => Date.parse(game.date || '')).filter(Number.isFinite));
+    return Number.isFinite(last) && start - last <= 120 * 86_400_000 ? seasons[0] : null;
+  }, [verifiedGames, group.startsAt]);
   const seasonOptions = React.useMemo(() => {
     const seasons = [...new Set(verifiedGames.map((game) => text(game.season)).filter(Boolean))].sort().reverse();
-    return [{ value: 'all', label: 'All' }, ...seasons.map((season) => ({ value: season, label: season }))];
-  }, [verifiedGames]);
+    return markCurrentOption([{ value: 'all', label: 'All' }, ...seasons.map((season) => ({ value: season, label: season }))], currentSeason);
+  }, [verifiedGames, currentSeason]);
+  const currentRest = restUpcoming === null ? null : restUpcoming >= 3 ? '3+' : String(restUpcoming);
 
   const categoryLabels = React.useMemo(() => {
     const map = new Map<string, PropGroup[]>();
@@ -989,6 +1005,9 @@ export function PlayerPropResearchCard({
 
   const kickoff = shortTime(group.startsAt);
   const teamLabel = text(group.team) || 'Team unavailable';
+  // Full names from the verified league directory ("BOS" -> "Boston Celtics").
+  const teamName = individualSport ? '' : teamDisplayName(group.team, research?.leagueTeams || []);
+  const opponentName = currentOpponent ? (individualSport ? currentOpponent : teamDisplayName(currentOpponent, research?.leagueTeams || [])) : '';
   const unavailableReason = !loading && research?.available === false
     ? research.message || 'Verified history is unavailable for this exact prop.'
     : null;
@@ -1045,7 +1064,12 @@ export function PlayerPropResearchCard({
               </span>
             </div>
             <div className="mt-0.5 truncate text-[13px] text-[var(--text-2)]">
-              {[text(group.team) || null, currentOpponent ? 'vs ' + currentOpponent : (group.matchup && group.matchup !== group.player ? group.matchup : null), kickoff || null]
+              {[
+                teamName && opponentName ? teamName + (currentVenue === 'away' ? ' @ ' : ' vs ') + opponentName
+                  : opponentName ? 'vs ' + opponentName
+                  : teamName || (group.matchup && group.matchup !== group.player ? group.matchup : null),
+                kickoff || null,
+              ]
                 .filter(Boolean)
                 .join(' · ') || 'Event details unavailable'}
             </div>
@@ -1271,7 +1295,7 @@ export function PlayerPropResearchCard({
             <SelectPill
               label="Home/Away"
               value={filters.venue}
-              options={[{ value: 'all', label: 'All' }, { value: 'home', label: 'Home' }, { value: 'away', label: 'Away' }]}
+              options={markCurrentOption([{ value: 'all', label: 'All' }, { value: 'home', label: 'Home' }, { value: 'away', label: 'Away' }], currentVenue)}
               onChange={(venue) => setFilters((previous) => ({ ...previous, venue: venue as SampleFilters['venue'] }))}
             />
             {periods.length > 1 ? (
@@ -1343,13 +1367,13 @@ export function PlayerPropResearchCard({
                     <FilterSelect
                       label={'Days rest' + (restUpcoming !== null ? ' (upcoming: ' + restUpcoming + ')' : '')}
                       value={filters.rest || 'all'}
-                      options={[
+                      options={markCurrentOption([
                         { value: 'all', label: 'Any' },
                         { value: '0', label: 'Back-to-back' },
                         { value: '1', label: '1 day' },
                         { value: '2', label: '2 days' },
                         { value: '3+', label: '3+ days' },
-                      ]}
+                      ], currentRest)}
                       onChange={(rest) => setFilters((previous) => ({ ...previous, rest: rest as SampleFilters['rest'] }))}
                     />
                   ) : null}
@@ -1401,7 +1425,7 @@ export function PlayerPropResearchCard({
                     <FilterSelect
                       label="Court type"
                       value={filters.surface || 'all'}
-                      options={surfaceOptions}
+                      options={markCurrentOption(surfaceOptions, upcoming?.surface || null)}
                       onChange={(surface) => setFilters((previous) => ({ ...previous, surface: surface as SampleFilters['surface'] }))}
                     />
                   ) : null}
@@ -1409,7 +1433,7 @@ export function PlayerPropResearchCard({
                     <FilterSelect
                       label="Opponent hand"
                       value={filters.opponentHand || 'all'}
-                      options={[{ value: 'all', label: 'Any' }, { value: 'R', label: 'Right-handed' }, { value: 'L', label: 'Left-handed' }]}
+                      options={markCurrentOption([{ value: 'all', label: 'Any' }, { value: 'R', label: 'Right-handed' }, { value: 'L', label: 'Left-handed' }], upcoming?.opponentHand || null)}
                       onChange={(opponentHand) => setFilters((previous) => ({ ...previous, opponentHand: opponentHand as SampleFilters['opponentHand'] }))}
                     />
                   ) : null}
@@ -1417,13 +1441,13 @@ export function PlayerPropResearchCard({
                     <FilterSelect
                       label="Opponent rank (current)"
                       value={filters.opponentRank || 'all'}
-                      options={[
+                      options={markCurrentOption([
                         { value: 'all', label: 'Any' },
                         { value: 'top10', label: 'Top 10' },
                         { value: 'top50', label: '11–50' },
                         { value: 'top100', label: '51–100' },
                         { value: 'over100', label: 'Outside top 100' },
-                      ]}
+                      ], rankBand(upcoming?.opponentRank))}
                       onChange={(opponentRank) => setFilters((previous) => ({ ...previous, opponentRank: opponentRank as SampleFilters['opponentRank'] }))}
                     />
                   ) : null}
@@ -1445,12 +1469,12 @@ export function PlayerPropResearchCard({
                     <FilterSelect
                       label="Opponent defense (current)"
                       value={filters.defenseTier || 'all'}
-                      options={[
+                      options={markCurrentOption([
                         { value: 'all', label: 'Any' },
                         { value: 'soft', label: DEFENSE_TIER_LABEL.soft },
                         { value: 'average', label: DEFENSE_TIER_LABEL.average },
                         { value: 'tough', label: DEFENSE_TIER_LABEL.tough },
-                      ]}
+                      ], currentDefense?.tier || null)}
                       onChange={(defenseTier) => setFilters((previous) => ({ ...previous, defenseTier: defenseTier as SampleFilters['defenseTier'] }))}
                     />
                   ) : null}
@@ -1612,21 +1636,37 @@ export function PlayerPropResearchCard({
             Matchup
           </div>
           <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1 px-2 py-2.5">
-            <div className="min-w-0 text-center">
-              <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[var(--accent-2)]">
-                <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} size={40} className="!size-full" />
-              </div>
-              <div className="mt-1 truncate text-[11px] font-black text-white">{group.player}</div>
-              <div className="truncate text-[11px] text-[var(--text-2)]">{teamLabel}</div>
-            </div>
-            <div className="text-[12px] font-black text-[var(--text-2)]">VS</div>
-            <div className="min-w-0 text-center">
-              <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[var(--accent-2)]">
-                <PlayerAvatar name={currentOpponent || 'Opponent'} sport={group.sport} team={currentOpponent} size={40} className="!size-full" />
-              </div>
-              <div className="mt-1 truncate text-[11px] font-black text-white">{currentOpponent || 'Opponent unavailable'}</div>
-              <div className="truncate text-[11px] text-[var(--text-2)]">{group.matchup || 'Matchup unavailable'}</div>
-            </div>
+            {individualSport ? (
+              <>
+                <div className="min-w-0 text-center">
+                  <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[var(--accent-2)]">
+                    <PlayerAvatar name={group.player} sport={group.sport} providerPlayerId={group.providerPlayerId} size={40} className="!size-full" />
+                  </div>
+                  <div className="mt-1 truncate text-[11px] font-black text-white">{group.player}</div>
+                </div>
+                <div className="text-[12px] font-black text-[var(--text-2)]">VS</div>
+                <div className="min-w-0 text-center">
+                  <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[var(--accent-2)]">
+                    <PlayerAvatar name={currentOpponent || 'Opponent'} sport={group.sport} size={40} className="!size-full" />
+                  </div>
+                  <div className="mt-1 truncate text-[11px] font-black text-white">{currentOpponent || 'Opponent unavailable'}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="min-w-0 text-center">
+                  <TeamLogo sport={group.sport} team={group.team} size={40} className="mx-auto" />
+                  <div className="mt-1 line-clamp-2 text-[11px] font-black leading-tight text-white">{teamName || teamLabel}</div>
+                  <div className="truncate text-[11px] text-[var(--text-2)]">{currentVenue === 'home' ? 'Home' : currentVenue === 'away' ? 'Away' : group.player}</div>
+                </div>
+                <div className="text-[12px] font-black text-[var(--text-2)]">{currentVenue === 'away' ? '@' : 'VS'}</div>
+                <div className="min-w-0 text-center">
+                  <TeamLogo sport={group.sport} team={currentOpponent} size={40} className="mx-auto" />
+                  <div className="mt-1 line-clamp-2 text-[11px] font-black leading-tight text-white">{opponentName || 'Opponent unavailable'}</div>
+                  <div className="truncate text-[11px] text-[var(--text-2)]">{currentVenue === 'home' ? 'Away' : currentVenue === 'away' ? 'Home' : 'Opponent'}</div>
+                </div>
+              </>
+            )}
           </div>
           <div className="grid grid-cols-2 border-t border-[var(--line-strong)]">
             <div className="px-2 py-2 text-center">

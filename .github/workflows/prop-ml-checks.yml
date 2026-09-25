@@ -21,7 +21,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npx playwright install --with-deps chromium
       - run: node --check scripts/verify-prop-ml-live.mjs
-      - run: node --test tests/prop-ml-integration.test.mjs tests/taco-offer-isolation.test.mjs tests/taco-concurrent-integration.test.mjs
+      - run: node --test tests/prop-ml-integration.test.mjs tests/continuous-training.test.mjs tests/taco-offer-isolation.test.mjs tests/taco-concurrent-integration.test.mjs
       - run: node scripts/qa-prop-ml.mjs
       - uses: actions/upload-artifact@v4
         if: always()

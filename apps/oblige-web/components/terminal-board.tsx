@@ -34,6 +34,7 @@ import { marketArbitrage } from '@/lib/arbitrage.mjs';
 import {
   expectedValueFor,
   expectedValueSourceLabel,
+  marketOverProbability,
   type ExpectedValueSelection,
 } from '@/lib/expected-value.mjs';
 import { uniqueTerminalPlayerCards } from '@/lib/terminal-player-cards.mjs';
@@ -79,6 +80,8 @@ type ModelPrediction = {
   message?: string;
   generatedAt?: string;
   expiresAt?: string;
+  /** 'global-model' | 'verified-history-adaptive-model' | 'market-consensus' | ... */
+  sourceKind?: string;
 };
 
 type RateWindow = {
@@ -115,6 +118,7 @@ type MlTarget = {
   entityType: 'player';
   live: boolean;
   isAlternate: false;
+  marketOverProbability?: number;
 };
 
 type SlipSelection = {
@@ -214,12 +218,15 @@ function boardDateLabel(key: string) {
 function targetFor(group: PropGroup): MlTarget | null {
   const quote = group.bestOver || group.bestUnder || group.quotes[0];
   const eventId = text(quote?.eventId);
-  const playerId = text(group.providerPlayerId);
+  // Rows without a provider id are still identified by name for the global
+  // model; the server never passes a name: id to research as a provider id.
+  const playerId = text(group.providerPlayerId) || (text(group.player) ? `name:${text(group.player).toLowerCase()}` : '');
   const marketId = text(group.marketId);
   const sportsbookKey = text(quote?.sportsbookKey || quote?.sportsbook);
   const gameStartTime = text(group.startsAt);
   if (!eventId || !playerId || !marketId || !sportsbookKey || !gameStartTime) return null;
   if (!Number.isFinite(Date.parse(gameStartTime))) return null;
+  const market = marketOverProbability(group);
 
   return {
     sport: group.sport,
@@ -233,6 +240,7 @@ function targetFor(group: PropGroup): MlTarget | null {
     entityType: 'player',
     live: group.live,
     isAlternate: false,
+    ...(market === null ? {} : { marketOverProbability: market }),
   };
 }
 
@@ -1165,9 +1173,14 @@ function EvPill({ group, prediction, bestEv }: { group: PropGroup; prediction: M
     const why = priced
       ? 'EV needs a current single-bet sportsbook price; this one is stale or not a straight bet.'
       : 'Pick\'em app: there is no single-bet price, so EV cannot be computed.';
+    const market = prediction.sourceKind === 'market-consensus';
+    const sideName = side === 'O' ? 'over' : 'under';
+    const title = market
+      ? `Sportsbook consensus: the no-vig chance of the ${sideName} from books quoting both sides of this line. Not a model estimate. ${why}`
+      : `${prediction.sourceKind === 'global-model' ? 'Global model' : 'Model'} hit probability for the ${sideName}. ${why}`;
     return (
-      <span className={styles.evPill} data-tone="prob" title={`Model hit probability for the ${side === 'O' ? 'over' : 'under'}. ${why}`}>
-        {pct}%<small>{side}</small>
+      <span className={styles.evPill} data-tone="prob" data-source={market ? 'market' : 'model'} title={title}>
+        {market ? <em>Mkt</em> : null}{pct}%<small>{side}</small>
       </span>
     );
   }

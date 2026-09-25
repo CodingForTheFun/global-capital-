@@ -17,7 +17,7 @@ import {
 import { buildOpponentOptions, currentOpponentLabels, sameTeamLabel } from '@/lib/opponent-options';
 import { bookInfo } from '../../../lib/constants/books.mjs';
 import { catalogBookRows, type CatalogBookRow } from '@/lib/book-catalog';
-import { expectedValueFor, expectedValueSourceLabel, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
+import { expectedValueFor, expectedValueSourceLabel, marketOverProbability, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 import { PlayerAvatar } from '@/components/face-card';
 import { GameContext } from '@/components/game-context';
 import { OpponentField } from '@/components/opponent-field';
@@ -52,6 +52,7 @@ type ModelPrediction = {
   probabilityUnder?: number;
   probabilityPush?: number;
   engine?: string;
+  sourceKind?: string;
   code?: string;
   message?: string;
   modelVersion?: string;
@@ -78,6 +79,7 @@ type MlTarget = {
   entityType: 'player';
   live: boolean;
   isAlternate: false;
+  marketOverProbability?: number;
 };
 
 type SupportMetric = {
@@ -211,14 +213,16 @@ function quoteModifier(row: PropRow | null | undefined) {
 
 function mlTargetFor(group: PropGroup, quote: PropRow | null): MlTarget | null {
   const eventId = text(quote?.eventId);
-  const playerId = text(group.providerPlayerId);
+  const playerId = text(group.providerPlayerId) || (text(group.player) ? `name:${text(group.player).toLowerCase()}` : '');
   const marketId = text(group.marketId);
   const sportsbookKey = text(quote?.sportsbookKey || quote?.sportsbook);
   const gameStartTime = text(group.startsAt);
   if (!eventId || !playerId || !marketId || !sportsbookKey || !Number.isFinite(Date.parse(gameStartTime))) {
     return null;
   }
+  const market = marketOverProbability(group);
   return {
+    ...(market === null ? {} : { marketOverProbability: market }),
     sport: group.sport,
     eventId,
     playerId,
@@ -497,7 +501,7 @@ function HistoryChart({
   );
 }
 
-type ModelSummary = { projection: number | null; side: 'O' | 'U' | null; probability: number | null; ev: ExpectedValueSelection | null; loading: boolean };
+type ModelSummary = { projection: number | null; side: 'O' | 'U' | null; probability: number | null; ev: ExpectedValueSelection | null; loading: boolean; market: boolean };
 
 function HistoryModel({
   group,
@@ -571,12 +575,13 @@ function HistoryModel({
       probability: both ? Math.max(overProbability!, underProbability!) : null,
       ev: selectedEv,
       loading,
+      market: prediction?.sourceKind === 'market-consensus',
     });
-  }, [onSummary, projectionValue, overProbability, underProbability, selectedEv, loading]);
+  }, [onSummary, projectionValue, overProbability, underProbability, selectedEv, loading, prediction?.sourceKind]);
 
   return (
     <div className="rounded-[10px] border border-[var(--line-strong)] bg-[var(--surface-2)] p-2.5">
-      <div className="text-[13px] font-black text-white">History model</div>
+      <div className="text-[13px] font-black text-white">{prediction?.sourceKind === 'market-consensus' ? 'Market consensus' : prediction?.sourceKind === 'global-model' ? 'Global model' : 'History model'}</div>
       <div className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-2">
         <div className="min-w-0"><div className="text-[11px] text-[var(--text-2)]">Projection</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? metricValue(prediction?.projection) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
         <div className="min-w-0"><div className="text-[11px] text-[var(--text-2)]">Over</div><div className="mt-0.5 text-[17px] font-black leading-none text-white">{available ? probabilityLabel(prediction?.probabilityOver) : <><span aria-hidden="true">—</span><span className="sr-only">Unavailable</span></>}</div></div>
@@ -1064,7 +1069,7 @@ export function PlayerPropResearchCard({
             <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Model</span>
             <span className="text-[15px] font-bold tabular-nums text-[var(--text)]">
               {modelSummary?.projection != null ? modelSummary.projection.toFixed(1) : modelSummary?.loading ? '…' : '—'}
-              {modelSummary?.probability != null ? <span className="ml-1 text-[12px] font-medium text-[var(--text-3)]">{Math.round(modelSummary.probability * 100)}% {modelSummary.side}</span> : null}
+              {modelSummary?.probability != null ? <span className="ml-1 text-[12px] font-medium text-[var(--text-3)]" title={modelSummary.market ? 'Sportsbook no-vig consensus, not a model estimate' : undefined}>{modelSummary.market ? 'Mkt ' : ''}{Math.round(modelSummary.probability * 100)}% {modelSummary.side}</span> : null}
             </span>
           </div>
           <div className="grid content-center gap-0.5 px-3 py-2 sm:border-l">

@@ -1,6 +1,6 @@
 import type { PropGroup } from './types';
 
-export type ExpectedValueSource = 'model' | 'fair-odds' | 'market-consensus';
+export type ExpectedValueSource = 'global-model' | 'model' | 'fair-odds' | 'market-consensus';
 
 export type ExpectedValueSelection = {
   side: 'OVER' | 'UNDER';
@@ -25,9 +25,12 @@ export function expectedValueFor(
     probabilityOver?: number;
     probabilityUnder?: number;
     probabilityPush?: number;
+    sourceKind?: string;
   },
   options?: { now?: number },
 ): ExpectedValueSelection | null;
+
+export function marketOverProbability(group: PropGroup, options?: { now?: number }): number | null;
 
 export function expectedValueSourceLabel(
   value: ExpectedValueSelection | null | undefined,

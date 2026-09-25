@@ -415,6 +415,8 @@
 .evPill[data-tone="neg"] { font-size: var(--fs-sm); font-weight: 500; }
 /* Model hit probability (no EV possible): outlined, so it never reads as edge. */
 .evPill[data-tone="prob"] { box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text); font-size: var(--fs-sm); }
+.evPill[data-source="market"] { color: var(--text-2); }
+.evPill em { font-style: normal; font-size: var(--fs-micro); font-weight: 600; color: var(--text-3); margin-right: 3px; letter-spacing: .02em; }
 
 .loadingDot { color: var(--text-3); }
 .unavailable { color: var(--text-3); font-size: var(--fs-xs); font-style: italic; }

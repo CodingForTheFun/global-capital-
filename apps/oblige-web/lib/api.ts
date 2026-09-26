@@ -713,8 +713,27 @@ const MATCHUP_UNAVAILABLE: MatchupResponse = {
  */
 export async function fetchMatchup(group: PropGroup, signal?: AbortSignal): Promise<MatchupResponse> {
   const quote = group.bestOver || group.bestUnder || group.quotes[0] || null;
-  const eventId = quote?.eventId ? String(quote.eventId) : '';
-  if (!eventId || !group.homeTeam || !group.awayTeam || !group.startsAt) {
+  return fetchGameMatchup({
+    sport: group.sport,
+    eventId: quote?.eventId ? String(quote.eventId) : '',
+    homeTeam: group.homeTeam,
+    awayTeam: group.awayTeam,
+    startsAt: group.startsAt,
+  }, signal);
+}
+
+/** The game a context is read for: the backend resolves it by teams and exact start. */
+export type GameIdentity = {
+  sport: string;
+  eventId: string;
+  homeTeam: string | null;
+  awayTeam: string | null;
+  startsAt: string | null;
+};
+
+export async function fetchGameMatchup(game: GameIdentity, signal?: AbortSignal): Promise<MatchupResponse> {
+  const eventId = game.eventId;
+  if (!eventId || !game.homeTeam || !game.awayTeam || !game.startsAt) {
     return {
       ok: true,
       available: false,
@@ -723,11 +742,11 @@ export async function fetchMatchup(group: PropGroup, signal?: AbortSignal): Prom
     };
   }
   const params = new URLSearchParams({
-    sport: group.sport,
+    sport: game.sport,
     eventId,
-    homeTeam: group.homeTeam,
-    awayTeam: group.awayTeam,
-    gameStartTime: group.startsAt,
+    homeTeam: game.homeTeam,
+    awayTeam: game.awayTeam,
+    gameStartTime: game.startsAt,
   });
   try {
     const value = await getJson<MatchupResponse>(`/api/apex/research-matchup?${params}`, signal);

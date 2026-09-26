@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeMatchupSummary,resolveMatchupEvent} from '../lib/data-sources/espn/matchup.mjs';
+import {normalizeMatchupSummary,resolveMatchupEvent,mergeScoreboards} from '../lib/data-sources/espn/matchup.mjs';
 import {createPublicResearch} from '../lib/data-sources/espn/research.mjs';
 import {gatedApi} from '../lib/auth/gate.mjs';
 const now=Date.parse('2026-09-13T12:00:00Z'),retrievedAt=new Date(now).toISOString();
@@ -60,15 +60,16 @@ test('malformed optional sections do not erase a valid published prediction',()=
 test('shared source client coalesces matchup loads across players and preserves retrieval time',async()=>{
  const {summary,scoreboard}=fixture();let clock=now;const paths=[];
  const client=createPublicResearch({now:()=>clock,fetchImpl:async url=>{paths.push(url);return {ok:true,status:200,json:async()=>url.includes('/summary?')?summary:scoreboard};}});
- const results=await Promise.all([client.matchup(target),client.matchup(target)]);assert.equal(paths.length,2);assert.equal(results[0].prediction.homePercent,61.9);
- clock+=60000;const cached=await client.matchup(target);assert.equal(paths.length,2);assert.equal(cached.retrievedAt,retrievedAt);
- assert.ok(paths[0].includes('dates=20260912-20260914'));
+ const results=await Promise.all([client.matchup(target),client.matchup(target)]);assert.equal(paths.length,4);assert.equal(results[0].prediction.homePercent,61.9);
+ clock+=60000;const cached=await client.matchup(target);assert.equal(paths.length,4);assert.equal(cached.retrievedAt,retrievedAt);
+ // ESPN rejects date ranges, so the day before, of and after the start are read singly.
+ assert.deepEqual(paths.filter(p=>p.includes('/scoreboard?')).map(p=>p.match(/dates=([^&]+)/)[1]),['20260912','20260913','20260914']);
 });
 test('source failure, unsupported sport and old event stay unavailable without extra requests',async()=>{
  let calls=0;const client=createPublicResearch({now:()=>now,fetchImpl:async()=>{calls++;return {ok:false,status:503};}});
  assert.equal((await client.matchup({...target,sport:'UNKNOWN'})).available,false);assert.equal(calls,0);
  assert.equal((await client.matchup({...target,gameStartTime:'2020-01-01T00:00:00Z'})).available,false);assert.equal(calls,0);
- assert.equal((await client.matchup(target)).available,false);assert.equal(calls,1);
+ assert.equal((await client.matchup(target)).available,false);assert.equal(calls,3);
 });
 test('matchup route is covered by the existing research account gate',()=>{assert.equal(gatedApi('/api/apex/research-matchup'),true);});
 
@@ -83,3 +84,15 @@ test('bench membership requires an explicit non-starter designation',()=>{
 });
 test('moneyline and tennis context routes are covered by the research account gate',()=>{assert.equal(gatedApi('/api/apex/research-moneyline'),true);assert.equal(gatedApi('/api/apex/research-tennis'),true);});
 test('live market moves require an account like every other prop-data route',()=>{assert.equal(gatedApi('/api/apex/live-moves'),true);assert.equal(gatedApi('/api/apex/live-moves?sport=NBA&limit=160'),true);});
+
+test('single-day scoreboards merge; a game listed twice with conflicting starts is rejected',()=>{
+ const {scoreboard}=fixture();
+ const event=scoreboard.events[0];
+ const merged=mergeScoreboards([scoreboard,{leagues:scoreboard.leagues,events:[event]},{leagues:[],events:[]}]);
+ assert.equal(merged.events.length,scoreboard.events.length,'the same event on two days is kept once');
+ assert.ok(resolveMatchupEvent(merged,target));
+ const moved={...event,date:'2026-09-14T20:00:00Z'};
+ const conflict=mergeScoreboards([scoreboard,{leagues:scoreboard.leagues,events:[moved]}]);
+ assert.equal(conflict.events.length,scoreboard.events.length+1);
+ assert.equal(resolveMatchupEvent(conflict,target)?.id??null,resolveMatchupEvent(scoreboard,target)?.id??null,'a copy at another time is not this game, so it cannot match twice');
+});

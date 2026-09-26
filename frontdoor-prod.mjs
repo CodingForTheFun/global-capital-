@@ -978,7 +978,7 @@ server.listen(FRONT_PORT, '0.0.0.0', () => {
 // Daily self-training of the global prop model from PropLine's resolved-props
 // export (bounded calls, reserve-aware; ML_GLOBAL_TRAINING=off disables it).
 if (process.env.NODE_ENV === 'production' && startGlobalTraining({
-  onCycle: summary => console.log('[global-model] cycle', JSON.stringify({at:summary?.at,exportCalls:summary?.exportCalls,stop:summary?.stop,trained:summary?.trained,error:summary?.error})),
+  onCycle: summary => console.log('[global-model] cycle', JSON.stringify({at:summary?.at,exportCalls:summary?.exportCalls,exportRemaining:summary?.exportRemaining,stop:summary?.stop,backfillPending:summary?.backfillPending,trained:summary?.trained,error:summary?.error})),
 })) console.log('[global-model] daily training scheduled');
 
 setTimeout(async () => {

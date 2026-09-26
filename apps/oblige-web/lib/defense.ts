@@ -118,11 +118,12 @@ export function exactPosition(sport: string, ...candidates: Array<string | null 
 }
 
 export function teamIdFor(label: unknown, teams: DefensePositionResponse['teams'] = []): string | null {
-  // An exact abbreviation or full name is one team: "COL" is Colorado even
-  // though it also reads as a shortening of Columbus. Only without an exact
-  // match does the looser comparison run, and it must find exactly one team.
+  // A full team name is one team ("Colorado Avalanche", never Columbus), so an
+  // exact name wins before the looser comparison. Abbreviations get no such
+  // priority: feeds differ in their codes, and a bare "COL" that also reads
+  // as Columbus stays unmatched. The looser comparison must find exactly one.
   const wanted = String(label ?? '').trim().toUpperCase();
-  const exact = wanted ? (teams || []).filter((team) => String(team?.abbreviation || '').trim().toUpperCase() === wanted || String(team?.name || '').trim().toUpperCase() === wanted) : [];
+  const exact = wanted ? (teams || []).filter((team) => String(team?.name || '').trim().toUpperCase() === wanted) : [];
   const exactIds = [...new Set(exact.map((team) => String(team?.id || '')).filter(Boolean))];
   if (exactIds.length === 1) return exactIds[0];
   if (exactIds.length > 1) return null;

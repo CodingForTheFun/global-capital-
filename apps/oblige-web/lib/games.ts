@@ -167,5 +167,6 @@ export function slateOpponent(
   });
   if (fits.length !== 1) return null;
   const game = fits[0];
-  return sameExact(team, game, 'home') ? game.awayTeam : game.homeTeam;
+  // The opponent's full name: unambiguous where an abbreviation may not be.
+  return sameExact(team, game, 'home') ? game.awayName : game.homeName;
 }

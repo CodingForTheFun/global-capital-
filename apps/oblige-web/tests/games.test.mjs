@@ -84,8 +84,9 @@ test('a team-only prop gets its opponent from the slate only under every check',
   const game = (id, home, away, startTime, status = 'SCHEDULED') => liveGame({ ...raw, id, gameId: id, homeTeam: home, awayTeam: away, homeName: home + ' City', awayName: away + ' Town', startTime, status });
   const slate = [game('1', 'WSH', 'NYM', '2026-09-26T23:05:00Z'), game('2', 'MIN', 'CLE', '2026-09-26T23:10:00Z'), game('3', 'PIT', 'CHC', '2026-09-26T17:00:00Z', 'FINAL')];
   const prop = { team: 'WSH', startsAt: '2026-09-26T23:05:00Z' };
-  assert.equal(slateOpponent(prop, 'WSH', slate), 'NYM');
-  assert.equal(slateOpponent({ ...prop, team: 'NYM' }, 'NYM', slate), 'WSH');
+  // The opponent comes back as its full name, which matches exactly one team.
+  assert.equal(slateOpponent(prop, 'WSH', slate), 'NYM Town');
+  assert.equal(slateOpponent({ ...prop, team: 'NYM' }, 'NYM', slate), 'WSH City');
   assert.equal(slateOpponent({ ...prop, startsAt: null }, 'WSH', slate), null, 'no start time, no guess');
   assert.equal(slateOpponent(prop, null, slate), null, 'research has not verified the team');
   assert.equal(slateOpponent(prop, 'MIN', slate), null, 'the verified team disagrees with the prop');

@@ -72,7 +72,9 @@ test('an observation whose books disagree on the actual result is dropped', () =
 
 // Synthetic league: each player has a true mean; the market knows it with
 // noise; history reveals it slowly. Deterministic pseudo-random numbers.
-function league({ players = 60, games = 40, seed = 7, withMarket = true } = {}) {
+// The market's noise is large enough that a model using history has a clear
+// edge the evidence gate can confirm (a marginal edge is correctly not enough).
+function league({ players = 60, games = 40, seed = 7, withMarket = true, marketNoise = 0.08 } = {}) {
   let s = seed;
   const rnd = () => ((s = (s * 1103515245 + 12345) % 2147483648) / 2147483648);
   const normal = () => Math.sqrt(-2 * Math.log(rnd() + 1e-12)) * Math.cos(2 * Math.PI * rnd());
@@ -85,7 +87,7 @@ function league({ players = 60, games = 40, seed = 7, withMarket = true } = {}) 
       const line = Math.round(mu + normal() * 1.5) + 0.5;
       const z = (line - mu) / sigma;
       const trueOver = 1 - 0.5 * (1 + Math.tanh(0.7978845608 * (z + 0.044715 * z ** 3)));
-      const cq = withMarket ? Math.min(0.97, Math.max(0.03, trueOver + normal() * 0.03)) : null;
+      const cq = withMarket ? Math.min(0.97, Math.max(0.03, trueOver + normal() * marketNoise)) : null;
       out.push({ e: `ev${g}-${p % 10}`, t, p: `Player ${p}`, m: 'player_points', a: Math.max(0, Math.round((mu + normal() * sigma) * 2) / 2),
         cp: withMarket ? line : null, cq, cn: withMarket ? 4 : 0, op: null, oq: null, on: 0, dl: withMarket ? null : line });
     }

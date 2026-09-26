@@ -132,12 +132,47 @@ test('the gate refuses small samples and never promotes on training fit alone', 
 test('a challenger worse than the champion on the same games is rejected', () => {
   const rows = buildRows(league({ players: 80, games: 40 }));
   const good = trainAndEvaluate(rows);
-  const champion = { weights: good.weights };
-  // Same rows, same champion: demanding a large margin over it must block promotion.
+  // A champion whose data ended before the holdout began: every holdout game is
+  // unseen by it, so the comparison is fair.
+  const holdoutStart = Date.parse(good.metrics.holdoutStart);
+  const champion = { weights: good.weights, dataThrough: new Date(holdoutStart - 1).toISOString() };
+  // Demanding a large margin over it must block promotion.
   const strict = trainAndEvaluate(rows, { champion, policy: { ...PROMOTION_POLICY, maxChampionBrierExcess: -0.05 } });
   assert.equal(strict.promote, false);
   assert.ok(strict.reasons.includes('WORSE_THAN_CHAMPION'));
-  assert.ok(Math.abs(strict.metrics.champion.brier - strict.metrics.all.brier) < 0.01);
+  assert.ok(Number.isFinite(strict.metrics.champion.challengerBrier));
+  assert.equal(strict.metrics.champion.n, strict.metrics.holdoutRows);
+});
+
+test('a champion is not judged on games it was trained on', () => {
+  const rows = buildRows(league({ players: 80, games: 40 }));
+  const good = trainAndEvaluate(rows);
+  // Trained on everything (no cutoff, or a cutoff after the holdout): no unseen
+  // games, so the champion comparison is skipped rather than flattering it.
+  for (const dataThrough of [undefined, new Date(Date.now() + 86_400_000).toISOString()]) {
+    const result = trainAndEvaluate(rows, { champion: { weights: good.weights, dataThrough }, policy: { ...PROMOTION_POLICY, maxChampionBrierExcess: -0.05 } });
+    assert.equal(result.metrics.champion.skipped, 'TOO_FEW_UNSEEN_ROWS');
+    assert.ok(!result.reasons.includes('WORSE_THAN_CHAMPION'));
+  }
+});
+
+test('the holdout never shares a game with the training rows', () => {
+  // Every player in a game shares its start time, as real events do, so a
+  // row-count cut would fall inside a game.
+  const day = 86_400_000;
+  const rows = buildRows(league({ players: 80, games: 40 })).map((r) => ({ ...r, t: Math.floor(r.t / day) * day }));
+  const byTime = [...rows].sort((a, b) => a.t - b.t);
+  // Pick a holdout share whose row-count cut lands inside a game.
+  const fraction = [0.2, 0.21, 0.22, 0.23, 0.24, 0.25].find((f) => {
+    const naive = Math.floor(rows.length * (1 - f));
+    return byTime[naive].t === byTime[naive - 1].t;
+  });
+  assert.ok(fraction, 'fixture must put a naive cut inside a game');
+  const result = trainAndEvaluate(rows, { policy: { ...PROMOTION_POLICY, holdoutFraction: fraction } });
+  const sorted = [...rows].sort((a, b) => a.t - b.t);
+  const cut = result.metrics.trainRows;
+  assert.ok(cut > 0 && cut < sorted.length);
+  assert.notEqual(sorted[cut].t, sorted[cut - 1].t);
 });
 
 test('probability scores are exact on a tiny example', () => {
@@ -228,6 +263,27 @@ test('a promoted model serves its regime, uses past games only, and keeps the ad
     assert.equal(p.validation.method, 'chronological-holdout-resolved-props');
     // The regime without a market was not promoted, so no estimate is made there.
     assert.equal(await predictor.predict(target({})), null);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('a pick\'em prop with too little player history gets no model answer', async () => {
+  const dir = await tmp();
+  try {
+    const obs = league({ players: 80, games: 40 });
+    const result = trainAndEvaluate(buildRows(obs));
+    await writeObservations('NBA', obs, dir);
+    await writeArtifact('NBA', { sport: 'NBA', version: 'global-logit-v1', weights: result.weights, regimes: { withMarket: true, withoutMarket: true },
+      pushRates: {}, trainedAt: '2026-03-01T00:00:00.000Z', metrics: result.metrics }, dir);
+    const predictor = createGlobalPredictor({ dir, clock: () => Date.parse('2026-03-01T00:00:00Z') });
+    // A known player with history: the pick'em regime answers.
+    const known = await predictor.predict(target({}));
+    assert.equal(known?.sourceKind, 'global-model');
+    assert.ok(known.inputs.historyGames >= 3);
+    // A player the model has never seen: no market and no history means the
+    // output would be a constant, so nothing is offered.
+    assert.equal(await predictor.predict(target({ playerName: 'Nobody Known' })), null);
+    // With a market the same unknown player still gets the market-driven answer.
+    assert.equal((await predictor.predict(target({ playerName: 'Nobody Known', marketOverProbability: 0.55 })))?.sourceKind, 'global-model');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

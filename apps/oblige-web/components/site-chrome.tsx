@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Activity, LayoutGrid, Menu, Newspaper, RadioTower, User, X } from 'lucide-react';
+import { Activity, LayoutGrid, Menu, Newspaper, RadioTower, Search, User, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
@@ -33,6 +33,7 @@ const MOBILE_MENU = [
   { href: '/moves', label: 'Market' },
   { href: '/scores', label: 'Scores' },
   { href: '/news', label: 'News' },
+  { href: '/research', label: 'Search players' },
   { href: '/account', label: 'Account / Profile' },
 ];
 
@@ -121,6 +122,15 @@ export function SiteHeader() {
         </nav>
 
         <div className="relative ml-auto flex items-center gap-2" ref={menuRef}>
+          <Link
+            href="/research"
+            aria-label="Search players"
+            aria-current={pathname === '/research' ? 'page' : undefined}
+            className="inline-flex h-9 items-center gap-2 rounded-[9px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_88%,transparent)] px-2.5 text-[length:var(--fs-xs)] font-semibold text-[var(--text-2)] transition-colors hover:text-[var(--text)] lg:min-w-[200px]"
+          >
+            <Search className="size-4" aria-hidden="true" />
+            <span className="hidden lg:inline">Search any player</span>
+          </Link>
           <button
             type="button"
             className="inline-flex size-9 items-center justify-center rounded-[9px] border border-[var(--line)] bg-[color-mix(in_srgb,var(--surface)_88%,transparent)] text-[var(--text-2)] lg:hidden"

@@ -17,6 +17,7 @@ import type {
   Side,
 } from './types';
 import { marketDisplayLabel } from './utils';
+import { nameMatchesQuery } from './player-profile';
 
 /**
  * Every call goes through this app's own /api/* proxy, which forwards to the
@@ -525,6 +526,22 @@ export function peekBoard(sport: string, maxAgeMs = 10 * 60_000): { groups: Prop
   return ageMs <= maxAgeMs ? { groups: hit.board.groups, ageMs } : null;
 }
 
+/** Players with a live prop on any board this tab holds, matching a name query. */
+export function heldBoardPlayers(query: string, limit = 8): { sport: string; name: string; team: string | null; props: number }[] {
+  const found = new Map<string, { sport: string; name: string; team: string | null; props: number }>();
+  for (const [sport, hit] of boardMemory) {
+    if (Date.now() - hit.at > 10 * 60_000) continue;
+    for (const group of hit.board.groups) {
+      if (!nameMatchesQuery(group.player, query)) continue;
+      const key = sport + '|' + group.player;
+      const row = found.get(key) || { sport, name: group.player, team: group.team, props: 0 };
+      row.props += 1;
+      found.set(key, row);
+    }
+  }
+  return [...found.values()].sort((a, b) => b.props - a.props).slice(0, limit);
+}
+
 /* --------------------------------------------------------------- research */
 
 function rememberResearch(key: string, value: ResearchResponse) {
@@ -539,7 +556,7 @@ export async function fetchResearch(
   group: PropGroup,
   side: Side,
   signal?: AbortSignal,
-  options: { detail?: boolean } = {},
+  options: { detail?: boolean; noLine?: boolean } = {},
 ): Promise<ResearchResponse> {
   if (signal?.aborted) throw new ApiError('The request was cancelled.', 0, 'ABORTED');
 
@@ -568,6 +585,9 @@ export async function fetchResearch(
   if (group.startsAt) params.set('gameStartTime', group.startsAt);
   if (group.period) params.set('period', group.period);
   if (options.detail === true) params.set('detail', '1');
+  // A player profile has no posted line; the history comes back unscored and
+  // the card scores it against the customer's target line.
+  if (options.noLine === true) params.delete('line');
 
   const path = `/api/apex/research?${params}`;
   const cached = researchCache.get(path);
@@ -904,4 +924,37 @@ export function streakOf(research: ResearchResponse | null): { count: number; ov
 
 export function playedGames(research: ResearchResponse | null): GameLogRow[] {
   return (research?.gameLog || []).filter((row) => num(row.value) !== null);
+}
+
+export type PlayerSearchResult = { id: string; name: string; sport: string; league: string; team: string | null };
+export type PlayerSearchResponse = { ok?: boolean; available?: boolean; code?: string; message?: string; players: PlayerSearchResult[] };
+export type PlayerProfileResponse = {
+  ok?: boolean;
+  available?: boolean;
+  code?: string;
+  message?: string;
+  player?: { id: string; sport: string; name: string | null; position: string | null; team: string | null; teamName: string | null; active?: boolean };
+  nextGame?: { eventId: string | null; startsAt: string | null; status: string | null; homeTeam: string; awayTeam: string; opponent: string | null; isHome: boolean | null } | null;
+};
+
+/** Any player in a league the research card can read, by name. Identity only. */
+export async function searchPlayers(query: string, signal?: AbortSignal): Promise<PlayerSearchResponse> {
+  const value = await getJson<PlayerSearchResponse>(`/api/apex/research-players?q=${encodeURIComponent(query.trim().slice(0, 60))}`, signal);
+  return { ...value, players: Array.isArray(value.players) ? value.players : [] };
+}
+
+const profileCache = new Map<string, Promise<PlayerProfileResponse>>();
+
+/** Position, team and next game for a searched player, as ESPN publishes them. */
+export function fetchPlayerProfile(sport: string, id: string): Promise<PlayerProfileResponse> {
+  const key = sport.toUpperCase() + ':' + id;
+  let task = profileCache.get(key);
+  if (!task) {
+    task = getJson<PlayerProfileResponse>(`/api/apex/research-player?sport=${encodeURIComponent(sport.toUpperCase())}&id=${encodeURIComponent(id)}`)
+      .catch(() => ({ ok: false, available: false } as PlayerProfileResponse));
+    profileCache.set(key, task);
+    // A failure is not remembered: the next open asks again.
+    task.then((value) => { if (!value.available) profileCache.delete(key); });
+  }
+  return task;
 }

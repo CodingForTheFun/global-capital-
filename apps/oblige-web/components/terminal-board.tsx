@@ -16,12 +16,14 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import type { BoardMeta, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
+import type { BoardMeta, DefensePositionResponse, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
+import { DEFENSE_SPORTS, MATCHUP_LABEL, metricLabel, ordinal, propMatchup, type DefenseReading } from '@/lib/defense';
 import {
   ApiError,
   artworkUrl,
   fetchAccount,
   fetchBoard,
+  fetchDefensePosition,
   prefetchResearch,
   espnEventOf,
   fetchMovement,
@@ -778,6 +780,19 @@ export function TerminalBoard() {
     [movement],
   );
 
+  // Defense vs position, one cached table per sport, for the Easy/Hard chip.
+  const [defense, setDefense] = React.useState<DefensePositionResponse | null>(null);
+  React.useEffect(() => {
+    setDefense(null);
+    if (!account || !DEFENSE_SPORTS.has(sport.toUpperCase())) return;
+    const controller = new AbortController();
+    fetchDefensePosition(sport, controller.signal)
+      .then((value) => { if (!controller.signal.aborted) setDefense(value); })
+      .catch(() => { /* the chip is an enhancement */ });
+    return () => controller.abort();
+  }, [account, sport]);
+  const matchupFor = React.useCallback((group: PropGroup) => propMatchup(defense, group), [defense]);
+
   // One queue per signed-in board load. It is never torn down because the row
   // list changed (live refreshes and EV re-sorts change it constantly); it only
   // skips props it already has and puts the visible ones first.
@@ -1065,12 +1080,16 @@ export function TerminalBoard() {
             <Search size={24} />
             <h2>No props match this view</h2>
             <p>Change the league, book, market, EV / arb filter, or search text.</p>
+            {query.trim().length >= 2 ? (
+              <p><a href={`/research?q=${encodeURIComponent(query.trim().slice(0, 60))}`}>Search every player for “{query.trim().slice(0, 60)}”</a></p>
+            ) : null}
           </div>
         ) : (
           <>
             <DesktopMatrix
               rows={page}
               movementFor={movementFor}
+              matchupFor={matchupFor}
               predictions={predictions}
               research={research}
               slip={slip}
@@ -1082,6 +1101,7 @@ export function TerminalBoard() {
               rows={page}
               allRows={filtered}
               movementFor={movementFor}
+              matchupFor={matchupFor}
               predictions={predictions}
               research={research}
               slip={slip}
@@ -1289,6 +1309,20 @@ function LineMove({ row }: { row: MovementRow | null }) {
   );
 }
 
+/** Easy or Hard when tonight's opponent ranks in the top or bottom third against this position. */
+function MatchupTag({ reading }: { reading: DefenseReading | null }) {
+  if (!reading || reading.tier === 'average') return null;
+  return (
+    <span
+      className={styles.matchupTag}
+      data-tier={reading.tier}
+      title={`${MATCHUP_LABEL[reading.tier]}: ${reading.team} allows the ${ordinal(reading.allowedRank)}-most ${metricLabel(reading.row.metric || '')} to ${reading.row.position}s of ${reading.leagueSize} teams`}
+    >
+      {reading.tier === 'soft' ? 'Easy' : 'Hard'}
+    </span>
+  );
+}
+
 /** Several books moved this player market the same way. */
 function SteamTag({ row }: { row: MovementRow | null }) {
   const steam = row?.steam;
@@ -1304,6 +1338,7 @@ function SteamTag({ row }: { row: MovementRow | null }) {
 function DesktopMatrix({
   rows,
   movementFor,
+  matchupFor,
   predictions,
   research,
   slip,
@@ -1313,6 +1348,7 @@ function DesktopMatrix({
 }: {
   rows: PropGroup[];
   movementFor: (group: PropGroup) => MovementRow | null;
+  matchupFor: (group: PropGroup) => DefenseReading | null;
   predictions: Record<string, ModelPrediction>;
   research: Record<string, ResearchSummary | null>;
   slip: SlipSelection[];
@@ -1373,7 +1409,7 @@ function DesktopMatrix({
                   <SteamTag row={move} />
                 </td>
                 <td className={styles.marketCell}>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</td>
-                <td className={styles.gameCell}>{group.matchup}</td>
+                <td className={styles.gameCell}>{group.matchup}<MatchupTag reading={matchupFor(group)} /></td>
                 <td className={styles.lineCell}>{group.line}<LineMove row={move} /></td>
                 <td className={styles.priceCell}><PriceButton group={group} side="OVER" selected={overSelected} onSelect={onSelect} /></td>
                 <td className={styles.priceCell}><PriceButton group={group} side="UNDER" selected={underSelected} onSelect={onSelect} /></td>
@@ -1419,6 +1455,7 @@ function MobileMatrix({
   rows,
   allRows,
   movementFor,
+  matchupFor,
   predictions,
   research,
   slip,
@@ -1430,6 +1467,7 @@ function MobileMatrix({
   /** Every filtered row, so an expanded prop can list the player's other markets. */
   allRows: PropGroup[];
   movementFor: (group: PropGroup) => MovementRow | null;
+  matchupFor: (group: PropGroup) => DefenseReading | null;
   predictions: Record<string, ModelPrediction>;
   research: Record<string, ResearchSummary | null>;
   slip: SlipSelection[];
@@ -1477,6 +1515,7 @@ function MobileMatrix({
                 {marketDisplayLabel(group.market, group.player, group.marketId, group.sport)} <b>{group.line}</b>
                 <LineMove row={move} />
                 <small> · {group.matchup}</small>
+                <MatchupTag reading={matchupFor(group)} />
               </span>
             </button>
             <span className={styles.mobileEv}><EvPill group={group} prediction={prediction} bestEv={bestEv} /></span>

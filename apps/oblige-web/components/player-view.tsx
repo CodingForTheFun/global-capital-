@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, TriangleAlert } from 'lucide-react';
 import type { PropGroup, ResearchResponse } from '@/lib/types';
-import { ApiError, fetchAccount, fetchBoard, fetchResearch, fetchWatchlist, peekBoard, updateWatchlist, playedGames, type WatchlistItem } from '@/lib/api';
+import { ApiError, fetchAccount, fetchBoard, fetchPlayerProfile, fetchResearch, fetchWatchlist, peekBoard, updateWatchlist, playedGames, type PlayerProfileResponse, type WatchlistItem } from '@/lib/api';
+import { isProfileGroup, playerProps, profileGroup, profileMarkets, profileSupported, samePlayerName, seedLine, type ProfileIdentity } from '@/lib/player-profile';
+import { PlayerSearch } from '@/components/player-search';
 import {
   computeWindow,
   headToHead,
@@ -82,16 +84,23 @@ export function PlayerView() {
   const market = params.get('market') || '';
   const period = params.get('period') || 'game';
   const lineParam = Number(params.get('line'));
-  const postedLine = Number.isFinite(lineParam) ? lineParam : null;
+  const postedLine = params.get('line') !== null && Number.isFinite(lineParam) ? lineParam : null;
+  // Opened from player search: live props first, then every market's history.
+  const profileMode = params.get('profile') === '1';
+  const espnId = (params.get('pid') || '').replace(/\D/g, '').slice(0, 12) || null;
+  const teamParam = (params.get('team') || '').slice(0, 90) || null;
 
   const [account, setAccount] = React.useState<{ id: string; email?: string } | null>(null);
   const [checking, setChecking] = React.useState(true);
   // Opening a prop from the board reuses the board this tab already holds, so
   // the card renders at once instead of downloading the whole sport again.
-  const held = React.useMemo(() => (player ? peekBoard(sport)?.groups.filter((candidate) => candidate.player === player) || [] : []), [sport, player]);
+  const held = React.useMemo(() => (player ? peekBoard(sport)?.groups.filter((candidate) => samePlayerName(candidate.player, player)) || [] : []), [sport, player]);
   const [markets, setMarkets] = React.useState<PropGroup[]>(held);
-  const [research, setResearch] = React.useState<ResearchResponse | null>(null);
   const [loadingBoard, setLoadingBoard] = React.useState(!held.length);
+  // Which player's board lookup has finished; a profile waits for it so a
+  // player with live props never flashes their no-line history first.
+  const lookupKey = sport + '|' + player;
+  const [boardFor, setBoardFor] = React.useState(held.length ? lookupKey : '');
   const [loadingResearch, setLoadingResearch] = React.useState(true);
   const [error, setError] = React.useState('');
   const [favourites, setFavourites] = React.useState<string[]>([]);
@@ -137,10 +146,11 @@ export function PlayerView() {
     }
     // A board younger than a minute is current enough; skip the re-download.
     const recent = peekBoard(sport, 60_000);
-    const mineRecent = recent?.groups.filter((candidate) => candidate.player === player) || [];
+    const mineRecent = recent?.groups.filter((candidate) => samePlayerName(candidate.player, player)) || [];
     if (mineRecent.length) {
       setMarkets(mineRecent);
       setLoadingBoard(false);
+      setBoardFor(lookupKey);
       return;
     }
     const controller = new AbortController();
@@ -148,9 +158,8 @@ export function PlayerView() {
     setError('');
     fetchBoard(sport, controller.signal)
       .then((board) => {
-        const mine = board.groups.filter((candidate) => candidate.player === player);
-        if (!mine.length) setError(`${player} is not on the ${sport} board right now.`);
-        setMarkets(mine);
+        // No live prop is not an error: the player's profile still opens.
+        setMarkets(board.groups.filter((candidate) => samePlayerName(candidate.player, player)));
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
@@ -160,23 +169,84 @@ export function PlayerView() {
         }
         setError(cause instanceof Error ? cause.message : 'The board is unavailable.');
       })
-      .finally(() => setLoadingBoard(false));
+      .finally(() => {
+        if (controller.signal.aborted) return;
+        setLoadingBoard(false);
+        setBoardFor(lookupKey);
+      });
     return () => controller.abort();
   }, [checking, account, sport, player]);
 
-  const group = React.useMemo(() => {
-    if (!markets.length) return null;
+  // Position, team and next game for a player opened from search.
+  const [profile, setProfile] = React.useState<PlayerProfileResponse | null>(null);
+  const profileKey = espnId && profileSupported(sport) ? sport + ':' + espnId : '';
+  const [profileFor, setProfileFor] = React.useState('');
+  React.useEffect(() => {
+    setProfile(null);
+    if (!account || !player || !profileKey || !espnId) return;
+    let live = true;
+    fetchPlayerProfile(sport, espnId)
+      .then((value) => { if (live) setProfile(value.available ? value : null); })
+      .finally(() => { if (live) setProfileFor(profileKey); });
+    return () => { live = false; };
+  }, [account, player, sport, espnId, profileKey]);
+  const profileSettled = !profileKey || profileFor === profileKey;
+  // From search, only the searched player's team's props count as theirs.
+  const liveMarkets = React.useMemo(
+    () => (profileMode ? playerProps(markets, player, profile?.player ? [profile.player.team, profile.player.teamName] : [teamParam]) : markets),
+    [profileMode, markets, player, teamParam, profile],
+  );
+
+  const identity = React.useMemo<ProfileIdentity>(() => ({
+    sport,
+    name: player,
+    espnId,
+    team: profile?.player?.team || teamParam || liveMarkets[0]?.team || null,
+    position: profile?.player?.position || liveMarkets[0]?.position || null,
+    nextGame: profile?.nextGame || null,
+  }), [sport, player, espnId, profile, teamParam, liveMarkets]);
+
+  // A player with no live prop, or opened as a profile, gets every market the
+  // card can read for their role. A market with a live prop keeps its prop.
+  const showProfile = Boolean(account && player) && boardFor === lookupKey && (profileMode ? profileSettled : !markets.length);
+  const [research, setResearch] = React.useState<ResearchResponse | null>(null);
+  const [researchKey, setResearchKey] = React.useState('');
+  const baseGroups = React.useMemo(() => {
+    // From search, the board decides nothing until the player's team is known.
+    if (!showProfile) return profileMode ? [] : markets;
+    const liveLabels = new Set(liveMarkets.map((candidate) => marketDisplayLabel(candidate.market, candidate.player, candidate.marketId, candidate.sport)));
+    const keys = profileMarkets(sport, identity.position);
+    if (market && !keys.includes(market) && !liveMarkets.length) keys.unshift(market);
+    const extra = keys
+      .filter((key) => !liveLabels.has(marketDisplayLabel(key, player, key, sport)))
+      .map((key) => profileGroup(identity, key, null));
+    return [...liveMarkets, ...extra];
+  }, [showProfile, profileMode, markets, liveMarkets, sport, identity, market, player]);
+
+  const picked = React.useMemo(() => {
+    if (!baseGroups.length) return null;
     return (
-      markets.find((candidate) =>
+      baseGroups.find((candidate) =>
         candidate.market === market &&
         candidate.line === postedLine &&
         (candidate.period || 'game') === period
       ) ||
-      markets.find((candidate) => candidate.market === market && candidate.line === postedLine) ||
-      markets.find((candidate) => candidate.market === market) ||
-      markets[0]
+      baseGroups.find((candidate) => candidate.market === market && candidate.line === postedLine) ||
+      baseGroups.find((candidate) => candidate.market === market) ||
+      baseGroups[0]
     );
-  }, [markets, market, period, postedLine]);
+  }, [baseGroups, market, period, postedLine]);
+  // With no posted line, the target starts at the player's recent median,
+  // read from this market's own verified history once it arrives.
+  const seed = picked && isProfileGroup(picked) && researchKey === picked.key ? seedLine(research?.gameLog) : null;
+  const group = React.useMemo(
+    () => (picked && isProfileGroup(picked) ? { ...picked, line: seed ?? picked.line } : picked),
+    [picked, seed],
+  );
+  const markets_ = React.useMemo(
+    () => (group && isProfileGroup(group) ? baseGroups.map((candidate) => (candidate.key === group.key ? group : candidate)) : baseGroups),
+    [baseGroups, group],
+  );
   const [state, setState] = React.useState<ExplorerState>({ line: 0, side: 'OVER', book: null });
 
   React.useEffect(() => {
@@ -185,28 +255,35 @@ export function PlayerView() {
     setSection('overview');
   }, [group?.key, group?.line]);
 
+  // A searched player's history waits for their team and next game, so the
+  // one research request carries the full identity.
+  const researchReady = Boolean(group && player && account) && !(group && isProfileGroup(group) && !profileSettled);
   React.useEffect(() => {
-    if (!group) return;
+    if (!group || !researchReady) return;
     const controller = new AbortController();
+    const key = group.key;
     setLoadingResearch(true);
-    fetchResearch(group, state.side, controller.signal, { detail: true })
-      .then(setResearch)
-      .catch(() => setResearch(null))
-      .finally(() => setLoadingResearch(false));
+    fetchResearch(group, state.side, controller.signal, { detail: true, noLine: isProfileGroup(group) })
+      .then((value) => { setResearch(value); setResearchKey(key); })
+      .catch(() => { if (!controller.signal.aborted) { setResearch(null); setResearchKey(key); } })
+      .finally(() => { if (!controller.signal.aborted) setLoadingResearch(false); });
     return () => controller.abort();
     // The game sample is the same for Over and Under; line/side changes are
     // recalculated client-side so they do not create extra provider requests.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group?.key]);
+  }, [group?.key, researchReady]);
 
   function selectMarket(next: PropGroup) {
     const search = new URLSearchParams({
       sport: next.sport,
-      player: next.player,
+      player,
       market: next.market,
-      line: String(next.line),
       period: next.period || 'game',
     });
+    if (!isProfileGroup(next)) search.set('line', String(next.line));
+    if (showProfile) search.set('profile', '1');
+    if (espnId) search.set('pid', espnId);
+    if (teamParam) search.set('team', teamParam);
     router.replace(`/research?${search}`, { scroll: false });
   }
 
@@ -260,10 +337,13 @@ export function PlayerView() {
     );
   }
   if (!player) {
-    // Research is always about one prop; with none chosen, go to the board.
-    return <GoToBoard />;
+    return (
+      <Shell>
+        <PlayerSearch />
+      </Shell>
+    );
   }
-  if (loadingBoard && !group) {
+  if ((loadingBoard || boardFor !== lookupKey || (profileMode && !profileSettled)) && !group) {
     return (
       <Shell>
         <Skeleton className="mt-4 h-40 rounded-[var(--radius-lg)]" />
@@ -276,8 +356,10 @@ export function PlayerView() {
     return (
       <Shell>
         <Empty
-          title="That prop is no longer posted"
-          body={error || 'The market may have settled or been pulled from the board.'}
+          title={`No live props for ${player}`}
+          body={error || (profileSupported(sport)
+            ? 'Their history could not be matched to a league player. Try searching for them by name.'
+            : `${sport} history is read from posted props, and ${player} has none posted right now.`)}
         />
       </Shell>
     );
@@ -293,7 +375,8 @@ export function PlayerView() {
       <PropEntrance id={group.key}>
       <PlayerPropResearchCard
         group={group}
-        markets={markets}
+        markets={markets_}
+        noPostedLine={isProfileGroup(group)}
         research={research}
         loading={loadingResearch}
         state={state}
@@ -436,15 +519,5 @@ function Empty({ title, body }: { title: string; body: string }) {
         <Link href="/board">Open the board</Link>
       </Button>
     </CardPanel>
-  );
-}
-
-function GoToBoard() {
-  const router = useRouter();
-  React.useEffect(() => { router.replace('/board'); }, [router]);
-  return (
-    <Shell>
-      <Skeleton className="mt-4 h-40 rounded-[var(--radius-lg)]" />
-    </Shell>
   );
 }

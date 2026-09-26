@@ -553,6 +553,19 @@
 .lineMove[data-dir="down"] { color: var(--neg); }
 
 /* Steam is a live market signal, so it takes the live (cyan) accent, not a data colour. */
+.matchupTag {
+  flex: none;
+  margin-left: var(--sp-1);
+  padding: 0 var(--sp-1);
+  border-radius: var(--r-1);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  line-height: 18px;
+  white-space: nowrap;
+}
+.matchupTag[data-tier='soft'] { background: var(--pos-soft); color: var(--pos); }
+.matchupTag[data-tier='tough'] { background: var(--neg-soft); color: var(--neg); }
+
 .steamTag {
   flex: none;
   margin-left: var(--sp-1);
@@ -695,6 +708,7 @@
   text-align: center;
 }
 .statePanel h2 { font-size: var(--fs-md); color: var(--text); }
+.statePanel a { color: var(--accent-2); font-weight: 600; }
 .statePanel p,
 .loadingEmbedded p,
 .loadingPage p { margin: 0; max-width: 46ch; font-size: var(--fs-sm); color: var(--text-2); }

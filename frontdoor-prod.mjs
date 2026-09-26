@@ -19,6 +19,9 @@ import { fetchTennisContext, MAX_TENNIS_MATCHES } from './lib/data-sources/sport
 import { researchPlayerProp, researchHealth } from './lib/autoscout/research-service.mjs';
 import { researchBatchLogLine } from './lib/autoscout/research-batch-log.mjs';
 import { sanitizePublicPayload } from './lib/public-sanitize.mjs';
+import { publicHealth, HEALTH_PATHS } from './lib/web/public-health.mjs';
+import { isOwner } from './lib/auth/permissions.mjs';
+import { clientIp } from './lib/session.mjs';
 import { projectPlayerProp, projectionsConfigured } from './lib/projections/service.mjs';
 import { askAboutProp, askConfigured } from './lib/projections/ask.mjs';
 import { recordProjection, gradeFromGameLog, accuracyReport } from './lib/projections/ledger.mjs';
@@ -145,7 +148,7 @@ function directJson(res, status, body, extra = {}) {
 }
 
 function requestIp(req) {
-  return String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim().slice(0, 80);
+  return clientIp(req) || 'unknown';
 }
 
 function researchRateAllowed(req) {
@@ -863,6 +866,11 @@ const server = http.createServer(async (req, res) => {
   if (await maybeServeTeamLogo(req, res)) return;
 
   const dst = target(req.url || '/');
+  // Health is an operator report; everyone but the owner gets the allowlist.
+  if (HEALTH_PATHS.has(new URL(req.url || '/', 'http://localhost').pathname)) {
+    const { user } = await currentAccount(req, accountSessions).catch(() => ({ user: null }));
+    dst.publicHealth = !isOwner(user);
+  }
   const proxy = http.request({
     hostname: '127.0.0.1',
     port: dst.port,
@@ -894,8 +902,14 @@ const server = http.createServer(async (req, res) => {
       upstream.on('end', () => {
         const raw = Buffer.concat(jsonChunks).toString('utf8');
         let body = raw;
-        try { body = JSON.stringify(sanitizePublicPayload(JSON.parse(raw))); }
-        catch { /* not parseable: pass the original through untouched */ }
+        try {
+          const parsed = JSON.parse(raw);
+          body = JSON.stringify(dst.publicHealth ? publicHealth(parsed) : sanitizePublicPayload(parsed));
+        } catch {
+          // Not parseable: pass the original through, except a health report,
+          // which never leaves unreduced.
+          if (dst.publicHealth) body = JSON.stringify({ ok: false });
+        }
         res.writeHead(upstream.statusCode || 200, proxyHeaders(upstream.headers, true));
         res.end(body);
       });

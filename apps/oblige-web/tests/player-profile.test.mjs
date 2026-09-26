@@ -13,7 +13,7 @@ function load(relative) {
   new Function('require', 'module', 'exports', compiled)(localRequire, module, module.exports);
   return module.exports;
 }
-const { profileMarkets, profileSupported, seedLine, samePlayerName, nameMatchesQuery, profileGroup, isProfileGroup, playerProps } = load('../lib/player-profile.ts');
+const { profileMarkets, profileSupported, seedLine, samePlayerName, nameMatchesQuery, profileGroup, isProfileGroup, playerProps, anchoredProps } = load('../lib/player-profile.ts');
 const { offenseReading, propMatchup, MATCHUP_LABEL } = load('../lib/defense.ts');
 
 test('profile markets follow the player role and skip sports read only from posted props', () => {
@@ -109,4 +109,18 @@ test('live props from search never borrow a same-name player on another team', (
   assert.deepEqual(playerProps(board, 'Jalen Brunson', ['New York Knicks']).map((g) => g.key), ['c']);
   // No team known (opened from the board by exact name): every prop under the name.
   assert.deepEqual(playerProps(board, 'Luis Garcia').map((g) => g.key), ['a', 'b']);
+});
+
+test('a prop opened from the board keeps only props for that player\'s team', () => {
+  const board = [
+    { key: 'sd-hits', team: 'SD' },
+    { key: 'sd-tb', team: 'SD' },
+    { key: 'wsh-hits', team: 'WSH' },
+    { key: 'unknown', team: null },
+  ];
+  assert.deepEqual(anchoredProps(board, board[0]).map((g) => g.key), ['sd-hits', 'sd-tb', 'unknown']);
+  assert.deepEqual(anchoredProps(board, board[2]).map((g) => g.key), ['wsh-hits', 'unknown']);
+  // No team on the opened prop: nothing to tell players apart, so nothing is dropped.
+  assert.equal(anchoredProps(board, { team: null }).length, 4);
+  assert.equal(anchoredProps(board, null).length, 4);
 });

@@ -977,3 +977,39 @@ export function fetchPlayerProfile(sport: string, id: string): Promise<PlayerPro
   }
   return task;
 }
+
+export type TeammatesResponse = {
+  ok?: boolean;
+  available?: boolean;
+  message?: string;
+  source?: string;
+  unmatched?: number;
+  games?: import('./with-without').TeammateGame[];
+};
+
+const teammatesCache = new Map<string, Promise<TeammatesResponse>>();
+
+/** Who played and who sat in a player's own completed games (basketball box scores). */
+export function fetchTeammates(
+  sport: string,
+  team: string,
+  player: { id: string | null; name: string },
+  games: Array<{ key: string; date: string; opponent: string; espnId: string | null }>,
+  signal?: AbortSignal,
+): Promise<TeammatesResponse> {
+  const params = new URLSearchParams({ sport, team, player: player.name });
+  if (player.id) params.set('playerId', player.id);
+  for (const game of games.slice(0, 40)) {
+    params.append('game', [game.key, game.date, game.opponent, game.espnId || ''].map((part) => part.replace(/~/g, ' ')).join('~'));
+  }
+  const key = params.toString();
+  const hit = teammatesCache.get(key);
+  if (hit) return hit;
+  const request = getJson<TeammatesResponse>(`/api/apex/research-teammates?${key}`, signal).catch((error) => {
+    teammatesCache.delete(key);
+    throw error;
+  });
+  teammatesCache.set(key, request);
+  if (teammatesCache.size > 60) teammatesCache.delete(teammatesCache.keys().next().value as string);
+  return request;
+}

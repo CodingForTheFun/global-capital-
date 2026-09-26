@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
 import { teamLogoResponse } from './lib/autoscout/providers/team-logo.mjs';
-import { fetchMatchupResearch, fetchDefensePosition } from './lib/data-sources/espn/research.mjs';
+import { fetchMatchupResearch, fetchDefensePosition, fetchTeammates } from './lib/data-sources/espn/research.mjs';
 import { playerDirectory } from './lib/data-sources/espn/player-directory.mjs';
 import { fetchClosingWinProbabilities, MAX_MONEYLINE_EVENTS } from './lib/data-sources/propline/closing-moneyline.mjs';
 import { fetchPropMovement, MAX_MOVEMENT_EVENTS } from './lib/data-sources/propline/movement.mjs';
@@ -192,7 +192,7 @@ function safeParam(url, name, max = 100) {
 
 async function maybeServeResearch(req, res) {
   const url = new URL(req.url || '/', 'http://localhost');
-  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup' && url.pathname !== '/api/apex/research-defense-position' && url.pathname !== '/api/apex/research-moneyline' && url.pathname !== '/api/apex/research-tennis' && url.pathname !== '/api/apex/research-movement') return false;
+  if (url.pathname !== '/api/apex/research' && url.pathname !== '/api/apex/research-health' && url.pathname !== '/api/apex/research-matchup' && url.pathname !== '/api/apex/research-defense-position' && url.pathname !== '/api/apex/research-teammates' && url.pathname !== '/api/apex/research-moneyline' && url.pathname !== '/api/apex/research-tennis' && url.pathname !== '/api/apex/research-movement') return false;
   if (req.method !== 'GET') {
     directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
     return true;
@@ -213,6 +213,17 @@ async function maybeServeResearch(req, res) {
   const sport = safeParam(url, 'sport', 90).toUpperCase();
   if(url.pathname === '/api/apex/research-defense-position') {
     const result = await fetchDefensePosition({sport}).catch(()=>({ok:true,available:false,message:'Position defense could not load. Try again shortly.',teams:[],rows:[]}));
+    directJson(res,200,sanitizePublicPayload(result,{statsContext:true}));return true;
+  }
+  if(url.pathname === '/api/apex/research-teammates') {
+    // Who played and who sat in the player's own completed games (basketball box scores).
+    // Each game is key~start~opponent[~espnEventId]; the server finds it in ESPN itself.
+    const games = url.searchParams.getAll('game').slice(0, 40).map((value) => {
+      const [key, date, opponent, espnId] = String(value || '').slice(0, 220).split('~');
+      return { key, date, opponent, espnId };
+    });
+    const player = { id: safeParam(url, 'playerId', 16), name: safeParam(url, 'player', 90) };
+    const result = await fetchTeammates({sport,team:safeParam(url,'team',60),games,player}).catch(()=>({ok:true,available:false,message:'Teammate participation could not load. Try again shortly.',games:[]}));
     directJson(res,200,sanitizePublicPayload(result,{statsContext:true}));return true;
   }
   if(url.pathname === '/api/apex/research-moneyline') {

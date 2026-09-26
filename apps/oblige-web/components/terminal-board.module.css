@@ -565,6 +565,7 @@
 }
 .matchupTag[data-tier='soft'] { background: var(--pos-soft); color: var(--pos); }
 .matchupTag[data-tier='tough'] { background: var(--neg-soft); color: var(--neg); }
+.matchupTag[data-tier='average'] { background: var(--surface-3); color: var(--text-2); }
 
 .steamTag {
   flex: none;

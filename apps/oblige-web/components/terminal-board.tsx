@@ -17,7 +17,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type { BoardMeta, DefensePositionResponse, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
-import { DEFENSE_SPORTS, MATCHUP_LABEL, metricLabel, ordinal, positionLabel, propMatchup, rankOf, type DefenseReading } from '@/lib/defense';
+import { DEFENSE_SPORTS, MATCHUP_LABEL, metricLabel, ordinal, positionLabel, propMatchup, rankOf, readingAudience, readingStat, type DefenseReading } from '@/lib/defense';
 import { liveGame, slateOpponent, type LiveGame } from '@/lib/games';
 import { currentOpponentLabels } from '@/lib/opponent-options';
 import {
@@ -1395,15 +1395,15 @@ function LineMove({ row }: { row: MovementRow | null }) {
 }
 
 /** Easy or Hard when tonight's opponent ranks in the top or bottom third against this position. */
-function MatchupTag({ reading }: { reading: DefenseReading | null }) {
-  if (!reading || reading.tier === 'average') return null;
+function MatchupTag({ reading, sport }: { reading: DefenseReading | null; sport?: string }) {
+  if (!reading) return null;
   return (
     <span
       className={styles.matchupTag}
       data-tier={reading.tier}
-      title={`${MATCHUP_LABEL[reading.tier]}: ${reading.team} allows the ${ordinal(reading.allowedRank)}-most ${metricLabel(reading.row.metric || '')}${reading.row.position === 'ALL' ? '' : ' to ' + positionLabel(reading.row.position)} (${rankOf(reading)})`}
+      title={`${MATCHUP_LABEL[reading.tier]}: ${reading.team} allows the ${ordinal(reading.allowedRank)}-most ${readingStat(reading)}${readingAudience(reading, sport)} (${rankOf(reading)})`}
     >
-      {reading.tier === 'soft' ? 'Easy' : 'Hard'}
+      {reading.tier === 'soft' ? 'Easy' : reading.tier === 'tough' ? 'Hard' : 'Medium'}
     </span>
   );
 }
@@ -1494,7 +1494,7 @@ function DesktopMatrix({
                   <SteamTag row={move} />
                 </td>
                 <td className={styles.marketCell}>{marketDisplayLabel(group.market, group.player, group.marketId, group.sport)}</td>
-                <td className={styles.gameCell}>{group.matchup}<MatchupTag reading={matchupFor(group)} /></td>
+                <td className={styles.gameCell}>{group.matchup}<MatchupTag reading={matchupFor(group)} sport={group.sport} /></td>
                 <td className={styles.lineCell}>{group.line}<LineMove row={move} /></td>
                 <td className={styles.priceCell}><PriceButton group={group} side="OVER" selected={overSelected} onSelect={onSelect} /></td>
                 <td className={styles.priceCell}><PriceButton group={group} side="UNDER" selected={underSelected} onSelect={onSelect} /></td>
@@ -1600,7 +1600,7 @@ function MobileMatrix({
                 {marketDisplayLabel(group.market, group.player, group.marketId, group.sport)} <b>{group.line}</b>
                 <LineMove row={move} />
                 <small> · {group.matchup}</small>
-                <MatchupTag reading={matchupFor(group)} />
+                <MatchupTag reading={matchupFor(group)} sport={group.sport} />
               </span>
             </button>
             <span className={styles.mobileEv}><EvPill group={group} prediction={prediction} bestEv={bestEv} /></span>

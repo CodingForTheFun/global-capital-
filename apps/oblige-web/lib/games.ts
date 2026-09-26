@@ -135,3 +135,37 @@ export function orderGames(games: LiveGame[]): LiveGame[] {
   return [...games].sort((a, b) => rank[a.status] - rank[b.status]
     || (a.status === 'FINAL' ? time(b) - time(a) : time(a) - time(b)));
 }
+
+const START_MATCH_MS = 3 * 3600_000;
+const sameExact = (label: string, game: LiveGame, side: 'home' | 'away') => {
+  const value = label.trim().toLowerCase();
+  const abbreviation = (side === 'home' ? game.homeTeam : game.awayTeam).toLowerCase();
+  const name = (side === 'home' ? game.homeName : game.awayName).toLowerCase();
+  return Boolean(value) && (value === abbreviation || value === name);
+};
+
+/**
+ * The opponent for a prop that names only its player's team, from ESPN's
+ * slate, for the matchup chip alone. It answers only when the prop has its own
+ * start time, the player's team verified by research agrees with the prop's
+ * label, and exactly one unfinished game for that team (matched by exact
+ * abbreviation or full name, on one side only) starts within three hours of it.
+ */
+export function slateOpponent(
+  group: Pick<PropGroup, 'team' | 'startsAt'>,
+  verifiedTeam: string | null | undefined,
+  games: LiveGame[],
+): string | null {
+  const start = Date.parse(group.startsAt || '');
+  const team = String(verifiedTeam || '').trim();
+  if (!Number.isFinite(start) || !team || !group.team || !sameTeamLabel(team, group.team)) return null;
+  const fits = games.filter((game) => {
+    if (game.status === 'FINAL') return false;
+    const at = Date.parse(game.startTime || '');
+    if (!Number.isFinite(at) || Math.abs(at - start) > START_MATCH_MS) return false;
+    return sameExact(team, game, 'home') !== sameExact(team, game, 'away');
+  });
+  if (fits.length !== 1) return null;
+  const game = fits[0];
+  return sameExact(team, game, 'home') ? game.awayTeam : game.homeTeam;
+}

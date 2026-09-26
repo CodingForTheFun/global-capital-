@@ -56,7 +56,9 @@ test('live games normalize free ESPN scoreboard data without inventing missing s
   assert.equal(result.live[0].homeLogo, 'https://example.com/BOS.png');
   assert.equal(result.upcoming[0].homeScore, null, 'missing scheduled score stays null');
   assert.match(fake.calls[0], /site\.api\.espn\.com\/apis\/site\/v2\/sports\/basketball\/nba\/scoreboard/);
-  assert.match(fake.calls[0], /dates=20260908-20260912/);
+  // ESPN rejects date ranges: yesterday through three days ahead, one day each.
+  assert.deepEqual(fake.calls.map((url) => url.match(/dates=([^&]+)/)[1]), ['20260908', '20260909', '20260910', '20260911', '20260912']);
+  assert.equal(result.window, '20260908-20260912');
 });
 
 test('live service caches repeated score snapshots and does not hammer the public feed', async () => {
@@ -75,4 +77,16 @@ test('live service needs no paid sportsbook or stats API key', async () => {
   assert.equal(result.clientStats.provider, 'espn-public');
   assert.equal(result.coverage[0].status, 200);
   assert.equal(result.coverage[0].recordCount, 3);
+});
+
+test('days after today are held for five minutes; yesterday and today refresh', async () => {
+  const fake = scoreboardFetcher();
+  let clock = new Date('2026-09-09T12:00:00Z');
+  const service = createLiveService({ fetcher: fake.fetcher, now: () => clock });
+  await service.snapshot({ sports: ['NBA'] });
+  service.clear();
+  clock = new Date('2026-09-09T12:01:00Z');
+  const before = fake.calls.length;
+  await service.snapshot({ sports: ['NBA'] });
+  assert.deepEqual(fake.calls.slice(before).map((url) => url.match(/dates=([^&]+)/)[1]), ['20260908', '20260909']);
 });

@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { MatchupPlayer, MatchupResponse, MatchupTeam, PropGroup } from '@/lib/types';
-import { fetchMatchup } from '@/lib/api';
+import { fetchGameMatchup, fetchMatchup, type GameIdentity } from '@/lib/api';
 import { odds } from '@/lib/utils';
 
 const ESPN_GAME_URL = /^https:\/\/www\.espn\.com\/[a-z0-9-]+\/(?:game|match)\/_\/gameId\/\d+$/;
@@ -63,7 +63,11 @@ function Muted({ children }: { children: React.ReactNode }) {
   return <p className="text-[12px] leading-relaxed text-[var(--text-3)]">{children}</p>;
 }
 
-export function GameContext({ group }: { group: PropGroup }) {
+/**
+ * Game context for a prop (its player's own injury and starter rows are
+ * highlighted) or for a game on its own, from the Games tab.
+ */
+export function GameContext({ group, game }: { group: PropGroup; game?: never } | { group?: never; game: GameIdentity & { matchup: string } }) {
   const [value, setValue] = React.useState<MatchupResponse | null>(null);
   const [revision, setRevision] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
@@ -71,7 +75,7 @@ export function GameContext({ group }: { group: PropGroup }) {
   React.useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
-    fetchMatchup(group, controller.signal)
+    (game ? fetchGameMatchup(game, controller.signal) : fetchMatchup(group, controller.signal))
       .then(setValue)
       .catch(() => {
         if (!controller.signal.aborted) setValue({ available: false, message: 'Game context could not load. Try again shortly.' });
@@ -81,13 +85,14 @@ export function GameContext({ group }: { group: PropGroup }) {
       });
     return () => controller.abort();
     // The key captures player, market and line; the event fields decide the game.
-  }, [group.key, group.homeTeam, group.awayTeam, group.startsAt, revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [group?.key, group?.homeTeam, group?.awayTeam, group?.startsAt, game?.eventId, game?.startsAt, revision]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stale = expired(value);
   const ready = value?.available === true && !stale;
   const teams = ready ? value.teams || [] : [];
-  const injury = ownRow(value, group.providerPlayerId, (team) => team.injuries?.rows || []);
-  const starter = ownRow(value, group.providerPlayerId, (team) => team.lineup?.starters || []);
+  const playerId = group?.providerPlayerId ?? null;
+  const injury = ownRow(value, playerId, (team) => team.injuries?.rows || []);
+  const starter = ownRow(value, playerId, (team) => team.lineup?.starters || []);
   const prediction = value?.prediction;
   const predictionReady = ready && prediction?.available === true
     && Date.parse(prediction.expiresAt || '') > Date.now()
@@ -99,7 +104,7 @@ export function GameContext({ group }: { group: PropGroup }) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-black text-white">Game Context</h3>
-          <p className="mt-0.5 text-[12px] text-[var(--text-3)]">Injuries, lineups and conditions for {group.matchup}</p>
+          <p className="mt-0.5 text-[12px] text-[var(--text-3)]">Injuries, lineups and conditions for {group ? group.matchup : game.matchup}</p>
         </div>
         <button
           type="button"
@@ -123,12 +128,12 @@ export function GameContext({ group }: { group: PropGroup }) {
             <div className="flex flex-wrap gap-2" role="status">
               {injury && (
                 <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-[12px] font-black text-amber-300">
-                  {group.player}: {injury.status}{injury.detail ? ` · ${injury.detail}` : ''}
+                  {group?.player}: {injury.status}{injury.detail ? ` · ${injury.detail}` : ''}
                 </span>
               )}
               {starter && (
                 <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2.5 py-1 text-[12px] font-black text-emerald-300">
-                  {group.player}: listed starter
+                  {group?.player}: listed starter
                 </span>
               )}
             </div>
@@ -145,7 +150,7 @@ export function GameContext({ group }: { group: PropGroup }) {
                   <Rows
                     head={['Player', 'Status', 'Reported']}
                     rows={team.injuries.rows.map((row) => [
-                      <span key="p" className={row.playerId && row.playerId === group.providerPlayerId ? 'font-black text-amber-300' : 'font-semibold text-white'}>
+                      <span key="p" className={row.playerId && row.playerId === playerId ? 'font-black text-amber-300' : 'font-semibold text-white'}>
                         {row.playerName}
                         {row.position ? <span className="ml-1 text-[var(--text-3)]">{row.position}</span> : null}
                       </span>,

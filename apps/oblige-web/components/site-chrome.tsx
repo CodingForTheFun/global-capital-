@@ -11,7 +11,7 @@ import { useScrollThreshold } from '@/hooks/use-scroll-threshold';
 const NAV = [
   { href: '/board', label: 'Props' },
   { href: '/moves', label: 'Market' },
-  { href: '/scores', label: 'Scores' },
+  { href: '/games', label: 'Games' },
   { href: '/news', label: 'News' },
 ];
 
@@ -23,7 +23,7 @@ const NAV = [
 const MOBILE_NAV = [
   { href: '/board', label: 'Props', icon: LayoutGrid },
   { href: '/moves', label: 'Market', icon: Activity },
-  { href: '/scores', label: 'Scores', icon: RadioTower },
+  { href: '/games', label: 'Games', icon: RadioTower },
   { href: '/news', label: 'News', icon: Newspaper },
   { href: '/account', label: 'Profile', icon: User },
 ];
@@ -31,7 +31,7 @@ const MOBILE_NAV = [
 const MOBILE_MENU = [
   { href: '/board', label: 'Props' },
   { href: '/moves', label: 'Market' },
-  { href: '/scores', label: 'Scores' },
+  { href: '/games', label: 'Games' },
   { href: '/news', label: 'News' },
   { href: '/research', label: 'Search players' },
   { href: '/account', label: 'Account / Profile' },
@@ -308,7 +308,7 @@ export function SiteFooter() {
             links={[
               { href: '/board', label: 'Props' },
               { href: '/moves', label: 'Market' },
-              { href: '/scores', label: 'Scores' },
+              { href: '/games', label: 'Games' },
               { href: '/news', label: 'News' },
               { href: '/#pricing', label: 'Pricing' },
             ]}

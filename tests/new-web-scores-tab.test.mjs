@@ -2,9 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 
-test('actual Next mobile shell keeps Scores in the expanded bottom navigation', () => {
+test('actual Next mobile shell keeps the live scoreboard (Games) in the expanded bottom navigation', () => {
   const chrome = fs.readFileSync(new URL('../apps/oblige-web/components/site-chrome.tsx', import.meta.url), 'utf8');
-  assert.match(chrome, /href: '\/scores', label: 'Scores'/);
+  // Games replaced Scores in the navigation; /scores itself still serves.
+  assert.match(chrome, /href: '\/games', label: 'Games'/);
+  const games = fs.readFileSync(new URL('../apps/oblige-web/components/games-screen.tsx', import.meta.url), 'utf8');
+  assert.match(games, /\/api\/live\?sports=/);
   assert.match(chrome, /RadioTower/);
   // Six items since Live Moves is a first-class phone destination; Home stays on the logo.
   assert.match(chrome, /href: '\/moves', label: 'Market'/);

@@ -69,3 +69,31 @@ test('live, alternate and team targets remain unavailable before any history tra
  assert.equal((await store.lookup({...target(),entityType:'team'})).code,'MARKET_NOT_SUPPORTED');
  assert.equal(calls,0);
 });
+
+test('a slow cold history answers pending, and the retry reads the same run instead of starting another',async()=>{
+ let calls=0,release;const gate=new Promise(r=>{release=r;});
+ const store=createMLStore({file:'/tmp/no-model-feed-pending.json',clock:()=>NOW,pendingBudgetMs:20,research:async()=>{calls++;await gate;return research(logs(24));}});
+ // The budget timer is unref'd (a server keeps running); hold the test open.
+ const hold=setTimeout(()=>{},5000);
+ const first=await store.lookup(target());
+ clearTimeout(hold);
+ assert.equal(first.available,false);assert.equal(first.code,'MODEL_PENDING');assert.equal(first.retryable,true);
+ release();
+ const second=await store.lookup(target());
+ assert.equal(second.available,true);assert.equal(second.engine,'Auto Scout Adaptive');
+ assert.equal(calls,1,'the retry shares the first run');
+ // A different line is a different prop and gets its own run.
+ const other=await store.lookup(target('NBA',30.5));
+ assert.equal(other.available,true);assert.equal(calls,2);
+ assert.notEqual(other.probabilityOver,second.probabilityOver);
+});
+
+test('a failed history run is not kept; the next ask starts fresh',async()=>{
+ let calls=0;
+ const store=createMLStore({file:'/tmp/no-model-feed-fail.json',clock:()=>NOW,research:async()=>{calls++;if(calls===1)throw new Error('cold');return research(logs(24));}});
+ const first=await store.lookup(target());
+ assert.equal(first.code,'MODEL_FEED_UNAVAILABLE');
+ await new Promise(r=>setImmediate(r));
+ const second=await store.lookup(target());
+ assert.equal(second.available,true);
+});

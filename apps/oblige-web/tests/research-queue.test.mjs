@@ -19,6 +19,7 @@ function harness(respond, options = {}) {
   const queue = createResearchQueue({
     batchSize: options.batchSize ?? 3,
     priorityBatchSize: options.priorityBatchSize,
+    concurrency: options.concurrency,
     maxAttempts: options.maxAttempts ?? 3,
     gapMs: 0,
     baseDelayMs: 1000,
@@ -169,4 +170,38 @@ test('without a priority size, batching is unchanged', async () => {
   h.queue.want(Array.from({ length: 14 }, (_, i) => g('r' + i)));
   await idle(h.queue);
   assert.deepEqual(h.calls.map((c) => c.keys.length), [10, 4]);
+});
+
+test('with concurrency, later batches go out while the first is still in flight, and no prop is asked twice', async () => {
+  const release = [];
+  const calls = [];
+  const settled = [];
+  const queue = createResearchQueue({
+    batchSize: 4, priorityBatchSize: 2, concurrency: 3, gapMs: 0,
+    sleep: async () => {},
+    fetchBatch: (groups) => {
+      calls.push(groups.map((x) => x.key));
+      return new Promise((resolve) => release.push(() => resolve(allOk(groups))));
+    },
+    onSettled: (entries) => settled.push(...entries),
+  });
+  queue.want(Array.from({ length: 12 }, (_, i) => g('r' + i)));
+  await tick();
+  assert.equal(calls.length, 3, 'three batches out at once');
+  assert.deepEqual(calls[0], ['r0', 'r1'], 'the visible rows go first, in a small batch');
+  release.shift()();
+  await tick(); await tick();
+  assert.equal(calls.length, 4, 'a finished batch frees a slot for the next');
+  while (release.length) { release.shift()(); await tick(); await tick(); }
+  await idle(queue);
+  const asked = calls.flat();
+  assert.equal(new Set(asked).size, asked.length);
+  assert.equal(settled.length, 12);
+});
+
+test('the board loads research in parallel and asks again for a model that is still loading', () => {
+  const board = readFileSync(new URL('../components/terminal-board.tsx', import.meta.url), 'utf8');
+  assert.match(board, /concurrency: RESEARCH_CONCURRENCY/);
+  assert.match(board, /MODEL_RETRY_CODES = new Set\(\['MODEL_PENDING', 'MODEL_FEED_UNAVAILABLE'\]\)/);
+  assert.match(board, /\[account, pageKey, modelRetry\]/);
 });

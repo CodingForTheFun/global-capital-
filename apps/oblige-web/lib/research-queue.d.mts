@@ -23,6 +23,7 @@ export function createResearchQueue<G extends { key: string }, R>(options: {
   onAuthLost?: () => void;
   batchSize?: number;
   priorityBatchSize?: number;
+  concurrency?: number;
   maxAttempts?: number;
   baseDelayMs?: number;
   gapMs?: number;

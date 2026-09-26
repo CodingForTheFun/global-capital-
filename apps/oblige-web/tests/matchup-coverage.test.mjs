@@ -13,7 +13,7 @@ function load(relative) {
   new Function('require', 'module', 'exports', compiled)(localRequire, module, module.exports);
   return module.exports;
 }
-const { propMatchup, readingStat, readingAudience, MATCHUP_LABEL } = load('../lib/defense.ts');
+const { propMatchup, readingStat, readingAudience, MATCHUP_LABEL, teamIdFor } = load('../lib/defense.ts');
 
 const NAMES = ['Anchorage Auks', 'Boise Bears', 'Camden Cats', 'Dover Ducks', 'Eugene Elks', 'Fresno Foxes', 'Gary Geese', 'Helena Hawks', 'Irvine Ibis', 'Juneau Jays', 'Keene Kites', 'Laredo Lynx'];
 const teams = NAMES.map((name, i) => ({ id: String(i + 1), abbreviation: 'T' + String.fromCharCode(65 + i) + 'X', name }));
@@ -60,4 +60,15 @@ test('soccer goals read against shots on target allowed; tennis has no matchup',
   assert.equal(goals.tier, 'tough');
   assert.equal(readingStat(goals), 'shots on target');
   assert.equal(propMatchup(epl, { sport: 'TENNIS', player: 'X', team: null, homeTeam: 'A', awayTeam: 'B', opponent: 'B', position: null, market: 'Aces', marketId: 'player_aces' }), null);
+});
+
+test('an exact abbreviation or name picks its one team; a shortened name never lands on the other club', () => {
+  const nhl = [{ id: '17', abbreviation: 'COL', name: 'Colorado Avalanche' }, { id: '29', abbreviation: 'CBJ', name: 'Columbus Blue Jackets' }];
+  assert.equal(teamIdFor('COL', nhl), '17', 'COL is Colorado, not a shortening of Columbus');
+  assert.equal(teamIdFor('col', nhl), '17');
+  assert.equal(teamIdFor('Columbus Blue Jackets', nhl), '29');
+  const epl = [{ id: '360', abbreviation: 'MAN', name: 'Manchester United' }, { id: '382', abbreviation: 'MNC', name: 'Manchester City' }];
+  assert.equal(teamIdFor('MAN', epl), '360');
+  assert.equal(teamIdFor('Man City', epl), null, 'a shortened name is never read as the other club');
+  assert.equal(teamIdFor('Manchester City', epl), '382');
 });

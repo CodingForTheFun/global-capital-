@@ -133,12 +133,14 @@ test('MLB ranks batters and pitchers from the box score groups ESPN labels by ty
 
 test('NHL ranks forwards, defense and goalies from their own groups, with points derived',()=>{
   const s={header:header('nhl'),boxscore:{players:[{team:{id:'a'},statistics:[
-    {name:'forwards',labels:['G','A','SOG','BS'],athletes:[{athlete:{id:'1'},stats:['1','1','4','0']},{athlete:{id:'2'},stats:['0','2','3','1']}]},
-    {name:'defenses',labels:['G','A','SOG','BS'],athletes:[{athlete:{id:'3'},stats:['0','1','2','3']}]},
+    // ESPN's real layout: "S" is shots on goal (key shotsTotal); "SOG" is shootout goals.
+    {name:'forwards',labels:['G','A','S','SOG','BS'],athletes:[{athlete:{id:'1'},stats:['1','1','4','1','0']},{athlete:{id:'2'},stats:['0','2','3','0','1']}]},
+    {name:'defenses',labels:['G','A','S','SOG','BS'],athletes:[{athlete:{id:'3'},stats:['0','1','2','0','3']}]},
     {name:'goalies',labels:['GA','SA','SV'],athletes:[{athlete:{id:'4'},stats:['2','30','28']}]}]}]}};
   const rows=positionGameRows(s,'NHL',new Set(['a','b']));
   const get=(pos,m)=>rows.find(r=>r.position===pos&&r.metric===m)?.total;
-  assert.equal(get('F','shotsOnGoal'),7);
+  assert.equal(get('F','shotsOnGoal'),7,'shots on goal come from "S", never from shootout goals');
+  assert.equal(get('D','shotsOnGoal'),2);
   assert.equal(get('F','points'),4);
   assert.equal(get('D','blockedShots'),3);
   assert.equal(get('G','saves'),28);

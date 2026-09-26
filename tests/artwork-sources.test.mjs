@@ -53,9 +53,10 @@ test('MLB falls back to MLB\'s own headshot for a single active exact-name match
   const url=String(input);
   if(url.includes('espn.com'))return new Response('down',{status:503});
   if(url.startsWith('https://statsapi.mlb.com/api/v1/people/search'))return json({people:[
-   {id:592450,fullName:'Aaron Judge',active:true,primaryPosition:{abbreviation:'RF'}},
+   {id:592450,fullName:'Aaron Judge',active:true,primaryPosition:{abbreviation:'RF'},currentTeam:{id:147,name:'New York Yankees'}},
    {id:111,fullName:'Aaron Judge',active:false},
   ]});
+  if(url==='https://statsapi.mlb.com/api/v1/teams?sportId=1')return json({teams:[{id:147,abbreviation:'NYY',teamName:'Yankees',name:'New York Yankees'},{id:111,abbreviation:'BOS',teamName:'Red Sox',name:'Boston Red Sox'}]});
   if(url===mlbPhotoUrl(592450))return image(jpg,'image/jpeg');
   throw new Error('unexpected fetch '+url);
  };
@@ -64,6 +65,9 @@ test('MLB falls back to MLB\'s own headshot for a single active exact-name match
  assert.equal(r.verified,true);
  assert.equal(r.source,'MLB');
  assert.equal(r.contentType,'image/jpeg');
+ // Same name, but the prop says another team: no photo.
+ const other=await get('MLB','Aaron Judge',{team:'BOS'});
+ assert.equal(other.verified,false);
 }));
 
 test('the NHL source separates same-name players by team and only trusts assets.nhle.com',withDir(async dir=>{

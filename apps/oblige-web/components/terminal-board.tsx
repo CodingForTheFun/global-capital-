@@ -53,7 +53,16 @@ const LOAD_MORE_ROWS = 40;
 const FALLBACK_REFRESH_MS = 60_000;
 const STREAM_REFRESH_DEBOUNCE_MS = 450;
 const ALL = 'ALL';
-const RESEARCH_BATCH_SIZE = 100;
+// Smaller batches, several in flight: a cold history takes seconds per
+// player, so one 100-prop batch held every later row back.
+const RESEARCH_BATCH_SIZE = 24;
+const RESEARCH_PRIORITY_BATCH = 8;
+const RESEARCH_CONCURRENCY = 3;
+// A model answer that is still loading (or a transient feed failure) is asked
+// again rather than shown as "No model".
+const MODEL_RETRY_CODES = new Set(['MODEL_PENDING', 'MODEL_FEED_UNAVAILABLE']);
+const MODEL_MAX_ATTEMPTS = 5;
+const MODEL_RETRY_MS = 3000;
 const BOARD_STATE_KEY = 'oblige:terminal-board-state:v1';
 const statCategory = (group: PropGroup) =>
   marketDisplayLabel(group.market, group.player, group.marketId, group.sport);
@@ -452,6 +461,8 @@ export function TerminalBoard() {
   const [arbOnly, setArbOnly] = React.useState(false);
   const [shown, setShown] = React.useState(INITIAL_ROWS);
   const [predictions, setPredictions] = React.useState<Record<string, ModelPrediction>>({});
+  const modelAttempts = React.useRef(new Map<string, number>());
+  const [modelRetry, setModelRetry] = React.useState(0);
   const [research, setResearch] = React.useState<Record<string, ResearchSummary | null>>({});
   // Why a row has no research (server code mapped to one sentence), shown when a blank cell is tapped.
   const [researchReasons, setResearchReasons] = React.useState<Record<string, string>>({});
@@ -555,6 +566,7 @@ export function TerminalBoard() {
         if (initial) {
           setShown(INITIAL_ROWS);
           setPredictions({});
+          modelAttempts.current.clear();
           setResearch({});
           setResearchReasons({});
           setResearchEpoch((epoch) => epoch + 1);
@@ -733,15 +745,47 @@ export function TerminalBoard() {
     if (!missing.length) return;
 
     const controller = new AbortController();
+    let timer: number | undefined;
+    const retryLater = () => { timer = window.setTimeout(() => setModelRetry((n) => n + 1), MODEL_RETRY_MS); };
     void fetchPredictions(missing, controller.signal)
-      .then((rows) => setPredictions((current) => ({ ...current, ...rows })))
+      .then((rows) => {
+        // A pending answer stays unset (the row shows "…") and is asked again;
+        // only a definitive answer, or the last attempt, is kept.
+        const settled: Record<string, ModelPrediction> = {};
+        let again = false;
+        for (const [key, row] of Object.entries(rows)) {
+          const attempts = (modelAttempts.current.get(key) || 0) + 1;
+          modelAttempts.current.set(key, attempts);
+          if (MODEL_RETRY_CODES.has(row.code || '') && attempts < MODEL_MAX_ATTEMPTS) again = true;
+          else settled[key] = row;
+        }
+        setPredictions((current) => ({ ...current, ...settled }));
+        if (again) retryLater();
+      })
       .catch((cause) => {
         if (cause instanceof ApiError && cause.status === 401) setAccount(null);
+        else if (!controller.signal.aborted) {
+          // A failed request is retried too; after the last attempt the row
+          // says the feed is unavailable instead of loading forever.
+          const exhausted: Record<string, ModelPrediction> = {};
+          let again = false;
+          for (const group of missing) {
+            const attempts = (modelAttempts.current.get(group.key) || 0) + 1;
+            modelAttempts.current.set(group.key, attempts);
+            if (attempts < MODEL_MAX_ATTEMPTS) again = true;
+            else exhausted[group.key] = { available: false, code: 'MODEL_FEED_UNAVAILABLE', message: 'Model estimates are temporarily unavailable.' };
+          }
+          if (Object.keys(exhausted).length) setPredictions((current) => ({ ...current, ...exhausted }));
+          if (again) retryLater();
+        }
       });
 
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [account, pageKey]);
+  }, [account, pageKey, modelRetry]);
 
   // Consensus opening vs current line and steam for the events on this page.
   // Keys are eventId::market|player so a player's other events never collide.
@@ -804,8 +848,10 @@ export function TerminalBoard() {
     if (!accountId) return;
     const queue = createResearchQueue<PropGroup, ResearchResponse>({
       batchSize: RESEARCH_BATCH_SIZE,
-      // The rows on screen go out on their own so their hit rates land first.
-      priorityBatchSize: 16,
+      // The rows on screen go out on their own so their hit rates land first,
+      // and later batches load alongside rather than after.
+      priorityBatchSize: RESEARCH_PRIORITY_BATCH,
+      concurrency: RESEARCH_CONCURRENCY,
       fetchBatch: (groups, signal) => fetchResearchBatch(groups, 'OVER', signal),
       onAuthLost: () => setAccount(null),
       onSettled: (entries) => {

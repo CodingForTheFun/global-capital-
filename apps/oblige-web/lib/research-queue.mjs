@@ -70,6 +70,8 @@ export function createResearchQueue({
   batchSize = 100,
   /** Size of the batch that carries newly prioritised (visible) props, so they return first. */
   priorityBatchSize = batchSize,
+  /** Batches in flight at once. More than one lets later rows load while the first batch is still out. */
+  concurrency = 1,
   maxAttempts = 3,
   baseDelayMs = 2000,
   gapMs = 250,
@@ -80,7 +82,7 @@ export function createResearchQueue({
   const inFlight = new Set();
   const settled = new Set();
   const controller = new AbortController();
-  let running = false;
+  let workers = 0;
   let cancelled = false;
   let requests = 0;
   let priorityRemaining = 0;
@@ -154,33 +156,39 @@ export function createResearchQueue({
     return retried ? baseDelayMs : 0;
   }
 
-  async function pump() {
-    if (running || cancelled) return;
-    running = true;
-    try {
-      while (!cancelled && order.length) {
-        const batch = [];
-        const size = priorityRemaining > 0 ? Math.min(batchSize, priorityBatchSize) : batchSize;
-        let limit = size;
-        while (order.length && batch.length < limit) {
-          const key = order.shift();
-          const entry = pending.get(key);
-          if (!entry) continue;
-          if (!batch.length) limit = Math.min(size, entry.limit ?? batchSize);
-          else if ((entry.limit ?? batchSize) < batchSize && batch.length) { order.unshift(key); break; }
-          pending.delete(key);
-          inFlight.add(key);
-          batch.push(entry);
-        }
-        if (!batch.length) continue;
-        priorityRemaining = Math.max(0, priorityRemaining - batch.length);
-        const wait = await runBatch(batch);
-        if (cancelled) break;
-        if (wait > 0) await sleep(wait, controller.signal);
-        else if (order.length && gapMs > 0) await sleep(gapMs, controller.signal);
+  // Each worker forms its batch synchronously, so two workers never take the
+  // same prop; they only overlap while their requests are out.
+  async function worker() {
+    while (!cancelled && order.length) {
+      const batch = [];
+      const size = priorityRemaining > 0 ? Math.min(batchSize, priorityBatchSize) : batchSize;
+      let limit = size;
+      while (order.length && batch.length < limit) {
+        const key = order.shift();
+        const entry = pending.get(key);
+        if (!entry) continue;
+        if (!batch.length) limit = Math.min(size, entry.limit ?? batchSize);
+        else if ((entry.limit ?? batchSize) < batchSize && batch.length) { order.unshift(key); break; }
+        pending.delete(key);
+        inFlight.add(key);
+        batch.push(entry);
       }
-    } finally {
-      running = false;
+      if (!batch.length) continue;
+      priorityRemaining = Math.max(0, priorityRemaining - batch.length);
+      const wait = await runBatch(batch);
+      if (cancelled) break;
+      if (wait > 0) await sleep(wait, controller.signal);
+      else if (order.length && gapMs > 0) await sleep(gapMs, controller.signal);
+    }
+  }
+
+  function pump() {
+    while (!cancelled && workers < concurrency && order.length) {
+      workers++;
+      void worker().finally(() => {
+        workers--;
+        if (!cancelled && order.length) pump();
+      });
     }
   }
 
@@ -199,7 +207,7 @@ export function createResearchQueue({
     const wanted = new Set(first);
     order = [...first, ...order.filter((key) => !wanted.has(key) && pending.has(key))];
     priorityRemaining = Math.min(first.length, priorityBatchSize);
-    void pump();
+    pump();
   }
 
   function cancel() {
@@ -212,6 +220,6 @@ export function createResearchQueue({
   return {
     want,
     cancel,
-    stats: () => ({ requests, pending: order.length, inFlight: inFlight.size, settled: settled.size, running }),
+    stats: () => ({ requests, pending: order.length, inFlight: inFlight.size, settled: settled.size, running: workers > 0 }),
   };
 }

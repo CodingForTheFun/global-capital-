@@ -1,0 +1,77 @@
+name: History Model v3 Jev preflight
+on:
+  push:
+    branches: [chatgpt/history-model-v3-20260925]
+    paths: [.github/workflows/history-model-v3-preflight.yml]
+permissions:
+  contents: read
+concurrency:
+  group: history-model-v3-jev-preflight
+  cancel-in-progress: false
+jobs:
+  verify-jev:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify authenticated Jev inference without exposing credentials
+        shell: bash
+        env:
+          JEV_ACCESS_TOKEN: ${{ secrets.MCP_ACCESS_TOKEN }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const token = process.env.JEV_ACCESS_TOKEN;
+          if (!token) {
+            console.error('JEV_ACCESS_MISSING: configure the existing Jev MCP access token as the MCP_ACCESS_TOKEN Actions secret. Do not paste it into code, logs, issues or chat. No model training or deployment was attempted.');
+            process.exit(2);
+          }
+          // The server source verifies /mcp/:accessToken; legacy /mcp intentionally returns 404.
+          // Never log endpoint, headers, environment values or raw transport errors.
+          const endpoint = 'https://jev-mcp-production.up.railway.app/mcp/' + encodeURIComponent(token);
+          const headers = {'Content-Type':'application/json', Accept:'application/json, text/event-stream'};
+          async function rpc(payload, notification=false) {
+            const r = await fetch(endpoint, {method:'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)});
+            if (!r.ok) throw Object.assign(new Error('MCP_HTTP_ERROR'), {safeStatus:r.status});
+            const session = r.headers.get('mcp-session-id');
+            if (session) headers['mcp-session-id'] = session;
+            if (notification) { await r.body?.cancel(); return; }
+            const text = await r.text();
+            let body;
+            if (r.headers.get('content-type')?.includes('text/event-stream')) {
+              for (const block of text.split(/\r?\n\r?\n/)) {
+                const data = block.split(/\r?\n/).filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('\n');
+                if (!data) continue;
+                try { const value = JSON.parse(data); if (value.id === payload.id) { body = value; break; } } catch {}
+              }
+            } else { body = JSON.parse(text); }
+            assert.ok(body && body.id === payload.id, 'Missing matching MCP response');
+            assert.ok(!body.error, 'MCP returned an error');
+            return body.result;
+          }
+          function jevModel(value, depth=0) {
+            if (!value || typeof value !== 'object' || depth > 6) return null;
+            for (const [key, item] of Object.entries(value)) {
+              if (/^model(?:Name|Version)?$/i.test(key) && typeof item === 'string' && /(?:^|\/)jev(?:-|$)/i.test(item)) return item;
+              if (item && typeof item === 'object') { const found = jevModel(item, depth+1); if (found) return found; }
+            }
+            return null;
+          }
+          try {
+            const init = await rpc({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2024-11-05',capabilities:{},clientInfo:{name:'oblige-history-v3-preflight',version:'1.1.0'}}});
+            if (init?.protocolVersion) headers['MCP-Protocol-Version'] = init.protocolVersion;
+            await rpc({jsonrpc:'2.0',method:'notifications/initialized'}, true);
+            const listing = await rpc({jsonrpc:'2.0',id:2,method:'tools/list',params:{}});
+            const tool = listing?.tools?.find(item=>item.name==='jev_check');
+            assert.ok(tool?.inputSchema?.properties?.state?.type==='string' && tool?.inputSchema?.properties?.checks?.type==='array', 'Expected jev_check contract is unavailable');
+            const result = await rpc({jsonrpc:'2.0',id:3,method:'tools/call',params:{name:tool.name,arguments:{state:'ObligeProps History Model v3 must use verified pregame inputs and settled outcomes, shrink small H2H samples, validate chronologically, and calibrate probabilities separately from projection error. Automatic retraining must not increase provider polling. Failed candidates must not replace production.',checks:['The plan requires calibrated probabilities, not RMSE alone.','The plan preserves provider polling and blocks failed model promotion.']}}});
+            assert.ok(result && !result.isError, 'Jev inference failed');
+            const parsed = (result.content || []).filter(item=>item.type==='text').map(item=>{try{return JSON.parse(item.text);}catch{return null;}}).filter(Boolean);
+            const model = jevModel(parsed);
+            assert.ok(model, 'Inference response did not identify a Jev model; verification remains blocked');
+            console.log(JSON.stringify({success:true,serverVersion:init?.serverInfo?.version,tool:tool.name,model,fallback:false,scope:'bounded preflight only; no training or production changes'},null,2));
+          } catch (error) {
+            const reason = error?.safeStatus ? `MCP_HTTP_${error.safeStatus}` : error?.name==='AssertionError' ? error.message : 'MCP_TRANSPORT_OR_PARSE_ERROR';
+            console.error('Jev preflight failed:', reason);
+            process.exitCode = 1;
+          }
+          JS

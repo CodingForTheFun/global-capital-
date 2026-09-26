@@ -98,6 +98,8 @@ type ModelPrediction = {
   expiresAt?: string;
   /** 'global-model' | 'verified-history-adaptive-model' | 'market-consensus' | ... */
   sourceKind?: string;
+  /** What the estimate was built from; context means game context features were used. */
+  inputs?: { market?: boolean; historyGames?: number; context?: boolean };
 };
 
 type RateWindow = {
@@ -1289,7 +1291,7 @@ function EvPill({ group, prediction, bestEv }: { group: PropGroup; prediction: M
     const sideName = side === 'O' ? 'over' : 'under';
     const title = market
       ? `Sportsbook consensus: the no-vig chance of the ${sideName} from books quoting both sides of this line. Not a model estimate. ${why}`
-      : `${prediction.sourceKind === 'global-model' ? 'Global model' : 'Model'} hit probability for the ${sideName}. ${why}`;
+      : `${prediction.sourceKind === 'global-model' ? 'Global model' : 'Model'} hit probability for the ${sideName}.${prediction.inputs?.context ? ' Includes home or away, rest and this opponent\'s recent record in the market.' : ''} ${why}`;
     return (
       <span className={styles.evPill} data-tone="prob" data-source={market ? 'market' : 'model'} title={title}>
         {market ? <em>Mkt</em> : null}{pct}%<small>{side}</small>

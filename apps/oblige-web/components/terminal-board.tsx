@@ -659,6 +659,9 @@ export function TerminalBoard() {
       if (market !== ALL && statCategory(group) !== market) return false;
       if (book !== ALL && !group.quotes.some((quote) => quoteBook(quote) === book)) return false;
       if (dateFilter !== ALL && boardDateKey(group.startsAt) !== dateFilter) return false;
+      // The server drops a pregame prop once its game starts; between refreshes
+      // this keeps an open board from showing one that already has.
+      if (!group.live && Date.parse(group.startsAt || '') <= Date.now()) return false;
       if (gameFilter !== ALL && group.matchup !== gameFilter) return false;
       if (modifierFilter !== ALL && !group.quotes.some((quote) => quoteModifier(quote) === modifierFilter)) return false;
       if (

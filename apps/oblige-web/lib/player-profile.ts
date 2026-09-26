@@ -105,6 +105,19 @@ export function playerProps<T extends Pick<PropGroup, 'player' | 'team'>>(groups
   return named.filter((group) => labels.some((label) => sameTeamLabel(group.team, label)));
 }
 
+/**
+ * The props that belong to the same person as the prop that was opened.
+ * Board props arrive by name, and several players can share one (MLB has
+ * more than one Luis Garcia), so once a prop is chosen only props for its
+ * team stay. A prop with no team on either side is kept: nothing tells it
+ * apart, and the board already keyed it to the same name.
+ */
+export function anchoredProps<T extends Pick<PropGroup, 'team'>>(groups: T[], anchor: Pick<PropGroup, 'team'> | null | undefined): T[] {
+  const team = anchor?.team;
+  if (!team) return groups;
+  return groups.filter((group) => !group.team || sameTeamLabel(group.team, team));
+}
+
 export function profileKey(identity: ProfileIdentity, market: string) {
   return ['profile', identity.sport.toUpperCase(), identity.espnId || identity.name, market].join(':');
 }

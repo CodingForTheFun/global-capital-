@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, TriangleAlert } from 'lucide-react';
 import type { PropGroup, ResearchResponse } from '@/lib/types';
 import { ApiError, fetchAccount, fetchBoard, fetchPlayerProfile, fetchResearch, fetchWatchlist, peekBoard, updateWatchlist, playedGames, type PlayerProfileResponse, type WatchlistItem } from '@/lib/api';
-import { isProfileGroup, playerProps, profileGroup, profileMarkets, profileSupported, samePlayerName, seedLine, type ProfileIdentity } from '@/lib/player-profile';
+import { anchoredProps, isProfileGroup, playerProps, profileGroup, profileMarkets, profileSupported, samePlayerName, seedLine, type ProfileIdentity } from '@/lib/player-profile';
 import { PlayerSearch } from '@/components/player-search';
 import {
   computeWindow,
@@ -192,10 +192,13 @@ export function PlayerView() {
   }, [account, player, sport, espnId, profileKey]);
   const profileSettled = !profileKey || profileFor === profileKey;
   // From search, only the searched player's team's props count as theirs.
-  const liveMarkets = React.useMemo(
-    () => (profileMode ? playerProps(markets, player, profile?.player ? [profile.player.team, profile.player.teamName] : [teamParam]) : markets),
-    [profileMode, markets, player, teamParam, profile],
-  );
+  const liveMarkets = React.useMemo(() => {
+    if (profileMode) return playerProps(markets, player, profile?.player ? [profile.player.team, profile.player.teamName] : [teamParam]);
+    // Opened from a board row: that row's team decides whose props these are.
+    const anchor = markets.find((candidate) => candidate.market === market && candidate.line === postedLine)
+      || markets.find((candidate) => candidate.market === market) || markets[0] || null;
+    return anchoredProps(markets, anchor);
+  }, [profileMode, markets, player, teamParam, profile, market, postedLine]);
 
   const identity = React.useMemo<ProfileIdentity>(() => ({
     sport,
@@ -213,7 +216,7 @@ export function PlayerView() {
   const [researchKey, setResearchKey] = React.useState('');
   const baseGroups = React.useMemo(() => {
     // From search, the board decides nothing until the player's team is known.
-    if (!showProfile) return profileMode ? [] : markets;
+    if (!showProfile) return profileMode ? [] : liveMarkets;
     const liveLabels = new Set(liveMarkets.map((candidate) => marketDisplayLabel(candidate.market, candidate.player, candidate.marketId, candidate.sport)));
     const keys = profileMarkets(sport, identity.position);
     if (market && !keys.includes(market) && !liveMarkets.length) keys.unshift(market);

@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import type { BoardMeta, DefensePositionResponse, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
 import { DEFENSE_SPORTS, MATCHUP_LABEL, metricLabel, ordinal, positionLabel, propMatchup, rankOf, type DefenseReading } from '@/lib/defense';
+import { liveGame, slateOpponent, type LiveGame } from '@/lib/games';
+import { currentOpponentLabels } from '@/lib/opponent-options';
 import {
   ApiError,
   artworkUrl,
@@ -118,6 +120,8 @@ type ResearchSummary = {
   recent: Array<'hit' | 'miss' | 'push'>;
   /** The same ten games' values, newest first; empty whenever `recent` is. */
   recentValues: number[];
+  /** The player's current team as the research source verified it, when it said. */
+  verifiedTeam: string | null;
 };
 
 type MlTarget = {
@@ -336,6 +340,7 @@ function summarizeResearch(row: ResearchResponse | null | undefined, line: numbe
     diff: average === null ? null : Number((average - line).toFixed(2)),
     recent: recentResults(row, line, l10),
     recentValues: recentResults(row, line, l10).length ? recentGames(row).map((game) => game.value as number) : [],
+    verifiedTeam: typeof row.player?.team === 'string' && row.player.team.trim() ? row.player.team.trim() : null,
   };
 }
 
@@ -838,7 +843,32 @@ export function TerminalBoard() {
       .catch(() => { /* the chip is an enhancement */ });
     return () => controller.abort();
   }, [account, sport]);
-  const matchupFor = React.useCallback((group: PropGroup) => propMatchup(defense, group), [defense]);
+  // DFS props often name only the player's team. ESPN's slate supplies the
+  // opponent for the chip alone, under the checks in slateOpponent.
+  const [slate, setSlate] = React.useState<LiveGame[]>([]);
+  React.useEffect(() => {
+    setSlate([]);
+    if (!account || !DEFENSE_SPORTS.has(sport.toUpperCase())) return;
+    const controller = new AbortController();
+    const load = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      fetch(`/api/live?sports=${encodeURIComponent(sport.toUpperCase())}`, { credentials: 'same-origin', cache: 'no-store', signal: controller.signal, headers: { accept: 'application/json' } })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body: { games?: unknown[] } | null) => {
+          if (controller.signal.aborted || !Array.isArray(body?.games)) return;
+          setSlate(body.games.map(liveGame).filter((game): game is LiveGame => Boolean(game) && game!.sport === sport.toUpperCase()));
+        })
+        .catch(() => { /* the chip is an enhancement */ });
+    };
+    load();
+    const timer = window.setInterval(load, 5 * 60_000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [account, sport]);
+  const matchupFor = React.useCallback((group: PropGroup) => {
+    if (currentOpponentLabels(group).length) return propMatchup(defense, group);
+    const opponent = slateOpponent(group, research[group.key]?.verifiedTeam, slate);
+    return opponent ? propMatchup(defense, { ...group, opponent }) : null;
+  }, [defense, research, slate]);
 
   // One queue per signed-in board load. It is never torn down because the row
   // list changed (live refreshes and EV re-sorts change it constantly); it only

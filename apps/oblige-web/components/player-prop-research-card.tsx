@@ -21,6 +21,7 @@ import { catalogBookRows, type CatalogBookRow } from '@/lib/book-catalog';
 import { expectedValueFor, expectedValueSourceLabel, marketOverProbability, type ExpectedValueSelection } from '@/lib/expected-value.mjs';
 import { PlayerAvatar, TeamLogo } from '@/components/face-card';
 import { GameContext } from '@/components/game-context';
+import { WithWithout } from '@/components/with-without';
 import { OpponentField } from '@/components/opponent-field';
 import { espnEventOf, fetchDefensePosition, fetchLineHistory, fetchMoneyline, fetchTennisContext } from '@/lib/api';
 import { DEFENSE_SPORTS, MATCHUP_LABEL, defenseMetricFor, defenseReading, matchupPosition, metricLabel, ordinal, positionLabel, rankOf, teamIdFor } from '@/lib/defense';
@@ -1600,6 +1601,16 @@ export function PlayerPropResearchCard({
           <p className="px-3 py-4 text-[12px] text-[var(--text-2)]">No verified stats for this player yet.</p>
         )}
       </section>
+
+      <WithWithout
+        sport={group.sport}
+        team={text(research?.player?.team) || text(group.team) || null}
+        player={group.player}
+        playerId={text(research?.player?.providerPlayerId) || text(group.providerPlayerId) || null}
+        games={verifiedGames}
+        line={state.line}
+        side={state.side === 'UNDER' ? 'UNDER' : 'OVER'}
+      />
 
       {individualSport && currentOpponent ? (
         <OpponentField group={group} opponent={currentOpponent} line={state.line} side={state.side} marketLabel={marketLabel} />

@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { BarChart3, BookOpen, CalendarDays, ChevronDown, ChevronRight, Flame, History, Minus, Plus, RotateCcw, Shield, SlidersHorizontal, Star, TrendingUp, Users } from 'lucide-react';
+import { BarChart3, BookOpen, CalendarDays, ChevronDown, ChevronRight, Flame, History, Minus, Plus, RotateCcw, SlidersHorizontal, Star, TrendingUp, Users } from 'lucide-react';
 import type { DefensePositionResponse, DefenseTier, GameLogRow, MoneylineResponse, TennisContextResponse, LineHistoryPoint, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
 import {
   applyFilters,
@@ -23,7 +23,7 @@ import { PlayerAvatar, TeamLogo } from '@/components/face-card';
 import { GameContext } from '@/components/game-context';
 import { OpponentField } from '@/components/opponent-field';
 import { espnEventOf, fetchDefensePosition, fetchLineHistory, fetchMoneyline, fetchTennisContext } from '@/lib/api';
-import { DEFENSE_SPORTS, MATCHUP_LABEL, defenseMetricFor, defenseReading, exactPosition, metricLabel, offenseReading, ordinal } from '@/lib/defense';
+import { DEFENSE_SPORTS, MATCHUP_LABEL, defenseMetricFor, defenseReading, exactPosition, metricLabel, ordinal, teamIdFor } from '@/lib/defense';
 import { marketDisplayLabel, odds, shortDate, shortTime } from '@/lib/utils';
 
 export type PlayerPropResearchState = {
@@ -829,23 +829,10 @@ export function PlayerPropResearchCard({
     [research?.matchup?.opponent, group],
   );
   const currentDefense = defenseReading(defense, currentOpponent, defensePosition, defenseMetric);
-  const currentOffense = individualSport ? null : offenseReading(defense, group.team, defensePosition, defenseMetric);
-  // Every ranked stat for this position: what tonight's opponent allows and
-  // what the player's own team gets from the position, from the same games.
-  const positionTable = React.useMemo(() => {
-    if (!defense?.available || !defensePosition || individualSport) return [];
-    const atPosition = (defense.rows || []).filter((row) => row.position === defensePosition);
-    // A stat the position barely records anywhere (QB receptions) ranks on ties of zero; leave it out.
-    const metrics = [...new Set(atPosition.map((row) => String(row.metric || '')).filter(Boolean))]
-      .filter((metric) => Math.max(...atPosition.filter((row) => row.metric === metric).map((row) => Number(row.average) || 0)) >= 0.5);
-    return metrics
-      .map((metric) => ({
-        metric,
-        allowed: defenseReading(defense, currentOpponent, defensePosition, metric),
-        produced: offenseReading(defense, group.team, defensePosition, metric),
-      }))
-      .filter((row) => row.allowed || row.produced);
-  }, [defense, defensePosition, currentOpponent, group.team, individualSport]);
+  // The opponent has a row for this position and stat, but the league is not
+  // complete enough to rank it yet (early season).
+  const awaitingRank = !currentDefense && Boolean(defense?.available && defensePosition && defenseMetric)
+    && (defense?.rows || []).some((row) => row.teamId === teamIdFor(currentOpponent, defense?.teams) && row.position === defensePosition && row.metric === defenseMetric && row.rank == null);
   const opponentOptions = React.useMemo(
     () => buildOpponentOptions(verifiedGames.map((game) => game.opponent), group, research?.leagueTeams || []),
     [verifiedGames, group, research?.leagueTeams],
@@ -1095,7 +1082,7 @@ export function PlayerPropResearchCard({
                   className={cx('rounded-[3px] px-1.5 text-[11px] font-bold leading-[18px]',
                     currentDefense.tier === 'soft' ? 'bg-[var(--pos-soft)] text-[var(--pos)]' : currentDefense.tier === 'tough' ? 'bg-[var(--neg-soft)] text-[var(--neg)]' : 'bg-[var(--surface-2)] text-[var(--text-2)]')}
                 >
-                  {MATCHUP_LABEL[currentDefense.tier]}
+                  {MATCHUP_LABEL[currentDefense.tier]}{currentDefense.team ? ' vs ' + currentDefense.team : ''} · {ordinal(currentDefense.allowedRank)} of {currentDefense.leagueSize}
                 </span>
               ) : null}
               <span className="rounded-[3px] bg-[var(--surface-2)] px-1.5 text-[11px] font-bold leading-[18px] text-[var(--text-2)]">{group.sport}</span>
@@ -1227,7 +1214,9 @@ export function PlayerPropResearchCard({
               <div className="mt-1 truncate text-[11px] text-[var(--text-2)]">
                 {currentDefense && defensePosition && defenseMetric
                   ? currentDefense.team + ' ' + ordinal(currentDefense.allowedRank) + '-most allowed vs ' + defensePosition + ' · ' + metricLabel(defenseMetric)
-                  : 'Verified DvP unavailable'}
+                  : awaitingRank
+                    ? 'Rated once every team has 3 games'
+                    : 'Not rated for this prop'}
               </div>
             </div>
           </div>
@@ -1388,60 +1377,6 @@ export function PlayerPropResearchCard({
                   {group.player.split(' ').slice(-1)[0]} #{tennis.player.rank}
                 </span>
               ) : null}
-            </div>
-          ) : null}
-
-          {currentDefense && defenseMetric ? (
-            <div data-qa="defense-matchup" className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 py-2 text-[12px] leading-4 text-[var(--text-2)]">
-              <Shield className="h-3.5 w-3.5 shrink-0 text-[var(--accent-2)]" aria-hidden />
-              <span className="min-w-0">
-                <b className="text-white">{currentDefense.team}</b> allows{' '}
-                <b className="text-white">
-                  {currentDefense.allowedRank === 1 ? 'the most' : currentDefense.allowedRank === currentDefense.leagueSize ? 'the fewest' : 'the ' + ordinal(currentDefense.allowedRank) + '-most'}
-                </b>{' '}
-                {metricLabel(defenseMetric)} to {defensePosition}s · {Number(currentDefense.row.average).toFixed(1)}/game
-                {currentOffense ? (
-                  <>
-                    {' · '}<b className="text-white">{currentOffense.team}</b> {defensePosition}s get the{' '}
-                    <b className="text-white">{currentOffense.producedRank === 1 ? 'most' : ordinal(currentOffense.producedRank) + '-most'}</b>{' '}
-                    ({Number(currentOffense.row.average).toFixed(1)}/game)
-                  </>
-                ) : null}
-              </span>
-              <span className={cx(
-                'rounded-full border px-2 py-0.5 text-[12px] font-black',
-                currentDefense.tier === 'soft' ? 'border-[var(--line-strong)] bg-[var(--pos-soft)] text-[var(--pos)]'
-                  : currentDefense.tier === 'tough' ? 'border-[var(--line-strong)] bg-[var(--neg-soft)] text-[var(--neg)]'
-                    : 'border-[var(--line-strong)] bg-[var(--surface-2)] text-[var(--text)]',
-              )}>
-                {MATCHUP_LABEL[currentDefense.tier]}
-              </span>
-            </div>
-          ) : null}
-
-          {positionTable.length ? (
-            <div data-qa="position-ranks" className="mt-2 overflow-hidden rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] text-[12px]">
-              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)] gap-2 border-b border-[var(--line-strong)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-3)]">
-                <span>vs {defensePosition}</span>
-                <span className="truncate">{currentDefense?.team || (currentOpponent ? text(currentOpponent) : 'Opp')} D allows</span>
-                <span className="truncate">{currentOffense?.team || text(group.team) || 'Team'} O gets</span>
-              </div>
-              {positionTable.map((row) => (
-                <div
-                  key={row.metric}
-                  data-current={row.metric === defenseMetric ? 'true' : undefined}
-                  className={cx('grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)] gap-2 border-b border-[var(--line)] px-3 py-1.5 last:border-b-0', row.metric === defenseMetric && 'bg-[var(--accent-soft)]')}
-                >
-                  <span className="truncate font-semibold capitalize text-[var(--text)]">{metricLabel(row.metric)}</span>
-                  <span className={cx('truncate tabular-nums', row.allowed?.tier === 'soft' ? 'text-[var(--pos)]' : row.allowed?.tier === 'tough' ? 'text-[var(--neg)]' : 'text-[var(--text-2)]')}>
-                    {row.allowed ? ordinal(row.allowed.allowedRank) + ' · ' + Number(row.allowed.row.average).toFixed(1) : '—'}
-                  </span>
-                  <span className="truncate tabular-nums text-[var(--text-2)]">
-                    {row.produced ? ordinal(row.produced.producedRank) + ' · ' + Number(row.produced.row.average).toFixed(1) : '—'}
-                  </span>
-                </div>
-              ))}
-              <div className="px-3 py-1.5 text-[11px] text-[var(--text-3)]">Rank 1st = most per game among {positionTable[0]?.allowed?.leagueSize || positionTable[0]?.produced?.leagueSize} teams, from completed regular-season box scores.</div>
             </div>
           ) : null}
 

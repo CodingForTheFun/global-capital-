@@ -215,6 +215,8 @@ export type DefensePositionResponse = {
   positions?: string[];
   teams?: Array<{ id?: string; abbreviation?: string; name?: string }>;
   rows?: DefensePositionRow[];
+  /** The same team-games from the producing side: rank 1 produces the least. */
+  offenseRows?: DefensePositionRow[];
   windowDays?: number;
   retrievedAt?: string;
 };

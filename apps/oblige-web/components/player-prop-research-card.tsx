@@ -23,7 +23,7 @@ import { PlayerAvatar, TeamLogo } from '@/components/face-card';
 import { GameContext } from '@/components/game-context';
 import { OpponentField } from '@/components/opponent-field';
 import { espnEventOf, fetchDefensePosition, fetchLineHistory, fetchMoneyline, fetchTennisContext } from '@/lib/api';
-import { DEFENSE_SPORTS, defenseMetricFor, defenseReading, exactPosition, metricLabel, ordinal } from '@/lib/defense';
+import { DEFENSE_SPORTS, MATCHUP_LABEL, defenseMetricFor, defenseReading, exactPosition, metricLabel, offenseReading, ordinal } from '@/lib/defense';
 import { marketDisplayLabel, odds, shortDate, shortTime } from '@/lib/utils';
 
 export type PlayerPropResearchState = {
@@ -42,6 +42,8 @@ type Props = {
   favourite: boolean;
   onFavourite(): void;
   onMarket(group: PropGroup): void;
+  /** A player profile market: verified history, no posted line, no prices. */
+  noPostedLine?: boolean;
 };
 
 type SampleId = 'l5' | 'l10' | 'l15' | 'season' | 'h2h';
@@ -509,10 +511,12 @@ function HistoryModel({
   selectedBook,
   line,
   onSummary,
+  noPostedLine = false,
 }: {
   group: PropGroup;
   selectedBook: CatalogBookRow | null;
   line: number;
+  noPostedLine?: boolean;
   /** Lets the page header show the answer without a second model request. */
   onSummary?: (summary: ModelSummary) => void;
 }) {
@@ -536,6 +540,14 @@ function HistoryModel({
   const exactPostedLine = Math.abs(line - group.line) < 0.0001;
 
   React.useEffect(() => {
+    if (noPostedLine) {
+      setPrediction({
+        available: false,
+        code: 'NO_POSTED_LINE',
+        message: 'The model prices posted lines only, and no line is posted for this player right now.',
+      });
+      return;
+    }
     if (!exactPostedLine) {
       setPrediction({
         available: false,
@@ -551,11 +563,11 @@ function HistoryModel({
       .catch(() => setPrediction({ available: false, code: 'MODEL_FEED_UNAVAILABLE', message: 'History model is temporarily unavailable.' }))
       .finally(() => setLoading(false));
     return () => controller.abort();
-  }, [group.key, targetQuote?.sportsbookKey, targetQuote?.sportsbook, exactPostedLine, revision]);
+  }, [group.key, targetQuote?.sportsbookKey, targetQuote?.sportsbook, exactPostedLine, noPostedLine, revision]);
 
   const selectedEv: ExpectedValueSelection | null = React.useMemo(
-    () => exactPostedLine ? expectedValueFor(modelGroup, prediction || undefined) : null,
-    [exactPostedLine, modelGroup, prediction],
+    () => exactPostedLine && !noPostedLine ? expectedValueFor(modelGroup, prediction || undefined) : null,
+    [exactPostedLine, noPostedLine, modelGroup, prediction],
   );
   const selectedEvSource = expectedValueSourceLabel(selectedEv);
   const available = prediction?.available === true;
@@ -624,14 +636,16 @@ function HistoryModel({
               (selectedEvSource ? ' · EV: ' + selectedEvSource : '') + '.'
             : (prediction?.message || 'History model is unavailable for this exact prop.')}
       </p>
-      <button
-        type="button"
-        onClick={() => setRevision((value) => value + 1)}
-        disabled={loading}
-        className="mt-2 h-9 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 text-[12px] font-semibold text-white disabled:opacity-50"
-      >
-        {loading ? 'Refreshing…' : 'Refresh forecast'}
-      </button>
+      {noPostedLine ? null : (
+        <button
+          type="button"
+          onClick={() => setRevision((value) => value + 1)}
+          disabled={loading}
+          className="mt-2 h-9 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 text-[12px] font-semibold text-white disabled:opacity-50"
+        >
+          {loading ? 'Refreshing…' : 'Refresh forecast'}
+        </button>
+      )}
     </div>
   );
 }
@@ -646,6 +660,7 @@ export function PlayerPropResearchCard({
   favourite,
   onFavourite,
   onMarket,
+  noPostedLine = false,
 }: Props) {
   const [filters, setFilters] = React.useState<SampleFilters>(EMPTY_FILTERS);
   const [showMoreFilters, setShowMoreFilters] = React.useState(false);
@@ -814,6 +829,23 @@ export function PlayerPropResearchCard({
     [research?.matchup?.opponent, group],
   );
   const currentDefense = defenseReading(defense, currentOpponent, defensePosition, defenseMetric);
+  const currentOffense = individualSport ? null : offenseReading(defense, group.team, defensePosition, defenseMetric);
+  // Every ranked stat for this position: what tonight's opponent allows and
+  // what the player's own team gets from the position, from the same games.
+  const positionTable = React.useMemo(() => {
+    if (!defense?.available || !defensePosition || individualSport) return [];
+    const atPosition = (defense.rows || []).filter((row) => row.position === defensePosition);
+    // A stat the position barely records anywhere (QB receptions) ranks on ties of zero; leave it out.
+    const metrics = [...new Set(atPosition.map((row) => String(row.metric || '')).filter(Boolean))]
+      .filter((metric) => Math.max(...atPosition.filter((row) => row.metric === metric).map((row) => Number(row.average) || 0)) >= 0.5);
+    return metrics
+      .map((metric) => ({
+        metric,
+        allowed: defenseReading(defense, currentOpponent, defensePosition, metric),
+        produced: offenseReading(defense, group.team, defensePosition, metric),
+      }))
+      .filter((row) => row.allowed || row.produced);
+  }, [defense, defensePosition, currentOpponent, group.team, individualSport]);
   const opponentOptions = React.useMemo(
     () => buildOpponentOptions(verifiedGames.map((game) => game.opponent), group, research?.leagueTeams || []),
     [verifiedGames, group, research?.leagueTeams],
@@ -1057,11 +1089,22 @@ export function PlayerPropResearchCard({
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <h1 className="truncate text-[20px] font-extrabold leading-tight tracking-[-.02em] text-[var(--text)] sm:text-[24px]">{group.player}</h1>
               {group.position ? <span className="rounded-[3px] bg-[var(--surface-2)] px-1.5 text-[11px] font-bold leading-[18px] text-[var(--text-2)]">{group.position}</span> : null}
+              {currentDefense ? (
+                <span
+                  data-qa="matchup-chip"
+                  className={cx('rounded-[3px] px-1.5 text-[11px] font-bold leading-[18px]',
+                    currentDefense.tier === 'soft' ? 'bg-[var(--pos-soft)] text-[var(--pos)]' : currentDefense.tier === 'tough' ? 'bg-[var(--neg-soft)] text-[var(--neg)]' : 'bg-[var(--surface-2)] text-[var(--text-2)]')}
+                >
+                  {MATCHUP_LABEL[currentDefense.tier]}
+                </span>
+              ) : null}
               <span className="rounded-[3px] bg-[var(--surface-2)] px-1.5 text-[11px] font-bold leading-[18px] text-[var(--text-2)]">{group.sport}</span>
               <span className="rounded-[3px] bg-[var(--surface-2)] px-1.5 text-[11px] font-bold leading-[18px] text-[var(--text-2)]">{periodLabel(group.period)}</span>
-              <span className={cx('rounded-[3px] px-1.5 text-[11px] font-bold leading-[18px]', group.live ? 'bg-[var(--neg-soft)] text-[var(--neg)]' : 'bg-[var(--surface-2)] text-[var(--text-2)]')}>
-                {group.live ? 'LIVE' : 'Pre-game'}
-              </span>
+              {noPostedLine && !group.startsAt ? null : (
+                <span className={cx('rounded-[3px] px-1.5 text-[11px] font-bold leading-[18px]', group.live ? 'bg-[var(--neg-soft)] text-[var(--neg)]' : 'bg-[var(--surface-2)] text-[var(--text-2)]')}>
+                  {group.live ? 'LIVE' : noPostedLine ? 'Next game' : 'Pre-game'}
+                </span>
+              )}
             </div>
             <div className="mt-0.5 truncate text-[13px] text-[var(--text-2)]">
               {[
@@ -1076,6 +1119,22 @@ export function PlayerPropResearchCard({
           </div>
         </div>
 
+        {noPostedLine ? (
+          <div className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface)] sm:flex sm:items-stretch [&>*]:border-[var(--line)]">
+            <div className="col-span-2 grid min-w-0 content-center gap-0.5 border-b px-3 py-2 sm:min-w-[140px] sm:flex-1 sm:border-b-0">
+              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Market</span>
+              <span className="truncate text-[15px] font-bold text-[var(--text)]">{marketLabel}</span>
+            </div>
+            <div className="grid content-center gap-0.5 border-r px-3 py-2 sm:border-l sm:border-r-0">
+              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Line</span>
+              <span className="text-[13px] text-[var(--text-3)]">Not posted</span>
+            </div>
+            <div className="grid content-center gap-0.5 px-3 py-2 sm:border-l">
+              <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Next game</span>
+              <span className="truncate text-[13px] font-semibold text-[var(--text)]">{kickoff || 'Not scheduled'}</span>
+            </div>
+          </div>
+        ) : (
         <div className="grid grid-cols-2 overflow-hidden rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface)] sm:flex sm:items-stretch [&>*]:border-[var(--line)] max-sm:[&>*:nth-child(odd)]:border-r max-sm:[&>*:nth-child(n+3)]:border-t">
           <div className="grid min-w-0 content-center gap-0.5 px-3 py-2 sm:min-w-[140px] sm:flex-1">
             <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Market</span>
@@ -1083,11 +1142,11 @@ export function PlayerPropResearchCard({
           </div>
           <div className="grid content-center gap-0.5 px-3 py-2 sm:border-l">
             <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Over</span>
-            <span className="text-[15px] font-bold tabular-nums text-[var(--text)]">{over ? quotePrice(over) : '—'} <span className="text-[12px] font-medium text-[var(--text-3)]">{over ? quoteBook(over) : 'No price'}</span></span>
+            <span className="text-[15px] font-bold tabular-nums text-[var(--text)]">{over ? quotePrice(over) : '—'} <span className="text-[12px] font-medium text-[var(--text-3)]">{over ? quoteBook(over) : noPostedLine ? 'Not posted' : 'No price'}</span></span>
           </div>
           <div className="grid content-center gap-0.5 px-3 py-2 sm:border-l">
             <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Under</span>
-            <span className="text-[15px] font-bold tabular-nums text-[var(--text)]">{under ? quotePrice(under) : '—'} <span className="text-[12px] font-medium text-[var(--text-3)]">{under ? quoteBook(under) : 'No price'}</span></span>
+            <span className="text-[15px] font-bold tabular-nums text-[var(--text)]">{under ? quotePrice(under) : '—'} <span className="text-[12px] font-medium text-[var(--text-3)]">{under ? quoteBook(under) : noPostedLine ? 'Not posted' : 'No price'}</span></span>
           </div>
           <div className="grid content-center gap-0.5 px-3 py-2 sm:border-l">
             <span className="text-[11px] font-bold uppercase tracking-[.05em] text-[var(--text-3)]">Model</span>
@@ -1103,7 +1162,7 @@ export function PlayerPropResearchCard({
                 {modelSummary.ev.ev > 0 ? '+' : modelSummary.ev.ev < 0 ? '−' : ''}{Math.abs(modelSummary.ev.ev).toFixed(1)}% <span className="text-[11px]">{modelSummary.ev.side === 'OVER' ? 'O' : 'U'}</span>
               </span>
             ) : (
-              <span className="text-[13px] text-[var(--text-3)]">{over || under ? 'No verified edge' : 'No single-bet price'}</span>
+              <span className="text-[13px] text-[var(--text-3)]">{noPostedLine ? 'No posted line' : over || under ? 'No verified edge' : 'No single-bet price'}</span>
             )}
           </div>
           <label className="relative flex min-h-11 items-center gap-1 px-3 text-[13px] font-semibold text-[var(--text)] hover:bg-[var(--surface-2)] sm:border-l">
@@ -1120,6 +1179,7 @@ export function PlayerPropResearchCard({
             </select>
           </label>
         </div>
+        )}
       </header>
 
       <div className="mt-3 grid grid-cols-1 items-start gap-2 sm:grid-cols-[1.25fr_.75fr]">
@@ -1153,20 +1213,20 @@ export function PlayerPropResearchCard({
               </div>
             </div>
             <div className="min-w-0 border-r border-[var(--line-strong)] px-2.5 py-2.5">
-              <div className="text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">Same-book line</div>
+              <div className="text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">{noPostedLine ? 'Target line' : 'Same-book line'}</div>
               <div className="mt-1 truncate text-[15px] font-black leading-none text-white">
                 {researchLineMove ? researchLineMove.from + ' → ' + researchLineMove.to : state.line}
               </div>
               <div className="mt-1 truncate text-[11px] text-[var(--text-2)]">
-                {researchLineMove ? researchLineMove.book + (researchLineMove.capturedAt ? ' · ' + shortTime(researchLineMove.capturedAt) : '') : 'No comparable movement yet'}
+                {noPostedLine ? 'No line posted' : researchLineMove ? researchLineMove.book + (researchLineMove.capturedAt ? ' · ' + shortTime(researchLineMove.capturedAt) : '') : 'No comparable movement yet'}
               </div>
             </div>
             <div className="min-w-0 px-2.5 py-2.5">
               <div className="text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-2)]">Matchup</div>
-              <div className="mt-1 truncate text-[15px] font-black leading-none text-white">{currentDefense ? DEFENSE_TIER_LABEL[currentDefense.tier] : '—'}</div>
+              <div className={cx('mt-1 truncate text-[15px] font-black leading-none', currentDefense?.tier === 'soft' ? 'text-[var(--pos)]' : currentDefense?.tier === 'tough' ? 'text-[var(--neg)]' : 'text-white')}>{currentDefense ? MATCHUP_LABEL[currentDefense.tier].replace(' matchup', '') : '—'}</div>
               <div className="mt-1 truncate text-[11px] text-[var(--text-2)]">
                 {currentDefense && defensePosition && defenseMetric
-                  ? ordinal(currentDefense.allowedRank) + '-most allowed vs ' + defensePosition + ' · ' + metricLabel(defenseMetric)
+                  ? currentDefense.team + ' ' + ordinal(currentDefense.allowedRank) + '-most allowed vs ' + defensePosition + ' · ' + metricLabel(defenseMetric)
                   : 'Verified DvP unavailable'}
               </div>
             </div>
@@ -1176,7 +1236,7 @@ export function PlayerPropResearchCard({
           </div>
         </section>
 
-        <HistoryModel group={group} selectedBook={selectedBook} line={state.line} onSummary={setModelSummary} />
+        <HistoryModel group={group} selectedBook={selectedBook} line={state.line} onSummary={setModelSummary} noPostedLine={noPostedLine} />
       </div>
 
       <nav aria-label="Market" className="mt-3 flex gap-1 overflow-x-auto border-b border-[var(--line)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1239,7 +1299,7 @@ export function PlayerPropResearchCard({
               })}
             </div>
 
-            <label className="relative flex h-10 min-w-[130px] items-center gap-2 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 text-[12px] font-bold">
+            {noPostedLine ? null : <label className="relative flex h-10 min-w-[130px] items-center gap-2 rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] px-3 text-[12px] font-bold">
               <span className="rounded-[3px] border border-[var(--line-strong)] bg-[var(--warn-soft)] px-1.5 py-0.5 text-[var(--warn)]">{bookInitials(selectedBook ? selectedBook.name : quoteBook(heroQuote))}</span>
               <span className="min-w-0 truncate">
                 <b className="text-[var(--pos)]">O {quoteAtResearchLine && over ? quotePrice(over) : '—'}</b>
@@ -1255,9 +1315,9 @@ export function PlayerPropResearchCard({
                 <option value="all">Best prices</option>
                 {availableBooks.map((book) => <option key={book.key} value={book.key}>{book.name}</option>)}
               </select>
-            </label>
+            </label>}
 
-            <button
+            {noPostedLine ? null : <button
               type="button"
               aria-label={favourite ? 'Remove from favorites' : 'Add to favorites'}
               aria-pressed={favourite}
@@ -1268,7 +1328,7 @@ export function PlayerPropResearchCard({
               )}
             >
               <Star className="h-5 w-5" fill={favourite ? 'currentColor' : 'none'} />
-            </button>
+            </button>}
 
             <button
               type="button"
@@ -1340,6 +1400,13 @@ export function PlayerPropResearchCard({
                   {currentDefense.allowedRank === 1 ? 'the most' : currentDefense.allowedRank === currentDefense.leagueSize ? 'the fewest' : 'the ' + ordinal(currentDefense.allowedRank) + '-most'}
                 </b>{' '}
                 {metricLabel(defenseMetric)} to {defensePosition}s · {Number(currentDefense.row.average).toFixed(1)}/game
+                {currentOffense ? (
+                  <>
+                    {' · '}<b className="text-white">{currentOffense.team}</b> {defensePosition}s get the{' '}
+                    <b className="text-white">{currentOffense.producedRank === 1 ? 'most' : ordinal(currentOffense.producedRank) + '-most'}</b>{' '}
+                    ({Number(currentOffense.row.average).toFixed(1)}/game)
+                  </>
+                ) : null}
               </span>
               <span className={cx(
                 'rounded-full border px-2 py-0.5 text-[12px] font-black',
@@ -1347,12 +1414,43 @@ export function PlayerPropResearchCard({
                   : currentDefense.tier === 'tough' ? 'border-[var(--line-strong)] bg-[var(--neg-soft)] text-[var(--neg)]'
                     : 'border-[var(--line-strong)] bg-[var(--surface-2)] text-[var(--text)]',
               )}>
-                {DEFENSE_TIER_LABEL[currentDefense.tier]} matchup
+                {MATCHUP_LABEL[currentDefense.tier]}
               </span>
             </div>
           ) : null}
 
-          {!quoteAtResearchLine ? (
+          {positionTable.length ? (
+            <div data-qa="position-ranks" className="mt-2 overflow-hidden rounded-[6px] border border-[var(--line-strong)] bg-[var(--surface-2)] text-[12px]">
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)] gap-2 border-b border-[var(--line-strong)] px-3 py-1.5 text-[11px] font-bold uppercase tracking-[.04em] text-[var(--text-3)]">
+                <span>vs {defensePosition}</span>
+                <span className="truncate">{currentDefense?.team || (currentOpponent ? text(currentOpponent) : 'Opp')} D allows</span>
+                <span className="truncate">{currentOffense?.team || text(group.team) || 'Team'} O gets</span>
+              </div>
+              {positionTable.map((row) => (
+                <div
+                  key={row.metric}
+                  data-current={row.metric === defenseMetric ? 'true' : undefined}
+                  className={cx('grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.1fr)] gap-2 border-b border-[var(--line)] px-3 py-1.5 last:border-b-0', row.metric === defenseMetric && 'bg-[var(--accent-soft)]')}
+                >
+                  <span className="truncate font-semibold capitalize text-[var(--text)]">{metricLabel(row.metric)}</span>
+                  <span className={cx('truncate tabular-nums', row.allowed?.tier === 'soft' ? 'text-[var(--pos)]' : row.allowed?.tier === 'tough' ? 'text-[var(--neg)]' : 'text-[var(--text-2)]')}>
+                    {row.allowed ? ordinal(row.allowed.allowedRank) + ' · ' + Number(row.allowed.row.average).toFixed(1) : '—'}
+                  </span>
+                  <span className="truncate tabular-nums text-[var(--text-2)]">
+                    {row.produced ? ordinal(row.produced.producedRank) + ' · ' + Number(row.produced.row.average).toFixed(1) : '—'}
+                  </span>
+                </div>
+              ))}
+              <div className="px-3 py-1.5 text-[11px] text-[var(--text-3)]">Rank 1st = most per game among {positionTable[0]?.allowed?.leagueSize || positionTable[0]?.produced?.leagueSize} teams, from completed regular-season box scores.</div>
+            </div>
+          ) : null}
+
+          {noPostedLine ? (
+            <div data-qa="no-posted-line" className="mt-2 flex items-center gap-2 text-[12px] text-[var(--text-2)]">
+              <span className="shrink-0 rounded-[3px] border border-[var(--line-strong)] bg-[var(--warn-soft)] px-1.5 py-0.5 font-black text-[var(--warn)]">No posted line</span>
+              <span>The target starts at the median of their last 10 games. Move it to test any number.</span>
+            </div>
+          ) : !quoteAtResearchLine ? (
             <div className="mt-2 flex items-center gap-2 text-[12px] text-[var(--text-2)]">
               <span className="rounded-[3px] border border-[var(--line-strong)] bg-[var(--warn-soft)] px-1.5 py-0.5 font-black text-[var(--warn)]">Research line</span>
               <span>Books post {group.line}; prices apply to the posted line only.</span>

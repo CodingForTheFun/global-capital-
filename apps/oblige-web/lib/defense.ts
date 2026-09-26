@@ -1,5 +1,5 @@
-import type { DefensePositionResponse, DefensePositionRow, DefenseTier } from './types';
-import { sameTeamLabel } from './opponent-options';
+import type { DefensePositionResponse, DefensePositionRow, DefenseTier, PropGroup } from './types';
+import { currentOpponentLabels, sameTeamLabel } from './opponent-options';
 
 /**
  * Joins a prop to the server's defense-vs-position table. Every step requires
@@ -99,6 +99,48 @@ export function defenseReading(
   const allowedRank = leagueSize + 1 - rank;
   const team = (response.teams || []).find((entry) => String(entry?.id) === teamId);
   return { teamId, team: String(team?.abbreviation || team?.name || ''), row, allowedRank, leagueSize, tier: tierFor(allowedRank, leagueSize) };
+}
+
+export type OffenseReading = {
+  teamId: string;
+  team: string;
+  row: DefensePositionRow;
+  /** 1 = produces the most at this position. */
+  producedRank: number;
+  leagueSize: number;
+};
+
+/** What the player's own team's players at this position produce, ranked. */
+export function offenseReading(
+  response: DefensePositionResponse | null,
+  team: unknown,
+  position: string | null,
+  metric: string | null,
+): OffenseReading | null {
+  if (!response?.available || !position || !metric) return null;
+  const teamId = teamIdFor(team, response.teams);
+  if (!teamId) return null;
+  const rows = (response.offenseRows || []).filter((row) => row.teamId === teamId && row.position === position && row.metric === metric);
+  const row = rows.length === 1 ? rows[0] : null;
+  const leagueSize = Number(row?.leagueSize);
+  const rank = Number(row?.rank);
+  if (!row || !Number.isInteger(rank) || rank < 1 || !Number.isInteger(leagueSize) || rank > leagueSize) return null;
+  const entry = (response.teams || []).find((candidate) => String(candidate?.id) === teamId);
+  return { teamId, team: String(entry?.abbreviation || entry?.name || ''), row, producedRank: leagueSize + 1 - rank, leagueSize };
+}
+
+/** How the opponent's defense reads for this prop: a soft defense is an easy matchup. */
+export const MATCHUP_LABEL: Record<DefenseTier, string> = { soft: 'Easy matchup', average: 'Neutral matchup', tough: 'Hard matchup' };
+
+/** The board row's matchup: tonight's opponent against this prop's exact position and stat. */
+export function propMatchup(
+  response: DefensePositionResponse | null,
+  group: Pick<PropGroup, 'sport' | 'market' | 'marketId' | 'position' | 'team' | 'opponent' | 'homeTeam' | 'awayTeam' | 'player'>,
+): DefenseReading | null {
+  const sport = String(group.sport || '').toUpperCase();
+  if (!DEFENSE_SPORTS.has(sport)) return null;
+  const opponent = currentOpponentLabels(group)[0] || null;
+  return defenseReading(response, opponent, exactPosition(sport, group.position), defenseMetricFor(sport, group.marketId, group.market));
 }
 
 export function ordinal(value: number) {

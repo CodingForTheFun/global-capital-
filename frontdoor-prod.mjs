@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import { verifiedPlayerArtworkResponse as playerArtworkResponse } from './lib/autoscout/providers/verified-artwork.mjs';
 import { teamLogoResponse } from './lib/autoscout/providers/team-logo.mjs';
 import { fetchMatchupResearch, fetchDefensePosition } from './lib/data-sources/espn/research.mjs';
+import { playerDirectory } from './lib/data-sources/espn/player-directory.mjs';
 import { fetchClosingWinProbabilities, MAX_MONEYLINE_EVENTS } from './lib/data-sources/propline/closing-moneyline.mjs';
 import { fetchPropMovement, MAX_MOVEMENT_EVENTS } from './lib/data-sources/propline/movement.mjs';
 import { fetchTennisContext, MAX_TENNIS_MATCHES } from './lib/data-sources/sportradar/tennis-context.mjs';
@@ -417,6 +418,27 @@ async function maybeServePropLineInsights(req, res) {
   } catch (error) {
     directJson(res, 200, { ok: true, kind, available: false, data: null, code: String(error?.code || 'PROPLINE_INSIGHT_FAILED').slice(0, 60) });
   }
+  return true;
+}
+
+// Player search and profile identity (name, league, team, position, next
+// game) for opening any player, prop or not. Account-gated like research and
+// metered on the same per-IP budget.
+async function maybeServePlayerDirectory(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  if (url.pathname !== '/api/apex/research-players' && url.pathname !== '/api/apex/research-player') return false;
+  if (req.method !== 'GET') {
+    directJson(res, 405, { ok: false, code: 'METHOD_NOT_ALLOWED', message: 'Method not allowed.' }, { allow: 'GET' });
+    return true;
+  }
+  if (!researchRateAllowed(req)) {
+    directJson(res, 429, { ok: false, code: 'RATE_LIMITED', message: 'Too many research requests. Try again shortly.' }, { 'retry-after': '60' });
+    return true;
+  }
+  const result = url.pathname === '/api/apex/research-players'
+    ? await playerDirectory.search(safeParam(url, 'q', 80))
+    : await playerDirectory.profile(safeParam(url, 'sport', 12).toUpperCase(), safeParam(url, 'id', 12));
+  directJson(res, 200, result);
   return true;
 }
 
@@ -829,6 +851,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (await maybeServeAccount(req, res)) return;
   if (await maybeServeResearch(req, res)) return;
+  if (await maybeServePlayerDirectory(req, res)) return;
   if (await maybeServeResearchBatch(req, res)) return;
   if (await maybeServePropLineInsights(req, res)) return;
   if (await maybeServeML(req, res)) return;

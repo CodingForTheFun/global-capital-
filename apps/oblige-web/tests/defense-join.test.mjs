@@ -13,7 +13,7 @@ function load(relative) {
   new Function('require', 'module', 'exports', compiled)(localRequire, module, module.exports);
   return module.exports;
 }
-const { defenseMetricFor, exactPosition, teamIdFor, defenseReading, tierFor, ordinal } = load('../lib/defense.ts');
+const { defenseMetricFor, exactPosition, matchupPosition, teamIdFor, defenseReading, tierFor, ordinal } = load('../lib/defense.ts');
 
 const teams = [
   { id: '1', abbreviation: 'NYK', name: 'New York Knicks' },
@@ -24,19 +24,35 @@ const teams = [
 const rows = teams.map((team, index) => ({ teamId: team.id, position: 'PG', metric: 'points', average: 20 + index, games: 5, rank: index + 1, leagueSize: 4 }));
 const response = { available: true, teams, rows };
 
-test('stats map only to a ranked metric; combos and other sports do not', () => {
+test('stats map only to a ranked metric; combos and unmapped stats do not', () => {
   assert.equal(defenseMetricFor('NBA', 'player_points', 'Points'), 'points');
   assert.equal(defenseMetricFor('WNBA', null, '3-Pointers Made'), 'threes');
   assert.equal(defenseMetricFor('NFL', 'player_reception_yds', 'Receiving Yards'), 'receivingYards');
   assert.equal(defenseMetricFor('NFL', null, 'Pass TDs'), 'passingTouchdowns');
   assert.equal(defenseMetricFor('NBA', 'player_points_rebounds_assists', 'PRA'), null);
-  assert.equal(defenseMetricFor('MLB', 'batter_hits', 'Hits'), null);
+  // Baseball keeps the batter/pitcher split: the same word is two stats.
+  assert.equal(defenseMetricFor('MLB', 'batter_hits', 'Hits'), 'hits');
+  assert.equal(defenseMetricFor('MLB', 'batter_strikeouts'), 'strikeouts');
+  assert.equal(defenseMetricFor('MLB', 'pitcher_strikeouts'), 'pitcherStrikeouts');
+  assert.equal(defenseMetricFor('MLB', 'batter_total_bases'), null, 'not ranked, so not shown');
+  assert.equal(defenseMetricFor('NHL', 'player_shots_on_goal'), 'shotsOnGoal');
+  assert.equal(defenseMetricFor('NHL', 'player_total_saves'), 'saves');
+  assert.equal(defenseMetricFor('EPL', 'player_shots_on_target'), 'shotsOnTarget');
+  assert.equal(defenseMetricFor('TENNIS', 'player_aces'), null);
 });
 
-test('position must be exactly one ranked slot', () => {
-  assert.equal(exactPosition('NBA', null, 'pg'), 'PG');
-  assert.equal(exactPosition('NBA', 'G', 'F'), null, 'role families are not guessed into a slot');
-  assert.equal(exactPosition('NFL', 'FB', 'WR'), 'WR');
+test('the matchup role comes from the stat or an exact listed role, never a guess', () => {
+  assert.equal(exactPosition('NBA', null, 'pg'), 'G', 'basketball ranks guards, forwards and centers');
+  assert.equal(exactPosition('NBA', 'F-C'), 'F');
+  assert.equal(exactPosition('NFL', 'LB', 'WR'), 'WR');
+  assert.equal(exactPosition('NFL', 'FB'), 'RB');
+  assert.equal(matchupPosition('MLB', 'pitcherStrikeouts'), 'PIT');
+  assert.equal(matchupPosition('MLB', 'hits', 'SS'), 'BAT');
+  assert.equal(matchupPosition('EPL', 'shots', 'FW'), 'ALL');
+  assert.equal(matchupPosition('NHL', 'saves', 'C'), 'G', 'saves are always the goalie');
+  assert.equal(matchupPosition('NHL', 'shotsOnGoal', 'LW'), 'F');
+  assert.equal(matchupPosition('NHL', 'shotsOnGoal', null), null, 'a skater with no listed role is not guessed');
+  assert.equal(matchupPosition('NBA', null, 'G'), null, 'no ranked stat, no matchup');
 });
 
 test('a label matching two teams is not a team', () => {

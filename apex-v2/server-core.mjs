@@ -105,11 +105,11 @@ async function propsResponse(req, url, res) {
       return { ...board, supportedSports: BOARD_SPORTS, persistence: persistenceHealth() };
     });
     const serializeStartedAt = Date.now();
-    const status = sendBoardResponse(req, res, entry);
+    const status = await sendBoardResponse(req, res, entry);
     const serializeMs = Math.max(0, Date.now() - serializeStartedAt);
     const source = entry.cache !== 'miss' ? 'response-cache' : ['memory','persisted','live','empty'].includes(pathTiming.source) ? pathTiming.source : 'unknown';
     console.log(
-      `[AutoScout props timing] sport=${sport} source=${source} memory=${Number(pathTiming.memoryCache || 0)}ms persisted=${Number(pathTiming.persistedRead || 0)}ms live=${Number(pathTiming.liveFetch || 0)}ms freshness=${Number(pathTiming.freshness || 0)}ms provider=${providerMs}ms decorate=${decorateMs}ms build=${entry.buildMs}ms serialize=${serializeMs}ms total=${Math.max(0, Date.now() - requestStartedAt)}ms status=${status} bytes=${entry.raw.length} gzip=${entry.gz.length} bgRefresh=${pathTiming.backgroundRefreshScheduled === true ? 'yes' : 'no'}`,
+      `[AutoScout props timing] sport=${sport} source=${source} memory=${Number(pathTiming.memoryCache || 0)}ms persisted=${Number(pathTiming.persistedRead || 0)}ms live=${Number(pathTiming.liveFetch || 0)}ms freshness=${Number(pathTiming.freshness || 0)}ms provider=${providerMs}ms decorate=${decorateMs}ms build=${entry.buildMs}ms serialize=${serializeMs}ms total=${Math.max(0, Date.now() - requestStartedAt)}ms status=${status} bytes=${entry.rawLength} gzip=${entry.gz.length} bgRefresh=${pathTiming.backgroundRefreshScheduled === true ? 'yes' : 'no'}`,
     );
     return;
   } catch (error) {

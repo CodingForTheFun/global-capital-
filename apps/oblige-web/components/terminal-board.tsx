@@ -17,7 +17,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type { BoardMeta, DefensePositionResponse, PropGroup, PropRow, ResearchResponse, Side } from '@/lib/types';
-import { DEFENSE_SPORTS, MATCHUP_LABEL, metricLabel, ordinal, propMatchup, type DefenseReading } from '@/lib/defense';
+import { DEFENSE_SPORTS, MATCHUP_LABEL, metricLabel, ordinal, positionLabel, propMatchup, rankOf, type DefenseReading } from '@/lib/defense';
 import {
   ApiError,
   artworkUrl,
@@ -1319,7 +1319,7 @@ function MatchupTag({ reading }: { reading: DefenseReading | null }) {
     <span
       className={styles.matchupTag}
       data-tier={reading.tier}
-      title={`${MATCHUP_LABEL[reading.tier]}: ${reading.team} allows the ${ordinal(reading.allowedRank)}-most ${metricLabel(reading.row.metric || '')} to ${reading.row.position}s of ${reading.leagueSize} teams`}
+      title={`${MATCHUP_LABEL[reading.tier]}: ${reading.team} allows the ${ordinal(reading.allowedRank)}-most ${metricLabel(reading.row.metric || '')}${reading.row.position === 'ALL' ? '' : ' to ' + positionLabel(reading.row.position)} (${rankOf(reading)})`}
     >
       {reading.tier === 'soft' ? 'Easy' : 'Hard'}
     </span>

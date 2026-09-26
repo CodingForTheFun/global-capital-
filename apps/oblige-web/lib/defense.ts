@@ -7,15 +7,10 @@ import { currentOpponentLabels, sameTeamLabel } from './opponent-options';
  * and returns null otherwise, so no rank is ever shown for a guessed pairing.
  */
 
-export const DEFENSE_SPORTS = new Set(['NBA', 'WNBA', 'NFL']);
-
-const POSITIONS: Record<string, string[]> = {
-  NBA: ['PG', 'SG', 'SF', 'PF', 'C'],
-  WNBA: ['PG', 'SG', 'SF', 'PF', 'C'],
-  NFL: ['QB', 'RB', 'WR', 'TE'],
-};
+export const DEFENSE_SPORTS = new Set(['NBA', 'WNBA', 'NCAAB', 'NFL', 'NCAAF', 'NHL', 'MLB', 'MLS', 'EPL', 'UCL']);
 
 const key = (value: unknown) => String(value ?? '').toLowerCase().replace(/^(player|batter|pitcher)_/, '').replace(/[^a-z0-9]/g, '');
+const rawKey = (value: unknown) => String(value ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 
 const BASKETBALL: Record<string, string> = {
   points: 'points', rebounds: 'rebounds', assists: 'assists', steals: 'steals',
@@ -29,18 +24,44 @@ const FOOTBALL: Record<string, string> = {
   receptionyds: 'receivingYards', receivingyards: 'receivingYards', receptionyards: 'receivingYards', recyds: 'receivingYards',
   receptions: 'receptions',
 };
+const HOCKEY: Record<string, string> = {
+  shotsongoal: 'shotsOnGoal', goals: 'goals', assists: 'assists', points: 'points',
+  blockedshots: 'blockedShots', saves: 'saves', totalsaves: 'saves', goaliesaves: 'saves',
+};
+// Baseball keeps its batter_/pitcher_ prefix: a batter's strikeouts and a
+// pitcher's strikeouts are different stats against different opponents.
+const BASEBALL: Record<string, string> = {
+  batter_hits: 'hits', batter_runs: 'runs', batter_rbis: 'rbis', batter_home_runs: 'homeRuns', batter_walks: 'walks', batter_strikeouts: 'strikeouts',
+  pitcher_strikeouts: 'pitcherStrikeouts', pitcher_hits_allowed: 'hitsAllowed', pitcher_earned_runs: 'earnedRuns', pitcher_walks: 'walksAllowed', pitcher_outs: 'outs',
+};
+const SOCCER: Record<string, string> = { shots: 'shots', shotsontarget: 'shotsOnTarget' };
+const PITCHING = new Set(['pitcherStrikeouts', 'hitsAllowed', 'earnedRuns', 'walksAllowed', 'outs']);
+
+const TABLES: Record<string, Record<string, string>> = {
+  NBA: BASKETBALL, WNBA: BASKETBALL, NCAAB: BASKETBALL, NFL: FOOTBALL, NCAAF: FOOTBALL,
+  NHL: HOCKEY, MLB: BASEBALL, MLS: SOCCER, EPL: SOCCER, UCL: SOCCER,
+};
 
 const METRIC_LABELS: Record<string, string> = {
   points: 'points', rebounds: 'rebounds', assists: 'assists', threes: 'threes', steals: 'steals', blocks: 'blocks',
   passingYards: 'passing yards', passingTouchdowns: 'passing TDs', rushingYards: 'rushing yards',
   receivingYards: 'receiving yards', receptions: 'receptions',
+  shotsOnGoal: 'shots on goal', goals: 'goals', blockedShots: 'blocked shots', saves: 'saves',
+  hits: 'hits', runs: 'runs', rbis: 'RBIs', homeRuns: 'home runs', walks: 'walks', strikeouts: 'strikeouts',
+  pitcherStrikeouts: 'strikeouts', hitsAllowed: 'hits', earnedRuns: 'earned runs', walksAllowed: 'walks', outs: 'outs',
+  shots: 'shots', shotsOnTarget: 'shots on target',
+};
+
+const POSITION_LABELS: Record<string, string> = {
+  QB: 'QBs', RB: 'RBs', WR: 'WRs', TE: 'TEs', G: 'guards', F: 'forwards', C: 'centers',
+  D: 'defensemen', BAT: 'batters', PIT: 'pitchers', ALL: 'opponents',
 };
 
 export function defenseMetricFor(sport: string, ...markets: Array<string | null | undefined>): string | null {
-  const table = sport === 'NFL' ? FOOTBALL : sport === 'NBA' || sport === 'WNBA' ? BASKETBALL : null;
+  const table = TABLES[sport];
   if (!table) return null;
   for (const market of markets) {
-    const found = table[key(market)];
+    const found = sport === 'MLB' ? table[rawKey(market)] : table[key(market)];
     if (found) return found;
   }
   return null;
@@ -50,12 +71,48 @@ export function metricLabel(metric: string) {
   return METRIC_LABELS[metric] || metric;
 }
 
-/** The first candidate that is exactly one of the sport's ranked positions. */
-export function exactPosition(sport: string, ...candidates: Array<string | null | undefined>): string | null {
-  const allowed = POSITIONS[sport] || [];
+/** "QBs", "guards", "batters": the group a rank is measured against. */
+export function positionLabel(position: string | null | undefined) {
+  return POSITION_LABELS[String(position || '')] || String(position || '');
+}
+
+/** A listed role reduced to the ranked role for the sport, or null. */
+function roleFor(sport: string, value: unknown): string | null {
+  const raw = String(value ?? '').trim().toUpperCase();
+  if (!raw) return null;
+  if (sport === 'NBA' || sport === 'WNBA' || sport === 'NCAAB') {
+    const first = raw.replace(/[^A-Z]/g, ' ').trim().split(/\s+/)[0];
+    if (['PG', 'SG', 'G'].includes(first)) return 'G';
+    if (['SF', 'PF', 'F'].includes(first)) return 'F';
+    return first === 'C' ? 'C' : null;
+  }
+  if (sport === 'NFL' || sport === 'NCAAF') return raw === 'FB' ? 'RB' : (['QB', 'RB', 'WR', 'TE'].includes(raw) ? raw : null);
+  if (sport === 'NHL') return ['C', 'LW', 'RW', 'F'].includes(raw) ? 'F' : raw === 'D' ? 'D' : raw === 'G' ? 'G' : null;
+  return null;
+}
+
+/**
+ * The role a prop's matchup is measured against. Baseball and soccer are
+ * decided by the stat (a pitcher's strikeouts face a lineup; a shot faces the
+ * club); the rest need the player's own listed role, and give up without one.
+ */
+export function matchupPosition(sport: string, metric: string | null, ...candidates: Array<string | null | undefined>): string | null {
+  if (!metric) return null;
+  if (sport === 'MLB') return PITCHING.has(metric) ? 'PIT' : 'BAT';
+  if (sport === 'MLS' || sport === 'EPL' || sport === 'UCL') return 'ALL';
+  if (sport === 'NHL' && metric === 'saves') return 'G';
   for (const candidate of candidates) {
-    const value = String(candidate ?? '').trim().toUpperCase();
-    if (allowed.includes(value)) return value;
+    const role = roleFor(sport, candidate);
+    if (role && !(sport === 'NHL' && role === 'G')) return role;
+  }
+  return null;
+}
+
+/** Kept for callers that only have a listed role. */
+export function exactPosition(sport: string, ...candidates: Array<string | null | undefined>): string | null {
+  for (const candidate of candidates) {
+    const role = roleFor(sport, candidate);
+    if (role) return role;
   }
   return null;
 }
@@ -140,11 +197,17 @@ export function propMatchup(
   const sport = String(group.sport || '').toUpperCase();
   if (!DEFENSE_SPORTS.has(sport)) return null;
   const opponent = currentOpponentLabels(group)[0] || null;
-  return defenseReading(response, opponent, exactPosition(sport, group.position), defenseMetricFor(sport, group.marketId, group.market));
+  const metric = defenseMetricFor(sport, group.marketId, group.market);
+  return defenseReading(response, opponent, matchupPosition(sport, metric, group.position), metric);
 }
 
 export function ordinal(value: number) {
   const mod100 = value % 100;
   const suffix = mod100 >= 11 && mod100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[value % 10] || 'th';
   return value + suffix;
+}
+
+/** "8th of 32", or "8th of 32 ranked" for a league ranked among teams with enough games. */
+export function rankOf(reading: Pick<DefenseReading, 'allowedRank' | 'leagueSize' | 'row'>) {
+  return ordinal(reading.allowedRank) + ' of ' + reading.leagueSize + (reading.row?.partial ? ' ranked' : '');
 }

@@ -205,6 +205,8 @@ export type DefensePositionRow = {
   /** 1 = fewest allowed. Null until every team has enough games. */
   rank?: number | null;
   leagueSize?: number;
+  /** Ranked among the teams with enough games (college, cups), not the whole league. */
+  partial?: boolean;
 };
 
 export type DefensePositionResponse = {
@@ -217,6 +219,8 @@ export type DefensePositionResponse = {
   rows?: DefensePositionRow[];
   /** The same team-games from the producing side: rank 1 produces the least. */
   offenseRows?: DefensePositionRow[];
+  /** Set when this season cannot rank every team yet and an earlier regular season is used. */
+  fallback?: { season: number | null; label: string | null } | null;
   windowDays?: number;
   retrievedAt?: string;
 };

@@ -80,3 +80,21 @@ test('on data with a platoon effect, the hand feature beats the same model witho
   const without = trainAndEvaluate(rows.map((r) => ({ ...r, x: r.x.map((v, i) => (i >= 15 ? 0 : v)) }))).metrics.withoutMarket.model.brier;
   assert.ok(withHand < without - 0.01, `hand Brier ${withHand.toFixed(4)} should clearly beat ${without.toFixed(4)}`);
 });
+
+test('cycle diagnostics report data, holdout and baselines without changing any decision', async () => {
+  const { cycleDiagnostics } = await import('../lib/ml/global/scheduler.mjs');
+  const observations = [
+    { e: 'g1', t: Date.parse('2026-09-01T00:00:00Z'), h: 'A', v: 'B' },
+    { e: 'g1', t: Date.parse('2026-09-01T00:00:00Z') },
+    { e: 'g2', t: Date.parse('2026-09-20T00:00:00Z'), h: 'A', v: 'C' },
+  ];
+  const metrics = { trainRows: 2, holdoutRows: 1, holdoutEvents: 1, all: { calibrationError: 0.031234 },
+    withMarket: { model: { n: 1, brier: 0.2412345 }, market: { brier: 0.2398 } },
+    withoutMarket: { model: { n: 0, brier: null }, hitRate: { brier: null }, coinFlip: { brier: null } } };
+  const d = cycleDiagnostics(observations, metrics, { floor: Date.parse('2025-09-26T00:00:00Z'), backfillThrough: '2026-08-01T00:00:00.000Z', tierFloor: null }, { g1: { f: { lineup: {} } }, g2: { f: null } });
+  assert.deepEqual([d.obs, d.games, d.withTeams, d.from, d.to], [3, 2, 2, '2026-09-01', '2026-09-20']);
+  assert.deepEqual(d.withMarket, [1, 0.2412, 0.2398]);
+  assert.equal(d.calibration, 0.0312);
+  assert.deepEqual(d.archive, { floor: '2025-09-26', backfillThrough: '2026-08-01', tierFloor: null });
+  assert.equal(d.boxScores, 1);
+});

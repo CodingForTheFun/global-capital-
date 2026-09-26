@@ -137,6 +137,8 @@ type MlTarget = {
   live: boolean;
   isAlternate: false;
   marketOverProbability?: number;
+  homeTeam?: string;
+  awayTeam?: string;
 };
 
 type SlipSelection = {
@@ -259,6 +261,8 @@ function targetFor(group: PropGroup): MlTarget | null {
     live: group.live,
     isAlternate: false,
     ...(market === null ? {} : { marketOverProbability: market }),
+    // The game's teams, for the model's home/away, rest and opponent features.
+    ...(group.homeTeam && group.awayTeam ? { homeTeam: group.homeTeam, awayTeam: group.awayTeam } : {}),
   };
 }
 

@@ -81,6 +81,7 @@ export function PlayerAvatar({
   sport,
   team,
   providerPlayerId,
+  espnEventId,
   size = 50,
   className,
 }: {
@@ -88,6 +89,8 @@ export function PlayerAvatar({
   sport: string;
   team?: string | null;
   providerPlayerId?: string | null;
+  /** The prop's game, so the photo is matched on that game's two rosters. */
+  espnEventId?: string | null;
   size?: number;
   className?: string;
 }) {
@@ -110,7 +113,7 @@ export function PlayerAvatar({
           // route streams bytes from a same-origin proxy, so the optimizer has
           // nothing to add and would only add a second hop.
           <img
-            src={artworkUrl(sport, name, team, providerPlayerId)}
+            src={artworkUrl(sport, name, team, providerPlayerId, espnEventId)}
             alt=""
             width={size}
             height={size}

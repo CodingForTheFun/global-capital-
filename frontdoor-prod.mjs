@@ -689,7 +689,7 @@ async function maybeServeArtwork(req, res) {
     return true;
   }
   try {
-    const image = await playerArtworkResponse(sport, name, {team:String(url.searchParams.get('team')||'').slice(0,90),providerPlayerId:String(url.searchParams.get('providerPlayerId')||'').slice(0,48)});
+    const image = await playerArtworkResponse(sport, name, {team:String(url.searchParams.get('team')||'').slice(0,90),providerPlayerId:String(url.searchParams.get('providerPlayerId')||'').slice(0,48),espnEventId:String(url.searchParams.get('event')||'').replace(/\D/g,'').slice(0,12)});
     res.writeHead(image.status || 200, {
       'content-type': image.contentType || 'image/svg+xml',
       'content-length': Buffer.byteLength(image.body),

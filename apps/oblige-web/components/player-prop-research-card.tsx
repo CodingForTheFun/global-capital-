@@ -22,7 +22,7 @@ import { expectedValueFor, expectedValueSourceLabel, marketOverProbability, type
 import { PlayerAvatar, TeamLogo } from '@/components/face-card';
 import { GameContext } from '@/components/game-context';
 import { OpponentField } from '@/components/opponent-field';
-import { fetchDefensePosition, fetchLineHistory, fetchMoneyline, fetchTennisContext } from '@/lib/api';
+import { espnEventOf, fetchDefensePosition, fetchLineHistory, fetchMoneyline, fetchTennisContext } from '@/lib/api';
 import { DEFENSE_SPORTS, defenseMetricFor, defenseReading, exactPosition, metricLabel, ordinal } from '@/lib/defense';
 import { marketDisplayLabel, odds, shortDate, shortTime } from '@/lib/utils';
 
@@ -1051,7 +1051,7 @@ export function PlayerPropResearchCard({
       <header className="grid gap-3 border-b border-[var(--line)] pb-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="size-11 shrink-0 overflow-hidden rounded-full bg-[var(--surface-3)] ring-1 ring-[var(--line-strong)]">
-            <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} size={44} className="!size-full" />
+            <PlayerAvatar name={group.player} sport={group.sport} team={group.team} providerPlayerId={group.providerPlayerId} espnEventId={espnEventOf(group)} size={44} className="!size-full" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -1640,7 +1640,7 @@ export function PlayerPropResearchCard({
               <>
                 <div className="min-w-0 text-center">
                   <div className="mx-auto h-10 w-10 overflow-hidden rounded-full border border-[var(--accent-2)]">
-                    <PlayerAvatar name={group.player} sport={group.sport} providerPlayerId={group.providerPlayerId} size={40} className="!size-full" />
+                    <PlayerAvatar name={group.player} sport={group.sport} providerPlayerId={group.providerPlayerId} espnEventId={espnEventOf(group)} size={40} className="!size-full" />
                   </div>
                   <div className="mt-1 truncate text-[11px] font-black text-white">{group.player}</div>
                 </div>

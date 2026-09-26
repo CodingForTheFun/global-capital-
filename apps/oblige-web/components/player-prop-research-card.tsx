@@ -23,7 +23,7 @@ import { PlayerAvatar, TeamLogo } from '@/components/face-card';
 import { GameContext } from '@/components/game-context';
 import { OpponentField } from '@/components/opponent-field';
 import { espnEventOf, fetchDefensePosition, fetchLineHistory, fetchMoneyline, fetchTennisContext } from '@/lib/api';
-import { DEFENSE_SPORTS, MATCHUP_LABEL, defenseMetricFor, defenseReading, exactPosition, metricLabel, ordinal, teamIdFor } from '@/lib/defense';
+import { DEFENSE_SPORTS, MATCHUP_LABEL, defenseMetricFor, defenseReading, matchupPosition, metricLabel, ordinal, positionLabel, rankOf, teamIdFor } from '@/lib/defense';
 import { marketDisplayLabel, odds, shortDate, shortTime } from '@/lib/utils';
 
 export type PlayerPropResearchState = {
@@ -691,8 +691,9 @@ export function PlayerPropResearchCard({
   const sportKey = text(group.sport).toUpperCase();
   const individualSport = /^(tennis|atp|wta|itf)$/i.test(sportKey);
   const defenseMetric = React.useMemo(() => defenseMetricFor(sportKey, group.marketId, group.market), [sportKey, group.marketId, group.market]);
-  const defensePosition = exactPosition(
+  const defensePosition = matchupPosition(
     sportKey,
+    defenseMetric,
     research?.context?.sportradar?.primaryPosition,
     group.position,
     research?.context?.sportradar?.position,
@@ -1082,7 +1083,7 @@ export function PlayerPropResearchCard({
                   className={cx('rounded-[3px] px-1.5 text-[11px] font-bold leading-[18px]',
                     currentDefense.tier === 'soft' ? 'bg-[var(--pos-soft)] text-[var(--pos)]' : currentDefense.tier === 'tough' ? 'bg-[var(--neg-soft)] text-[var(--neg)]' : 'bg-[var(--surface-2)] text-[var(--text-2)]')}
                 >
-                  {MATCHUP_LABEL[currentDefense.tier]}{currentDefense.team ? ' vs ' + currentDefense.team : ''} · {ordinal(currentDefense.allowedRank)} of {currentDefense.leagueSize}
+                  {MATCHUP_LABEL[currentDefense.tier]}{currentDefense.team ? ' vs ' + currentDefense.team : ''} · {rankOf(currentDefense)}{defense?.fallback ? ' · ' + (defense.fallback.label === 'last season\'s final weeks' ? 'last season' : 'end of season') : ''}
                 </span>
               ) : null}
               <span className="rounded-[3px] bg-[var(--surface-2)] px-1.5 text-[11px] font-bold leading-[18px] text-[var(--text-2)]">{group.sport}</span>
@@ -1213,7 +1214,7 @@ export function PlayerPropResearchCard({
               <div className={cx('mt-1 truncate text-[15px] font-black leading-none', currentDefense?.tier === 'soft' ? 'text-[var(--pos)]' : currentDefense?.tier === 'tough' ? 'text-[var(--neg)]' : 'text-white')}>{currentDefense ? MATCHUP_LABEL[currentDefense.tier].replace(' matchup', '') : '—'}</div>
               <div className="mt-1 truncate text-[11px] text-[var(--text-2)]">
                 {currentDefense && defensePosition && defenseMetric
-                  ? currentDefense.team + ' ' + ordinal(currentDefense.allowedRank) + '-most allowed vs ' + defensePosition + ' · ' + metricLabel(defenseMetric)
+                  ? currentDefense.team + ' ' + ordinal(currentDefense.allowedRank) + '-most ' + metricLabel(defenseMetric) + ' allowed' + (defensePosition === 'ALL' ? '' : ' to ' + positionLabel(defensePosition)) + (defense?.fallback ? ' (' + defense.fallback.label + ')' : '')
                   : awaitingRank
                     ? 'Rated once every team has 3 games'
                     : 'Not rated for this prop'}
@@ -1528,7 +1529,7 @@ export function PlayerPropResearchCard({
               <div className="mt-2 flex items-center justify-between gap-2">
                 <p className="text-[12px] leading-4 text-[var(--text-3)]">
                   Only filters this player's verified history can answer are shown.
-                  {coverage.defenseTier ? ' Opponent defense uses each team\'s current rank vs ' + defensePosition + 's, not its rank at the time of the game.' : ''}
+                  {coverage.defenseTier ? ' Opponent defense uses each team\'s current rank vs ' + positionLabel(defensePosition) + ', not its rank at the time of the game.' : ''}
                   {coverage.winProb ? ' Win % is the no-vig closing moneyline for the latest 15 matches; older matches have no value and drop out when it is set.' : ''}
                   {coverage.opponentRank ? ' Opponent rank is today\'s ranking, not the ranking at the time of the match.' : ''}
                   {individualSport && moneylineLoading ? ' Loading closing moneylines…' : ''}

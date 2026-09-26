@@ -23,6 +23,7 @@ import {
   fetchAccount,
   fetchBoard,
   prefetchResearch,
+  espnEventOf,
   fetchMovement,
   fetchResearchBatch,
   movementKey,
@@ -1214,7 +1215,7 @@ function Face({ group, size }: { group: PropGroup; size: number }) {
       {!failed ? (
         // eslint-disable-next-line @next/next/no-img-element -- same-origin artwork proxy
         <img
-          src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId)}
+          src={artworkUrl(group.sport, group.player, group.team, group.providerPlayerId, espnEventOf(group))}
           alt=""
           width={size}
           height={size}

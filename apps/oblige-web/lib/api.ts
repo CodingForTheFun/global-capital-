@@ -844,15 +844,26 @@ export async function fetchLineHistory(propId: string, signal?: AbortSignal) {
 }
 
 /** The artwork route serves the image itself, so this is a URL, not a fetch. */
+/** PropLine's ESPN event id for a prop's game, when any of its quotes carries one. */
+export function espnEventOf(group: PropGroup): string | null {
+  for (const quote of group.quotes || []) {
+    const id = String((quote as PropRow & { espnEventId?: string | null }).espnEventId ?? '').trim();
+    if (/^\d{5,12}$/.test(id)) return id;
+  }
+  return null;
+}
+
 /** Same-origin team crest (the CSP blocks third-party images); a neutral badge when unmatched. */
 export function teamLogoUrl(sport: string, team: string) {
   return `/api/apex/team-logo?${new URLSearchParams({ sport: String(sport || '').toUpperCase(), team })}`;
 }
 
-export function artworkUrl(sport: string, name: string, team?: string | null, providerPlayerId?: string | null) {
+export function artworkUrl(sport: string, name: string, team?: string | null, providerPlayerId?: string | null, espnEventId?: string | null) {
   const params = new URLSearchParams({ sport, name });
   if (team) params.set('team', team);
   if (providerPlayerId) params.set('providerPlayerId', providerPlayerId);
+  // The prop's game, so the face is matched on the two rosters playing it.
+  if (espnEventId) params.set('event', espnEventId);
   return `/api/apex/player-artwork?${params}`;
 }
 

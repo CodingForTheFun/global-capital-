@@ -76,7 +76,12 @@ const sessionSecret = accountSecret();
 const accountSessions = createAccountSessions({ secret: sessionSecret });
 
 function child(file, port, label) {
-  const proc = spawn(process.execPath, [file], {
+  // The data core holds whole sports boards (MLB is over 200k props) and ran
+  // into V8's default ~4 GB heap in a 24 GB container, crashing the service.
+  // It alone gets a larger heap, still far inside the container.
+  const heapMb = Math.min(16384, Math.max(4096, Number(process.env.AUTOSCOUT_CORE_HEAP_MB) || 8192));
+  const args = label === 'Auto Scout data core' ? [`--max-old-space-size=${heapMb}`, file] : [file];
+  const proc = spawn(process.execPath, args, {
     env: { ...process.env, PORT: String(port) },
     stdio: ['ignore', 'inherit', 'inherit'],
   });

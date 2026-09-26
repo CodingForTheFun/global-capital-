@@ -64,3 +64,11 @@ test('no production rate limiter reads X-Forwarded-For directly any more', () =>
     assert.ok(!/x-forwarded-for/i.test(source), file + ' reads X-Forwarded-For directly');
   }
 });
+
+test('only the data core gets the larger heap, and the patched spawn line is unchanged', () => {
+  const source = readFileSync(new URL('../frontdoor-prod.mjs', import.meta.url), 'utf8');
+  assert.match(source, /label === 'Auto Scout data core' \? \[`--max-old-space-size=\$\{heapMb\}`, file\] : \[file\]/);
+  assert.match(source, /Math\.min\(16384, Math\.max\(4096, Number\(process\.env\.AUTOSCOUT_CORE_HEAP_MB\) \|\| 8192\)\)/);
+  // frontdoor-clearsports rewrites this exact line at boot; it must not move.
+  assert.ok(source.includes("const apex = child('apex-v2/server-core.mjs', APEX_PORT, 'Auto Scout data core');"));
+});

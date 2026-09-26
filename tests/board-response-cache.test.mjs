@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
@@ -46,21 +47,40 @@ test('a failed build is not cached', async () => {
 
 test('responses are gzipped when accepted, plain otherwise, and 304 on a matching ETag', async () => {
   const entry = await createBoardResponseCache().get('MLB|main', async () => board);
+  // The board serialised independently: both paths must send exactly these bytes.
+  const expected = await serializePublicBoard(board);
+  assert.equal(entry.raw, undefined, 'only the compressed board is kept in memory');
+  assert.equal(entry.rawLength, expected.length);
+  assert.equal(entry.etag, '"' + crypto.createHash('sha1').update(expected).digest('base64url') + '"', 'the ETag is the raw bytes\' hash');
   const gz = fakeRes();
-  sendBoardResponse({ headers: { 'accept-encoding': 'gzip, deflate, br' } }, gz, entry);
+  await sendBoardResponse({ headers: { 'accept-encoding': 'gzip, deflate, br' } }, gz, entry);
   assert.equal(gz.out.status, 200);
   assert.equal(gz.out.headers['content-encoding'], 'gzip');
   assert.equal(gz.out.headers['x-autoscout-public-json'], '1', 'the frontdoor still sees the sanitiser attestation');
-  assert.ok(gz.out.body.length < entry.raw.length / 3);
-  assert.equal(zlib.gunzipSync(gz.out.body).toString(), entry.raw.toString());
+  assert.ok(gz.out.body.length < expected.length / 3);
+  assert.ok(zlib.gunzipSync(gz.out.body).equals(expected));
 
   const plain = fakeRes();
-  sendBoardResponse({ headers: {} }, plain, entry);
+  await sendBoardResponse({ headers: {} }, plain, entry);
   assert.equal(plain.out.headers['content-encoding'], undefined);
-  assert.equal(plain.out.body, entry.raw);
+  assert.ok(Buffer.from(plain.out.body).equals(expected), 'a client without gzip gets byte-identical JSON');
+  assert.equal(plain.out.headers['content-length'], expected.length);
 
   const notModified = fakeRes();
-  sendBoardResponse({ headers: { 'if-none-match': 'W/' + entry.etag } }, notModified, entry);
+  await sendBoardResponse({ headers: { 'if-none-match': 'W/' + entry.etag } }, notModified, entry);
   assert.equal(notModified.out.status, 304);
   assert.equal(notModified.out.body, null);
+});
+
+test('a board past the stale window is freed when another is stored', async () => {
+  let clock = 0;
+  const cache = createBoardResponseCache({ ttlMs: 10, staleMs: 100, now: () => clock });
+  await cache.get('MLB|main', async () => board);
+  clock = 150;
+  await cache.get('NFL|main', async () => board);
+  // MLB is past its stale window: it is rebuilt on the next request, not served.
+  let builds = 0;
+  const again = await cache.get('MLB|main', async () => { builds++; return board; });
+  assert.equal(again.cache, 'miss');
+  assert.equal(builds, 1);
 });

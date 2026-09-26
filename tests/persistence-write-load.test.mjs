@@ -68,8 +68,8 @@ test('all-sport persistence shares the remaining cycle budget instead of letting
   assert.equal(fairSportPersistenceBudget({ cycleMs: 270_000, elapsedMs: 0, sportsRemaining: 2, maxSportMs: 60_000, safetyMs: 10_000 }), 60_000);
 });
 
-test('canonical RPC board chunks are moderately larger but still bounded', () => {
+test('canonical RPC board chunks reduce round trips but remain bounded', () => {
   const source = readFileSync(new URL('../lib/autoscout/supabase-persistence.mjs', import.meta.url), 'utf8');
-  assert.match(source, /RPC_BOARD_BATCH_SIZE = 250/);
-  assert.doesNotMatch(source, /RPC_BOARD_BATCH_SIZE = (?:500|1000|[2-9][0-9]{3,})/);
+  assert.match(source, /RPC_BOARD_BATCH_SIZE = 500/);
+  assert.doesNotMatch(source, /RPC_BOARD_BATCH_SIZE = (?:1000|[2-9][0-9]{3,})/);
 });
